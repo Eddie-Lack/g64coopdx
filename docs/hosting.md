@@ -35,8 +35,7 @@ No domain name is bought. The project's name is still open
 ([discovery/open-questions.md](discovery/open-questions.md#still-open)), so the lobby's address is a setting in the
 game and the first address is the one Fly.io gives the app.
 
-The owner accepted none of this yet. It is a recommendation, and every part can change later without a change to
-the game's design.
+The owner left this decision to the report. Every part can change later without a change to the game's design.
 
 ## Why
 
@@ -90,7 +89,7 @@ license, which is still open.
 ## What is set up today
 
 - **The lobby server placeholder** in [`server/`](../server/README.md): a program that answers a health check and
-  describes itself. It lists no sessions yet.
+  describes itself. It lists no sessions yet. It is built with a supported Go release (1.27 today).
 - **Its container image**, built by `make image` from `server/Dockerfile`.
 - **CI** (`.github/workflows/ci.yml`): on every pull request it tests the placeholder, builds the image, runs it
   and asks it for its health. On every push to `main` it also publishes the image to ghcr.io.
@@ -119,12 +118,16 @@ To put the placeholder online (optional before phase 4):
    fly tokens create deploy
    ```
 
-4. Run the "Deploy the lobby" workflow from the repository's Actions page.
+4. Run the "Deploy the lobby" workflow from the repository's Actions page. The workflow and `fly.toml` have not
+   run yet, because they need the account.
 5. Check it. The address is the one `fly launch` printed.
 
    ```bash
    curl https://g64coopdx-lobby.fly.dev/v1/info
    ```
+
+To let others run the lobby's image: open the package `g64coopdx-lobby` on GitHub, then Package settings, Change
+visibility, Public. A new package is private, and a public one cannot be made private again.
 
 For the relay, in phase 4:
 

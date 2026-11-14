@@ -40,13 +40,8 @@ of the report it shapes.
 | A custom level's world | The world of the shipped level whose row it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
 | Death in a bonus level | Sends only that player out; the others play on | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 | Cameos | The other players in that level are held still and hidden while a cameo runs | [README.md](README.md#bosses-bonus-levels-and-cameos) |
-
-## Recommended, not yet accepted
-
-| Topic | Recommendation | Where |
-| --- | --- | --- |
-| Where the services run | The lobby in a container on Fly.io; the relay and STUN from Cloudflare; builds on GitHub Releases; no domain until the name is chosen | [hosting.md](../hosting.md) |
+| Where the services run | The lobby in a container on Fly.io; the relay and STUN from Cloudflare; builds on GitHub Releases; no domain until the name is chosen. The owner left this decision to the report | [hosting.md](../hosting.md) |
 
 ## Still open
 
-The name. The owner picks it later; `g64coopdx` is the working name ([repository.md](repository.md#candidate-names)).
+Only the name. The owner picks it later; `g64coopdx` is the working name ([repository.md](repository.md#candidate-names)).

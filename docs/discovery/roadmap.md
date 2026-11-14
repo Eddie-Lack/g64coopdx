@@ -116,6 +116,8 @@ wide because each boss and each bonus level has its own code.
 - The relay: Cloudflare's managed TURN service, tested with libjuice first; coturn on a server as the fallback
   ([hosting.md](../hosting.md)).
 - The lobby deployed where [hosting.md](../hosting.md) says; its placeholder is already in `server/`.
+- An HTTPS client in the game for the lobby: the system's own on Windows (WinHTTP), libcurl on Linux (INFERRED;
+  chosen in this phase).
 - The handshake: protocol, build id, ROM hash, packs, settings ([netcode.md](netcode.md#the-handshake)).
 - Host and join screens, the lobby browser, the player list, chat, kick and ban with a confirm step, moderators,
   names and colors.

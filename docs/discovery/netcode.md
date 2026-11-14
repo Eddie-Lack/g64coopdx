@@ -280,7 +280,7 @@ Enhancements and Cheats are session settings that only the host sets; the cheat 
 every packet sealed), libjuice for ICE, and a TURN relay. The three libraries are small and written in C. The relay is a
 managed service, with coturn as the fallback ([hosting.md](../hosting.md)). libjuice lists
 Windows among its platforms; a MinGW build of each library was not tried, and phase 2 tries them, with
-GameNetworkingSockets' MinGW build as the alternative. Their licenses (MIT, ISC, MPL-2.0, BSD-3-Clause) suit MIT, the
+GameNetworkingSockets' MinGW build as the alternative. Their licenses (MIT, ISC, MPL-2.0) suit MIT, the
 license chosen for g64coopdx. MPL-2.0 asks that changes to libjuice's own files stay MPL-2.0 and be shared; use it
 unchanged.
 
