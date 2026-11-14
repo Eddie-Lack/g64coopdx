@@ -11,7 +11,8 @@ version; players may be in different levels of the same world; no lives; each pl
 
 **Feasibility.** The project is feasible. A rollback network game (see [Terms](#terms)) needs game logic that gives
 the same result on every machine, and savestates that are cheap to save and load. The PC port, weemitt, has both, and
-this discovery measured them:
+this discovery measured them (the fast savestates exist only in its 32-bit brute forcer today; the 64-bit build
+needs game change 8 first):
 
 - The same inputs gave the same game state on every run and every build tested: Linux and Windows, 32-bit and
   64-bit. The test ran all 48 levels and the attract mode. 196 pairs of repeated runs and 147 pairs of different
@@ -220,7 +221,8 @@ g64coopdx does not follow that rule (the owner's decision). Two facts still shap
 
 - Player 0 keeps the N64 addresses: `hand` at 0x802902D8, `ball` at 0x8029F978, and the others
   ([state-inventory.md](state-inventory.md)).
-- Players 1 and up are allocated on the game's heap at the start of a session. The heap is in `port_ram` and has
+- Every player slot (16) is allocated on the game's heap when the session starts, and a player who joins an instance
+  fills a slot at a confirmed frame. The heap is in `port_ram` and has
   about 21 MB free in a level (`weemitt/docs/host-world.md`); weemitt's host world already allocates there.
 - A table of pointers per player (`players[i].hand` and so on) points at the N64 globals for player 0 and at the heap
   for the others.
@@ -265,9 +267,9 @@ New tests:
    test run in CI without a ROM ([repository.md](repository.md#ci)).
 2. **The session harness.** A host and N clients in one run, on loopback, each fed a recorded input file, with a
    simulated network (latency, jitter, loss, reordering, duplication). The check: every client's state hash at every
-   confirmed frame equals the host's, and equals one offline run of the host's confirmed input log. Several games in
-   one process work (one per copy of the library file, [weemitt.md](weemitt.md#a-separate-program-on-the-library)),
-   or one process per client.
+   confirmed frame equals the host's, and equals one offline run of the host's confirmed input log. With the static
+   build, each client is its own process. (weemitt's library also allows several games in one process, one per copy
+   of the library file: [weemitt.md](weemitt.md#a-separate-program-on-the-library).)
 3. **Across systems.** The same session's input log replayed on Linux and on Windows (Wine in CI) gives the same
    hashes.
 4. **Instances, late join and repair.** Players who move between levels, a client that enters a running level at
@@ -281,7 +283,7 @@ New tests:
 | --- | --- | --- |
 | 1 | The multi-player refactor is larger than estimated (225 functions, about 140 identity tests, five boss functions, five bonus levels, cameos) | The swap spike in phase 1 finds the shared state early; then system by system, each step checked by the determinism tests; measure the pace after the glove and ball, and re-plan |
 | 2 | The frame limits for 16 gloves: object matrices (256, peak 158 with one idle glove), the display list's per-task check, vertices (800) | Measure with bots and 16 players in phase 3; raise them on the game's heap or by growing the globals |
-| 3 | The logic reads sound state (a Samtex enemy's sound handle; sounds that stop by camera distance) | List every read of sound state by the logic; split the logical part from the output in phase 2 |
+| 3 | The logic reads sound state (a Samtex enemy's sound handle; sounds that stop by camera distance) | List every read of sound state by the logic; split the logical part from the output in phase 2 (game change 12) |
 | 4 | Determinism holds on the paths the tests did not reach (rope swinging, rare enemies, the bosses with many players) | The bots in phase 3 run every level on Linux and Windows; every session checks hashes, so a break shows at once with the frame |
 | 5 | Wine is not Windows; a different CPU or a Windows update could change a math function | Run the cross-system test on real Windows before release; the game's math avoids the C library at whole frames, but check each libm call the logic makes |
 | 6 | A level start is not fully set by a small start record. Entering a level that others play, late join and repair all assume it | The phase 1 experiment; fallback: a player joins a level only when it starts, and others wait for a new instance |

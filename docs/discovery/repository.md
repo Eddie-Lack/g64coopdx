@@ -12,17 +12,18 @@ g64coopdx/
   README.md                 for players
   THIRD_PARTY_NOTICES.md    the licenses of vendored libraries
   Makefile                  the build (below)
-  weemitt/                  g64coopdx's copy of weemitt (git subtree); the game code that co-op changes
+  weemitt/                  g64coopdx's copy of all of weemitt's tree (git subtree); co-op changes its game code
     SOURCE                  the weemitt commit the copy was last taken from
   src/
     session/                players, slots, the start record, the handshake, settings
-    rollback/               the frame clock, input queues, prediction, savestates, confirmation, desync checks
+    rollback/               the frame clock, input queues, prediction, confirmation, desync checks; it calls the
+                            savestate engine in the copy (bruteforce/engine)
     net/                    the transport behind a table of functions: direct UDP, ICE, relay
     lobby/                  the client side of the lobby and signaling server
     ui/                     host and join screens, the player list, chat, name tags (ImGui, as weemitt's menu)
     lua/                    the Lua runtime's arena, the API, the sandbox
     packs/                  level packs: reading, checking, the cache, downloads
-    platform/               the window, audio output, input devices (from weemitt's platform layer, by its interface)
+    platform/               the window, audio output and input devices, built on the copy's platform layer
   server/                   the lobby and signaling server (a separate program)
   third_party/              ENet, libjuice, libsodium, Lua 5.4: vendored sources at pinned versions
   tests/
@@ -137,6 +138,9 @@ docs/ (start with docs/discovery/README.md).
   ports, sm64coopdx and its CoopNet included. Study their design and docs only. Write the code from public
   documentation or your own design. The owner's own projects (weemitt, gloveworld, Glovebox) are not other ports:
   their code may be used.
+- **This file's rules win over `weemitt/CLAUDE.md`.** That file is weemitt's own, and its rules for an exact copy of
+  the original game (the memory layout rule, weemitt's baseline, the frame-rate and emulator checks) do not apply
+  here. Its rules on the ROM and on leaked or other ports' code agree with this file.
 - **Game changes go in `weemitt/`, and only there.** weemitt's own rules for an exact copy of the original game
   (its memory layout rule, its baseline) do not apply here. Keep co-op code in its own functions and files where you
   can; it makes weemitt's later fixes easier to take. Record each pull from weemitt in `weemitt/SOURCE`.
@@ -176,7 +180,7 @@ These commands are planned; none exists yet.
 
 | What | Where |
 | --- | --- |
-| A change to the game's logic | weemitt, as a pull request |
+| A change to the game's logic | `weemitt/`, g64coopdx's copy |
 | The network, rollback, sessions | src/net, src/rollback, src/session |
 | The Lua API | src/lua, documented in docs/lua-api.md |
 | A design decision | docs/design.md |

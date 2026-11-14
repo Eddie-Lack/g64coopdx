@@ -9,7 +9,7 @@ with a look through weemitt's log for fixes worth taking into the copy.
 | --- | --- | --- | --- |
 | 0. The skeleton | The copy of weemitt in place; a 64-bit build with savestates; CI that runs the toy game's rollback tests | 2 to 4 weeks | game change 8 |
 | 1. Two gloves offline | Two players, two controllers, one hub level, on one machine; a level started from a record | 4 to 6 weeks | 0; game changes 1, 2 (first part), 7 and 9 |
-| 2. Rollback on a LAN | 2 to 4 players over direct UDP, in different levels of one world, with desync checks | 5 to 8 weeks | 1; game changes 5 and 10 |
+| 2. Rollback on a LAN | 2 to 4 players over direct UDP, in different levels of one world, with desync checks | 5 to 8 weeks | 1; game changes 3 (first part), 5, 10 and 12 |
 | 3. The whole game in co-op | Every level, boss and bonus level, 8 players, the owner's rules | 8 to 14 weeks | 2; game changes 2 to 4 and 11 |
 | 4. Online services | Lobby, NAT traversal, relay, encryption, chat, moderation, 16 players | 4 to 6 weeks | 2 (can run beside 3) |
 | 5. Mods | Lua scripts and level packs from Glovebox, downloaded on join | 6 to 9 weeks | 2; game change 6; Glovebox's pack export |
@@ -17,14 +17,15 @@ with a look through weemitt's log for fixes worth taking into the copy.
 
 In all: about 31 to 51 weeks with every phase done one after another, so roughly 7 to 12 months for one person
 (INFERRED). Phase 4 can run beside phase 3, which shortens the calendar time but not the work. g64coopdx does not have
-to keep the original game exact at one player, which saves work in phases 1 and 3; keeping its own baseline and
+to prove that each change leaves the one-player game exactly as the original, which saves work in phases 1 and 3; keeping its own baseline and
 taking weemitt's fixes by hand costs a little in every phase.
 
 ## Phase 0: the skeleton
 
 - The repository layout of [repository.md](repository.md).
 - The copy of weemitt, added with `git subtree` at a pinned commit, with `weemitt/SOURCE` naming it. Its first commit
-  is weemitt unchanged, and weemitt's `tools/regress.py check` passes on it.
+  is weemitt unchanged, and weemitt's `tools/regress.py check` passes on it, with weemitt's own headless build. This
+  checks the copy only; g64coopdx's own builds are 64-bit.
 - g64coopdx's own baseline, recorded from that commit with weemitt's tools.
 - The Makefile that builds the copy's game with its own flags and links it with g64coopdx's code.
 - The toy game: a few hundred lines of deterministic C (bodies, inputs, a random generator) behind the same
@@ -67,14 +68,16 @@ same hashes on Linux and Windows (Wine), every frame.
 - The rollback core moves from the toy to the game. Savestates by the static build's sections (the brute forcer's
   engine), full copies first.
 - Direct UDP with ENet; the host confirms inputs.
-- Sound: the split of logical sound state from its output, so a rollback does not replay sounds
-  ([netcode.md](netcode.md#sound-and-rollback)). This is a change to the game code.
+- Game change 12, the sound split: the logical sound state apart from its output, so a rollback does not replay
+  sounds ([netcode.md](netcode.md#sound-and-rollback)).
 - Desync checks, with game change 5 (a cheaper state hash): hashes of confirmed frames on a worker thread; on a
   mismatch, a rebuild from the level's start and a report.
 - Instances: one per occupied level; the host's reference copy of each in a worker process; entering a level that
   others play by replaying its input log; leaving a level; session events at confirmed frames; the one-world rule at
   the hub's portals ([netcode.md](netcode.md#instances)).
 - Game change 10: players who join and leave a running level at a frame.
+- Game change 3, first part: the hooks that instances need (level start and end, a player leaving a level, session
+  events).
 - The headless harness: N clients and a host in one run on loopback, with recorded inputs per player and a simulated
   network.
 
@@ -94,7 +97,7 @@ harness at N players and by the determinism tests:
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
 5. Exits and the hub: each player exits alone, the ball left behind, world doors.
-6. Bosses (5 with code, `boss.c`) and bonus levels (5).
+6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).
@@ -115,7 +118,8 @@ wide because each boss and each bonus level has its own code.
   names and colors.
 - Fuzz targets for every parser.
 
-Playable: 16 people from home networks. Test: the harness through the relay; fuzzing in CI; a test with real
+Playable: up to 16 people from home networks (the design limit; the promise stays 8 until phase 3's 16-glove
+measurement passes). Test: the harness through the relay; fuzzing in CI; a test with real
 machines on two networks.
 
 ## Phase 5: mods
@@ -143,6 +147,6 @@ and plays.
 | --- | --- |
 | 0 | 8 (64-bit savestates) |
 | 1 | 1 (pads), 2 (per-player state, first part), 7 (PC additions off), 9 (a level from a record) |
-| 2 | 5 (cheap hash), 10 (players join and leave a level), the sound split |
-| 3 | 2 (the rest), 3 (hooks), 4 (frame limits), 11 (the owner's rules) |
+| 2 | 3 (hooks, first part), 5 (cheap hash), 10 (players join and leave a level), 12 (the sound split) |
+| 3 | 2 (the rest), 3 (the rest), 4 (frame limits), 11 (the owner's rules) |
 | 5 | 6 (level packs) |

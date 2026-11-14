@@ -235,8 +235,8 @@ where. Changes to it come from one instance and may matter to another: a hub doo
   identical on every machine and in the savestate.
 - Plan (INFERRED): split the sound into its logical part (handles, which sound plays, its timers), run in every
   frame and saved, and its output (the synthesizer and the samples), driven only by the frames the player sees.
-  Sounds started in a resimulated frame that the display already played are not started again. This is a change to the
-  game code. UNKNOWN: how much of libmus's state the logic can see. Settle it by listing the logic's reads of sound
+  Sounds started in a resimulated frame that the display already played are not started again. This is game change 12
+  ([weemitt.md](weemitt.md#changes-to-the-game-code)). UNKNOWN: how much of libmus's state the logic can see. Settle it by listing the logic's reads of sound
   state.
 
 ### Settings that change the logic

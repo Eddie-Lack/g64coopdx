@@ -50,7 +50,7 @@ that every PC build agrees with every other, which the measurements below show.
 
 | Property | What was found | Evidence |
 | --- | --- | --- |
-| **Bit-exact logic at one whole frame per update** | Two runs with the same input give the same trace and memory hash, frame by frame | Measured: all 48 levels for 6,000 frames and the attract mode, hashes every 10 frames ([experiments](#experiments)) |
+| **Bit-exact logic at one whole frame per update** | Two runs with the same input give the same trace and memory hash, frame by frame | Measured: all 48 levels and the attract mode, hashes every 10 frames ([experiments](#experiments)) |
 | **The same across builds** | Linux 32-bit and Linux 64-bit: the same trace and memory hash. Linux 64-bit and Windows 64-bit: the same. Linux 32-bit and Windows 32-bit libraries: the same trace and hash. (The 32-bit Windows window program loads low, so its hash treats some numbers as pointers and is not comparable, `docs/testing.md`) | Measured ([experiments](#experiments)) |
 | **No other source of change** | The game's only random source is `rseed`; its only clock feeds profiler timers | `docs/testing.md`, "Recording and replay" |
 | Delta time | Not exact across systems: at updates shorter than a frame, helpers use the C library's `pow` and `exp`, which differ in the last bits between Linux and Windows | `docs/testing.md`; `docs/delta-time.md` |
@@ -162,9 +162,10 @@ original game exact. Each must keep the game the same on every machine for the s
 | 9 | **Start a level from a record:** the level, the save, the players' carried state, with no play before it; and a test that compares it with a level reached by play | instances, late join, repair ([netcode.md](netcode.md#instances)) | medium |
 | 10 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
 | 11 | **The owner's co-op rules:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#the-owners-co-op-rules)) | medium |
+| 12 | **The sound split:** the sound's logical state (handles, which sound plays, its timers), saved with the game, apart from its output, which only the frames the player sees drive ([netcode.md](netcode.md#sound-and-rollback)) | a rollback must not play sounds again | medium |
 
-Other files cite these as "game change N". Changes 1 and 8 let a prototype start. Changes 2, 3, 10 and 11 are most
-of the game work.
+Other files cite these as "game change N". Changes 1, 7, 8, 9 and the first part of 2 let a prototype start. Changes 2, 3,
+10 and 11 are most of the game work.
 
 **What a layout change costs.** weemitt's tables in `gen/` give every global its N64 offset. Growing a global in
 `port_ram` means regenerating `gen/` from a built gloveworld, which needs gloveworld's toolchain and the MIPS tools
