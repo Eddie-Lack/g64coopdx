@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Lobby server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - name: Format, vet and test
+        run: make test
+      - name: Build the program
+        run: make server
+      - name: Build the container image
+        run: make image VERSION="${GITHUB_SHA::12}"
+      - name: Run the image and ask it for its health
+        run: |
+          docker run -d --name lobby -p 8080:8080 g64coopdx-lobby
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://localhost:8080/healthz; then break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8080/v1/info | grep '"placeholder":true'
+
+  publish:
+    name: Publish the lobby image
+    needs: server
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push to the GitHub container registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/g64coopdx-lobby"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build --build-arg VERSION="${GITHUB_SHA::12}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            -t "$image:latest" -t "$image:${GITHUB_SHA::12}" server
+          docker push --all-tags "$image"

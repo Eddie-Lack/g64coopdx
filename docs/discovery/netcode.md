@@ -270,14 +270,15 @@ Enhancements and Cheats are session settings that only the host sets; the cheat 
 | SDL_net | zlib | Plain sockets | Too low level |
 | libsodium | ISC | Encryption | Pairs with ENet |
 | Monocypher | BSD-2-Clause or CC0 | Encryption, one file | Pairs with ENet |
-| coturn | BSD-3-Clause (read from its LICENSE header) | A TURN and STUN server; 4.19.0, 14 November 2026 | The relay, run as its own server |
+| coturn | BSD-3-Clause (read from its LICENSE header) | A TURN and STUN server; 4.19.0, 14 November 2026 | The fallback relay, run as its own server |
 | Steamworks networking | Steamworks SDK terms (not read) | Valve's relay, P2P | Needs the game on Steam; not an option for a ROM-based project (INFERRED) |
 | Epic Online Services P2P | Epic's SDK terms (not read) | Relay, lobbies | A proprietary service and account; not first choice |
 | Discord Game SDK | proprietary, archived | | Do not build on it |
 | CoopNet (sm64coopdx's lobby) | AGPL-3.0 (VERIFIED: its LICENSE on branch `master`) | Lobby and signaling over libjuice | Another port's code; do not use |
 
 **Recommendation (INFERRED):** ENet for the channels, libsodium for encryption (a key exchange at connect, then
-every packet sealed), libjuice for ICE, coturn for the relay. All four are small and written in C. libjuice lists
+every packet sealed), libjuice for ICE, and a TURN relay. The three libraries are small and written in C. The relay is a
+managed service, with coturn as the fallback ([hosting.md](../hosting.md)). libjuice lists
 Windows among its platforms; a MinGW build of each library was not tried, and phase 2 tries them, with
 GameNetworkingSockets' MinGW build as the alternative. Their licenses (MIT, ISC, MPL-2.0, BSD-3-Clause) suit MIT, the
 license chosen for g64coopdx. MPL-2.0 asks that changes to libjuice's own files stay MPL-2.0 and be shared; use it
@@ -288,9 +289,9 @@ unchanged.
 | Service | What | Who runs it |
 | --- | --- | --- |
 | Direct connection | The host shares an address and port; a joiner types it | Nobody |
-| Lobby and signaling server | Lists open sessions (name, version, player count, packs, password flag); passes ICE candidates between host and joiner; hands out short-lived TURN credentials | The project: a small program of its own, written from scratch |
-| TURN relay | Carries the traffic when traversal fails | The project, with coturn |
-| STUN | Tells a machine its public address | The project's coturn, or public STUN servers |
+| Lobby and signaling server | Lists open sessions (name, version, player count, packs, password flag); passes ICE candidates between host and joiner; hands out short-lived TURN credentials | The project: a small program of its own, written from scratch, in a container on Fly.io ([hosting.md](../hosting.md#the-lobby-server)) |
+| TURN relay | Carries the traffic when traversal fails | Cloudflare's managed TURN service, with coturn on a server of the project's own as the fallback ([hosting.md](../hosting.md#the-relay)) |
+| STUN | Tells a machine its public address | Cloudflare's public STUN server; the lobby names the servers, so they can change |
 
 The lobby server never sees game data: only session descriptions, ICE candidates and the handshake. sm64coopdx's
 lobby (CoopNet) does the same job. g64coopdx follows its design: a lobby that only introduces players, the version in

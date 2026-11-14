@@ -1,0 +1,30 @@
+name: Deploy the lobby
+
+# Started by hand. It needs the repository secret FLY_API_TOKEN (docs/hosting.md).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: deploy-lobby
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the token is set
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::The secret FLY_API_TOKEN is not set. See docs/hosting.md."
+            exit 1
+          fi
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        working-directory: server
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --build-arg VERSION="${GITHUB_SHA::12}"

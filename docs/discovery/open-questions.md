@@ -41,6 +41,12 @@ of the report it shapes.
 | Death in a bonus level | Sends only that player out; the others play on | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 | Cameos | The other players in that level are held still and hidden while a cameo runs | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 
+## Recommended, not yet accepted
+
+| Topic | Recommendation | Where |
+| --- | --- | --- |
+| Where the services run | The lobby in a container on Fly.io; the relay and STUN from Cloudflare; builds on GitHub Releases; no domain until the name is chosen | [hosting.md](../hosting.md) |
+
 ## Still open
 
-Only the name. The owner picks it later; `g64coopdx` is the working name ([repository.md](repository.md#candidate-names)).
+The name. The owner picks it later; `g64coopdx` is the working name ([repository.md](repository.md#candidate-names)).
