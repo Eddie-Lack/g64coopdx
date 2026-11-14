@@ -1,29 +1,52 @@
 name: Deploy the lobby
 
-# Started by hand. It needs the repository secret FLY_API_TOKEN (docs/hosting.md).
+# Deploys the lobby server to Fly.io (docs/hosting.md). It needs the repository secret FLY_API_TOKEN.
+# A push to main that changes server/ deploys. The workflow can also be started by hand.
 on:
+  push:
+    branches: [main]
+    paths: ['server/**', '.github/workflows/deploy-lobby.yml']
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency: deploy-lobby
+# A second deploy waits for the first.
+concurrency:
+  group: deploy-lobby
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Check that the token is set
+        id: token
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          if [ -z "$FLY_API_TOKEN" ]; then
+          if [ -n "$FLY_API_TOKEN" ]; then
+            echo "set=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "::error::The secret FLY_API_TOKEN is not set. See docs/hosting.md."
             exit 1
+          else
+            echo "::notice::The secret FLY_API_TOKEN is not set, so nothing was deployed. See docs/hosting.md."
           fi
-      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
+      - name: Test
+        if: steps.token.outputs.set == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache: false
+      - if: steps.token.outputs.set == 'true'
+        run: make test
+      - if: steps.token.outputs.set == 'true'
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       - name: Deploy
+        if: steps.token.outputs.set == 'true'
         working-directory: server
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

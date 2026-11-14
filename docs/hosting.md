@@ -94,33 +94,35 @@ license, which is still open.
 - **CI** (`.github/workflows/ci.yml`): on every pull request it tests the placeholder, builds the image, runs it
   and asks it for its health. On every push to `main` it also publishes the image to ghcr.io.
 - **The Fly.io settings** in `server/fly.toml`. They hold no secret.
-- **A deploy workflow** (`.github/workflows/deploy-lobby.yml`), started by hand. It fails with a clear message
-  until its token exists.
+- **A deploy workflow** (`.github/workflows/deploy-lobby.yml`). It deploys on a push to `main` that changes
+  `server/`, or when started by hand. Until its token exists it deploys nothing.
 
-Nothing runs on Fly.io or Cloudflare yet. Both need an account that only the owner can open.
+Nothing runs on Fly.io or Cloudflare yet. The owner has a Fly.io account; the steps below need it.
 
 ## What the owner has to do
 
 To put the placeholder online (optional before phase 4):
 
-1. Open a Fly.io account and install its `flyctl` tool.
-2. In `server/`, create the app from the settings in the repository. If the name is taken, pick another and commit
-   the changed `fly.toml`.
+The owner's Fly.io account already runs another project, slugs-game. The lobby is a second app in that account. An
+app has its own machine, address, secrets and bill line, so the two projects do not touch each other.
+
+1. Create the app. If the name is taken, pick another, and commit the new name in `server/fly.toml`.
 
    ```bash
-   fly launch --copy-config --no-deploy
+   fly apps create g64coopdx-lobby
    ```
 
-3. Make a deploy token and save it as the repository secret `FLY_API_TOKEN` (Settings, Secrets and variables,
-   Actions).
+2. Make a deploy token for this app only.
 
    ```bash
-   fly tokens create deploy
+   fly tokens create deploy -a g64coopdx-lobby
    ```
 
-4. Run the "Deploy the lobby" workflow from the repository's Actions page. The workflow and `fly.toml` have not
-   run yet, because they need the account.
-5. Check it. The address is the one `fly launch` printed.
+3. Save the token as the secret `FLY_API_TOKEN` of the g64coopdx repository (Settings, Secrets and variables,
+   Actions). slugs-game keeps its own token; a deploy token works for one app.
+4. Run the "Deploy the lobby" workflow from the repository's Actions page. From then on, every push to `main` that
+   changes `server/` deploys. The workflow and `fly.toml` have not run against Fly.io yet.
+5. Check it.
 
    ```bash
    curl https://g64coopdx-lobby.fly.dev/v1/info
