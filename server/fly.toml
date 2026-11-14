@@ -1,8 +1,10 @@
 # The lobby server on Fly.io (docs/hosting.md). This file holds no secret.
-# "fly launch --copy-config --no-deploy" may change the app name if this one is taken.
+# The app is a second app in the Fly.io account that also runs slugs-game. Create it once:
+#   fly apps create g64coopdx-lobby
 
 app = "g64coopdx-lobby"
-primary_region = "ams"
+# Chicago, as the account's other app. The lobby carries no game traffic, so its place matters little.
+primary_region = "ord"
 
 [build]
   dockerfile = "Dockerfile"
