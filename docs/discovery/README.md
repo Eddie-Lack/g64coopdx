@@ -162,9 +162,10 @@ checkpoint. What remains open is in [open-questions.md](open-questions.md).
   health is shared by the players fighting it; any player's ball hurts it. The five bosses with code
   (`weemitt/src/game/boss.c`) each need a pass.
 - Bonus levels: the players in the bonus instance play at once, with its shared timer. Losing a life in a bonus level
-  ends it today (`hand.c:3799-3803`); with no lives, a death in a bonus level sends only that player out.
-- Cameos (scripted scenes) run for everyone in the instance. They move the glove of the player who triggered them;
-  the others are held still and hidden while the cameo runs.
+  ends it today (`hand.c:3799-3803`). With no lives, the proposal is that a death in a bonus level sends only that
+  player out (open question).
+- Cameos (scripted scenes) run for everyone in the instance. They move the glove of the player who triggered them.
+  The proposal: the others are held still and hidden while the cameo runs (open question).
 
 ### Pause and menus
 

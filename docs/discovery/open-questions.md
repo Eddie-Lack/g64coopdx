@@ -22,7 +22,6 @@ with where each one shaped the report. The rest are still open; each has a recom
 | License | MIT for g64coopdx's own code | [repository.md](repository.md#license) |
 | Builds | Published | [repository.md](repository.md#what-may-be-distributed) |
 | Name | Decided later; `g64coopdx` is the working name | [repository.md](repository.md#candidate-names) |
-| History | The repository's first commits were rewritten without the session link and the model name | |
 
 ## Still open
 
@@ -43,3 +42,5 @@ with where each one shaped the report. The rest are still open; each has a recom
 | 13 | Should Glovebox get an "Export level pack" action and put imported models in banks of their own? | Yes, in phase 5 | [mods.md](mods.md#the-level-pack) |
 | 14 | Should players' own glove and ball models be allowed (they change only the picture)? | Yes, as packs, after phase 5 | [mods.md](mods.md#player-models) |
 | 15 | A custom level from a pack: which world does it belong to, for the one-world rule? | The world of the shipped level whose row it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
+| 16 | A death in a bonus level, with no lives: does it send only that player out? | Yes; the others play on | [README.md](README.md#bosses-bonus-levels-cameos) |
+| 17 | While a cameo (scripted scene) runs, are the other players in that level held still and hidden? | Yes | [README.md](README.md#bosses-bonus-levels-cameos) |

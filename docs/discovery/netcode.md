@@ -183,7 +183,8 @@ record**:
 - the session's settings (ball pickup rule, cheats, difficulty) and packs;
 - the session's save at that frame (512 bytes; the EEPROM holds no ROM data, `weemitt/docs/testing.md`);
 - each player's carried state: slot, ball type, power-ups, the hub's left-behind ball;
-- the random seed (`LoadLevel` reseeds it, `weemitt/src/game/game.c:1454`).
+- no random seed: every level start sets the same fixed seed (`SeedRandom` in `StartNewLevel`,
+  `weemitt/src/game/game.c:1454`; `maths.c:31`), so the record need not carry it.
 
 **A machine runs one instance:** the one its player is in. The host runs a reference copy of every instance on
 confirmed inputs. With one game per process (the static build, or one library copy), the host runs each extra

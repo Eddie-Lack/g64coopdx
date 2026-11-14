@@ -25,7 +25,8 @@ In all: about 32 to 52 weeks, so roughly 8 to 12 months for one person (INFERRED
 - The rollback core against the toy: frame clock, input queues, prediction, savestates, confirmation by the host,
   hash checks. Loopback tests with simulated latency, loss and reordering, 2 to 16 clients.
 - CI on Linux and Windows (MinGW, Wine).
-- The 32-bit static build of weemitt's game; a check that its memory hash is the same on Linux and Windows
+- The 32-bit static build of weemitt's game; a check that a Linux build's memory hashes equal the Windows build's,
+  and the offset pointer representation if they do not
   ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)).
 - The MIT `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 
@@ -116,10 +117,11 @@ and plays.
 
 ## Phase 6: release
 
-- A Windows release (64-bit), with SDL2 and the notices.
+- A Windows release (32-bit, or 64-bit once upstream item 10 is done), with SDL2 and the notices.
 - Crash reports that hold no game memory.
 - Player docs in the owner's style.
-- The license, the name, the distribution rules ([open-questions.md](open-questions.md)).
+- The name and the license's copyright holder ([open-questions.md](open-questions.md)); weemitt's license, which a
+  release also needs.
 
 ## Upstream items by phase
 

@@ -110,12 +110,18 @@ does (`bruteforce/Makefile`, VERIFIED). It links them statically, or uses `libgl
   `bruteforce/docs/engine.md`) without waiting for savestates in the library. A later move to `libglover` stays
   possible: the interface is the same set of calls.
 - **The first builds are 32-bit, for Windows and Linux.** The brute forcer and its savestates exist only as 32-bit
-  programs (`docs/building.md`: "The studio, the Space demo and the brute forcer stay 32-bit"). The 64-bit programs
-  are position-independent (`docs/architecture.md`), and their data sections include `.data.rel` and others that the
-  engine's section check does not accept yet (`docs/port64.md`, "What is left", item 1). The 32-bit libraries gave
-  equal hashes on Linux and Windows (measured); the brute forcer's Windows build loads at a fixed high address
-  (`bruteforce/Makefile`), which removes the cause of the 32-bit Windows program's odd hashes (INFERRED; phase 0
-  tests it). 64-bit builds follow when upstream item 10 is done.
+  programs (`docs/building.md`: "The studio, the Space demo and the brute forcer stay 32-bit"). On Linux the 64-bit
+  program is position-independent (`docs/architecture.md`), and its objects have `.data.rel` sections (6 of the game's
+  and runtime's objects in `build/headless64`, measured with `objdump -h`), which the engine's section check does not
+  accept yet (`docs/port64.md`, "What is left", item 1). The 64-bit Windows objects have none (measured); there the
+  engine has simply never been built at 64 bits. 64-bit builds follow when upstream item 10 is done.
+- **The 32-bit hash across systems needs care.** The 32-bit libraries gave equal hashes on Linux and Windows
+  (measured), because they store the game's pointers as offsets (`docs/library.md`). A static 32-bit build stores
+  host pointers. The brute forcer's Windows build loads at a fixed high address (`bruteforce/Makefile`), which removes
+  one cause of the 32-bit Windows program's different hashes. A second cause remains: raw sound data in `pbankBuffer`
+  that looks like an address in `port_ram` (`bruteforce/docs/upstream.md`). The likely remedy: build the static game
+  with the offset representation of pointers, as the libraries and the displaced test build do (INFERRED). Phase 0
+  compares a Linux build's hashes with the Windows build's.
 - Fixes flow one way for the game: into weemitt, then into g64coopdx by moving the submodule. g64coopdx's CI builds
   each new weemitt commit with its own tests ([repository.md](repository.md#ci)).
 
@@ -139,7 +145,7 @@ passes. New state goes in new globals outside `port_ram`. Ordered by when g64coo
 | 7 | **Savestates in the library** (`docs/port64.md` item 1): the renamed sections in the `-fPIC` build, a snapshot before `port_game_init` | the library route | medium |
 | 8 | **Level packs:** a `.lev` and banks from buffers, extra bank lists outside `port_ram`, rotation and scale on every object type | custom levels ([mods.md](mods.md)) | medium |
 | 9 | **An option that turns off every PC addition the controller can reach** (`bruteforce/docs/upstream.md` asks for it too) | a network game must not let one player open a local cheat menu that changes the shared game | small |
-| 10 | **64-bit savestates:** the engine's renamed sections and page tracker for the position-independent 64-bit build (`.data.rel`, `.data.rel.local`, `.data.rel.ro*`). Full copies (0.4 ms) are enough at first | 64-bit builds of g64coopdx | small to medium |
+| 10 | **64-bit savestates:** on Linux, the engine's renamed sections must accept the position-independent build's `.data.rel`, `.data.rel.local` and `.data.rel.ro*`; on Windows, the engine must be built and tested at 64 bits. Full copies (0.4 ms) are enough at first | 64-bit builds of g64coopdx | small to medium |
 | 11 | **Start a level from a record:** the level, the save, the players' carried state and the random seed, with no play before it; and a test that compares it with a level reached by play | instances, late join, repair ([netcode.md](netcode.md#instances)) | medium |
 | 12 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
 | 13 | **The owner's rules as options, inert at one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#what-the-owners-rules-add)) | medium |
