@@ -58,7 +58,7 @@ playable or testable. [roadmap.md](roadmap.md).
 | [mods.md](mods.md) | 8 | Lua, custom levels and models from Glovebox, sharing mods without game data |
 | [repository.md](repository.md) | 12 | The layout, build, CI, license, ROM rules, a draft CLAUDE.md, names |
 | [roadmap.md](roadmap.md) | | Phases, sizes and dependencies |
-| [open-questions.md](open-questions.md) | | The decisions only the owner can make |
+| [open-questions.md](open-questions.md) | | The owner's decisions |
 | [experiments/](experiments/) | | The scripts behind the measurements |
 
 This file answers questions 5, 9, 10, 11 and 13.
@@ -83,7 +83,7 @@ This file answers questions 5, 9, 10, 11 and 13.
 
 The owner's decisions shape this section: each player a glove with its own ball; players may be in different levels
 of the same world; no lives; each player exits alone; ball pickup is a host option; respawn at the player's own
-checkpoint. What remains open is in [open-questions.md](open-questions.md).
+checkpoint. The full list of decisions is in [open-questions.md](open-questions.md#decided).
 
 ### Worlds, levels and instances
 
@@ -113,7 +113,7 @@ checkpoint. What remains open is in [open-questions.md](open-questions.md).
 - Ball changes from power-ups (bowling, crystal, ball-bearing and the others) apply to the ball that touched the
   power-up, or to the ball of the player who took it when a glove takes it.
 - Gloves and balls do not collide with each other in the first version: the game has no such physics, and new
-  physics would be new game logic to prove (open question).
+  physics would be new game logic to prove.
 - Any ball works for puzzles: a switch a ball presses, a gate a ball falls through.
 
 ### The camera
@@ -140,8 +140,8 @@ checkpoint. What remains open is in [open-questions.md](open-questions.md).
 - **Each player exits alone**: a player who brings a ball to the exit leaves the level, and the others play on.
   The game's own exit rule decides where the player goes next (`ExitLevel`, `weemitt/src/game/game.c:3716`), usually
   the world's hub section.
-- With any-ball pickup, a player may carry another player's ball to the exit. The proposal: the ball's real owner
-  then gets a new ball at their checkpoint. This detail is open ([open-questions.md](open-questions.md)).
+- With any-ball pickup, a player may carry another player's ball to the exit. The ball's real owner then gets a new
+  ball at their checkpoint.
 - The exit timers (`levelExitTimer` and the others) become per player.
 - The "left behind" ball in the hub (`ballLeftBehind`) is kept per player.
 
@@ -162,10 +162,10 @@ checkpoint. What remains open is in [open-questions.md](open-questions.md).
   health is shared by the players fighting it; any player's ball hurts it. The five bosses with code
   (`weemitt/src/game/boss.c`) each need a pass.
 - Bonus levels: the players in the bonus instance play at once, with its shared timer. Losing a life in a bonus level
-  ends it today (`hand.c:3799-3803`). With no lives, the proposal is that a death in a bonus level sends only that
-  player out (open question).
+  ends it today (`hand.c:3799-3803`). With no lives, a death in a bonus level sends only that player out; the others
+  play on.
 - Cameos (scripted scenes) run for everyone in the instance. They move the glove of the player who triggered them.
-  The proposal: the others are held still and hidden while the cameo runs (open question).
+  The others in that level are held still and hidden while the cameo runs.
 
 ### Pause and menus
 
@@ -179,7 +179,7 @@ checkpoint. What remains open is in [open-questions.md](open-questions.md).
 weemitt's rule: the game's data lives at its N64 offsets in `port_ram`; the type or size of a global stored there
 does not change; new state goes in new globals outside it.
 
-**Recommendation: keep the rule in g64coopdx.**
+**Decided: g64coopdx keeps the rule.**
 
 - Player 0 keeps the N64 addresses: `hand` at 0x802902D8, `ball` at 0x8029F978, and the others
   ([state-inventory.md](state-inventory.md)). Players 1 and up live in new arrays outside `port_ram`. A table of
@@ -251,7 +251,7 @@ New tests:
 | 7 | Rollback corrections look bad for remote balls with many players | Smooth the drawing of remote players; tune the input delay; measure at 100 to 200 ms |
 | 8 | Lua scripts break determinism in ways the sandbox misses | Hash the arena with the game; the harness runs every bundled script under rollback |
 | 9 | Upstream changes slow down weemitt's own work | Keep each change inert at one player and small; the same owner decides the order |
-| 10 | Legal: the published builds contain decompiled code (decided: builds are published); sharing edited shipped levels | Never ship ROM data; weemitt needs a license before a release; the level question is open ([open-questions.md](open-questions.md)) |
+| 10 | Legal: the published builds contain decompiled code (decided: builds are published); sharing edited shipped levels | Never ship ROM data; weemitt needs a license before a release; edited shipped levels travel only as diffs against the player's own ROM |
 | 11 | Abuse: hostile players, crafted packets, crafted packs | Inputs-only model; strict parsers with fuzzing; prompts and hashes for packs; host moderation |
 | 12 | The services cost money and time to run | Direct connection first; the lobby and relay in phase 4, or never if the owner prefers |
 | 13 | 16 players' inputs mispredicted often enough that rollbacks get deep | Measure in the harness; an input delay of 1 to 2 frames; the host's deadline bounds the depth |

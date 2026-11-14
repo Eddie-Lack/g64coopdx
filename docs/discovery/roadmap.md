@@ -6,7 +6,7 @@ player count or a hook, with `regress.py check` saying "same as the baseline" at
 
 | Phase | Ends in | Size | Depends on |
 | --- | --- | --- | --- |
-| 0. The skeleton | A build and CI that run the toy game's rollback tests | 1 to 2 weeks | the copyright holder for the MIT license |
+| 0. The skeleton | A build and CI that run the toy game's rollback tests | 1 to 2 weeks | nothing |
 | 1. Two gloves offline | Two players, two controllers, one hub level, on one machine; a level started from a record | 5 to 7 weeks | 0; upstream items 1 to 3 and 11 |
 | 2. Rollback on a LAN | 2 to 4 players over direct UDP, in different levels of one world, with desync checks | 5 to 8 weeks | 1; upstream item 12 |
 | 3. The whole game in co-op | Every level, boss and bonus level, 8 players, the owner's rules | 9 to 16 weeks | 2; upstream items 3 to 5 and 13 |
@@ -120,7 +120,7 @@ and plays.
 - A Windows release (32-bit, or 64-bit once upstream item 10 is done), with SDL2 and the notices.
 - Crash reports that hold no game memory.
 - Player docs in the owner's style.
-- The name and the license's copyright holder ([open-questions.md](open-questions.md)); weemitt's license, which a
+- The name ([open-questions.md](open-questions.md)); weemitt's license, which a
   release also needs.
 
 ## Upstream items by phase

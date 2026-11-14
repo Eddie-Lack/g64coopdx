@@ -147,7 +147,7 @@ Model A remains a fallback inside B: a session with a large input delay and a pr
 - A level frame is 3 video retraces (20 a second); a menu frame is 2 (30 a second) (`weemitt/docs/library.md`,
   "Time"). The session's clock counts game frames and follows the game's own retrace count.
 - The pause menu: in a shared game one player's pause cannot stop the others. Pause becomes a local overlay; the
-  game's own pause (which stops the logic) is off, or needs a vote ([open-questions.md](open-questions.md)).
+  game's own pause (which stops the logic) is off; the host may stop the game for everyone (decided).
 
 ### Messages and their size
 

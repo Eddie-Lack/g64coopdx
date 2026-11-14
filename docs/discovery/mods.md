@@ -107,7 +107,7 @@ the picture, so a player's look can be local: other players need the bank to see
 | BPS patch of a level that places existing objects | Only the changed level bytes, and the console mod's code | Not needed on the PC; packs replace it |
 | BPS patch with imported models | Yes: the level's object bank and the world's texture bank are rewritten whole (a 4.9 KB model gave a 165 KB patch, `technical.md:322-326`) | No |
 | Level XML of a level built from scratch | No: object ids, positions and scripts | Yes (INFERRED) |
-| Level XML of an edited shipped level | The unchanged parts are the original team's level design | Unclear: the owner decides ([open-questions.md](open-questions.md)) |
+| Level XML of an edited shipped level | The unchanged parts are the original team's level design | Only as a diff against the shipped level, which the player's own ROM rebuilds (decided) |
 | Custom model set (`custom/<set>/`) | No: the packer builds the banks from the author's triangles and images | Yes, if the art is the author's |
 | Kit models | No (`technical.md:603-610`) | Yes |
 
@@ -234,7 +234,7 @@ game's memory, which holds ROM data). See [netcode.md](netcode.md#instances) for
 
 ## Open points
 
-- Whether XML of an edited shipped level may be shared ([open-questions.md](open-questions.md)).
 - Whether Glovebox's custom banks load in weemitt unchanged: try in phase 5 of the [roadmap](roadmap.md).
 - The custom-platform NaN question above.
-- The Lua API's first scope: the owner chooses ([open-questions.md](open-questions.md)).
+- The Lua API's first scope is decided: rules, HUD, puzzle conditions and actions, and spawns through the game's own
+  functions ([open-questions.md](open-questions.md#decided)).

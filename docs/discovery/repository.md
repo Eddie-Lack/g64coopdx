@@ -71,7 +71,7 @@ what needs no ROM, and the rest runs where the ROM is.
 | CI on every push (GitHub Actions, Linux) | Build Linux and Windows (MinGW). Unit tests. The toy game's rollback tests on loopback with simulated latency, loss and reordering, 2 to 16 clients. Fuzz targets for a fixed time. The lobby server's tests |
 | CI, Windows | The Windows build's unit and toy tests under Wine, as weemitt's `libcheck.py --wine` does, or on a Windows runner |
 | Locally, with the ROM (`tests/rom/`, skip without it) | weemitt's `regress.py check` at one player on the pinned weemitt; the multi-player determinism test (the same inputs for N players give the same hashes on Linux and Windows); a headless session of N clients on loopback whose every frame's hash equals the host's and equals one offline run of the confirmed inputs; late join; packs |
-| A self-hosted runner that holds the owner's ROM (optional) | The ROM tests on every pull request. The owner decides ([open-questions.md](open-questions.md)) |
+| A self-hosted runner that holds the owner's ROM | Not for now (decided); it would run the ROM tests on every pull request |
 
 Glovebox's CI works the same way: the tests that need the ROM skip themselves (`Glovebox/.github/workflows/app.yml`).
 
@@ -110,7 +110,7 @@ Facts (VERIFIED):
 **Decided: MIT** for g64coopdx's own code.
 
 - MIT fits every library above. MPL-2.0 asks only that libjuice's own files keep their license; use them unchanged.
-- The `LICENSE` file comes with the first code (phase 0). It needs a copyright holder, which the owner names.
+- The `LICENSE` file comes with the first code (phase 0). Its copyright holder is "The g64coopdx contributors" (decided).
 - Keep `THIRD_PARTY_NOTICES.md` from the first commit, as gloveworld and Glovebox do.
 - weemitt, gloveworld and Glovebox still have no license. Release builds contain weemitt's code, so a release needs
   weemitt's license too (INFERRED, not legal advice).
