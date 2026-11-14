@@ -56,8 +56,11 @@ Rules that the layout encodes:
   the test build), `make server` (the lobby server), `make test`.
 - **32-bit first**, for Windows and Linux. The brute forcer's savestates exist only in 32-bit builds today
   ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)). The 32-bit libraries gave equal
-  hashes on Linux and Windows; the static 32-bit build may need the libraries' offset pointers for that. 64-bit builds follow upstream item 10; their hashes also agree across systems (measured).
-  A session admits one build id, and so one bitness.
+  hashes on Linux and Windows. Those libraries store the game's pointers as offsets; the static 32-bit build may need
+  to store them the same way to get equal hashes. Phase 0 checks it.
+- 64-bit builds follow upstream item 10. The 64-bit Linux and Windows libraries also gave equal hashes in this
+  discovery's tests.
+- A session admits one build id, and so one bitness.
 - SDL2, as weemitt. Dependencies are vendored as source, never as prebuilt binaries. sm64coopdx commits prebuilt
   libraries (`lib/`), which hides their code and their licenses ([sm64coopdx.md](sm64coopdx.md), section 7).
 
@@ -137,8 +140,8 @@ PC port, which is a submodule in `weemitt/`. Read this file, then docs/ (start w
 - **Keep weemitt's memory layout.** Player 0 keeps the N64 addresses in `port_ram`. Other players' state and every
   new buffer live outside `port_ram`.
 - **The online game is exact.** It runs whole frames only (`deltaTime` 1). Two machines with the same inputs must
-  give the same state hash every frame, on Linux and Windows. A change that breaks this is a bug, whatever else it
-  fixes.
+  give the same state hash every frame, on Linux and Windows. A change that breaks this is a bug, even if it fixes
+  something else.
 - **One instance per occupied level.** State shared between levels (the save, the world, who is where) changes only
   through session events that the host puts into an instance's confirmed inputs at a frame.
 - **Everything from the network is untrusted.** Check every length, count, index, frame number, string and path

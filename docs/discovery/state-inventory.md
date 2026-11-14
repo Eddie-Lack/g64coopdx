@@ -1,8 +1,8 @@
 # The game's single-player assumptions
 
 This file covers question 4: every global and structure that exists once per player or assumes one player, where it
-lives, who reads and writes it, and what a second (and sixteenth) player needs. It ends with a measure of the
-refactor and the frame's hard limits.
+lives, who reads and writes it, and what a second (and sixteenth) player needs. It also gives the frame's hard
+limits, and, in the details, a measure of the refactor.
 
 Paths start with the repository (`weemitt/`, `gloveworld/`). N64 addresses come from `gloveworld/symbol_addrs.txt`.
 **V** (verified) means read in the code or measured by running it. **I** (inferred) means a reading not yet tested.
@@ -16,7 +16,7 @@ Nothing in weemitt or gloveworld was changed. The scripts are in [experiments/in
 | Functions in `weemitt/src/game` | 1,234 in 58 files | V |
 | Functions that touch the glove or the ball (or their control blocks) | 225 (18 percent): 193 the glove side, 146 the ball side, 114 both | V |
 | Functions that write them | 97 the glove side, 75 the ball side, 45 both | V |
-| Identity tests `== &hand`, `== &ball` | 98 in 42 functions, 43 in 17 functions | V |
+| Identity tests `== &hand`, `== &ball` | 98 tests of the glove in 42 functions; 43 tests of the ball in 17 functions | V |
 | Places that store `&hand` or `&ball` (or their positions) in another structure | 56 | V |
 | Lines that read the pad through `ActiveController` | 308 | V |
 | Puzzle condition types about the glove, the ball or the camera | 16 of 36 | V |
@@ -24,14 +24,14 @@ Nothing in weemitt or gloveworld was changed. The scripts are in [experiments/in
 | Object matrices per frame | 256; measured peak 158 with one idle glove; a glove costs up to 14 | V |
 
 The code is written around two named globals tied together by pointers (`ball.link == &hand` means "held";
-`cameraInfo.focus` points at `hand.pos` or `ball.pos`; `bullet->target`). A second glove is not an index change. It is
-a change in about 225 functions and about 140 identity tests, each of which needs a decision: "any player", "the
+`cameraInfo.focus` points at `hand.pos` or `ball.pos`; `bullet->target`). A second glove needs a change in
+about 225 functions and about 140 identity tests, each of which needs a decision: "any player", "the
 owner of this ball", or "the nearest player".
 
-## What the network model adds to the inventory
+## Rollback and the inventory
 
 The recommended model is rollback ([netcode.md](netcode.md)): every machine simulates every player. Three facts follow
-that a single-player reading does not show.
+that the single-player code alone does not show.
 
 1. **Every player's camera is game state.** The glove's stick direction is relative to `camera.rot.y`
    (`weemitt/src/game/hand.c:547-574`, `controller.c:361`). Enemies update only within the far distance of the camera
@@ -50,14 +50,14 @@ that a single-player reading does not show.
    `gamePaused` is set (`weemitt/src/game/main.c:969-1130`, V). In a shared game these become per-player states or
    local overlays.
 
-## What the owner's rules add
+## The owner's co-op rules
 
 The owner's decisions ([open-questions.md](open-questions.md#decided)) add work that the single-player code does not
 have at all.
 
 | Rule | What the game's code needs | Where today | Status |
 | --- | --- | --- | --- |
-| Players may be in different levels of one world | Nothing inside the game: each level is its own instance ([netcode.md](netcode.md#instances)). The game must start a level from a start record and accept players who arrive later | `LoadLevel` (`weemitt/src/game/game.c:808`) resets one glove, ball and camera | V (code) / I (plan) |
+| Players may be in different levels of one world | No change to how one level runs: each level is its own instance ([netcode.md](netcode.md#instances)). The game must start a level from a start record and accept players who arrive later | `LoadLevel` (`weemitt/src/game/game.c:808`) resets one glove, ball and camera | V (code) / I (plan) |
 | Players join and leave a running level | A glove, ball and camera that appear or vanish at a frame, set up as `ResetHand`, `ResetBall`, `ResetCamera` do for the level's start, without touching the other players. Every per-player list and table must allow a gap | `ResetHand` (`hand.c:4080-4140`), `ResetBall` (`ball.c:93-190`) | I |
 | A ball's real owner never changes | A new per-ball field, apart from `ball.link`, which today means "held by" (`ball.link == &hand`, written in 14 functions). Pickup checks the host's rule: own ball only, or any ball | `IsHandHoldingBall` (`actor.c:77`) and the 130 lines with `ball.link` or `hand.link` | V (code) / I (plan) |
 | A lost ball kills its real owner | `BurstBall` (`ball.c:570`), a ball's fall out of the world and a drowned ball must kill the owner, not "the glove" | `ball.c`, `collision.c:1369-1380` | V (code) / I (plan) |
@@ -69,7 +69,7 @@ have at all.
 ## What each system needs
 
 Short form of the tables in [Details](#details). "Per player" means one copy for each player, indexed by the
-session's player number. "Shared" means one copy for the session.
+session's player number. "Shared" means one copy for the session, or for the instance where marked.
 
 | System | Per player | Shared | Needs a rule |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ session's player number. "Shared" means one copy for the session.
 | Cutscenes and cameos | | the cameo scripts | Which glove a cameo moves (`cameo.c` uses `&hand`) |
 | Pause and tips | the local overlay | | The game's pause stops nothing |
 | Bosses | the boss's per-target pain state (`handPain`, `ballPain`) | the boss | Which player a boss targets |
-| Bonus levels | `controlMethod` | `bonusTimer` | Who plays; losing a life exits |
+| Bonus levels | `controlMethod` | `bonusTimer` | Who plays; a death sends only that player out |
 | Hub | | `hubLevel`, `hubTarget`, the worlds' progress | The ball left behind in the hub, per player |
 | HUD | the local player's | | Others shown as name tags |
 | Enemies | `hand.link`, `ballControl.enemy`, `handControl.attachedTo` per player | the enemies | Targets: the nearest glove or ball |
@@ -158,7 +158,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | `ballControl`: `BallControl` (0x164 bytes): `type`, `state`, `loseTimer`, `enemy` (held by an enemy), `releaseTimer`, `cancerTimer`, `hitFlags`, `samples[2]`, `snow`, `transformState`, `numPlasters`, `orbiter` | `weemitt/include/ball.h:6-33`, extern `ball.h:34` | 0x8029F468 (`symbol_addrs.txt:1806`) | 74 functions (31 write), 19 files | Index | V |
 | Ball forms: `ballControl.type` takes the `BallMode` values 0 normal (rubber), 1 bowling, 2 power, 3 bearing (ball-bearing), 4 beach, 5 snow, 6 crystal | `weemitt/include/enums.h:242-251` | n/a | `ChangeBallInto` (`weemitt/src/game/ball.c:1275`); `ActivateCollectable(nextBallState[...])` (`ball.c:1300`); `MoveBall` (`ball.c:230`) | Per ball. Ball textures and bits are loose globals: `ballTextureList`, `ballTextureData`, `ballTexturePalette`, `ballBitTexture*`, `snowBallBit`, `plaster[]` (21 writes in `ball.c`), `crystalBall`, `crystalBallBit` | V |
 | Ball state: `ballControl.state` 0 normal, 1 held, 2 burst, 5 held special | `enums.h:253-258` | n/a | 8 functions write it | Per ball | V |
-| The glove and ball are paired by pointer: `ball.link == &hand` means held. `IsHandHoldingBall()` (`weemitt/src/game/actor.c:77`) is called from 28 places; `ball.link` or `hand.link` appear on 130 lines | actor.c:77, actor.h:371 | n/a | puzzle, exit, water, enemy, collision, camera | Replace `&hand` by "this ball's owner" (`link` points at the owner glove). Every `== &hand` test needs the owner, not the global | V |
+| The glove and ball are paired by pointer: `ball.link == &hand` means held. `IsHandHoldingBall()` (`weemitt/src/game/actor.c:77`) is called from 28 places; `ball.link` or `hand.link` appear on 130 lines | actor.c:77, actor.h:371 | n/a | puzzle, exit, water, enemy, collision, camera | Replace `&hand` by "this ball's owner" (`link` points at the glove that holds it). Every `== &hand` test needs the glove that holds this ball, not the global | V |
 | Ball-only globals: `ballWithHand` (0x801EFCF8, 6 fns), `ballStatic` (0x801EFCFC, 19 fns, 10 write), `ballLeftBehind` (0x801EFD00, 9 fns) | declared as `extern` in `ball.c:65`, `game.c:210,348,376` | see left | `game.c:2381-2485` (hub: the ball is left behind or stored when you change level), `ball.c`, `collect.c`, `cheat.c`, `bullet.c:1475` | Per player for `ballStatic` and `ballLeftBehind` (they are hub carry-over for one ball) | V |
 | `extraBall[3]`: 3 extra `Actor`s drawn as the lumps of the "cancer" ball (`GiveBallCancer`) | `weemitt/src/game/ball.c:42`, `ball.c:185-195` | 0x80297940 | `ball.c`, `object.c:216` | Index (3 per ball) | V |
 | Ball model and `ResetBall` | `weemitt/src/game/ball.c:93-190` | n/a | `LoadLevel` (`game.c:448-450`) | Call once per player | V |
@@ -167,7 +167,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 
 | Item | Defined | N64 address | Used by | What N players need | Status |
 | --- | --- | --- | --- | --- | --- |
-| `camera`: `Actor` | `weemitt/include/camera.h:63` | 0x8028F8E0 | 69 functions (26 write), 26 files | One camera per player, simulated in the instance: enemy updates, puzzles and sounds read the camera (see [What the network model adds](#what-the-network-model-adds-to-the-inventory)). Each machine draws from its own player's camera | V / I |
+| `camera`: `Actor` | `weemitt/include/camera.h:63` | 0x8028F8E0 | 69 functions (26 write), 26 files | One camera per player, simulated in the instance: enemy updates, puzzles and sounds read the camera (see [Rollback and the inventory](#rollback-and-the-inventory)). Each machine draws from its own player's camera | V / I |
 | `cameraInfo`: `CameraInfo` (0x1D4 bytes) with `focus` and `focusVel` pointers (set to `&hand.pos` or `&ball.pos`), orbit, override timers and flags | `weemitt/include/camera.h:7-61`, extern line 64 | 0x8028F9C8 | 70 functions (63 write), 22 files | Per player, in the instance. Each `focus` points to that player's glove or ball | V |
 | Camera follows glove or ball: `UpdateActorPositionDependencies` switches `cameraInfo.focus` between `&hand.pos` and `&ball.pos` (`weemitt/src/game/actor.c:1272`, 1430-1440), `TrackBall()` decides | actor.c:1272 | n/a | | The decision is per player | V |
 | The glove's stick direction is relative to the camera: `camera.rot.y` is read in `hand.c:547-574`, `hand.c:2733`, `controller.c:361-362`, `controller.c:440-441` | | | | Every machine simulates every player's camera from that player's input (the C buttons are input), so the yaw is known everywhere and need not be sent | I |

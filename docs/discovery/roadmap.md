@@ -1,7 +1,7 @@
 # Roadmap
 
 Each phase ends in something playable or testable. Sizes are rough: weeks of focused work for one developer who
-knows the code, and they carry the uncertainty named in each phase. "Upstream" means a change in weemitt, behind a
+knows the code. Phase 3 is the least certain; its risk is named in its section. "Upstream" means a change in weemitt, behind a
 player count or a hook, with `regress.py check` saying "same as the baseline" at one player.
 
 | Phase | Ends in | Size | Depends on |
@@ -14,7 +14,8 @@ player count or a hook, with `regress.py check` saying "same as the baseline" at
 | 5. Mods | Lua scripts and level packs from Glovebox, downloaded on join | 6 to 9 weeks | 2; upstream item 8; Glovebox's pack export |
 | 6. Release | A Windows release, documentation, crash reports | 2 to 4 weeks | 3, 4, 5 |
 
-In all: about 32 to 52 weeks, so roughly 8 to 12 months for one person (INFERRED; the largest unknown is phase 3).
+In all: about 32 to 52 weeks with every phase done one after another, so roughly 8 to 12 months for one person
+(INFERRED). Phase 4 can run beside phase 3, which shortens the calendar time but not the work.
 
 ## Phase 0: the skeleton
 
@@ -37,11 +38,15 @@ simulated network.
 
 - Upstream 1: a documented build entry for outside programs.
 - Upstream 2: a pad per player.
+- Upstream 9: an option that turns off every PC addition of weemitt's that the controller can reach, such as the
+  cheat list in the pause menu.
 - A spike first: two players by swapping the player's state in and out ([state-inventory.md](state-inventory.md#two-ways-to-make-the-game-multi-player)),
   in one hub level. It finds the shared state that breaks. It is thrown away.
 - Upstream 3, first part: per-player glove, ball and camera, indexed, outside `port_ram`. The glove's state machine,
-  the ball and its pairing by owner, the camera per player, the collision identity tests.
-- g64coopdx draws every player's glove and ball, the local camera's view, and a second glove's color.
+  the ball and which glove holds it, the camera per player, and the collision code's tests of whether an actor is the
+  glove (`== &hand`).
+- g64coopdx draws every player's glove and ball from the local player's camera, and gives the second glove its own
+  color.
 - Upstream 11: start a level from a record, and compare its memory with a level reached by play
   ([netcode.md](netcode.md#instances)). Every instance, every late join and every repair depends on it, so it is
   settled first.
@@ -55,8 +60,8 @@ player; the same inputs for two players give the same hashes on Linux and Window
   engine), full copies first.
 - Direct UDP with ENet; the host confirms inputs.
 - Sound: the split of logical sound state from its output, so a rollback does not replay sounds
-  ([netcode.md](netcode.md#sound-and-rollback)). Upstream.
-- Desync checks: hashes of confirmed frames on a worker thread; on a mismatch, a rebuild from the level's start and
+  ([netcode.md](netcode.md#sound-and-rollback)). This is an upstream change.
+- Desync checks, with upstream item 6 (a cheaper state hash): hashes of confirmed frames on a worker thread; on a mismatch, a rebuild from the level's start and
   a report.
 - Instances: one per occupied level; the host's reference copy of each in a worker process; entering a level that
   others play by replaying its input log; leaving a level; session events at confirmed frames; the one-world rule at
@@ -65,16 +70,18 @@ player; the same inputs for two players give the same hashes on Linux and Window
 - The headless harness: N clients and a host in one run on loopback, with recorded inputs per player and a simulated
   network.
 
-Playable: 2 to 4 people on a LAN or by IP in the hub and the levels that phase 1 made work, together or apart. Test:
+Playable: 2 to 4 people on a LAN or by IP, together or apart, in the hub level of phase 1 and the other hub sections
+that work with two gloves by then. Test:
 the harness, at 0 to 200 ms latency and 0 to 5% loss, with players moving between levels at random; every client's
 hash equals the host's copy of its instance.
 
 ## Phase 3: the whole game in co-op
 
-Upstream 3 and 4, system by system, each step proven by `regress.py` at one player and by the harness at N players:
+Upstream items 3 (per-player state) and 4 (hooks for the session layer), system by system, each step proven by `regress.py` at one player and by the harness at N players:
 
 1. Enemies' targets: the nearest glove or ball; bullets; enemies holding a glove or a ball.
-2. Puzzles: "any glove", "any ball", "any camera"; edge records per player.
+2. Puzzles: "any glove", "any ball", "any camera"; the records of which glove or ball just touched a puzzle's
+   object, per player.
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.
 4. Upstream 13, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the enemies;
    the ball's real owner, the host's pickup rule, a lost ball killing its owner.

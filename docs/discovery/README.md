@@ -17,7 +17,8 @@ this discovery measured them:
   64-bit. The test ran all 48 levels and the attract mode. 196 pairs of repeated runs and 147 pairs of different
   builds matched in their per-frame state trace and their memory hash. 49 more pairs, with the real sound player
   against the silent one, matched in their trace.
-- A savestate of about 5 MB saves or loads in 0.02 ms, or 0.4 ms as a plain copy. A game frame lasts 50 ms.
+- A savestate of about 5 MB saves or loads in 0.02 ms, or 0.4 ms as a plain copy. A game frame lasts 50 ms of real
+  time in a level, and computing one takes 0.03 to 0.05 ms.
 
 The work is in the game's code, which assumes one player throughout: 225 of its 1,234 functions touch the glove or the
 ball.
@@ -132,7 +133,7 @@ checkpoint. The full list of decisions is in [open-questions.md](open-questions.
 ### The ball
 
 - Each player has a ball, and every ball has a **real owner** that never changes. The ball's holder (`ball.link`)
-  is a separate thing ([state-inventory.md](state-inventory.md#what-the-owners-rules-add)).
+  is a separate thing ([state-inventory.md](state-inventory.md#the-owners-co-op-rules)).
 - A host option, for the whole session: **own ball only** (a glove picks up only its own ball) or **any ball** (any
   glove may take any free ball).
 - A ball that is lost (thrown off a cliff, burst, drowned) kills its real owner, whoever held it last. With any-ball
@@ -146,7 +147,7 @@ checkpoint. The full list of decisions is in [open-questions.md](open-questions.
 ### The camera
 
 - Every player has a camera, simulated in the instance, because the glove's controls, the enemies' update range,
-  some puzzles and the sounds depend on it ([state-inventory.md](state-inventory.md#what-the-network-model-adds-to-the-inventory)).
+  some puzzles and the sounds depend on it ([state-inventory.md](state-inventory.md#rollback-and-the-inventory)).
 - Each machine draws from its own player's camera.
 - A boss's or a cameo's scripted camera applies to every player in that instance.
 
@@ -217,13 +218,14 @@ does not change; new state goes in new globals outside it.
   in an emulator and the brute forcer's sync test keep working. The savestate already covers the game's variables
   outside `port_ram` (`weemitt/bruteforce/docs/engine.md`, "Savestates"), so rollback sees the new state too.
 - What it costs: code that treats player 0 apart. A pointer per player hides that from most of the game's code.
-- What breaking the rule would buy: simpler arrays. That does not justify losing the three tests above.
+- What breaking the rule would buy: simpler arrays. That does not justify losing `regress.py`'s hashes, the comparison
+  with the N64 and the sync test.
 
 ## Player presentation and the interface
 
 | Need | Plan |
 | --- | --- |
-| Several gloves on screen | Every glove and ball is drawn by the game's own draw path, which every machine runs the same way ([state-inventory.md](state-inventory.md#what-the-network-model-adds-to-the-inventory)) |
+| Several gloves on screen | Every glove and ball is drawn by the game's own draw path, which every machine runs the same way ([state-inventory.md](state-inventory.md#rollback-and-the-inventory)) |
 | Telling gloves apart | A color per player. The renderer tints an actor's draw by its player. weemitt's draw marks already tell the renderer which actor each command belongs to (`port_draw_mark_hook`, `weemitt/docs/library.md`). The tint is drawing only, so the logic stays the same |
 | Custom glove and ball models | Model packs, drawn in place of the player's model ([mods.md](mods.md#player-models)) |
 | Names | Text above each glove, drawn after the game's lists from the local camera; hidden behind walls by the depth buffer; with distance fade |
@@ -289,6 +291,14 @@ New tests:
 
 | Term | Meaning |
 | --- | --- |
+| The owner | The person who owns g64coopdx, weemitt, gloveworld and Glovebox, and decides for the project |
+| The discovery | The study this report describes. It measured and read; it built none of the feature |
+| Baseline | A fixed earlier commit of weemitt. `tools/regress.py` records its state for every frame of 49 runs and checks that a new build gives the same |
+| Hub and world | The game's levels are grouped in worlds: the hub (whose sections lead to the worlds) and six worlds, each with levels, a boss and a bonus level |
+| The library | weemitt built as `libglover.so` or `glover.dll`, which another program can load to run the game |
+| Frame and update | A game frame is one step of the game's logic: 1/20 s of game time in a level. An update is one call that advances the game; at the original timing one update is one frame |
+| Pack | A zip file of one custom level, its scripts and its author's models, with no game data ([mods.md](mods.md#the-level-pack)) |
+| Lua | A small scripting language; mods are written in it ([mods.md](mods.md#the-lua-api)) |
 | Glover | An N64 platform game. The player steers a glove (the **glove**, `hand` in the code) that walks, jumps and carries, rolls or throws a **ball**, and must bring the ball to each level's exit |
 | Garib | The game's collectables; each level has a set number |
 | Cameo | A short scripted scene inside a level |

@@ -28,7 +28,7 @@ All from this session; scripts in [experiments/](experiments/); details in [weem
 
 | Question | Result |
 | --- | --- |
-| Do two runs with the same inputs stay equal? | Yes. Four sets of 49 runs (48 levels and the attract mode, 3,000 or 6,000 frames each) ran their first build twice: 196 pairs, the same trace and memory hash at every check (every 10 frames, or 100 in the sound set) |
+| Do two runs with the same inputs stay equal? | Yes. Four sets of 49 runs (48 levels and the attract mode, 3,000 or 6,000 frames each) ran their first build twice: 196 pairs, the same trace and memory hash at every check (every 10 frames, or 100 in the set that compared the sound players) |
 | Across builds? | Linux 32-bit = Linux 64-bit (trace and hash). Linux 64-bit = Windows 64-bit under Wine (trace and hash, 49 runs of 3,000 frames). Linux 32-bit library = Windows 32-bit library (trace and hash, 49 runs). 147 pairs of different builds in all, no difference |
 | With the real sound player in place of the silent one? | The same trace in 49 pairs (64-bit Linux, 3,000 frames). The memory differs (the player keeps state there) |
 | Size of a savestate | 4.67 to 4.99 MB: the game's variables 1.04 MB, memory below the heap 2.69 MB, the heap 0.93 to 1.25 MB |
@@ -185,7 +185,7 @@ record**:
 - the level and the frame the instance began;
 - the session's settings (ball pickup rule, cheats, difficulty) and packs;
 - the session's save at that frame (512 bytes; the EEPROM holds no ROM data, `weemitt/docs/testing.md`);
-- each player's carried state: slot, ball type, power-ups, the hub's left-behind ball;
+- each player's carried state: player slot, ball type, power-ups, the hub's left-behind ball;
 - no random seed: every level start sets the same fixed seed (`SeedRandom` in `StartNewLevel`,
   `weemitt/src/game/game.c:1454`; `maths.c:31`), so the record need not carry it.
 

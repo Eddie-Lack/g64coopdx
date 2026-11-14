@@ -149,7 +149,7 @@ passes. New state goes in new globals outside `port_ram`. Ordered by when g64coo
 | 10 | **64-bit savestates:** on Linux, the engine's renamed sections must accept the position-independent build's `.data.rel`, `.data.rel.local` and `.data.rel.ro*`; on Windows, the engine must be built and tested at 64 bits. Full copies (0.4 ms) are enough at first | 64-bit builds of g64coopdx | small to medium |
 | 11 | **Start a level from a record:** the level, the save, the players' carried state and the random seed, with no play before it; and a test that compares it with a level reached by play | instances, late join, repair ([netcode.md](netcode.md#instances)) | medium |
 | 12 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
-| 13 | **The owner's rules as options that change nothing with one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#what-the-owners-rules-add)) | medium |
+| 13 | **The owner's rules as options that change nothing with one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#the-owners-co-op-rules)) | medium |
 
 Items 1 and 2 let a prototype start. Items 3, 4, 12 and 13 are most of the game work.
 
@@ -169,7 +169,7 @@ memory hash every 10 frames. With `--other` it also runs another build and compa
 | `headless` twice, then `headless64` | 0 to 47 and the attract mode | 6,000 each | Equal in all 49: each build's two runs, and the 32-bit against the 64-bit build, in trace and hash |
 | `glover-host` (Linux 64-bit library) twice, then `glover-host.exe` (Windows 64-bit DLL, Wine) | 0 to 47 and the attract mode | 3,000 each | Equal in all 49, in trace and hash |
 | `glover-host` (Linux 32-bit library) twice, then `glover-host.exe` (Windows 32-bit DLL, Wine) | 0 to 47 and the attract mode | 3,000 each | Equal in all 49, in trace and hash. The libraries store pointers as offsets on 32 bits too (`docs/library.md`), so their hashes compare; the 32-bit Windows window program's hash would not |
-| `headless64` (silent sound player) against `headless64-mus` (the real sound player), trace only | 0 to 47 and the attract mode | 3,000 each | Equal traces in all 49 |
+| `headless64` (silent sound player) twice, then `headless64-mus` (the real sound player), trace only for the second | 0 to 47 and the attract mode | 3,000 each | Equal traces in all 49 |
 
 Limits: the input is generated, not played by a person. Rope swinging (`HAND_SWISH`) and other rare paths may not be
 reached. Wine is not Windows. The Windows runs used the library's test host; the window program was not compared.

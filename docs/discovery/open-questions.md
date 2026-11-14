@@ -1,7 +1,8 @@
 # The owner's decisions
 
-The owner answered the first questions before the discovery and a second round after it, and then took the report's
-recommendations for the rest. The decisions are below, with where each one shaped the report.
+These are the owner's decisions for g64coopdx. The owner made the first fourteen (from Players to Builds) directly.
+For the rest, from Copyright holder on, the owner accepted the report's recommendation. Each row links to the part
+of the report it shapes.
 
 ## Decided
 

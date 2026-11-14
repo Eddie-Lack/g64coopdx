@@ -12,8 +12,8 @@ Paths start with the repository: `weemitt/`, `gloveworld/`, `Glovebox/`. **VERIF
   textures live in banks in the ROM. A level that only places existing objects needs no new bank (VERIFIED).
 - weemitt reads every ROM byte through a few functions over one memory buffer. Loading a level or a bank from a file
   at run time is a small change: about 30 lines for the level, a little more for banks (INFERRED).
-- Glovebox already writes levels and models in the game's own formats. It needs one new export, a **level pack**,
-  that holds the author's work and no game data. Its imported models must then go into banks of their own, which its
+- Glovebox already writes levels and models in the game's own formats. It needs one new export, a **level pack**: a
+  zip file of one level, its scripts and the author's own models, with no game data ([details](#the-level-pack)). Its imported models must then go into banks of their own, which its
   `modCustom` path already supports (VERIFIED: `Glovebox/docs/technical.md:907-911`).
 - Lua: vendor PUC Lua 5.4 (MIT), compile it with the game's float flags, and give it a fixed memory arena inside the
   game's state. Then every rollback savestate holds the scripts' state too, at no extra cost per frame beyond the
@@ -54,17 +54,18 @@ parses the `.lev` from its big-endian bytes field by field (`PORT_COPY`).
 
 | Option | What changes | Cost | Limits |
 | --- | --- | --- | --- |
-| A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level is a custom slot | about 30 lines | Uses the shipped banks only |
-| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers above the ROM's from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | Extra bank slots must live outside `port_ram` (weemitt's layout rule): new lists that `FindObject` and `FindTexture` also search |
-| C. Custom level slots | A custom level reuses a shipped level's row in `levelInfo` and its world, and swaps in its `.lev` and extra banks. Glovebox's console mod does the same with the Space slots (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
-| D. Rebuild the ROM at start | Apply a Glovebox BPS patch to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code does not run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
+| A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level being loaded is the custom level (option C says which number that is) | about 30 lines | Uses the shipped banks only |
+| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM does not use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | Extra bank slots must live outside `port_ram` (weemitt's layout rule): new lists that `FindObject` and `FindTexture` also search |
+| C. Custom level slots | A custom level borrows a shipped level's number: its row in `levelInfo` (the game's table of levels: name, song, banks) and its world. It swaps in its own `.lev` and extra banks. Glovebox's console mod (next section) borrows Space levels' numbers the same way (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
+| D. Rebuild the ROM at start | Apply a Glovebox BPS patch (a binary diff against the retail ROM, which Glovebox exports) to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code does not run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
 
 Recommendation: A, B and C together. They keep the game's own loader, drawing, puzzles, enemies and platforms.
 
 ### The Glovebox console mod's features on the PC
 
 Glovebox's console mod (about 13.5 KB of MIPS code, `Glovebox/mod/`) lifts limits of the retail game. weemitt does
-not run MIPS code, so each feature needs C in g64coopdx's game code (VERIFIED from `Glovebox/docs/technical.md`):
+not run MIPS code, so each feature needs C in weemitt's game code, as part of upstream item 8 (VERIFIED from
+`Glovebox/docs/technical.md`):
 
 | Feature | On the PC |
 | --- | --- |
@@ -157,8 +158,8 @@ the same inputs, and steps back and forth through savestates. Three rules follow
 1. **The scripts' state must be in the savestate.** Give Lua an allocator over a fixed arena, and link Lua and the
    arena into the game's object (`game.o`) of the brute forcer's engine. The engine saves all of the game's
    variables outside `port_ram` (`weemitt/bruteforce/docs/engine.md`, "Savestates"). The arena is one of those variables. The
-   page tracker copies only the pages a script wrote. The arena holds host pointers, so such a state loads only in
-   the same process. That is enough for rollback; late join uses the inputs ([netcode.md](netcode.md#instances)).
+   page tracker copies only the pages a script wrote. The arena holds pointers into the machine's own memory, so
+   such a state loads only in the same process. That is enough for rollback; late join uses the inputs ([netcode.md](netcode.md#instances)).
 2. **Scripts must be deterministic.** Every machine must reach the same bits.
 3. **Scripts run per instance.** Players may be in different levels, and each occupied level is its own simulation
    ([netcode.md](netcode.md#instances)). A script's state in one instance is not seen by another. State that a mod

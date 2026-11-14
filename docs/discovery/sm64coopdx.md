@@ -21,7 +21,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 | --- | --- |
 | License | No license file at the root (VERIFIED). No one has a written right to copy its code. It may be studied, not copied. Its lobby server, CoopNet, is AGPL-3.0 (VERIFIED) |
 | Players | Up to 16 (`MAX_PLAYERS`, `include/types.h:602`, VERIFIED); the host can set fewer |
-| Connection | Direct UDP to the host on port 7777, with no NAT traversal; or CoopNet, a lobby and signaling server, after which players connect peer to peer with ICE (libjuice) |
+| Connection | Direct UDP to the host on port 7777, with no NAT traversal; or CoopNet, a lobby and signaling server, after which players most likely connect peer to peer with ICE (libjuice; INFERRED, section 2.3) |
 | Network model | State replication. Each machine runs its own copy of the level. A machine sends its own Mario and the objects it owns. The nearest player owns an object. No lockstep, no rollback, no tick numbers on the wire |
 | Tick | 30 Hz game logic (`src/pc/pc_main.c:91`, VERIFIED) |
 | Late join | A joiner downloads the host's mods, gets the host's save, then asks a player in the same area for that area's state |
@@ -134,7 +134,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 #### 2.3 CoopNet (relay/lobby service)
 
 What it is (VERIFIED facts first):
-- `src/pc/network/coopnet/coopnet.c` (320 lines) is the second `NetworkSystem`, named "CoopNet" (`coopnet.c:317`). It wraps the closed-form client library `libcoopnet` (prebuilt in `lib/coopnet/`).
+- `src/pc/network/coopnet/coopnet.c` (320 lines) is the second `NetworkSystem`, named "CoopNet" (`coopnet.c:317`). It wraps the client library `libcoopnet`, shipped only as a binary (prebuilt in `lib/coopnet/`).
 - Build switch: `COOPNET ?= 1` in the Makefile (line 53); forced to 0 on some targets (Makefile around line 313). `#ifdef COOPNET` guards the system in `network.c:104`.
 - Default server: `DEFAULT_COOPNET_IP "net.coop64.us"` and `DEFAULT_COOPNET_PORT 34197` (`src/pc/configfile.h:17-18`). Both are config values (`coopnet_ip`, `coopnet_port`, `coopnet_password`, `coopnet_dest` in `configfile.c:388-392`), so a user can point the game at another server.
 - Hosted by the project: INFERRED yes. The default host name is a project-controlled domain (not proven who owns it; ownership is UNKNOWN). The server source is public at github.com/coop-deluxe/coopnet (AGPL-3.0, section 1.2), described as "Signaling server / lobby manager for P2P connections".
@@ -159,7 +159,7 @@ NAT traversal (the question asked):
 - VERIFIED: the repo ships `libjuice` next to `libcoopnet` in `lib/coopnet/{linux,win32,win64,mac_arm,mac_intel}`. The callbacks include OnPeerConnected, OnPeerDisconnected and the error MERR_PEER_FAILED ("peer failed").
 - INFERRED: libjuice is an ICE/STUN peer-to-peer connection library. With the one-line coopnet README ("Signaling server / lobby manager for P2P connections") this means: the coopnet server only matches players and passes connection setup messages (signaling). The game packets then go peer to peer through ICE hole punching. Evidence for P2P data path: the CoopNet system has `requireServerBroadcast = false` (`coopnet.c:316`), and `coopnet_send_to(peerId, ...)` addresses individual peers.
 - UNKNOWN: whether a TURN-style relay fallback exists when hole punching fails. The client shows "peer failed" for that player (`coopnet_on_error`, case MERR_PEER_FAILED). This study found no relay code in the repo.
-- Result in the game: with CoopNet there is still a logical host (the lobby owner, localIndex 0 for them is the owner, see `coopnet_on_lobby_joined`), but clients also send to each other directly (so "broadcast" goes to every peer).
+- Result in the game: with CoopNet there is still a logical host (the player who created the lobby, see `coopnet_on_lobby_joined`), but clients also send to each other directly (so "broadcast" goes to every peer).
 
 #### 2.4 Lobby browser
 
