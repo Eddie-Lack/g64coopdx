@@ -24,7 +24,7 @@ g64coopdx/
     lua/                    the Lua runtime's arena, the API, the sandbox
     packs/                  level packs: reading, checking, the cache, downloads
     platform/               the window, audio output and input devices, built on the copy's platform layer
-  server/                   the lobby and signaling server (a separate program)
+  server/                   the lobby and signaling server (a separate program, in Go)
   third_party/              ENet, libjuice, libsodium, Lua 5.4: vendored sources at pinned versions
   tests/
     toy/                    a small deterministic game with the same interface as the real one, for CI without a ROM
@@ -34,6 +34,7 @@ g64coopdx/
   tools/                    the test harness (several headless clients in one run), log readers
   docs/
     discovery/              this report
+    hosting.md              where the services run
     design.md, netcode.md, lua-api.md, packs.md   the living docs, once work starts
 ```
 
@@ -108,7 +109,7 @@ Facts (VERIFIED):
 - CoopNet, sm64coopdx's lobby server, is AGPL-3.0. g64coopdx does not use it.
 - The libraries recommended in [netcode.md](netcode.md) and [mods.md](mods.md): ENet MIT, libsodium ISC, libjuice
   MPL-2.0, Lua MIT, SDL2 zlib, Dear ImGui MIT (already in weemitt's `third_party/imgui`), coturn BSD-3-Clause (a
-  separate server).
+  separate server, and only the fallback relay: [hosting.md](../hosting.md)).
 
 **Decided: MIT** for g64coopdx's own code.
 

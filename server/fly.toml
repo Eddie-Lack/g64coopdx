@@ -1,0 +1,27 @@
+# The lobby server on Fly.io (docs/hosting.md). This file holds no secret.
+# "fly launch --copy-config --no-deploy" may change the app name if this one is taken.
+
+app = "g64coopdx-lobby"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # The machine stops when nobody is connected, and starts on the next request.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

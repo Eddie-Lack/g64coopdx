@@ -1,0 +1,22 @@
+# Build output
+build/
+
+# The ROM, in every byte order. Never commit it.
+*.z64
+*.v64
+*.n64
+*.rom
+*.bps
+
+# Files that hold the game's memory or data from the ROM. Never commit them.
+*.state
+*.savestate
+*.st
+*.dump
+*.eep
+*.sav
+*.rec
+
+# Secrets
+.env
+.env.*
