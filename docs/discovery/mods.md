@@ -74,7 +74,7 @@ not run MIPS code, so each feature needs C in g64coopdx's game code (VERIFIED fr
 | The matrix guard (`mod/guard.c`) | Needed: the 256-matrix limit is in the game's C. With 8 or more gloves it is a real limit: see [state-inventory.md](state-inventory.md#the-frames-hard-limits) |
 | Extra level slots (`mod/slots.c`) | Option C |
 
-### The host world is not the path for custom levels
+### The host world and custom levels
 
 weemitt's host world (`weemitt/docs/host-world.md`) lets a host give the game triangles to collide with, moving
 bodies, water and a camera. It does not draw them (`host-world.md:340`). It suits a foreign engine that uses Glover
@@ -91,7 +91,7 @@ as a character. A custom Glover level is better served by the game's own loader.
   (`weemitt/src/gfx/gfx.h`). The limits of the game's C stay: 800 vertices a frame in `objectsVtx`
   (`gloveworld/docs/game.md:117`), 2,048 texels per texture load.
 - UNKNOWN: whether a custom model with an all-zero first rotation key, used as a platform, gives NaN in weemitt's
-  `QuaternionToMatrix`. Glovebox forbids it on the console. Test it before allowing it.
+  `QuaternionToMatrix`. Glovebox's builder does not allow custom models as platforms on the console. Test it before allowing it.
 
 ### Player models
 
@@ -156,7 +156,7 @@ the same inputs, and steps back and forth through savestates. Three rules follow
 
 1. **The scripts' state must be in the savestate.** Give Lua an allocator over a fixed arena, and link Lua and the
    arena into the game's object (`game.o`) of the brute forcer's engine. The engine saves all of the game's
-   variables outside `port_ram` (`weemitt/bruteforce/docs/engine.md`, "Savestates"), so the arena comes along. The
+   variables outside `port_ram` (`weemitt/bruteforce/docs/engine.md`, "Savestates"). The arena is one of those variables. The
    page tracker copies only the pages a script wrote. The arena holds host pointers, so such a state loads only in
    the same process. That is enough for rollback; late join uses the inputs ([netcode.md](netcode.md#instances)).
 2. **Scripts must be deterministic.** Every machine must reach the same bits.

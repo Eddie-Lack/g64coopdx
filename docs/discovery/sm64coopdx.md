@@ -52,7 +52,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 | Discord rich presence | Optional | The Discord Game SDK is archived ([netcode.md](netcode.md#transport-and-services)) |
 | Build-only CI | Do better | weemitt's regress.py and the brute forcer's sync test already give the base for headless network tests |
 
-## What g64coopdx learned from it, and where
+## What g64coopdx took from it
 
 - The lobby and signaling split, and a network layer behind a function table: [netcode.md](netcode.md#transport-and-services).
 - The exact version handshake, the host's save as the session's save, and moderation with a confirm step:
@@ -106,7 +106,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 - INFERRED: the coopnet server is AGPL-3.0. A project that reads its code and then writes a lobby server must keep the rules in its own words. Running a copy of it, changed or not, as a network service obliges the operator to offer its source to the users of that service (AGPL section 13). Reading its README or the header `lib/coopnet/include/libcoopnet.h` for the idea of a lobby API is low risk. Do not copy the header's declarations.
 - INFERRED: bundling their prebuilt `libcoopnet.a` / `libjuice.a` into g64coopdx would raise AGPL questions (the lib is built from AGPL source, the license of the client library itself is UNKNOWN). Avoid it. Write an own relay and lobby, or use a library with a clear license.
 - VERIFIED: weemitt's CLAUDE.md already forbids code from other ports, and g64coopdx applies the same rule. Study notes like these are fine; code is not.
-- Their own rule on external code: their repo has no CONTRIBUTING/license policy file that I found (UNKNOWN).
+- Their own rule on external code: their repo has no CONTRIBUTING/license policy file that this study found (UNKNOWN).
 
 ---
 
@@ -127,7 +127,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
   The host listens; the joiner types an IP or host name. Host name is resolved with `getaddrinfo` (`resolve_domain`). Square-bracketed IPv6 is accepted.
 - VERIFIED: the socket system sets `requireServerBroadcast = true` (`socket.c:292`). Clients talk only to the host. The host forwards (see 3.1).
 - VERIFIED: UI panels for this: `src/pc/djui/djui_panel_join_direct.c`, `djui_panel_host.c`, `djui_panel_host_settings.c`, `djui_panel_host_mods.c`, `djui_panel_host_save.c`.
-- NAT traversal for direct mode: none in the code I read. The host must forward port 7777 (INFERRED from the absence of any hole-punching code in `socket/`).
+- NAT traversal for direct mode: none in the code read for this study. The host must forward port 7777 (INFERRED from the absence of any hole-punching code in `socket/`).
 - CLI: `--server PORT`, `--client IP PORT`, `--coopnet PASSWORD`, `--headless`, `--playername`, `--playercount` (`src/pc/cliopts.c:18-39`).
 - Headless dedicated server: VERIFIED. `--headless` (`cliopts.c:37`, `pc_main.c:220`) plus `gServerSettings.headlessServer` (set in `network.c:140` only for server role). In `packets/packet_player.c` network_update_player the headless host sends no player packet of its own.
 
@@ -158,7 +158,7 @@ How lobbies work (VERIFIED in `coopnet.c`):
 NAT traversal (the question asked):
 - VERIFIED: the repo ships `libjuice` next to `libcoopnet` in `lib/coopnet/{linux,win32,win64,mac_arm,mac_intel}`. The callbacks include OnPeerConnected, OnPeerDisconnected and the error MERR_PEER_FAILED ("peer failed").
 - INFERRED: libjuice is an ICE/STUN peer-to-peer connection library. With the one-line coopnet README ("Signaling server / lobby manager for P2P connections") this means: the coopnet server only matches players and passes connection setup messages (signaling). The game packets then go peer to peer through ICE hole punching. Evidence for P2P data path: the CoopNet system has `requireServerBroadcast = false` (`coopnet.c:316`), and `coopnet_send_to(peerId, ...)` addresses individual peers.
-- UNKNOWN: whether a TURN-style relay fallback exists when hole punching fails. The client shows "peer failed" for that player (`coopnet_on_error`, case MERR_PEER_FAILED). I found no relay code in the repo.
+- UNKNOWN: whether a TURN-style relay fallback exists when hole punching fails. The client shows "peer failed" for that player (`coopnet_on_error`, case MERR_PEER_FAILED). This study found no relay code in the repo.
 - Result in the game: with CoopNet there is still a logical host (the lobby owner, localIndex 0 for them is the owner, see `coopnet_on_lobby_joined`), but clients also send to each other directly (so "broadcast" goes to every peer).
 
 #### 2.4 Lobby browser
@@ -300,7 +300,7 @@ VERIFIED in `packets/packet_reliable.c`, `packet_read_write.c`, `packet.c`:
 #### 3.7 Rollback, lockstep, prediction
 
 - VERIFIED: no rollback and no lockstep code found. No input-delay logic, no frame number in packets.
-- The model is "state replication with local simulation": each machine runs the full game logic for its own player and for objects it owns, and copies other players and other-owned objects from packets. Remote players are shown by writing the received state into their MarioState; no extrapolation code was seen in the files I read (extrapolation: UNKNOWN).
+- The model is "state replication with local simulation": each machine runs the full game logic for its own player and for objects it owns, and copies other players and other-owned objects from packets. Remote players are shown by writing the received state into their MarioState; no extrapolation code was seen in the files read (extrapolation: UNKNOWN).
 - Why this works for SM64 (INFERRED): players can collide and interact, but the interaction results are sent as events (attack, interact, collect packets) and the nearest-player owner decides the result.
 - The deterministic RNG is not shared as a global seed; instead each sync object carries a seed (above).
 
@@ -350,7 +350,7 @@ Desync handling (VERIFIED):
 
 - VERIFIED: Lua 5.3.5 (`lib/lua/include/lua.h:18-21`). Source of the binding code: `src/pc/lua/` (about 53,000 lines in `*.c` of that folder, mostly generated).
 - VERIFIED: bindings are generated. `autogen/` holds Python scripts (`extract_functions.py`, `extract_structs.py`, `extract_constants.py`, `gen_hooks.py`, `convert_functions.py`, `autogen.sh`, ...). They scan C headers for function declarations, optionally with a doc comment in the form `/* |description|...|descriptionEnd| */` (seen in `sync_object.h`, `network_player.h`, `lag_compensation.h`) and write `smlua_functions_autogen.c`, `smlua_cobject_autogen.c`, `smlua_constants_autogen.c` and `docs/lua/*.md`.
-- VERIFIED counts (my own counting):
+- VERIFIED counts (counted for this study):
   - `smlua_functions_autogen.c`: 1985 functions named `smlua_func_*`. Plus a small hand-written set in `smlua_functions.c` (the "manually written functions" list at the top of `docs/lua/functions.md`: 18 entries such as `define_custom_obj_fields`, `network_init_object`, `network_send_object`, `network_send_to`, `network_send`, `texture_override_set`, `level_script_parse`, `djui_hud_print_text`). Total is about 2,000 callable functions.
   - `docs/lua/functions*.md`: seven files, about 1,987 function headings (1994 `## ` lines minus 7 navigation lines).
   - `docs/lua/structs.md`: 100 struct sections; `docs/lua/constants.md`: 4,816 lines; `docs/lua/globals.md`: gMarioStates, gNetworkPlayers, gActiveMods, gCharacters, gControllers, gTextures, gObjectAnimations, gLakituState, gServerSettings, gNametagsSettings, gHudDisplay, gLevelValues, gBehaviorValues, gPaintingValues, gFirstPersonCamera, and more.
@@ -378,7 +378,7 @@ Files: `src/pc/lua/smlua_sync_table.c/.h`, `packets/packet_lua_sync_table.c`; do
 
 VERIFIED behavior:
 - `gGlobalSyncTable` holds mod-wide shared values. `gPlayerSyncTable[i]` holds per-player values (16 entries, one table per player index, read-only wrapper `_ReadOnlyTable` around the set).
-- The docs state the important trap: "the localIndex for each player is different (unfortunately)": the order of `gMarioStates[]`, `gNetworkPlayers[]` and `gPlayerSyncTable[]` differs between machines. `gPlayerSyncTable[]` translates indices automatically (`docs/lua/lua.md` "Important notes on player indices"; the code uses `network_local_index_from_global` in `smlua_sync_table.c`).
+- The docs warn that "the localIndex for each player is different (unfortunately)": the order of `gMarioStates[]`, `gNetworkPlayers[]` and `gPlayerSyncTable[]` differs between machines. `gPlayerSyncTable[]` translates indices automatically (`docs/lua/lua.md` "Important notes on player indices"; the code uses `network_local_index_from_global` in `smlua_sync_table.c`).
 - Writes are sent to everyone as a reliable `PACKET_LUA_SYNC_TABLE` packet (one field per packet): a 64-bit sequence number, the mod's remote index, the key path (array of typed values, limit `MAX_UNWOUND_LNT`), and the value. Value types: integer, number, boolean, string, nil (`struct LSTNetworkType`, `packet.h`).
 - Conflict rule: last writer wins using the per-key sequence number. A received write is ignored when its seq is not greater than the stored one (log "Received outdated sync table field packet"). A local write bumps the seq by `MAX_PLAYERS + (MAX_PLAYERS - globalIndex)`, so two players writing at the same time get different numbers and the result is the same on all machines (smlua_sync_table.c:~262). (The tie-break reason is INFERRED.)
 - No authority check was found: any client can write `gGlobalSyncTable` (INFERRED from `network_send_lua_sync_table` using `network_send` with no host-only test). A mod must check `network_is_server()` itself.
@@ -438,10 +438,10 @@ VERIFIED sandbox facts:
 - Mods only reach files through ModFS (sandboxed) and mod storage.
 - `require` is custom (`smlua_require.c`) and works only inside the mod's own files (INFERRED from the per-mod registry lookup in `smlua_load_script`; not read in detail).
 
-Security concerns I can see (INFERRED unless marked):
-1. Remote code by design: joining a lobby makes the client download and run the host's Lua automatically. In the files I read there is no confirmation prompt between "download complete" and activation (`packet_download.c:187-203`: sets `mod->enabled = true` for every remote mod and sends the join request). A UI warning may exist elsewhere (UNKNOWN). The sandbox is the only protection.
+Security concerns seen in the code (INFERRED unless marked):
+1. Remote code by design: joining a lobby makes the client download and run the host's Lua automatically. In the files read there is no confirmation prompt between "download complete" and activation (`packet_download.c:187-203`: sets `mod->enabled = true` for every remote mod and sends the join request). A UI warning may exist elsewhere (UNKNOWN). The sandbox is the only protection.
 2. Binary Lua chunks: scripts are loaded with `luaL_loadbuffer` (`smlua.c:243`) without a text-only mode, and `.luac` is accepted as a mod file extension (`mod.c`, `smlua.c:362`). Lua 5.3 bytecode is not verified by the VM, and crafted bytecode is a known way to escape Lua sandboxes. This is a design risk, not a proven exploit.
-3. Path handling of downloaded files: the relative path arrives from the host in `PACKET_MOD_LIST_FILE` and is joined to a temp folder (`mod_file_full_path`: `concat_path` then `normalize_path`). In the code I read (`packet_mod_list.c:270-310`, `mods_utils.c:128-132`) I saw no explicit rejection of `..` segments. `normalize_path` may handle it (not verified). Mark as UNKNOWN; worth checking if you build a similar downloader.
+3. Path handling of downloaded files: the relative path arrives from the host in `PACKET_MOD_LIST_FILE` and is joined to a temp folder (`mod_file_full_path`: `concat_path` then `normalize_path`). In the code read (`packet_mod_list.c:270-310`, `mods_utils.c:128-132`) there is no explicit rejection of `..` segments. `normalize_path` may handle it (not verified). Mark as UNKNOWN; worth checking if you build a similar downloader.
 4. The path-length field is a 16-bit value read directly into a buffer: `packet_read(p, file->relativePath, relativePathLength * sizeof(u8))` with no visible cap in the lines read (`packet_mod_list.c:297-299`). Other fields (name, incompatible) do check their limits (lines 193-217). INFERRED: a hostile host could send a long path. Not verified whether `packet_read` bounds it.
 5. Sync tables: any peer can write any key (4.4), so a mod must not trust sync table values for authority.
 6. Peers can send arbitrary `PACKET_LUA_CUSTOM` content; mods must validate.
@@ -460,11 +460,11 @@ VERIFIED statements in the repo:
 - `credits.txt` lists "sm64coopdx Developers" (Agent X, AngelicMiracles, FluffaMario, Isaac0-dev, theclashingfritz, PeachyPeach), "sm64ex-coop Developers" (including djoslin0, who also gets credit for the ROM asset extractor), and a long contributor list for each.
 - `CHANGES` (352 lines) is the upstream decompilation's "Refresh N" log. It stops at "Refresh 13" (the last item mentions "No more nonmatchings remain..." and "Shindou matching (#1081)"). It was never extended for the fork. This file is a frozen copy of the original project's change log.
 - `src/pc/network/version.h` has `VERSION_OFFSET 37 // difference from old versioning system`. So the version counter was reset or renumbered when the coopdx line began (the old line used plain integers).
-- The tree still holds the N64 build pieces: `tools/` (IDO 5.3 recompiler, n64graphics, audiofile, asm_processor), `lib/src/*.c` (libultra stand-ins: `guLookAtRef.c`, `guMtxF2L.c`, `leointerrupt.c`, and so on), `Makefile` options for `VERSION ?= us` with `jp`, `eu`, `sh` variants, `Dockerfile` that still says "see https://github.com/n64decomp/sm64/blob/master/README.md for advanced usage". The repo root holds ROM hash files `sm64.us.sha1`, `sm64.jp.sha1`, `sm64.eu.sha1` and `sm64.sh.sha1`, and 73 files under `src/` contain `ifdef VERSION_SH` or `VERSION_EU` guards (my grep count).
+- The tree still holds the N64 build pieces: `tools/` (IDO 5.3 recompiler, n64graphics, audiofile, asm_processor), `lib/src/*.c` (libultra stand-ins: `guLookAtRef.c`, `guMtxF2L.c`, `leointerrupt.c`, and so on), `Makefile` options for `VERSION ?= us` with `jp`, `eu`, `sh` variants, `Dockerfile` that still says "see https://github.com/n64decomp/sm64/blob/master/README.md for advanced usage". The repo root holds ROM hash files `sm64.us.sha1`, `sm64.jp.sha1`, `sm64.eu.sha1` and `sm64.sh.sha1`, and 73 files under `src/` contain `ifdef VERSION_SH` or `VERSION_EU` guards (counted with grep).
 - ROM handling: the game extracts assets from the player's own ROM at build time (`extract_assets.py`, `assets.json`). weemitt reads the ROM at run time instead, and neither project commits a ROM.
 
 INFERRED about upstream handling:
-- Divergence is large. The fork rewrote the main loop (`src/pc/pc_main.c`), the renderer glue, the object system hooks, the UI (DJUI), and added C++ (DynOS) and Lua. The `CHANGES` file stopping at Refresh 13 means upstream decomp changes (which kept coming) are not tracked in it. With a one-commit shallow clone I cannot see merge commits. So: UNKNOWN whether they merge from upstream; the evidence points to "no regular merging". The credits line "built on top of" treats upstream as an ancestor, not as a source to follow.
+- Divergence is large. The fork rewrote the main loop (`src/pc/pc_main.c`), the renderer glue, the object system hooks, the UI (DJUI), and added C++ (DynOS) and Lua. The `CHANGES` file stopping at Refresh 13 means upstream decomp changes (which kept coming) are not tracked in it. A one-commit shallow clone shows no merge commits. So: UNKNOWN whether they merge from upstream; the evidence points to "no regular merging". The credits line "built on top of" treats upstream as an ancestor, not as a source to follow.
 - They kept `n64decomp` file layout (`src/game`, `src/engine`, `actors`, `levels`, `include`), so porting a specific upstream fix by hand is still possible.
 - Work split: game logic files in `src/game`, `src/engine` kept close to decomp style; everything new is in `src/pc/` (network, lua, mods, djui, discord, gfx, fs). INFERRED purpose: keeps the diff against the decomp tree readable.
 - Docs: C docs `docs/c/c.md` only covers naming conventions (camelCase variables, snake_case functions, PascalCase structs, `g` prefix for globals, `s` prefix for statics) and three sections (smlua, configfile, djui). They are short. Lua docs are large and generated.
@@ -487,7 +487,7 @@ INFERRED about upstream handling:
 - Jobs: `build-linux` (ubuntu-22.04, installs build-essential, libglew, libsdl2, zlib, libcurl, zip, runs `make -j`), `build-steamos` (same with `HANDHELD=1`), `build-windows` (windows-latest with MSYS2 mingw64/i686, SDL2 and GLEW packages, `make`), `build-macos-arm` (macos-26, builds GLEW 2.2.0 and SDL2 2.30.9 from source with minimum macOS 11, ad-hoc code sign), `build-macos-intel` (macos-15-intel, same).
 - Each job: build, compute a hash of the binary with `tools/hash_file.cpp` and print it as a CI notice, zip, upload artifact. The zip contents: `dynos`, `lang`, `mods`, `palettes`, the Discord SDK lib, the game, and `coopdx_updater`.
 - VERIFIED: no test step, no unit tests, no headless network tests, no lint step in CI. A `find` for test files finds only example assets (`actors/test_platform`, `docs/lua/examples/audio-test`, `docs/lua/examples/custom-hud-texture/textures/test.*`). There are `.clang-format` and `.clang-tidy` and `format.sh`, `tools/clang-tidy.sh`, but they are not run in CI.
-- Headless mode exists (`--headless`) and a Docker recipe says `make -j HEADLESS=1` (`Dockerfile`), and `gfx_dummy.c` is a no-render backend. Use for dedicated servers; no automated test uses it that I found.
+- Headless mode exists (`--headless`) and a Docker recipe says `make -j HEADLESS=1` (`Dockerfile`), and `gfx_dummy.c` is a no-render backend. Use for dedicated servers; no automated test that this study found uses it.
 - Dev aids: `DEVELOPMENT` build option (Makefile line 23) enables the debug-sync broadcast, extra logs and unsafe Lua libs (with `LUA_UNSAFE`), a fake "broken clock" test in `network_update_area_timer` (commented out), `network_send_debug_sync` every 5 s.
 - Lesson: they test by playing. weemitt's `tools/regress.py` plus a headless network test would already cover more than this project's CI does.
 

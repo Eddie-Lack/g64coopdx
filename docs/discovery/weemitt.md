@@ -3,13 +3,14 @@
 This file covers questions 2 and 3: where the PC port stands, what it already gives a network game, how g64coopdx
 should relate to it, and what weemitt needs to add first.
 
-weemitt was read at commit `f509ef7` (8 November 2026). Paths start with `weemitt/` unless they belong to another
-repository. **VERIFIED** means read in the code or docs, or measured in this session. **INFERRED** means concluded
+weemitt was read at commit `f509ef7` (8 November 2026). Paths without a repository name are in weemitt. **VERIFIED** means read in the code or docs, or measured in this session. **INFERRED** means concluded
 from them. Measurements were made on the session's machine: 4 cores, Linux, Wine 9 for the Windows builds.
 
 ## Where the port stands
 
-### What works (VERIFIED from the docs, and built in this session where marked)
+### What works
+
+The table is VERIFIED from weemitt's docs. The builds named in it were also made in this session.
 
 | Part | State | Source |
 | --- | --- | --- |
@@ -60,13 +61,13 @@ that every PC build agrees with every other, which the measurements below show.
 | 64-bit builds | Hashes compare across Linux and Windows | Measured |
 | **The brute forcer's savestates** | 4.7 to 5.0 MB a state. Save after a frame 0.014 to 0.019 ms; load 0.017 to 0.025 ms; a full copy about 0.4 ms. A game frame 0.028 to 0.047 ms | Measured with `glover bench`, levels 13, 5 and 1, and with `GLOVER_FULL_STATES=1` |
 
-What this means (INFERRED): a rollback of 8 frames costs one load and 8 frames, under 0.5 ms with page tracking and
-about 4 ms with full copies. A game frame lasts 50 ms. Rollback is cheap enough to be the network model
-([netcode.md](netcode.md)).
+From these numbers (INFERRED): a rollback of 8 frames costs one load, 8 frames and 8 saves. That takes 0.4 to 0.6 ms
+with page tracking and about 4 ms with full copies, against a game frame of 50 ms. Rollback is cheap enough to be the
+network model ([netcode.md](netcode.md)).
 
 ## How g64coopdx relates to weemitt
 
-### The constraint that decides it
+### Where the multi-player change must live
 
 Co-op with own gloves and own balls needs the game's logic to know about several players: enemies, puzzles, exits,
 the camera and the HUD read the one `hand` and the one `ball` ([state-inventory.md](state-inventory.md)). This change
@@ -95,14 +96,14 @@ upstream. It kept its new systems in `src/pc/` (VERIFIED), which kept its own co
 game in step. A fork of weemitt would most likely end the same way, because weemitt's game code changes faster than
 the decompilation's did.
 
-### Recommendation: C, with the brute forcer's way of building
+### Recommendation: C with the brute forcer's way of building
 
 g64coopdx is its own program. weemitt is a git submodule at a pinned commit. g64coopdx's build compiles weemitt's
 game and runtime sources with weemitt's own flags, read from weemitt's Makefile, the way the brute forcer already
 does (`bruteforce/Makefile`, VERIFIED). It links them statically, or uses `libglover` where that is enough.
 
-- **Every change to the game's C goes to weemitt.** It sits behind a player count and hooks that are inert when the
-  count is 1. `regress.py` proves the single-player game unchanged. weemitt gains a multi-player-capable game core;
+- **Every change to the game's C goes to weemitt.** It sits behind a player count and hooks that change nothing
+  when the count is 1. `regress.py` checks that the single-player game is unchanged. weemitt gains a multi-player-capable game core;
   g64coopdx never patches it.
 - **Everything else is g64coopdx's:** the network layer, sessions, rollback, the lobby, the interface, chat, Lua,
   packs, and the drawing of names.
@@ -126,8 +127,8 @@ does (`bruteforce/Makefile`, VERIFIED). It links them statically, or uses `libgl
   each new weemitt commit with its own tests ([repository.md](repository.md#ci)).
 
 Why not the library alone today (INFERRED): the library holds one game per process, has no savestates, gives
-read-only memory and one controller. All four are upstream work. The static build needs only the first item below
-to start.
+read-only memory and one controller. All four are upstream work. The static build needs only items 1 and 2 below to
+start.
 
 ## Upstream changes weemitt needs
 
@@ -148,7 +149,7 @@ passes. New state goes in new globals outside `port_ram`. Ordered by when g64coo
 | 10 | **64-bit savestates:** on Linux, the engine's renamed sections must accept the position-independent build's `.data.rel`, `.data.rel.local` and `.data.rel.ro*`; on Windows, the engine must be built and tested at 64 bits. Full copies (0.4 ms) are enough at first | 64-bit builds of g64coopdx | small to medium |
 | 11 | **Start a level from a record:** the level, the save, the players' carried state and the random seed, with no play before it; and a test that compares it with a level reached by play | instances, late join, repair ([netcode.md](netcode.md#instances)) | medium |
 | 12 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
-| 13 | **The owner's rules as options, inert at one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#what-the-owners-rules-add)) | medium |
+| 13 | **The owner's rules as options that change nothing with one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#what-the-owners-rules-add)) | medium |
 
 Items 1 and 2 let a prototype start. Items 3, 4, 12 and 13 are most of the game work.
 
@@ -157,7 +158,7 @@ Items 1 and 2 let a prototype start. Items 3, 4, 12 and 13 are most of the game 
 The scripts are in [experiments/](experiments/). They hold no game data. The ROM was the Glover (USA) ROM with SHA-1
 `270be17b3c8da9b88a7b99c2a545b0bce16837f4`, kept outside every repository.
 
-### Two instances, the same input
+### Repeated runs with the same input
 
 `experiments/determinism.py` runs a build twice with the input generator of `tools/regress.py` (walking, jumps, the
 ball buttons, the camera, the pause menu), each run from a new empty save, and compares the trace line and the

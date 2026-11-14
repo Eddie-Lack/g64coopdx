@@ -5,12 +5,12 @@ player's own ROM at run time. Keep their output (dumps, saves, traces) outside t
 
 | File | What it does | Results |
 | --- | --- | --- |
-| `determinism.py` | Runs a weemitt build twice with the same input and compares the trace and memory hash; with `--other`, also a second build (`--other-prefix wine` for a Windows build) | [weemitt.md](../weemitt.md#two-instances-the-same-input) |
+| `determinism.py` | Runs a weemitt build twice with the same input and compares the trace and memory hash; with `--other`, also a second build (`--other-prefix wine` for a Windows build) | [weemitt.md](../weemitt.md#repeated-runs-with-the-same-input) |
 | `memdiff.py` | Counts the bytes and pages of the game's memory that change in 1 and 20 frames, and how well they compress | [weemitt.md](../weemitt.md#how-much-memory-changes-in-a-frame) |
 | `g64probe.c` | A tiny host program: loads `libglover` (or `glover.dll`), steps the game, and with two copies of the library runs two games in one process | [weemitt.md](../weemitt.md#a-separate-program-on-the-library) |
 | `inventory/` | A clang syntax-tree scan of every use of the glove, ball and other globals in weemitt's `src/game`, and gdb probes of the frame limits | [state-inventory.md](../state-inventory.md#4-measuring-the-refactor-every-use-of-the-glove-and-ball-globals) |
 
-## How to run them
+## Running them
 
 They need a weemitt checkout (`WEEMITT`, default `../weemitt`) with its test builds made (`make headless headless64
 lib64-stub libhost64`, and the Windows ones for the Wine runs; see weemitt's docs/building.md).

@@ -28,9 +28,9 @@ All from this session; scripts in [experiments/](experiments/); details in [weem
 
 | Question | Result |
 | --- | --- |
-| Do two runs with the same inputs stay equal? | Yes. 48 levels at 6,000 frames and the attract mode: the same trace and memory hash every 10 frames |
-| Across builds? | Linux 32-bit = Linux 64-bit (trace and hash). Linux 64-bit = Windows 64-bit under Wine (trace and hash, 49 runs of 3,000 frames). Linux 32-bit library = Windows 32-bit library (trace and hash, 49 runs). Each set also ran its first build twice. 147 comparisons of trace and hash in all, no difference |
-| With the real sound player in place of the silent one? | The same trace in 49 runs. The memory differs (the player keeps state there) |
+| Do two runs with the same inputs stay equal? | Yes. Four sets of 49 runs (48 levels and the attract mode, 3,000 or 6,000 frames each) ran their first build twice: 196 pairs, the same trace and memory hash at every check (every 10 frames, or 100 in the sound set) |
+| Across builds? | Linux 32-bit = Linux 64-bit (trace and hash). Linux 64-bit = Windows 64-bit under Wine (trace and hash, 49 runs of 3,000 frames). Linux 32-bit library = Windows 32-bit library (trace and hash, 49 runs). 147 pairs of different builds in all, no difference |
+| With the real sound player in place of the silent one? | The same trace in 49 pairs (64-bit Linux, 3,000 frames). The memory differs (the player keeps state there) |
 | Size of a savestate | 4.67 to 4.99 MB: the game's variables 1.04 MB, memory below the heap 2.69 MB, the heap 0.93 to 1.25 MB |
 | Cost of a save, a load | 0.014 to 0.019 ms and 0.017 to 0.025 ms after a frame with page tracking; about 0.4 ms each as a full copy |
 | Cost of a game frame | 0.028 to 0.047 ms (headless, full draw); 0.023 to 0.039 ms with the brute forcer's trimmed draw |
@@ -62,17 +62,18 @@ keeps a savestate of each frame since the last frame whose inputs are all known 
 input arrives and differs from the prediction, it loads the state of that frame and runs forward again.
 
 - The local glove responds at once. Remote gloves and their balls jump when a prediction was wrong.
-- Cost (INFERRED from the measurements): a rollback of 8 frames (400 ms) is one load and 8 frames: under 0.5 ms with
-  page tracking, about 4 ms with full copies. A frame lasts 50 ms. Resimulated frames can use the trimmed draw; only
-  the last frame needs the full draw for the picture.
+- Cost (INFERRED from the measurements): a rollback of 8 frames (400 ms) is one load, 8 frames and 8 saves. That
+  takes 0.4 to 0.6 ms with page tracking and about 4 ms with full copies. A frame lasts 50 ms. Resimulated frames
+  can use the brute forcer's trimmed draw, which skips the work that only builds the picture; only the last frame
+  needs the full draw.
 - One simulation holds one level. Players in different levels are in different simulations, called instances
   ([below](#instances)).
 - Needs: bit-exact logic everywhere (measured), cheap savestates (measured), sound that does not replay on each
   rollback ([below](#sound-and-rollback)), and deterministic scripts ([mods.md](mods.md#scripts-in-a-rollback-game)).
 
-### C. State synchronization with an authority, as sm64coopdx does
+### C. State synchronization with an authority
 
-Each machine runs its own copy of the level. Each player sends its own glove's and ball's state. Objects are owned
+sm64coopdx uses this model. Each machine runs its own copy of the level. Each player sends its own glove's and ball's state. Objects are owned
 by the nearest player or by the host, and the owner sends their state. Events (a garib taken, an enemy killed, a
 switch pressed) go as messages ([sm64coopdx.md](sm64coopdx.md), section 3).
 
@@ -100,14 +101,16 @@ switch pressed) go as messages ([sm64coopdx.md](sm64coopdx.md), section 3).
 | Players in different levels | One simulation per level | One instance per occupied level; the host confirms the inputs of all of them | Natural |
 | Scripts | Deterministic, no sync code | Deterministic, in the savestate | Sync tables, as sm64coopdx |
 
-### Recommendation: B, with host-confirmed inputs
+### Recommendation: B with host-confirmed inputs
 
-GGPO-style rollback lets every peer wait for every other peer's input once its prediction window is used up. With
-many players that becomes lockstep's stall. The recommended variant avoids it:
+In the common form of rollback (GGPO's, for example), each machine may predict only a fixed number of frames ahead
+of the last inputs it has. When a peer's inputs are later than that, every machine waits for them. With many players
+that wait comes often, as in lockstep. The recommended variant avoids it:
 
 1. Every client sends its input for frame t of its instance to the host, a few frames ahead of time, with the last
    few inputs repeated against loss.
-2. The host collects each instance's inputs for frame t. At a deadline (a fixed number of frames behind its own time)
+2. The host collects each instance's inputs for frame t. At a deadline (a fixed number of frames behind the host's
+   own frame count)
    it **confirms** frame t: for a player whose input has not arrived it repeats that player's last input. It sends the
    confirmed inputs to the players in that instance.
 3. Every client predicts with the latest inputs it has, and rolls back to the confirmed inputs when they arrive.
@@ -159,7 +162,7 @@ Model A remains a fallback inside B: a session with a large input delay and a pr
 | Session events | join, leave, enter and leave a level, a level done, kick, chat | small, reliable |
 
 At 20 frames a second with 16 players, a client receives about 70 bytes a frame, 1.4 KB a second, plus headers
-(INFERRED). The cost of the network is latency, not bandwidth.
+(INFERRED). Any home connection carries that; the delay between machines is what limits the game.
 
 ### Desync detection and repair
 
@@ -174,7 +177,7 @@ At 20 frames a second with 16 players, a client receives about 70 bytes a frame,
 ### Instances
 
 The owner's rules: players may be in different levels of the same world; a portal to another world opens when every
-player is in the hub ([README.md](README.md#worlds-levels-and-instances)).
+player is in the hub ([README.md](README.md#worlds-and-instances)).
 
 **What an instance is.** One simulation of one level, run on the inputs of the players in it, from its **start
 record**:
@@ -274,10 +277,11 @@ Enhancements and Cheats are session settings that only the host sets; the cheat 
 | CoopNet (sm64coopdx's lobby) | AGPL-3.0 (VERIFIED: its LICENSE on branch `master`) | Lobby and signaling over libjuice | Another port's code; do not use |
 
 **Recommendation (INFERRED):** ENet for the channels, libsodium for encryption (a key exchange at connect, then
-every packet sealed), libjuice for ICE, coturn for the relay. All are C, small, and MinGW-friendly; the licenses (MIT,
-ISC, MPL-2.0, BSD-3-Clause) suit any license g64coopdx chooses. MPL-2.0 asks that changes to libjuice's own files
-stay MPL-2.0 and be shared; use it unchanged. Phase 2 of the roadmap tries GameNetworkingSockets' MinGW build as the
-alternative.
+every packet sealed), libjuice for ICE, coturn for the relay. All four are small and written in C. libjuice lists
+Windows among its platforms; a MinGW build of each library was not tried, and phase 2 tries them, with
+GameNetworkingSockets' MinGW build as the alternative. Their licenses (MIT, ISC, MPL-2.0, BSD-3-Clause) suit MIT, the
+license chosen for g64coopdx. MPL-2.0 asks that changes to libjuice's own files stay MPL-2.0 and be shared; use it
+unchanged.
 
 ### Services
 
@@ -289,8 +293,8 @@ alternative.
 | STUN | Tells a machine its public address | The project's coturn, or public STUN servers |
 
 The lobby server never sees game data: only session descriptions, ICE candidates and the handshake. sm64coopdx's
-lobby (CoopNet) does the same job; its design (a lobby that only introduces players, the version in the lobby list,
-the game name as a filter) is a model, its code is not.
+lobby (CoopNet) does the same job. g64coopdx follows its design: a lobby that only introduces players, the version in
+the lobby list, the game name as a filter. It does not use CoopNet's code.
 
 ### The handshake
 
@@ -305,10 +309,11 @@ On connect, before anything else, the host and the joiner compare:
 | Session settings | From the host |
 | Player | name, colors, the glove and ball models chosen; checked for length and characters |
 
-The 64-bit and the 32-bit builds give the same results here, but one session should still require one build id
-(INFERRED: the cheapest rule that catches every difference).
+The 64-bit and the 32-bit builds gave the same traces and hashes in the measurements above. One session still
+requires one build id (INFERRED: a single build id catches any difference between builds, including ones not yet
+measured).
 
-### Everything from the network is untrusted
+### Input from the network
 
 - Every message has a type, a length and fields with fixed limits; a parser checks all of them before use and
   drops the message otherwise.

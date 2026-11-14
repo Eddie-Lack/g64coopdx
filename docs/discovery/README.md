@@ -1,19 +1,26 @@
 # Discovery: online co-op for Glover
 
 This is the report of the discovery phase for g64coopdx: an online multiplayer version of Glover (N64, USA) on PC,
-with mods, in the spirit of sm64coopdx. Nothing here is the feature itself. The owner's decisions so far are listed in
-[open-questions.md](open-questions.md#decided). In short: 16 players by design, 8 promised; each player a glove with
-its own ball; Windows first; Lua and custom levels in the first version; players may be in different levels of the
-same world; no lives; each player exits alone.
+with mods, in the spirit of sm64coopdx (the online version of the Super Mario 64 PC port). The discovery built no part
+of the feature. The owner's decisions are listed in [open-questions.md](open-questions.md#decided). In short: 16
+players by design, 8 promised; each player a glove with its own ball; Windows first; Lua and custom levels in the first
+version; players may be in different levels of the same world; no lives; each player exits alone. The
+[terms](#terms) used throughout are defined at the end of this file.
 
 ## Summary
 
-**Is it feasible?** Yes. The PC port, weemitt, already has the two properties that the hardest part of a network game
-needs, and this discovery measured both. Its game logic gives the same result, bit for bit, on every run and on every
-build tested: Linux and Windows, 32-bit and 64-bit (147 comparisons of trace and memory hash over all 48 levels and
-the attract mode, no difference; 49 more with the real sound player gave the same traces). And its savestates are cheap: a state of about 5 MB saves or loads in 0.02 ms (0.4 ms as a plain
-copy), while a game frame lasts 50 ms. The work is in the game's code, which assumes one player throughout: 225 of its
-1,234 functions touch the glove or the ball.
+**Feasibility.** The project is feasible. A rollback network game (see [Terms](#terms)) needs game logic that gives
+the same result on every machine, and savestates that are cheap to save and load. The PC port, weemitt, has both, and
+this discovery measured them:
+
+- The same inputs gave the same game state on every run and every build tested: Linux and Windows, 32-bit and
+  64-bit. The test ran all 48 levels and the attract mode. 196 pairs of repeated runs and 147 pairs of different
+  builds matched in their per-frame state trace and their memory hash. 49 more pairs, with the real sound player
+  against the silent one, matched in their trace.
+- A savestate of about 5 MB saves or loads in 0.02 ms, or 0.4 ms as a plain copy. A game frame lasts 50 ms.
+
+The work is in the game's code, which assumes one player throughout: 225 of its 1,234 functions touch the glove or the
+ball.
 
 **The recommended design.** The session is in one world at a time. Every player has a glove and a ball, and may be in
 any level of that world, its boss, its bonus level or the hub. A portal to another world opens when every player is
@@ -25,14 +32,15 @@ chooses whether a glove may pick up only its own ball or any ball; a lost ball a
 **The recommended network model.** Rollback with host-confirmed inputs, one simulation per occupied level (an
 **instance**). Every machine runs its own level's instance on the inputs of the players in it. It shows its own player
 at once, predicts the others, and steps back through savestates when the real inputs differ. The host decides each
-frame's final inputs for every instance, so a slow player never stalls the rest. Only inputs and session messages
+frame's final inputs for every instance. When a player's input arrives too late, the host repeats that player's last
+input, and the others go on without waiting. Only inputs and session messages
 cross the network: a few bytes per player per frame, and no game data. A player who enters a level that others are
 already playing replays that instance's inputs from its start. [netcode.md](netcode.md).
 
 **How the project relates to weemitt.** g64coopdx is a separate program with weemitt as a pinned submodule. It
 compiles weemitt's game code with weemitt's own flags, as weemitt's brute forcer does. Every change to the game's C
-goes into weemitt, behind a player count that is inert at one player, so weemitt's `regress.py` keeps proving the
-single-player game unchanged. g64coopdx holds the network, the sessions, the interface, Lua and the packs.
+goes into weemitt, behind a player count. With one player the changed code does what the old code did, and weemitt's
+regression test (`tools/regress.py`) checks that every frame. g64coopdx holds the network, the sessions, the interface, Lua and the packs.
 [weemitt.md](weemitt.md).
 
 **The biggest risks.**
@@ -61,9 +69,25 @@ playable or testable. [roadmap.md](roadmap.md).
 | [open-questions.md](open-questions.md) | | The owner's decisions |
 | [experiments/](experiments/) | | The scripts behind the measurements |
 
+The discovery had 13 questions. The column above, and the other files' introductions, refer to them by number:
+
+1. What sm64coopdx is: its features, network model and mod system, and which carry over to Glover.
+2. Where weemitt stands, and what it already gives a network game.
+3. How g64coopdx should relate to weemitt, and what weemitt must add first.
+4. The game's single-player assumptions.
+5. The design of co-op play.
+6. The network model, with measurements.
+7. Transport and services.
+8. Mods.
+9. Where the new state lives, given weemitt's memory layout rule.
+10. Player presentation and the interface.
+11. Testing.
+12. The new repository.
+13. Risks and unknowns.
+
 This file answers questions 5, 9, 10, 11 and 13.
 
-## How this was done
+## Method
 
 - Read: weemitt's CLAUDE.md and docs (architecture, delta time, interpolation, the library, the host world, the
   64-bit port, testing, the studio), the brute forcer's docs, Glovebox's technical.md, gloveworld's docs, and
@@ -74,10 +98,13 @@ This file answers questions 5, 9, 10, 11 and 13.
 - Four research agents worked in parallel (sm64coopdx, the state inventory, mods and Glovebox, network libraries).
   Their claims were spot-checked against the sources, and their notes are the base of the detail sections.
 - Marks: **VERIFIED** means read in a named source or measured here; **INFERRED** means concluded from that;
-  **UNKNOWN** means not known yet, with a way to settle it.
+  **UNKNOWN** means not known yet, with a way to settle it. The other files use the same marks.
+- Paths into weemitt, gloveworld and Glovebox, and their line numbers, refer to the commits that were read: weemitt
+  `f509ef7` (8 November 2026), gloveworld `aa652b5`, Glovebox `5c25495`.
 - The ROM (Glover USA, SHA-1 `270be17b3c8da9b88a7b99c2a545b0bce16837f4`, the same as gloveworld's `NGVE.sha1`) stayed
   outside every repository. Memory dumps were deleted after use. Nothing from the ROM is in this report.
-- Nothing in weemitt, gloveworld or Glovebox was changed.
+- The discovery made no commit or change in weemitt, gloveworld or Glovebox: `git status` is clean in all three.
+  Builds went into weemitt's build folders, which git ignores.
 
 ## Recommended design
 
@@ -85,7 +112,7 @@ The owner's decisions shape this section: each player a glove with its own ball;
 of the same world; no lives; each player exits alone; ball pickup is a host option; respawn at the player's own
 checkpoint. The full list of decisions is in [open-questions.md](open-questions.md#decided).
 
-### Worlds, levels and instances
+### Worlds and instances
 
 - The session is in **one world at a time**: the hub, Atlantis, Carnival, Pirates, Prehistoric, Fear or Space
   (`enum World`, `weemitt/include/enums.h:285-294`). Players may be in any level of that world, its boss level, its bonus level, or
@@ -109,7 +136,7 @@ checkpoint. The full list of decisions is in [open-questions.md](open-questions.
 - A host option, for the whole session: **own ball only** (a glove picks up only its own ball) or **any ball** (any
   glove may take any free ball).
 - A ball that is lost (thrown off a cliff, burst, drowned) kills its real owner, whoever held it last. With any-ball
-  pickup this lets one player get another killed; it is part of the rule.
+  pickup, one player can get another killed this way. The rule allows it.
 - Ball changes from power-ups (bowling, crystal, ball-bearing and the others) apply to the ball that touched the
   power-up, or to the ball of the player who took it when a glove takes it.
 - Gloves and balls do not collide with each other in the first version: the game has no such physics, and new
@@ -156,7 +183,7 @@ checkpoint. The full list of decisions is in [open-questions.md](open-questions.
 - Progress made in one instance reaches the others as a session event at a confirmed frame (for example, a hub door
   that opens when a level is done) ([netcode.md](netcode.md#session-events)).
 
-### Bosses, bonus levels, cameos
+### Bosses, bonus levels and cameos
 
 - A boss level is an instance like any other. A boss targets the nearest player in it, as the enemies do. Its
   health is shared by the players fighting it; any player's ball hurts it. The five bosses with code
@@ -190,7 +217,7 @@ does not change; new state goes in new globals outside it.
   in an emulator and the brute forcer's sync test keep working. The savestate already covers the game's variables
   outside `port_ram` (`weemitt/bruteforce/docs/engine.md`, "Savestates"), so rollback sees the new state too.
 - What it costs: code that treats player 0 apart. A pointer per player hides that from most of the game's code.
-- What breaking the rule would buy: simpler arrays. Not worth losing the tests that prove the game exact.
+- What breaking the rule would buy: simpler arrays. That does not justify losing the three tests above.
 
 ## Player presentation and the interface
 
@@ -250,10 +277,36 @@ New tests:
 | 6 | A level start is not fully set by a small start record. Entering a level that others play, late join and repair all assume it | The phase 1 experiment; fallback: a player joins a level only when it starts, and others wait for a new instance |
 | 7 | Rollback corrections look bad for remote balls with many players | Smooth the drawing of remote players; tune the input delay; measure at 100 to 200 ms |
 | 8 | Lua scripts break determinism in ways the sandbox misses | Hash the arena with the game; the harness runs every bundled script under rollback |
-| 9 | Upstream changes slow down weemitt's own work | Keep each change inert at one player and small; the same owner decides the order |
+| 9 | Upstream changes slow down weemitt's own work | Keep each change small, and make it do nothing new with one player; the same owner decides the order |
 | 10 | Legal: the published builds contain decompiled code (decided: builds are published); sharing edited shipped levels | Never ship ROM data; weemitt needs a license before a release; edited shipped levels travel only as diffs against the player's own ROM |
 | 11 | Abuse: hostile players, crafted packets, crafted packs | Inputs-only model; strict parsers with fuzzing; prompts and hashes for packs; host moderation |
 | 12 | The services cost money and time to run | Direct connection first; the lobby and relay in phase 4, or never if the owner prefers |
 | 13 | 16 players' inputs mispredicted often enough that rollbacks get deep | Measure in the harness; an input delay of 1 to 2 frames; the host's deadline bounds the depth |
 | 14 | Session events (a level done, a hub door) reach different instances at different frames, or differently on two machines | Events enter an instance only as confirmed inputs at a frame the host picks; the harness checks every instance's hashes |
 | 15 | Players joining and leaving a running level is new game logic: a glove and ball appear or vanish at a frame | Upstream, as part of the per-player state; the harness joins and leaves players at random frames |
+
+## Terms
+
+| Term | Meaning |
+| --- | --- |
+| Glover | An N64 platform game. The player steers a glove (the **glove**, `hand` in the code) that walks, jumps and carries, rolls or throws a **ball**, and must bring the ball to each level's exit |
+| Garib | The game's collectables; each level has a set number |
+| Cameo | A short scripted scene inside a level |
+| gloveworld | The matching decompilation of Glover: C that compiles back to the original ROM |
+| weemitt | The native PC port of Glover, built from gloveworld's C |
+| Glovebox | The owner's level editor for Glover |
+| sm64coopdx | An online co-op version of the Super Mario 64 PC port, with Lua mods; studied here as a model |
+| `port_ram` | weemitt's 24 MB block that stands for the N64's memory. Every global of the game sits at its N64 offset in it |
+| Savestate | A copy of the game's whole state, which can be loaded back later |
+| Brute forcer | A tool inside weemitt that searches for faster routes through levels. It has the cheapest savestates: after the first one it copies only the 4 KB pages that changed (**page tracking**) |
+| Rollback | A network model. Each machine shows its own player at once and predicts the others' inputs. When the real inputs arrive and differ, it loads the savestate of the last frame it knew and runs the frames again |
+| Host | The machine that runs the session: it admits players and confirms each frame's inputs. (In weemitt's own docs, "host" also means a program that loads weemitt's library.) |
+| Confirmed frame | A frame whose inputs the host has fixed for every player |
+| Instance | One simulation of one level, run on the inputs of the players in it |
+| Start record | The small set of values from which any machine can build an instance's first frame with its own ROM |
+| Input log | Every confirmed input of an instance, from its first frame |
+| Session event | A change to the session's shared state (a level done, the world) that the host puts into an instance's confirmed inputs at a frame |
+| Upstream | weemitt, seen from g64coopdx. "Upstream item N" is row N of the table in [weemitt.md](weemitt.md#upstream-changes-weemitt-needs) |
+| Phase N | A phase of [roadmap.md](roadmap.md) |
+| Original and Smooth modes | weemitt's two frame-rate modes. Original runs whole N64 frames and blends the drawing. Smooth runs the logic at any update length, which is not exact across systems |
+| NAT traversal, ICE, STUN, TURN | Ways for two machines behind home routers to reach each other. ICE tries the possible routes; STUN tells a machine its public address; a TURN server relays the traffic when nothing else works |

@@ -12,7 +12,7 @@ recommendations for the rest. The decisions are below, with where each one shape
 | Platforms | Windows first, Linux too | [repository.md](repository.md#the-build) |
 | Mods in the first version | Lua scripting and custom levels | [mods.md](mods.md) |
 | Game changes | Into weemitt, behind a player count that changes nothing at one player | [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt) |
-| Levels | Players may be in different levels of the same world; the session is in one world at a time, and a portal to another world opens when every player is in the hub | [README.md](README.md#worlds-levels-and-instances), [netcode.md](netcode.md#instances) |
+| Levels | Players may be in different levels of the same world; the session is in one world at a time, and a portal to another world opens when every player is in the hub | [README.md](README.md#worlds-and-instances), [netcode.md](netcode.md#instances) |
 | Services | Direct connection first (phase 2); the lobby, NAT traversal and relay later (phase 4) | [roadmap.md](roadmap.md) |
 | Joining | In the middle of a level, by replaying its inputs; joining at a new instance as the fallback | [netcode.md](netcode.md#instances) |
 | Lives | None in co-op | [README.md](README.md#death-and-respawn) |
@@ -21,7 +21,6 @@ recommendations for the rest. The decisions are below, with where each one shape
 | Ball pickup | A host option: own ball only, or any ball. Each ball keeps its real owner; a lost ball kills that owner | [README.md](README.md#the-ball) |
 | License | MIT for g64coopdx's own code | [repository.md](repository.md#license) |
 | Builds | Published | [repository.md](repository.md#what-may-be-distributed) |
-| Name | Decided later; `g64coopdx` is the working name | [repository.md](repository.md#candidate-names) |
 | Copyright holder | "The g64coopdx contributors" in the MIT `LICENSE` file; the owner may put a name there instead | [repository.md](repository.md#license) |
 | Memory layout | g64coopdx keeps weemitt's rule: player 0 at the N64 addresses in `port_ram`; other players and larger buffers outside it | [README.md](README.md#where-the-new-state-lives) |
 | ROM tests in CI | No self-hosted runner for now; the tests that need the ROM run locally | [repository.md](repository.md#ci) |
@@ -37,9 +36,9 @@ recommendations for the rest. The decisions are below, with where each one shape
 | Glovebox | An "Export level pack" action, and imported models in banks of their own, in phase 5 | [mods.md](mods.md#the-level-pack) |
 | Player models | Allowed, as packs, after phase 5 | [mods.md](mods.md#player-models) |
 | A custom level's world | The world of the shipped level whose row it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
-| Death in a bonus level | Sends only that player out; the others play on | [README.md](README.md#bosses-bonus-levels-cameos) |
-| Cameos | The other players in that level are held still and hidden while a cameo runs | [README.md](README.md#bosses-bonus-levels-cameos) |
+| Death in a bonus level | Sends only that player out; the others play on | [README.md](README.md#bosses-bonus-levels-and-cameos) |
+| Cameos | The other players in that level are held still and hidden while a cameo runs | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 
 ## Still open
 
-Nothing. The name stays open until the owner picks one; `g64coopdx` is the working name.
+Only the name. The owner picks it later; `g64coopdx` is the working name ([repository.md](repository.md#candidate-names)).

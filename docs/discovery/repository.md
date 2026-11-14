@@ -1,8 +1,8 @@
 # The repository
 
 This file covers question 12: g64coopdx's layout, build, CI, license, the ROM requirement, what may be distributed,
-a draft CLAUDE.md and candidate names. The choices that only the owner can make are in
-[open-questions.md](open-questions.md); this file gives a recommendation for each.
+a draft CLAUDE.md and candidate names. The owner's decisions on these points are in
+[open-questions.md](open-questions.md#decided).
 
 ## Layout
 
@@ -41,7 +41,7 @@ Rules that the layout encodes:
   g64coopdx calls the game through weemitt's interfaces: the library's calls, the hooks in `src/port/porthooks.h`, and
   the per-player state that weemitt adds.
 - The network layer sits behind a table of functions, as sm64coopdx's `struct NetworkSystem` does
-  ([sm64coopdx.md](sm64coopdx.md)), so the direct and the lobby modes share all other code.
+  ([sm64coopdx.md](sm64coopdx.md)). The direct and the lobby modes then share all other code.
 - The toy game stands in for the real one wherever a test does not need Glover itself.
 
 ## The build
@@ -57,7 +57,7 @@ Rules that the layout encodes:
 - **32-bit first**, for Windows and Linux. The brute forcer's savestates exist only in 32-bit builds today
   ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)). The 32-bit libraries gave equal
   hashes on Linux and Windows; the static 32-bit build may need the libraries' offset pointers for that. 64-bit builds follow upstream item 10; their hashes also agree across systems (measured).
-  A session admits one build id, so one bitness at a time.
+  A session admits one build id, and so one bitness.
 - SDL2, as weemitt. Dependencies are vendored as source, never as prebuilt binaries. sm64coopdx commits prebuilt
   libraries (`lib/`), which hides their code and their licenses ([sm64coopdx.md](sm64coopdx.md), section 7).
 
@@ -88,7 +88,7 @@ Glovebox's CI works the same way: the tests that need the ROM skip themselves (`
 | Thing | May be distributed? |
 | --- | --- |
 | g64coopdx's own source | Yes, under its license |
-| weemitt's source (as a submodule) | As weemitt's owner decides; weemitt has no license file yet |
+| weemitt's source (as a submodule) | Under weemitt's license, which it does not have yet. A release needs one |
 | Vendored libraries | Yes, under their licenses (MIT, ISC, MPL-2.0, zlib), with their notices |
 | Release builds | **Decided: yes.** They contain the game's code compiled from the decompilation, but no ROM data, as sm64coopdx's and other decompilation ports' builds do. Players supply their own ROM |
 | The lobby server | Yes; the project runs it |
@@ -102,7 +102,7 @@ Facts (VERIFIED):
 - weemitt, gloveworld and Glovebox have no license file. gloveworld's README says its license "is not chosen yet";
   Glovebox's Cargo.toml points at `THIRD_PARTY_NOTICES.md`.
 - sm64coopdx has no license file, so no right to its code exists. g64coopdx does not use its code in any case.
-- CoopNet, sm64coopdx's lobby server, is AGPL-3.0. Not used.
+- CoopNet, sm64coopdx's lobby server, is AGPL-3.0. g64coopdx does not use it.
 - The libraries recommended in [netcode.md](netcode.md) and [mods.md](mods.md): ENet MIT, libsodium ISC, libjuice
   MPL-2.0, Lua MIT, SDL2 zlib, Dear ImGui MIT (already in weemitt's `third_party/imgui`), coturn BSD-3-Clause (a
   separate server).
@@ -132,8 +132,8 @@ PC port, which is a submodule in `weemitt/`. Read this file, then docs/ (start w
 - **Never use leaked original source code**, the N64 SDK's source (libultra, libaudio, libmus), or code from other
   ports, sm64coopdx and its CoopNet included. Study their design and docs only. Write the code from public
   documentation or your own design.
-- **No game code here.** Every change to the game's C goes to weemitt, behind a player count or a hook that is inert
-  at one player, with `python3 tools/regress.py check` saying "same as the baseline". Never patch the submodule.
+- **No game code here.** Every change to the game's C goes to weemitt, behind a player count or a hook that changes
+  nothing with one player, with `python3 tools/regress.py check` saying "same as the baseline". Never patch the submodule.
 - **Keep weemitt's memory layout.** Player 0 keeps the N64 addresses in `port_ram`. Other players' state and every
   new buffer live outside `port_ram`.
 - **The online game is exact.** It runs whole frames only (`deltaTime` 1). Two machines with the same inputs must
@@ -154,6 +154,8 @@ PC port, which is a submodule in `weemitt/`. Read this file, then docs/ (start w
 - The project's own code is MIT (`LICENSE`). Vendored code keeps its license; list it in `THIRD_PARTY_NOTICES.md`.
 
 ## Everyday work
+
+These commands are planned; none exists yet.
 
     make -j4                       # build/linux/g64coopdx
     make windows -j4               # build/windows/g64coopdx.exe
