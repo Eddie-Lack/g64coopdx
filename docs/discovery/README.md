@@ -53,7 +53,7 @@ regression test (`tools/regress.py`) checks that every frame. g64coopdx holds th
 4. The instances: entering a level by replaying its inputs, and session events (a level completed, a save bit) that
    must reach every instance at the same frame on every machine.
 
-**Rough size.** About 32 to 52 weeks of focused work for one developer, in seven phases that each end in something
+**Rough size.** About 33 to 54 weeks of focused work for one developer, in seven phases that each end in something
 playable or testable. [roadmap.md](roadmap.md).
 
 ## The documents

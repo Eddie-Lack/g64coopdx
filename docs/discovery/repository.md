@@ -54,13 +54,12 @@ Rules that the layout encodes:
   savestate ([mods.md](mods.md#scripts-in-a-rollback-game)).
 - Targets: `make` (Linux), `make windows` (MinGW-w64, the first target that matters), `make headless` (no window,
   the test build), `make server` (the lobby server), `make test`.
-- **32-bit first**, for Windows and Linux. The brute forcer's savestates exist only in 32-bit builds today
-  ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)). The 32-bit libraries gave equal
-  hashes on Linux and Windows. Those libraries store the game's pointers as offsets; the static 32-bit build may need
-  to store them the same way to get equal hashes. Phase 0 checks it.
-- 64-bit builds follow upstream item 10. The 64-bit Linux and Windows libraries also gave equal hashes in this
-  discovery's tests.
-- A session admits one build id, and so one bitness.
+- **64-bit from the start**, for Windows and Linux (decided). The 64-bit Linux and Windows builds gave equal memory
+  hashes in this discovery's tests.
+- The brute forcer's savestates exist only in 32-bit builds today. Making them work at 64 bits is upstream item 10,
+  done in phase 0 ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)). Full-copy
+  savestates work at 64 bits meanwhile.
+- No 32-bit builds.
 - SDL2, as weemitt. Dependencies are vendored as source, never as prebuilt binaries. sm64coopdx commits prebuilt
   libraries (`lib/`), which hides their code and their licenses ([sm64coopdx.md](sm64coopdx.md), section 7).
 

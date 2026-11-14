@@ -309,8 +309,7 @@ On connect, before anything else, the host and the joiner compare:
 | Session settings | From the host |
 | Player | name, colors, the glove and ball models chosen; checked for length and characters |
 
-The 64-bit and the 32-bit builds gave the same traces and hashes in the measurements above. One session still
-requires one build id (INFERRED: a single build id catches any difference between builds, including ones not yet
+g64coopdx ships only 64-bit builds. One session still requires one build id (INFERRED: a single build id catches any difference between builds, including ones not yet
 measured).
 
 ### Input from the network

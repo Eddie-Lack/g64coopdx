@@ -6,7 +6,7 @@ player count or a hook, with `regress.py check` saying "same as the baseline" at
 
 | Phase | Ends in | Size | Depends on |
 | --- | --- | --- | --- |
-| 0. The skeleton | A build and CI that run the toy game's rollback tests | 1 to 2 weeks | nothing |
+| 0. The skeleton | A 64-bit build with savestates, and CI that runs the toy game's rollback tests | 2 to 4 weeks | upstream item 10 |
 | 1. Two gloves offline | Two players, two controllers, one hub level, on one machine; a level started from a record | 5 to 7 weeks | 0; upstream items 1 to 3 and 11 |
 | 2. Rollback on a LAN | 2 to 4 players over direct UDP, in different levels of one world, with desync checks | 5 to 8 weeks | 1; upstream item 12 |
 | 3. The whole game in co-op | Every level, boss and bonus level, 8 players, the owner's rules | 9 to 16 weeks | 2; upstream items 3 to 5 and 13 |
@@ -14,7 +14,7 @@ player count or a hook, with `regress.py check` saying "same as the baseline" at
 | 5. Mods | Lua scripts and level packs from Glovebox, downloaded on join | 6 to 9 weeks | 2; upstream item 8; Glovebox's pack export |
 | 6. Release | A Windows release, documentation, crash reports | 2 to 4 weeks | 3, 4, 5 |
 
-In all: about 32 to 52 weeks with every phase done one after another, so roughly 8 to 12 months for one person
+In all: about 33 to 54 weeks with every phase done one after another, so roughly 8 to 12 months for one person
 (INFERRED). Phase 4 can run beside phase 3, which shortens the calendar time but not the work.
 
 ## Phase 0: the skeleton
@@ -26,9 +26,11 @@ In all: about 32 to 52 weeks with every phase done one after another, so roughly
 - The rollback core against the toy: frame clock, input queues, prediction, savestates, confirmation by the host,
   hash checks. Loopback tests with simulated latency, loss and reordering, 2 to 16 clients.
 - CI on Linux and Windows (MinGW, Wine).
-- The 32-bit static build of weemitt's game; a check that a Linux build's memory hashes equal the Windows build's,
-  and the offset pointer representation if they do not
+- The 64-bit static build of weemitt's game, on Windows and Linux.
+- Upstream 10: the brute forcer's savestates at 64 bits. Windows first: build and test the engine there. Then Linux:
+  accept the position-independent build's `.data.rel` sections. Full-copy savestates stand in until each works
   ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)).
+- A check that the Linux build's memory hashes equal the Windows build's for the same inputs.
 - The MIT `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 
 Test: the toy's every client equals one offline run of the host's confirmed inputs, frame by frame, under every
@@ -124,7 +126,7 @@ and plays.
 
 ## Phase 6: release
 
-- A Windows release (32-bit, or 64-bit once upstream item 10 is done), with SDL2 and the notices.
+- A 64-bit Windows release, with SDL2 and the notices.
 - Crash reports that hold no game memory.
 - Player docs in the owner's style.
 - The name ([open-questions.md](open-questions.md)); weemitt's license, which a
@@ -134,8 +136,9 @@ and plays.
 
 | Phase | weemitt items ([weemitt.md](weemitt.md#upstream-changes-weemitt-needs)) |
 | --- | --- |
+| 0 | 10 (64-bit savestates) |
 | 1 | 1 (build entry), 2 (pads), 3 (per-player state, first part), 9 (PC additions off), 11 (a level from a record) |
 | 2 | 6 (cheap hash), 12 (players join and leave a level), the sound split |
 | 3 | 3 (the rest), 4 (hooks), 5 (frame limits), 13 (the owner's rules) |
 | 5 | 8 (level packs) |
-| later | 7 (savestates in the library), 10 (64-bit savestates) |
+| later | 7 (savestates in the library) |

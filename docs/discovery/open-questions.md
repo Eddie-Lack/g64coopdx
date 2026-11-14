@@ -25,7 +25,7 @@ of the report it shapes.
 | Copyright holder | "The g64coopdx contributors" in the MIT `LICENSE` file; the owner may put a name there instead | [repository.md](repository.md#license) |
 | Memory layout | g64coopdx keeps weemitt's rule: player 0 at the N64 addresses in `port_ram`; other players and larger buffers outside it | [README.md](README.md#where-the-new-state-lives) |
 | ROM tests in CI | No self-hosted runner for now; the tests that need the ROM run locally | [repository.md](repository.md#ci) |
-| Bitness | 32-bit builds first; 64-bit when the savestates work there | [repository.md](repository.md#the-build) |
+| Bitness | 64-bit from the start, for Windows and Linux; no 32-bit builds | [repository.md](repository.md#the-build) |
 | A ball carried out by another player | With any-ball pickup, the ball's real owner gets a new ball at their checkpoint | [README.md](README.md#level-exits) |
 | A level done | A level counts as done for the save when any player exits it | [README.md](README.md#garibs-and-progress) |
 | Collisions between players | None in the first version: gloves and balls pass through each other | [README.md](README.md#the-ball) |

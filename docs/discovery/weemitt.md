@@ -110,25 +110,29 @@ does (`bruteforce/Makefile`, VERIFIED). It links them statically, or uses `libgl
 - The static build gives g64coopdx the brute forcer's savestates (renamed data sections and page tracking,
   `bruteforce/docs/engine.md`) without waiting for savestates in the library. A later move to `libglover` stays
   possible: the interface is the same set of calls.
-- **The first builds are 32-bit, for Windows and Linux.** The brute forcer and its savestates exist only as 32-bit
-  programs (`docs/building.md`: "The studio, the Space demo and the brute forcer stay 32-bit"). On Linux the 64-bit
-  program is position-independent (`docs/architecture.md`), and its objects have `.data.rel` sections (6 of the game's
-  and runtime's objects in `build/headless64`, measured with `objdump -h`), which the engine's section check does not
-  accept yet (`docs/port64.md`, "What is left", item 1). The 64-bit Windows objects have none (measured); there the
-  engine has simply never been built at 64 bits. 64-bit builds follow when upstream item 10 is done.
-- **The 32-bit hash across systems needs care.** The 32-bit libraries gave equal hashes on Linux and Windows
-  (measured), because they store the game's pointers as offsets (`docs/library.md`). A static 32-bit build stores
-  host pointers. The brute forcer's Windows build loads at a fixed high address (`bruteforce/Makefile`), which removes
-  one cause of the 32-bit Windows program's different hashes. A second cause remains: raw sound data in `pbankBuffer`
-  that looks like an address in `port_ram` (`bruteforce/docs/upstream.md`). The likely remedy: build the static game
-  with the offset representation of pointers, as the libraries and the displaced test build do (INFERRED). Phase 0
-  compares a Linux build's hashes with the Windows build's.
+- **g64coopdx is 64-bit from the start, for Windows and Linux** (decided). The 64-bit builds store the game's
+  pointers as offsets (`docs/port64.md`), and their memory hashes were equal on Linux and Windows in all 49 runs of
+  this discovery's tests.
+- **The savestates must first work at 64 bits** (upstream item 10, in phase 0). The brute forcer and its savestates
+  exist only as 32-bit programs today (`docs/building.md`: "The studio, the Space demo and the brute forcer stay
+  32-bit").
+  - Windows: the 64-bit objects have no `.data.rel` sections (measured with `objdump -h`). The engine has never been
+    built at 64 bits, so the work is to build and test it there. This is likely small (INFERRED).
+  - Linux: the 64-bit program is position-independent (`docs/architecture.md`), and 6 of the game's and runtime's
+    objects in `build/headless64` have `.data.rel` sections (measured). The engine's section check does not accept
+    them yet (`docs/port64.md`, "What is left", item 1).
+  - Until the page tracker works there, full-copy savestates do: about 0.4 ms each, about 4 ms for a rollback of 8
+    frames.
+- **Why not 32-bit:** a 32-bit static build stores the machine's own addresses in the game's memory, so its hashes may
+  differ between Linux and Windows. weemitt's docs say the 32-bit Windows program's hash is not comparable
+  (`docs/testing.md`), and the brute forcer's notes name raw sound data in `pbankBuffer` as one cause
+  (`bruteforce/docs/upstream.md`). Fixing that would mean the 64-bit builds' offset pointers anyway (INFERRED).
 - Fixes flow one way for the game: into weemitt, then into g64coopdx by moving the submodule. g64coopdx's CI builds
   each new weemitt commit with its own tests ([repository.md](repository.md#ci)).
 
 Why not the library alone today (INFERRED): the library holds one game per process, has no savestates, gives
-read-only memory and one controller. All four are upstream work. The static build needs only items 1 and 2 below to
-start.
+read-only memory and one controller. All four are upstream work. The static build needs only items 1, 2 and 10 below
+to start.
 
 ## Upstream changes weemitt needs
 
@@ -151,7 +155,7 @@ passes. New state goes in new globals outside `port_ram`. Ordered by when g64coo
 | 12 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
 | 13 | **The owner's rules as options that change nothing with one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#the-owners-co-op-rules)) | medium |
 
-Items 1 and 2 let a prototype start. Items 3, 4, 12 and 13 are most of the game work.
+Items 1, 2 and 10 let a prototype start. Items 3, 4, 12 and 13 are most of the game work.
 
 ## Experiments
 
