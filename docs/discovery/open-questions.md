@@ -1,6 +1,6 @@
 # The owner's decisions
 
-These are the owner's decisions for g64coopdx. The owner made the first fourteen (from Players to Builds) directly.
+These are the owner's decisions for g64coopdx. The owner made the first fifteen (from Players to Builds) directly.
 For the rest, from Copyright holder on, the owner accepted the report's recommendation. Each row links to the part
 of the report it shapes.
 
@@ -12,7 +12,8 @@ of the report it shapes.
 | What a player is | A glove with its own ball | [README.md](README.md#the-ball) |
 | Platforms | Windows first, Linux too | [repository.md](repository.md#the-build) |
 | Mods in the first version | Lua scripting and custom levels | [mods.md](mods.md) |
-| Game changes | Into weemitt, behind a player count that changes nothing at one player | [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt) |
+| Game changes | In g64coopdx's own copy of weemitt, changed freely; weemitt's fixes taken by hand | [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt) |
+| weemitt's rules | g64coopdx does not follow weemitt's rules for an exact copy of the original game: its memory layout rule, its baseline, its frame-rate check and its emulator sync test. The rules on the ROM, leaked source, the N64 SDK's source and other ports' code stay | [weemitt.md](weemitt.md#where-the-multi-player-change-must-live) |
 | Levels | Players may be in different levels of the same world; the session is in one world at a time, and a portal to another world opens when every player is in the hub | [README.md](README.md#worlds-and-instances), [netcode.md](netcode.md#instances) |
 | Services | Direct connection first (phase 2); the lobby, NAT traversal and relay later (phase 4) | [roadmap.md](roadmap.md) |
 | Joining | In the middle of a level, by replaying its inputs; joining at a new instance as the fallback | [netcode.md](netcode.md#instances) |
@@ -23,7 +24,7 @@ of the report it shapes.
 | License | MIT for g64coopdx's own code | [repository.md](repository.md#license) |
 | Builds | Published | [repository.md](repository.md#what-may-be-distributed) |
 | Copyright holder | "The g64coopdx contributors" in the MIT `LICENSE` file; the owner may put a name there instead | [repository.md](repository.md#license) |
-| Memory layout | g64coopdx keeps weemitt's rule: player 0 at the N64 addresses in `port_ram`; other players and larger buffers outside it | [README.md](README.md#where-the-new-state-lives) |
+| Memory layout | Not a rule. Player 0 stays at the N64 addresses; other players' state goes on the game's heap in `port_ram`; a global may grow where needed | [README.md](README.md#where-the-new-state-lives) |
 | ROM tests in CI | No self-hosted runner for now; the tests that need the ROM run locally | [repository.md](repository.md#ci) |
 | Bitness | 64-bit from the start, for Windows and Linux; no 32-bit builds | [repository.md](repository.md#the-build) |
 | A ball carried out by another player | With any-ball pickup, the ball's real owner gets a new ball at their checkpoint | [README.md](README.md#level-exits) |

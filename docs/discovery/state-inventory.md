@@ -101,11 +101,11 @@ session's player number. "Shared" means one copy for the session, or for the ins
 | How | Keep `hand`, `ball` and the others where they are. Before each player's part of the frame, copy that player's state into them; after, copy it back out | Turn `hand` into `players[i].hand` (or a pointer) at every use; the first player keeps the N64 addresses |
 | Speed of a first prototype | Fast: a few hundred lines around `MoveHand`, `MoveBall`, `MoveCam` | Slow: about 225 functions |
 | Problems | Pointers stored elsewhere (`ball.link`, `cameraInfo.focus`, `bullet->target`, the actor and collision lists) point at the one global, which holds a different player at different times. Enemies and puzzles still see only the player swapped in | None of these; the work is large |
-| Exactness at 1 player | Exact: the swap is a no-op | Exact if every rewrite is equivalent; `regress.py` checks it |
+| One player | The swap is a no-op | Each rewrite can change the game; g64coopdx's own baseline shows where it did |
 | Use | A spike in phase 1 to find the problems early; not a design to keep | The real design |
 
-Recommendation: start with the swap for two players in one hub level, to learn where the shared state breaks; then
-index system by system, each step proven by `regress.py` at one player. The order: input and the glove's state
+Recommendation: start with the swap for two players in one hub level, which shows where the shared state breaks; then
+index system by system, each step checked by the determinism tests. The order: input and the glove's state
 machine, the ball and its pairing, the camera, collision identity tests, enemies' targets, puzzles, garibs and
 pick-ups, checkpoints and death, exits, bosses, cameos.
 
@@ -123,9 +123,9 @@ pick-ups, checkpoints and death, exits, bosses, cameos.
 | Collision sphere hits | 64 a frame (`NUM_SPHERE_HITS`, `collision.c:94`) | | more gloves, more hits: measure |
 | CPU matrix stack | 20 | | fine |
 
-These buffers are in `port_ram`, and weemitt's rule forbids changing their size there. Larger buffers go in new
-storage outside `port_ram`, with the game's code pointed at them. The measured peaks are a floor: the glove stood
-still.
+These buffers are in `port_ram`. Larger ones can go on the game's heap, with the game's code pointed at them, or the
+globals can grow, which means regenerating `gen/` ([weemitt.md](weemitt.md#changes-to-the-game-code)). The measured
+peaks are a floor: the glove stood still.
 
 ## Details
 

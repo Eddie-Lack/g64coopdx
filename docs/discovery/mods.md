@@ -55,7 +55,7 @@ parses the `.lev` from its big-endian bytes field by field (`PORT_COPY`).
 | Option | What changes | Cost | Limits |
 | --- | --- | --- | --- |
 | A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level being loaded is the custom level (option C says which number that is) | about 30 lines | Uses the shipped banks only |
-| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM does not use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | Extra bank slots must live outside `port_ram` (weemitt's layout rule): new lists that `FindObject` and `FindTexture` also search |
+| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM does not use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | More bank slots: either new lists that `FindObject` and `FindTexture` also search, or larger `objectBanks` and `textureBanks` arrays, which means regenerating `gen/` |
 | C. Custom level slots | A custom level borrows a shipped level's number: its row in `levelInfo` (the game's table of levels: name, song, banks) and its world. It swaps in its own `.lev` and extra banks. Glovebox's console mod (next section) borrows Space levels' numbers the same way (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
 | D. Rebuild the ROM at start | Apply a Glovebox BPS patch (a binary diff against the retail ROM, which Glovebox exports) to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code does not run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
 
@@ -64,8 +64,8 @@ Recommendation: A, B and C together. They keep the game's own loader, drawing, p
 ### The Glovebox console mod's features on the PC
 
 Glovebox's console mod (about 13.5 KB of MIPS code, `Glovebox/mod/`) lifts limits of the retail game. weemitt does
-not run MIPS code, so each feature needs C in weemitt's game code, as part of upstream item 8 (VERIFIED from
-`Glovebox/docs/technical.md`):
+not run MIPS code, so each feature needs C in g64coopdx's copy of the game code, as part of game change 6 (VERIFIED
+from `Glovebox/docs/technical.md`):
 
 | Feature | On the PC |
 | --- | --- |

@@ -12,7 +12,8 @@ g64coopdx/
   README.md                 for players
   THIRD_PARTY_NOTICES.md    the licenses of vendored libraries
   Makefile                  the build (below)
-  weemitt/                  git submodule at a pinned commit; never changed here
+  weemitt/                  g64coopdx's copy of weemitt (git subtree); the game code that co-op changes
+    SOURCE                  the weemitt commit the copy was last taken from
   src/
     session/                players, slots, the start record, the handshake, settings
     rollback/               the frame clock, input queues, prediction, savestates, confirmation, desync checks
@@ -37,9 +38,9 @@ g64coopdx/
 
 Rules that the layout encodes:
 
-- **No game code in g64coopdx.** Every change to the game's C goes to weemitt ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)).
-  g64coopdx calls the game through weemitt's interfaces: the library's calls, the hooks in `src/port/porthooks.h`, and
-  the per-player state that weemitt adds.
+- **Game changes stay in `weemitt/`.** Co-op's changes to the game's C are made in the copy
+  ([weemitt.md](weemitt.md#recommendation-b-as-a-vendored-copy)). Everything else lives in g64coopdx's own folders,
+  and talks to the game through hooks and per-player state that the copy adds.
 - The network layer sits behind a table of functions, as sm64coopdx's `struct NetworkSystem` does
   ([sm64coopdx.md](sm64coopdx.md)). The direct and the lobby modes then share all other code.
 - The toy game stands in for the real one wherever a test does not need Glover itself.
@@ -47,8 +48,7 @@ Rules that the layout encodes:
 ## The build
 
 - GNU Make, as weemitt and the brute forcer. The Makefile reads weemitt's flags and source lists from
-  `weemitt/Makefile` (the brute forcer does this with `make -pn`; upstream item 1 in [weemitt.md](weemitt.md#upstream-changes-weemitt-needs)
-  makes it a documented list).
+  the copy's `weemitt/Makefile` (the brute forcer does this with `make -pn`).
 - The game's files get weemitt's game flags. g64coopdx's own files get ordinary host flags. Lua gets the game's float
   flags (`-ffp-contract=off`, SSE2, no fast math) and is linked into the game's object. Its arena is then part of the
   savestate ([mods.md](mods.md#scripts-in-a-rollback-game)).
@@ -56,8 +56,8 @@ Rules that the layout encodes:
   the test build), `make server` (the lobby server), `make test`.
 - **64-bit from the start**, for Windows and Linux (decided). The 64-bit Linux and Windows builds gave equal memory
   hashes in this discovery's tests.
-- The brute forcer's savestates exist only in 32-bit builds today. Making them work at 64 bits is upstream item 10,
-  done in phase 0 ([weemitt.md](weemitt.md#recommendation-c-with-the-brute-forcers-way-of-building)). Full-copy
+- The brute forcer's savestates exist only in 32-bit builds today. Making them work at 64 bits is game change 8,
+  done in phase 0 ([weemitt.md](weemitt.md#recommendation-b-as-a-vendored-copy)). Full-copy
   savestates work at 64 bits meanwhile.
 - No 32-bit builds.
 - SDL2, as weemitt. Dependencies are vendored as source, never as prebuilt binaries. sm64coopdx commits prebuilt
@@ -72,7 +72,7 @@ what needs no ROM, and the rest runs where the ROM is.
 | --- | --- |
 | CI on every push (GitHub Actions, Linux) | Build Linux and Windows (MinGW). Unit tests. The toy game's rollback tests on loopback with simulated latency, loss and reordering, 2 to 16 clients. Fuzz targets for a fixed time. The lobby server's tests |
 | CI, Windows | The Windows build's unit and toy tests under Wine, as weemitt's `libcheck.py --wine` does, or on a Windows runner |
-| Locally, with the ROM (`tests/rom/`, skip without it) | weemitt's `regress.py check` at one player on the pinned weemitt; the multi-player determinism test (the same inputs for N players give the same hashes on Linux and Windows); a headless session of N clients on loopback whose every frame's hash equals the host's and equals one offline run of the confirmed inputs; late join; packs |
+| Locally, with the ROM (`tests/rom/`, skip without it) | weemitt's `regress.py check` on the copy's first commit, then g64coopdx's own baseline; the multi-player determinism test (the same inputs for N players give the same hashes on Linux and Windows); a headless session of N clients on loopback whose every frame's hash equals the host's and equals one offline run of the confirmed inputs; late join; packs |
 | A self-hosted runner that holds the owner's ROM | Not for now (decided); it would run the ROM tests on every pull request |
 
 Glovebox's CI works the same way: the tests that need the ROM skip themselves (`Glovebox/.github/workflows/app.yml`).
@@ -90,7 +90,7 @@ Glovebox's CI works the same way: the tests that need the ROM skip themselves (`
 | Thing | May be distributed? |
 | --- | --- |
 | g64coopdx's own source | Yes, under its license |
-| weemitt's source (as a submodule) | Under weemitt's license, which it does not have yet. A release needs one |
+| The copy of weemitt in `weemitt/` | It is decompiled game C, from the owner's own weemitt. It is under weemitt's terms, and weemitt has no license yet; MIT does not cover it. A release needs weemitt's license |
 | Vendored libraries | Yes, under their licenses (MIT, ISC, MPL-2.0, zlib), with their notices |
 | Release builds | **Decided: yes.** They contain the game's code compiled from the decompilation, but no ROM data, as sm64coopdx's and other decompilation ports' builds do. Players supply their own ROM |
 | The lobby server | Yes; the project runs it |
@@ -114,8 +114,9 @@ Facts (VERIFIED):
 - MIT fits every library above. MPL-2.0 asks only that libjuice's own files keep their license; use them unchanged.
 - The `LICENSE` file comes with the first code (phase 0). Its copyright holder is "The g64coopdx contributors" (decided).
 - Keep `THIRD_PARTY_NOTICES.md` from the first commit, as gloveworld and Glovebox do.
-- weemitt, gloveworld and Glovebox still have no license. Release builds contain weemitt's code, so a release needs
-  weemitt's license too (INFERRED, not legal advice).
+- MIT covers g64coopdx's own code, not the copy in `weemitt/`. weemitt, gloveworld and Glovebox still have no license.
+  The repository and its release builds contain weemitt's code, so a release needs weemitt's license too (INFERRED,
+  not legal advice).
 
 ## Draft CLAUDE.md
 
@@ -123,7 +124,8 @@ Facts (VERIFIED):
 # Guide for agents
 
 g64coopdx is an online co-op version of Glover (N64, USA, NGVE) on PC, with mods. It builds on weemitt, the native
-PC port, which is a submodule in `weemitt/`. Read this file, then docs/ (start with docs/discovery/README.md).
+PC port. `weemitt/` is g64coopdx's own copy of weemitt, and co-op changes the game code in it. Read this file, then
+docs/ (start with docs/discovery/README.md).
 
 ## Rules
 
@@ -133,11 +135,15 @@ PC port, which is a submodule in `weemitt/`. Read this file, then docs/ (start w
   no game data cross it.
 - **Never use leaked original source code**, the N64 SDK's source (libultra, libaudio, libmus), or code from other
   ports, sm64coopdx and its CoopNet included. Study their design and docs only. Write the code from public
-  documentation or your own design.
-- **No game code here.** Every change to the game's C goes to weemitt, behind a player count or a hook that changes
-  nothing with one player, with `python3 tools/regress.py check` saying "same as the baseline". Never patch the submodule.
-- **Keep weemitt's memory layout.** Player 0 keeps the N64 addresses in `port_ram`. Other players' state and every
-  new buffer live outside `port_ram`.
+  documentation or your own design. The owner's own projects (weemitt, gloveworld, Glovebox) are not other ports:
+  their code may be used.
+- **Game changes go in `weemitt/`, and only there.** weemitt's own rules for an exact copy of the original game
+  (its memory layout rule, its baseline) do not apply here. Keep co-op code in its own functions and files where you
+  can; it makes weemitt's later fixes easier to take. Record each pull from weemitt in `weemitt/SOURCE`.
+- **Pointers in the game's memory must point into `port_ram`.** On the 64-bit builds a stored pointer is an offset
+  into it. Put new players' state on the game's heap. Growing a global means regenerating `gen/`.
+- **g64coopdx keeps its own baseline.** `tests/rom/` records it. Record it again only when a change is meant to
+  alter the game, and say so in the commit.
 - **The online game is exact.** It runs whole frames only (`deltaTime` 1). Two machines with the same inputs must
   give the same state hash every frame, on Linux and Windows. A change that breaks this is a bug, even if it fixes
   something else.

@@ -75,16 +75,20 @@ is inside the game's C, in the same files that weemitt changes all the time. In 
 commits touched `src/game` (the Ballworld mode, the host world, the draw marks, the camera scale). Wherever the
 multi-player change lives, it meets that stream.
 
+weemitt's own rules aim at a port that plays exactly like the original game: the game's memory layout in `port_ram`
+does not change, and with one player every frame matches a recorded baseline (`tools/regress.py`). g64coopdx does not
+follow those rules (the owner's decision). It changes the game freely where co-op needs it.
+
 ### The options
 
-| | A. A fork of weemitt kept in step | B. weemitt as a submodule or a vendored copy, co-op code beside it | C. A separate program on weemitt's library |
+| | A. A fork of weemitt kept in step | B. A vendored copy of weemitt, co-op code beside it | C. A separate program on weemitt's library |
 | --- | --- | --- | --- |
-| Where the game change lives | In the fork's `src/game` | In patches over the submodule's `src/game`, or in the vendored copy | In weemitt, behind hooks and a player count, off by default |
-| Where the network, UI, Lua, mods live | In the fork's new folders | In g64coopdx | In g64coopdx |
-| How fixes flow | Merges from weemitt into the fork. Each touches the same functions as the co-op change | Rebase the patch series on each new weemitt; conflicts as in A | weemitt's fixes arrive with the next pinned version; co-op's game fixes go to weemitt as pull requests |
-| weemitt's tests | Run in the fork, but the fork's game is no longer weemitt's: `regress.py`'s baseline must be re-recorded or kept at one player | Same as A | Run in weemitt on every change, with the player count at 1: the single-player game must stay bit for bit the baseline |
-| What weemitt must add first | Nothing | Nothing | The player count, savestates in the library, input for several players, write access through calls ([below](#upstream-changes-weemitt-needs)) |
-| Risk | High: sm64coopdx's history | High: patch rot | Medium: the library's interface must grow; one owner decides both sides |
+| Where the game change lives | In the fork's `src/game` | In g64coopdx's copy of weemitt | In weemitt, behind a player count that changes nothing with one player |
+| Where the network, UI, Lua, mods live | In the fork's new folders | In g64coopdx, beside the copy | In g64coopdx |
+| weemitt's accuracy rules | Dropped | Dropped | Kept: weemitt's repository requires them |
+| How fixes flow | Merges from weemitt; each touches the same functions as the co-op change | Taken from weemitt by hand when useful (`git subtree pull` or a cherry-pick) | weemitt's fixes arrive with the next pinned version |
+| Tests | Its own baseline | Its own baseline | weemitt's baseline, at one player |
+| Risk | The fork falls behind weemitt | The copy falls behind weemitt; a known, accepted cost | Every co-op change must keep the original game exact, which slows the work |
 
 ### sm64coopdx's history as a case
 
@@ -93,27 +97,37 @@ sm64coopdx is a fork of sm64ex-coop, a fork of sm64ex, a fork of the decompilati
 (VERIFIED). No sign of regular merges from upstream was found (INFERRED; the clone was shallow). The co-op changes
 went into the game's files (`mario.c`, `interaction.c`, objects), and from then on the fork could not follow its
 upstream. It kept its new systems in `src/pc/` (VERIFIED), which kept its own code readable, but did not keep the
-game in step. A fork of weemitt would most likely end the same way, because weemitt's game code changes faster than
-the decompilation's did.
+game in step. g64coopdx's copy will most likely drift from weemitt the same way. With the accuracy rules dropped,
+that is the expected cost of the choice, and keeping co-op code in its own folders keeps the drift readable.
 
-### Recommendation: C with the brute forcer's way of building
+### Recommendation: B as a vendored copy
 
-g64coopdx is its own program. weemitt is a git submodule at a pinned commit. g64coopdx's build compiles weemitt's
-game and runtime sources with weemitt's own flags, read from weemitt's Makefile, the way the brute forcer already
-does (`bruteforce/Makefile`, VERIFIED). It links them statically, or uses `libglover` where that is enough.
+The owner chose to keep g64coopdx's own copy of the game code. Option B does that.
 
-- **Every change to the game's C goes to weemitt.** It sits behind a player count and hooks that change nothing
-  when the count is 1. `regress.py` checks that the single-player game is unchanged. weemitt gains a multi-player-capable game core;
-  g64coopdx never patches it.
-- **Everything else is g64coopdx's:** the network layer, sessions, rollback, the lobby, the interface, chat, Lua,
-  packs, and the drawing of names.
-- The static build gives g64coopdx the brute forcer's savestates (renamed data sections and page tracking,
-  `bruteforce/docs/engine.md`) without waiting for savestates in the library. A later move to `libglover` stays
-  possible: the interface is the same set of calls.
-- **g64coopdx is 64-bit from the start, for Windows and Linux** (decided). The 64-bit builds store the game's
-  pointers as offsets (`docs/port64.md`), and their memory hashes were equal on Linux and Windows in all 49 runs of
-  this discovery's tests.
-- **The savestates must first work at 64 bits** (upstream item 10, in phase 0). The brute forcer and its savestates
+- **What the copy is.** All of weemitt's tree at a pinned commit, in `weemitt/` inside g64coopdx: the game's C
+  (`src/game`), the runtime (`src/port`, which also names `hand` and `ball`: `hostworld.c`, `frame.c`, `platform.c`),
+  the renderer (`src/gfx`), the sound player (`src/audio`), the generated tables (`gen/`), the brute forcer's engine
+  (`bruteforce/engine`) and the tools. It is added with `git subtree`, which keeps weemitt's history.
+- **Where it came from.** A file, `weemitt/SOURCE`, names the weemitt commit the copy came from, as weemitt's own
+  `GAME_SOURCE` names its gloveworld commit. Each later pull from weemitt updates it.
+- **How fixes arrive.** By hand, when they help co-op: `git subtree pull` for a batch, or a cherry-pick for one fix.
+  weemitt's direction (accuracy, the host world, the studio) mostly does not touch co-op, so most of its commits are
+  not needed.
+- **Everything new is in g64coopdx's own folders:** the network layer, sessions, rollback, the lobby, the interface,
+  chat, Lua, packs, the drawing of names. Changes inside `weemitt/` are the game changes co-op needs, and nothing else.
+- **The first commit of the copy is weemitt unchanged.** weemitt's `tools/regress.py check` must pass on it. That
+  proves the copy builds and plays like weemitt before any co-op change.
+- **From then on g64coopdx keeps its own baseline**: recorded runs of its own build, re-recorded on purpose when a
+  change is meant to alter the game. The rule that matters for rollback stays: the same inputs give the same state on
+  every machine ([netcode.md](netcode.md)).
+- **The build** compiles the game and runtime with weemitt's flags (from the copy's Makefile) and links them
+  statically with g64coopdx's code, the way the brute forcer links its engine (`bruteforce/Makefile`, VERIFIED). That
+  gives g64coopdx the brute forcer's savestates (renamed data sections and page tracking,
+  `bruteforce/docs/engine.md`).
+- **64-bit from the start, for Windows and Linux** (decided). The 64-bit builds store the game's pointers as
+  offsets (`docs/port64.md`), and their memory hashes were equal on Linux and Windows in all 49 runs of this
+  discovery's tests.
+- **The savestates must first work at 64 bits** (game change 8 below, in phase 0). The brute forcer and its savestates
   exist only as 32-bit programs today (`docs/building.md`: "The studio, the Space demo and the brute forcer stay
   32-bit").
   - Windows: the 64-bit objects have no `.data.rel` sections (measured with `objdump -h`). The engine has never been
@@ -127,35 +141,36 @@ does (`bruteforce/Makefile`, VERIFIED). It links them statically, or uses `libgl
   differ between Linux and Windows. weemitt's docs say the 32-bit Windows program's hash is not comparable
   (`docs/testing.md`), and the brute forcer's notes name raw sound data in `pbankBuffer` as one cause
   (`bruteforce/docs/upstream.md`). Fixing that would mean the 64-bit builds' offset pointers anyway (INFERRED).
-- Fixes flow one way for the game: into weemitt, then into g64coopdx by moving the submodule. g64coopdx's CI builds
-  each new weemitt commit with its own tests ([repository.md](repository.md#ci)).
+- **Changes that weemitt may want** (the 64-bit savestates, the option that turns off PC additions) can be offered
+  back to weemitt as pull requests. That is optional.
 
-Why not the library alone today (INFERRED): the library holds one game per process, has no savestates, gives
-read-only memory and one controller. All four are upstream work. The static build needs only items 1, 2 and 10 below
-to start.
+## Changes to the game code
 
-## Upstream changes weemitt needs
-
-Each item keeps the rule: at the player count 1, `regress.py check` says "same as the baseline" and `dtcheck.py`
-passes. New state goes in new globals outside `port_ram`. Ordered by when g64coopdx needs them.
+These are the changes g64coopdx makes in its copy of weemitt, ordered by when it needs them. None has to keep the
+original game exact. Each must keep the game the same on every machine for the same inputs.
 
 | # | Change | Why | Size (rough) |
 | --- | --- | --- | --- |
-| 1 | **A build entry for an outside program.** A make target or variable list that an outside build reads to compile the game and runtime with weemitt's flags. The brute forcer reads weemitt's Makefile with `make -pn` today; a documented list is less fragile | g64coopdx's build | small |
-| 2 | **Controller input for several players.** `Pad pad[4]` (`include/controller.h:27`) is in `port_ram`, and the game reads `pad[ActiveController]` (for example `src/game/ball.c:791`, `src/game/actor.c:730`). weemitt uses `pad[4]`, one past the end, as its debug pad (`docs/testing.md`). Each player's input needs its own pad: the four N64 pads can serve players 1 to 4 if the debug pad moves; more players need pads outside `port_ram` | every player | small |
-| 3 | **The player count and per-player state.** The second and later gloves and balls in new arrays outside `port_ram`; player 0 stays at its N64 addresses. The game's per-player code runs once per player | the core of co-op | large: [state-inventory.md](state-inventory.md) |
-| 4 | **Hooks for the session layer.** Level start and end, exits, death and respawn, garib and power-up collection, puzzle events, the camera per player: function pointers in `src/port/porthooks.h`, NULL by default | rules of co-op, Lua | medium |
-| 5 | **Frame limits.** The object matrix table (256), the display list buffer, the vertex buffer (800), the actor pools, raised for many players, in new storage outside `port_ram` | 8 or more players | medium |
-| 6 | **A cheap state hash.** A hash over the pages that changed since the last one, or over chosen structures, in well under a millisecond | desync checks every frame or second | small |
-| 7 | **Savestates in the library** (`docs/port64.md` item 1): the renamed sections in the `-fPIC` build, a snapshot before `port_game_init` | the library route | medium |
-| 8 | **Level packs:** a `.lev` and banks from buffers, extra bank lists outside `port_ram`, rotation and scale on every object type | custom levels ([mods.md](mods.md)) | medium |
-| 9 | **An option that turns off every PC addition the controller can reach** (`bruteforce/docs/upstream.md` asks for it too) | a network game must not let one player open a local cheat menu that changes the shared game | small |
-| 10 | **64-bit savestates:** on Linux, the engine's renamed sections must accept the position-independent build's `.data.rel`, `.data.rel.local` and `.data.rel.ro*`; on Windows, the engine must be built and tested at 64 bits. Full copies (0.4 ms) are enough at first | 64-bit builds of g64coopdx | small to medium |
-| 11 | **Start a level from a record:** the level, the save, the players' carried state and the random seed, with no play before it; and a test that compares it with a level reached by play | instances, late join, repair ([netcode.md](netcode.md#instances)) | medium |
-| 12 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
-| 13 | **The owner's rules as options that change nothing with one player:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#the-owners-co-op-rules)) | medium |
+| 1 | **Controller input for several players.** `Pad pad[4]` (`include/controller.h:27`) is in `port_ram`, and the game reads `pad[ActiveController]` (for example `src/game/ball.c:791`, `src/game/actor.c:730`). weemitt uses `pad[4]`, one past the end, as its debug pad (`docs/testing.md`). Each player needs a pad: the array grows to 16, or the pads move to the heap | every player | small |
+| 2 | **Per-player state.** The second and later gloves, balls and cameras, with their control blocks. Game structures point at them (`ball.link`, `bullet->target`, the actor lists), and on 64-bit builds a stored pointer can only name memory in `port_ram` (`docs/port64.md`, "The representation"). So they go in `port_ram`: on the game's heap, which has about 21 MB free in a level (`docs/host-world.md`), or in enlarged globals. Player 0 can stay at the N64 addresses. The game's per-player code runs once per player | the core of co-op | large: [state-inventory.md](state-inventory.md) |
+| 3 | **Hooks for the session layer.** Level start and end, exits, death and respawn, garib and power-up collection, puzzle events, the camera per player | rules of co-op, Lua | medium |
+| 4 | **Frame limits.** The object matrix table (256), the display list buffer, the vertex buffer (800), the actor pools, raised for many players | 8 or more players | medium |
+| 5 | **A cheap state hash.** A hash over the pages that changed since the last one, or over chosen structures, in well under a millisecond | desync checks every frame or second | small |
+| 6 | **Level packs:** a `.lev` and banks from buffers, more bank slots, rotation and scale on every object type | custom levels ([mods.md](mods.md)) | medium |
+| 7 | **An option that turns off every PC addition the controller can reach** (`bruteforce/docs/upstream.md` asks for it too) | a network game must not let one player open a local cheat menu that changes the shared game | small |
+| 8 | **64-bit savestates:** on Linux, the engine's renamed sections must accept the position-independent build's `.data.rel`, `.data.rel.local` and `.data.rel.ro*`; on Windows, the engine must be built and tested at 64 bits. Full copies (0.4 ms) are enough at first | 64-bit builds | small to medium |
+| 9 | **Start a level from a record:** the level, the save, the players' carried state, with no play before it; and a test that compares it with a level reached by play | instances, late join, repair ([netcode.md](netcode.md#instances)) | medium |
+| 10 | **Players who join and leave a running level** at a frame, without touching the others | split play, entering a level that others play | medium |
+| 11 | **The owner's co-op rules:** a ball's real owner apart from its holder, the pickup rule, a lost ball killing its owner, no lives, a respawn of one player without restarting enemies, an exit for one player | the co-op rules ([state-inventory.md](state-inventory.md#the-owners-co-op-rules)) | medium |
 
-Items 1, 2 and 10 let a prototype start. Items 3, 4, 12 and 13 are most of the game work.
+Other files cite these as "game change N". Changes 1 and 8 let a prototype start. Changes 2, 3, 10 and 11 are most
+of the game work.
+
+**What a layout change costs.** weemitt's tables in `gen/` give every global its N64 offset. Growing a global in
+`port_ram` means regenerating `gen/` from a built gloveworld, which needs gloveworld's toolchain and the MIPS tools
+(`docs/building.md`, "Regenerating the tables"). Data loaded from the ROM (the main segment: 0xF5677 bytes from
+0x80100000) cannot move. The player globals lie past it (`hand` at 0x802902D8), in memory the game zeroes. So a
+change that allocates on the heap costs less than one that grows a global, and both are allowed.
 
 ## Experiments
 

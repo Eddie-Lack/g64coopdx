@@ -50,7 +50,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 | Chat, player list, nametags, kick, ban, moderators with a confirm step | Carries over | Plain features; nothing game-specific |
 | Five characters and eight-part palettes | Partly | Glover has one glove model; colors and simple tints carry over: see [README.md](README.md#player-presentation-and-the-interface) |
 | Discord rich presence | Optional | The Discord Game SDK is archived ([netcode.md](netcode.md#transport-and-services)) |
-| Build-only CI | Do better | weemitt's regress.py and the brute forcer's sync test already give the base for headless network tests |
+| Build-only CI | Do better | weemitt's recorded runs and replays (`tools/regress.py`, `--record`, `--replay`) already give the base for headless network tests |
 
 ## What g64coopdx took from it
 

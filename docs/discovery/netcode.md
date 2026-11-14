@@ -168,7 +168,7 @@ At 20 frames a second with 16 players, a client receives about 70 bytes a frame,
 
 - Every N confirmed frames each machine hashes its state of that frame and sends the hash to the host.
 - The full memory hash costs about 8 ms. Hashing the savestate of the confirmed frame on a worker thread keeps it off
-  the game's thread. A cheaper hash over the changed pages is an upstream item ([weemitt.md](weemitt.md#upstream-changes-weemitt-needs)).
+  the game's thread. A cheaper hash over the changed pages is game change 5 ([weemitt.md](weemitt.md#changes-to-the-game-code)).
 - The host compares each client's hash with its own reference copy of the client's instance.
 - On a mismatch the host tells the client, and the client rebuilds the level from the instance's start record and
   input log ([Instances](#instances)). A log of the first frame that differs, with the trace line, goes to a bug report.
@@ -203,7 +203,7 @@ instance in a worker process. Its cost is small: a confirmed frame costs 0.03 to
    10 minutes of play (12,000 frames) take under a second, and an hour about 4 seconds (INFERRED from the measured
    frame cost). A late joiner to the session does the same.
 4. The new player's glove and ball appear at a confirmed frame. Players who appear and vanish at a frame are new game
-   logic, upstream ([weemitt.md](weemitt.md#upstream-changes-weemitt-needs)).
+   logic: game change 10 ([weemitt.md](weemitt.md#changes-to-the-game-code)).
 5. An instance ends when its last player leaves.
 
 **Why not send a savestate.** A savestate holds the game's memory, and the memory holds data from the ROM (code,
@@ -235,8 +235,8 @@ where. Changes to it come from one instance and may matter to another: a hub doo
   identical on every machine and in the savestate.
 - Plan (INFERRED): split the sound into its logical part (handles, which sound plays, its timers), run in every
   frame and saved, and its output (the synthesizer and the samples), driven only by the frames the player sees.
-  Sounds started in a resimulated frame that the display already played are not started again. This is an upstream
-  change. UNKNOWN: how much of libmus's state the logic can see. Settle it by listing the logic's reads of sound
+  Sounds started in a resimulated frame that the display already played are not started again. This is a change to the
+  game code. UNKNOWN: how much of libmus's state the logic can see. Settle it by listing the logic's reads of sound
   state.
 
 ### Settings that change the logic
@@ -244,7 +244,7 @@ where. Changes to it come from one instance and may matter to another: a hub doo
 `weemitt/docs/testing.md` names settings that change the logic: the easy ball controls and the camera's follow speed.
 In a shared game such a setting is part of the session (the same for all) or part of one player's input. The menu's
 Enhancements and Cheats are session settings that only the host sets; the cheat list in the pause menu is off
-(upstream item 9).
+(game change 7).
 
 ## Transport and services
 
