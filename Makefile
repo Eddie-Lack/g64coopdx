@@ -5,7 +5,7 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: game windows headless crossbuild-build crossbuild regress server test image
+.PHONY: game windows headless crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The game's window program for Linux: weemitt/build/linux64/weemitt (needs SDL2).
 game:
@@ -37,8 +37,51 @@ regress:
 server:
 	cd server && CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=$(VERSION)" -o ../build/lobby .
 
+# g64coopdx's own C: the rollback core with the toy game. The Linux test build uses the sanitizers.
+CC ?= cc
+CFLAGS_TEST := -std=c99 -O1 -g -Wall -Wextra -Werror
+SANITIZE := -fsanitize=address,undefined -fno-sanitize-recover=all
+ROLLBACK_SRC := src/rollback/rollback.c tests/toy/toy.c
+ROLLBACK_DEPS := $(ROLLBACK_SRC) src/rollback/rollback.h tests/toy/toy.h
+MINGW64 ?= x86_64-w64-mingw32-gcc
+WINE64 ?= $(shell command -v wine64 || command -v wine)
+# A 64-bit Wine prefix, as weemitt/docs/building.md uses.
+WINEPREFIX64 ?= $(HOME)/.wine64
+FUZZ_TIME ?= 30
+
+build/tests/loopback: tests/net/loopback.c $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
+
+build/tests/loopback.exe: tests/net/loopback.c $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) -std=c99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
+
+build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
+
+# The loopback tests: 2 to 16 clients over simulated networks.
+test-c: build/tests/loopback
+	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
+	tail -2 build/tests/loopback.out
+
+# The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
+test-windows: build/tests/loopback.exe test-c
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/loopback.exe | tr -d '\r' > build/tests/loopback-windows.out
+	tail -2 build/tests/loopback-windows.out
+	grep -q '^ok: 0 failures' build/tests/loopback-windows.out
+	grep 'offline run' build/tests/loopback.out > build/tests/hash-linux.txt
+	grep 'offline run' build/tests/loopback-windows.out > build/tests/hash-windows.txt
+	cmp build/tests/hash-linux.txt build/tests/hash-windows.txt
+
+# The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
+fuzz: build/tests/rollback_fuzz
+	@mkdir -p build/fuzz-corpus
+	build/tests/rollback_fuzz -max_total_time=$(FUZZ_TIME) -max_len=600 build/fuzz-corpus
+
 # Every test that needs no ROM.
-test:
+test: test-c
 	cd server && test -z "$$(gofmt -l .)" && go vet ./... && go test -race ./...
 
 # The lobby server's container image.

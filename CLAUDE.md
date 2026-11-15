@@ -60,11 +60,14 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make crossbuild    # the Linux and Windows builds give equal states and hashes (needs the ROM and Wine)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM)
     make server        # the lobby server: build/lobby (needs Go)
-    make test          # format check, vet and tests; no ROM needed
+    make test          # the server's checks and the rollback core's loopback tests; no ROM needed
+    make test-windows  # the loopback tests as a Windows program under Wine; its hash must equal Linux's
+    make fuzz          # the message parsers under libFuzzer (needs clang)
     make image         # the lobby server's container image (needs Docker)
 
-CI (`.github/workflows/ci.yml`) runs the tests, builds the server and the game's headless and Windows library builds
-on every pull request, and publishes the image from `main`. The ROM checks run locally: set `GLOVER_ROM`.
+CI (`.github/workflows/ci.yml`) runs the tests, also under Wine, and fuzzes the parsers. It builds the server and the
+game's headless and Windows library builds on every pull request, and publishes the image from `main`. The ROM checks
+run locally: set `GLOVER_ROM`.
 
 ## Where things go
 
@@ -74,4 +77,7 @@ on every pull request, and publishes the image from `main`. The ROM checks run l
 | Where the services run, and how to deploy them | docs/hosting.md |
 | The design and the roadmap | docs/discovery/ |
 | A change to the game's logic (from phase 0) | `weemitt/`, g64coopdx's copy |
-| The network, rollback, sessions (from phase 0) | src/net, src/rollback, src/session |
+| The rollback core | src/rollback (`rollback.h` describes it) |
+| The toy game, the loopback tests, fuzz targets | tests/toy, tests/net, tests/fuzz |
+| Tests that need the ROM (they skip without it) | tests/rom |
+| The network, sessions (later in phase 0 and after) | src/net, src/session |
