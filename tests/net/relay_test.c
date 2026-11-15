@@ -4,6 +4,7 @@
  * Usage: relay_test RELAY-ADDRESS (for example 127.0.0.1:27065, with build/lobby running). Without an address it
  * prints that it was skipped and exits with 0. make test-relay starts the lobby and runs it. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -17,10 +18,14 @@
 
 static int failures;
 
+/* A failed step ends the test: the later steps need it. */
 static void check(int ok, const char *what) {
     printf("%s %s\n", ok ? "ok  " : "FAIL", what);
-    if (!ok)
-        failures++;
+    fflush(stdout);
+    if (!ok) {
+        printf("FAIL: the relay at the address given did not work\n");
+        exit(1);
+    }
 }
 
 static void nap(void) {

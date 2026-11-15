@@ -37,6 +37,10 @@ For players far apart, the host can add `--deadline 8` (or more). It gives input
 step is 50 ms, and the default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed
 game lags further behind.
 
+If the program says "no answer from the relay", open https://g64coopdx-lobby.fly.dev/v1/info in a browser. A line
+such as `"relay":{"port":27065,"rooms":1,"players":2}` shows that the relay runs and how many rooms and players it
+holds.
+
 ### Without the relay
 
 Players on one network, or a host who forwards UDP port 27064 on their router, can skip the relay:

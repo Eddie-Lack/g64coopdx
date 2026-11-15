@@ -63,9 +63,23 @@ type infoReply struct {
 	Name     string `json:"name"`
 	Version  string `json:"version"`
 	Protocol int    `json:"protocol"`
-	// Placeholder is true until the lobby can list sessions and pass messages.
+	// Placeholder is true until the lobby can list sessions.
 	Placeholder bool `json:"placeholder"`
+	// Relay describes the relay when it runs.
+	Relay *relayInfo `json:"relay,omitempty"`
 }
+
+type relayInfo struct {
+	Port    int `json:"port"`
+	Rooms   int `json:"rooms"`
+	Players int `json:"players"`
+}
+
+// activeRelay is the running relay, which /v1/info describes; nil when it is off.
+var (
+	activeRelay     *relay
+	activeRelayPort int
+)
 
 type sessionsReply struct {
 	// Sessions is always empty in the placeholder. Its element type is not decided yet.
@@ -90,7 +104,12 @@ func newLobby(cfg config) http.Handler {
 		w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("GET /v1/info", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, infoReply{Name: "g64coopdx-lobby", Version: version, Protocol: protocolVersion, Placeholder: true})
+		reply := infoReply{Name: "g64coopdx-lobby", Version: version, Protocol: protocolVersion, Placeholder: true}
+		if activeRelay != nil {
+			rooms, players := activeRelay.counts()
+			reply.Relay = &relayInfo{Port: activeRelayPort, Rooms: rooms, Players: players}
+		}
+		writeJSON(w, reply)
 	})
 	mux.HandleFunc("GET /v1/sessions", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, sessionsReply{Sessions: []struct{}{}})
