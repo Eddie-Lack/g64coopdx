@@ -44,6 +44,8 @@ jobs:
           sudo apt-get install -y libsdl2-dev g++-mingw-w64-x86-64
       - name: Build the Linux headless game and the Windows library and test host
         run: make crossbuild-build
+      - name: Build the brute forcer's engine and savestates at 64 bits, for Linux and Windows
+        run: make savestates
       - name: Check the Windows files
         run: |
           file weemitt/build/lib-windows64-stub/glover.dll | grep -q 'PE32+'

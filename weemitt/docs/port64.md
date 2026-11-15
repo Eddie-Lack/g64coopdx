@@ -323,8 +323,8 @@ that the game uses as a number (a ROM offset before a bank is converted, a displ
 ### The builds
 
 `BITS=64` on the make command line builds any target as an x86-64 program. Four targets name the usual ones:
-`linux64`, `windows64`, `headless64` and `headless64-mus` ([building.md](building.md)). The studio, the Space demo
-and the brute forcer stay 32-bit.
+`linux64`, `windows64`, `headless64` and `headless64-mus` ([building.md](building.md)). The studio and the Space demo
+stay 32-bit. The brute forcer has its own `BITS=64` (`bruteforce/README.md`).
 
 | Flag | 32-bit | 64-bit |
 | --- | --- | --- |
@@ -568,8 +568,8 @@ check line, and the studio's self-test had no failures.
 Step 4's first version leaves these for later:
 
 1. **Savestates, a new game after `glover_destroy`, and more than one game in a process.** They need the brute
-   forcer's renamed sections (bruteforce/docs/engine.md). In `-fPIC` objects these include `.data.rel`,
-   `.data.rel.local` and `.data.rel.ro*`, which `checkgame.py` does not accept yet. They also need a snapshot taken
+   forcer's renamed sections (bruteforce/docs/engine.md). The brute forcer's 64-bit build now puts `.data.rel`,
+   `.data.rel.local` and `.data.rel.ro*` into them; the library does not use them yet. They also need a snapshot taken
    before `port_game_init`. Later: `dlmopen`, or a copy of the DLL for each game.
 2. **Collision with the host's world.** Done ([host-world.md](host-world.md)): `glover_coll_` gives the game the
    host's triangles, in chunks in `port_ram` from `JallocAlloc`, moving bodies as platforms that turn what stands on

@@ -27,6 +27,10 @@ make windows -j4               # Windows: build/windows/glover.exe
 `make OPT=fast` builds with more optimisation (`-O3`, in `build/linux-fast`), and `make OPT=znver4` for AMD Zen 4
 processors (`build/linux-znver4`). Add `TARGET=windows` for the Windows versions.
 
+`make BITS=64` builds a 64-bit program (`build/linux64/glover`), and `make windows64` the 64-bit Windows program
+(`build/windows64/glover.exe`, with `gcc-mingw-w64-x86-64`). `python3 tests/run.py --build build/linux64 --wine
+--wine-build build/windows64` tests both, with a 64-bit Wine prefix in `WINEPREFIX`.
+
 ## Running
 
 All the tools are commands of one program: `glover COMMAND [OPTIONS]`. `glover` alone lists the commands.

@@ -75,7 +75,7 @@ cp deps/SDL2-mingw/x86_64-w64-mingw32/bin/SDL2.dll build/windows64/
 ```
 
 To run it under Wine, install `wine64` and use a 64-bit prefix (`WINEPREFIX=~/.wine64 WINEARCH=win64`). The
-studio, the Space demo and the brute forcer stay 32-bit.
+studio and the Space demo stay 32-bit. The brute forcer builds at 64 bits too (`bruteforce/README.md`).
 
 ## The library
 

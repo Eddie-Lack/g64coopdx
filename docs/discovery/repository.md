@@ -58,9 +58,8 @@ Rules that the layout encodes:
   the test build), `make server` (the lobby server), `make test`.
 - **64-bit from the start**, for Windows and Linux (decided). The 64-bit Linux and Windows builds gave equal memory
   hashes in this discovery's tests.
-- The brute forcer's savestates exist only in 32-bit builds today. Making them work at 64 bits is game change 8,
-  done in phase 0 ([weemitt.md](weemitt.md#recommendation-b-as-a-vendored-copy)). Full-copy
-  savestates work at 64 bits meanwhile.
+- The brute forcer's savestates work at 64 bits on Linux and Windows (game change 8, done in phase 0:
+  `make savestates`, and `weemitt/bruteforce/docs/engine.md`).
 - No 32-bit builds.
 - SDL2, as weemitt. Dependencies are vendored as source, never as prebuilt binaries. sm64coopdx commits prebuilt
   libraries (`lib/`), which hides their code and their licenses ([sm64coopdx.md](sm64coopdx.md), section 7).

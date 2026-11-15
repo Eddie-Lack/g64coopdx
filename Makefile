@@ -5,7 +5,7 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: game windows headless crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: game windows headless savestates savestates-test crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The game's window program for Linux: weemitt/build/linux64/weemitt (needs SDL2).
 game:
@@ -19,6 +19,19 @@ windows:
 # The test build without a window: weemitt/build/headless64/weemitt.
 headless:
 	$(WEEMITT) headless64
+
+# The brute forcer's engine with its savestates, at 64 bits: weemitt/bruteforce/build/linux64/glover and
+# weemitt/bruteforce/build/windows64/glover.exe.
+savestates:
+	$(MAKE) -C weemitt/bruteforce -j$(JOBS) BITS=64
+	$(MAKE) -C weemitt/bruteforce -j$(JOBS) windows64
+
+# The engine's tests on both 64-bit programs, the Windows one under Wine (needs the ROM, Wine and a 64-bit prefix).
+# They compare the game with the 32-bit Linux build, which needs gcc-multilib.
+savestates-test: savestates
+	$(MAKE) -C weemitt/bruteforce -j$(JOBS)
+	cd weemitt/bruteforce && WINE=$(WINE64) WINEPREFIX=$(WINEPREFIX64) python3 tests/run.py --build build/linux64 --wine \
+	    --wine-build build/windows64
 
 # What tests/rom/crossbuild.py runs: the Linux headless build, and the Windows library with its test host.
 crossbuild-build: headless

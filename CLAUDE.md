@@ -58,6 +58,8 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make game          # the game for Linux: weemitt/build/linux64/weemitt (needs SDL2)
     make windows       # the game for Windows: weemitt/build/windows64/weemitt.exe (needs MinGW-w64 and SDL2)
     make crossbuild    # the Linux and Windows builds give equal states and hashes (needs the ROM and Wine)
+    make savestates    # the brute forcer's engine and savestates at 64 bits, for Linux and Windows
+    make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks and the rollback core's loopback tests; no ROM needed

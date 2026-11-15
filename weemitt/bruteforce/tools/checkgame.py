@@ -2,13 +2,14 @@
 """Checks the game's relocatable object (the Makefile's game.o): every writable section must be gstate_data or
 gstate_bss, which a savestate copies. Another one would hold game variables that a state misses.
 
-    python3 tools/checkgame.py build/linux/game.o linux|windows
+    python3 tools/checkgame.py build/linux/game.o linux|windows [32|64]
 """
 import subprocess
 import sys
 
 path, target = sys.argv[1], sys.argv[2]
-objdump = 'i686-w64-mingw32-objdump' if target == 'windows' else 'objdump'
+bits = sys.argv[3] if len(sys.argv) > 3 else '32'
+objdump = ('x86_64' if bits == '64' else 'i686') + '-w64-mingw32-objdump' if target == 'windows' else 'objdump'
 out = subprocess.run([objdump, '-h', path], capture_output=True, text=True, check=True).stdout
 lines = out.splitlines()
 bad = []
