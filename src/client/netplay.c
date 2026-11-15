@@ -62,109 +62,198 @@ static int dropped[G64_SESSION_MAX_PLAYERS];
 int netplay_active(void) { return active; }
 int netplay_failed(void) { return failed; }
 
-/* Puts the socket in relay mode and waits until the relay has given a room (a host) or a place in one (a joiner). */
-static int connect_relay(const char *relay, const char *room, char *err, size_t errSize) {
-    net_addr relayAddr;
-    uint32_t start = now_ms();
-    if (net_resolve(relay, 27065, &relayAddr, err, errSize) != 0)
-        return -1;
-    if (room ? net_relay_join(sock, &relayAddr, room) : net_relay_host(sock, &relayAddr)) {
-        snprintf(err, errSize, "a room code has %d letters and digits", NET_ROOM_CODE);
-        return -1;
+/* Connecting, step by step (netplay_start, then netplay_poll until it is not 0). */
+enum { C_IDLE, C_RELAY, C_SESSION, C_STARTED, C_FAILED };
+static int cstate = C_IDLE;
+static int chost; /* this machine hosts */
+static char cerror[320], cstatus[160];
+static uint32_t cstart, romHash;
+static int cwanted, cdeadline, chostPort, cjoined;
+static char croom[NET_ROOM_CODE + 1], crelay[256], cjoin[256];
+static int clevel;
+
+static int fail_connect(const char *why) {
+    snprintf(cerror, sizeof cerror, "%s", why);
+    cstate = C_FAILED;
+    return -1;
+}
+
+/* Makes the session once the socket is ready: at once in the direct mode, after the relay's answer through it. */
+static int make_session(void) {
+    if (crelay[0] && !chost) {
+        net_addr hostAddr = net_relay_player(0);
+        session = g64_session_join(sock, &hostAddr, romHash, "player");
+    } else if (crelay[0]) {
+        session = g64_session_host(sock, cwanted, romHash, START_LEVEL, cdeadline > 0 ? cdeadline : DEADLINE);
+    } else if (cjoin[0]) {
+        net_addr to;
+        char err[160];
+        if (net_resolve(cjoin, G64_DEFAULT_PORT, &to, err, sizeof err) != 0)
+            return fail_connect(err);
+        session = g64_session_join(sock, &to, romHash, "player");
+    } else {
+        session = g64_session_host(sock, cwanted, romHash, START_LEVEL, cdeadline > 0 ? cdeadline : DEADLINE);
     }
-    printf("g64coopdx: connecting to the relay at %s\n", relay);
-    fflush(stdout);
-    for (;;) {
-        uint8_t d[NET_MAX_DATAGRAM];
-        net_addr from;
-        net_relay_tick(sock, now_ms());
-        /* The relay's own answers are handled inside net_recv; nothing else comes before the room is ready. */
-        while (net_recv(sock, &from, d, sizeof d) >= 0) {
+    if (!session) {
+        char why[96];
+        snprintf(why, sizeof why, "cannot start the session (2 to %d players)", G64_SESSION_MAX_PLAYERS);
+        return fail_connect(why);
+    }
+    cstate = C_SESSION;
+    cstart = now_ms();
+    return 0;
+}
+
+int netplay_start(const char *join, int hostPort, const char *relay, const char *room, int wanted, int deadline,
+                  const uint8_t *rom, size_t romSize, char *err, size_t errSize) {
+    netplay_cancel();
+    cerror[0] = 0;
+    cjoined = 0;
+    romHash = g64_rom_hash(rom, romSize);
+    cwanted = wanted;
+    cdeadline = deadline;
+    chost = !join && !room;
+    chostPort = hostPort;
+    snprintf(crelay, sizeof crelay, "%s", relay ? relay : "");
+    snprintf(cjoin, sizeof cjoin, "%s", join ? join : "");
+    snprintf(croom, sizeof croom, "%s", room ? room : "");
+    if (net_init() != 0) {
+        snprintf(err, errSize, "the network did not start");
+        return fail_connect(err);
+    }
+    sock = net_open(join || relay ? 0 : (uint16_t)hostPort, err, errSize);
+    if (!sock)
+        return fail_connect(err);
+    cstart = now_ms();
+    if (relay) {
+        net_addr relayAddr;
+        if (net_resolve(relay, 27065, &relayAddr, err, errSize) != 0)
+            return fail_connect(err);
+        if (room ? net_relay_join(sock, &relayAddr, room) : net_relay_host(sock, &relayAddr)) {
+            snprintf(err, errSize, "a room code has %d letters and digits", NET_ROOM_CODE);
+            return fail_connect(err);
         }
-        if (net_relay_state(sock) == 1)
-            break;
-        if (net_relay_state(sock) < 0) {
-            snprintf(err, errSize, "%s", net_relay_refusal(sock) == 2 ? "that room is full" : "there is no room with that code");
-            return -1;
-        }
-        if (now_ms() - start > 15000) {
-            snprintf(err, errSize, "no answer from the relay at %s", relay);
-            return -1;
-        }
-        sleep_ms(10);
+        cstate = C_RELAY;
+        return 0;
+    }
+    if (make_session() != 0) {
+        snprintf(err, errSize, "%s", cerror);
+        return -1;
     }
     return 0;
 }
 
+int netplay_poll(void) {
+    uint32_t t = now_ms();
+    if (cstate == C_FAILED)
+        return -1;
+    if (cstate == C_STARTED)
+        return 1;
+    if (cstate == C_IDLE)
+        return fail_connect("not connecting");
+    net_relay_tick(sock, t);
+    if (cstate == C_RELAY) {
+        uint8_t d[NET_MAX_DATAGRAM];
+        net_addr from;
+        /* The relay's own answers are handled inside net_recv; nothing else comes before the room is ready. */
+        while (net_recv(sock, &from, d, sizeof d) >= 0) {
+        }
+        if (net_relay_state(sock) < 0)
+            return fail_connect(net_relay_refusal(sock) == 2 ? "that room is full" : "there is no room with that code");
+        if (net_relay_state(sock) == 0) {
+            if (t - cstart > 15000) {
+                char why[300];
+                snprintf(why, sizeof why, "no answer from the relay at %s", crelay);
+                return fail_connect(why);
+            }
+            snprintf(cstatus, sizeof cstatus, "Connecting to the relay...");
+            return 0;
+        }
+        if (!croom[0])
+            snprintf(croom, sizeof croom, "%s", net_relay_code(sock));
+        if (make_session() != 0)
+            return -1;
+    }
+    {
+        g64_session_state st = g64_session_poll(session, t, NULL, NULL);
+        if (st == G64_SESSION_FAILED)
+            return fail_connect(g64_session_error(session));
+        if (st == G64_SESSION_STARTED) {
+            me = g64_session_me(session);
+            players = g64_session_players(session);
+            clevel = g64_session_level(session);
+            cstate = C_STARTED;
+            active = 1;
+            return 1;
+        }
+        if (t - cstart > CONNECT_TIMEOUT_MS)
+            return fail_connect("nobody came");
+        cjoined = g64_session_joined(session);
+        if (chost)
+            snprintf(cstatus, sizeof cstatus, "%d of %d players are in", cjoined, cwanted);
+        else
+            snprintf(cstatus, sizeof cstatus, "Waiting for the host to start...");
+    }
+    return 0;
+}
+
+void netplay_cancel(void) {
+    if (session) {
+        g64_session_free(session);
+        session = NULL;
+    }
+    if (sock) {
+        net_close(sock);
+        sock = NULL;
+    }
+    cstate = C_IDLE;
+    active = 0;
+}
+
+const char *netplay_wait_status(void) { return cstatus; }
+const char *netplay_error(void) { return cerror; }
+const char *netplay_room_code(void) { return cstate >= C_SESSION && crelay[0] ? croom : ""; }
+int netplay_joined(void) { return cjoined; }
+int netplay_level(void) { return clevel; }
+int netplay_players(void) { return players; }
+int netplay_is_host(void) { return chost; }
+
 int netplay_connect(const char *join, int hostPort, const char *relay, const char *room, int wanted, int deadline,
                     const uint8_t *rom, size_t romSize, int *level, int *outPlayers, char *err, size_t errSize) {
-    uint32_t start, last = 0, romHash = g64_rom_hash(rom, romSize);
-    if (net_init() != 0) {
-        snprintf(err, errSize, "the network did not start");
-        return -1;
-    }
-    sock = net_open(join || relay ? 0 : (uint16_t)hostPort, err, errSize);
-    if (!sock)
-        return -1;
-    if (relay) {
-        if (connect_relay(relay, room, err, errSize) != 0)
-            return -1;
-        if (room) {
-            net_addr hostAddr = net_relay_player(0);
-            session = g64_session_join(sock, &hostAddr, romHash, "player");
-            printf("g64coopdx: joining room %s\n", net_relay_code(sock));
-        } else {
-            session = g64_session_host(sock, wanted, romHash, START_LEVEL, deadline > 0 ? deadline : DEADLINE);
-            printf("g64coopdx: hosting for %d players. Room code: %s\n", wanted, net_relay_code(sock));
-            printf("g64coopdx: the others join with --online-join %s\n", net_relay_code(sock));
-        }
-    } else if (join) {
-        net_addr to;
-        char text[64];
-        if (net_resolve(join, G64_DEFAULT_PORT, &to, err, errSize) != 0)
-            return -1;
-        session = g64_session_join(sock, &to, romHash, "player");
-        net_addr_text(&to, text, sizeof text);
-        printf("g64coopdx: joining %s\n", text);
-    } else {
-        session = g64_session_host(sock, wanted, romHash, START_LEVEL, deadline > 0 ? deadline : DEADLINE);
-        printf("g64coopdx: hosting on UDP port %u for %d players\n", (unsigned)net_port(sock), wanted);
-    }
-    if (!session) {
-        snprintf(err, errSize, "cannot start the session (2 to %d players)", G64_SESSION_MAX_PLAYERS);
-        return -1;
-    }
+    int r, lastJoined = 0, shownCode = 0;
+    if (relay)
+        printf("g64coopdx: connecting to the relay at %s\n", relay);
+    else if (join)
+        printf("g64coopdx: joining %s\n", join);
+    else
+        printf("g64coopdx: hosting on UDP port %d for %d players\n", hostPort, wanted);
     fflush(stdout);
-    start = now_ms();
-    for (;;) {
-        uint32_t t = now_ms();
-        g64_session_state st;
-        net_relay_tick(sock, t);
-        st = g64_session_poll(session, t, NULL, NULL);
-        if (st == G64_SESSION_FAILED) {
-            snprintf(err, errSize, "%s", g64_session_error(session));
-            return -1;
+    if (netplay_start(join, hostPort, relay, room, wanted, deadline, rom, romSize, err, errSize) != 0)
+        return -1;
+    while ((r = netplay_poll()) == 0) {
+        if (relay && !room && !shownCode && netplay_room_code()[0]) {
+            shownCode = 1;
+            printf("g64coopdx: hosting for %d players. Room code: %s\n", wanted, netplay_room_code());
+            printf("g64coopdx: the others join with --online-join %s\n", netplay_room_code());
+            fflush(stdout);
         }
-        if (st == G64_SESSION_STARTED)
-            break;
-        if (t - start > CONNECT_TIMEOUT_MS) {
-            snprintf(err, errSize, "nobody came");
-            return -1;
-        }
-        if (!join && !room && g64_session_joined(session) != (int)last) {
-            last = (uint32_t)g64_session_joined(session);
-            printf("g64coopdx: %u of %d players\n", last, wanted);
+        if (!join && !room && netplay_joined() != lastJoined) {
+            lastJoined = netplay_joined();
+            printf("g64coopdx: %d of %d players\n", lastJoined, wanted);
             fflush(stdout);
         }
         sleep_ms(10);
     }
-    me = g64_session_me(session);
-    players = g64_session_players(session);
-    *level = g64_session_level(session);
+    if (r < 0) {
+        snprintf(err, errSize, "%s", netplay_error());
+        return -1;
+    }
+    *level = netplay_level();
     *outPlayers = players;
+    if (room)
+        printf("g64coopdx: joined room %s\n", room);
     printf("g64coopdx: the game starts; you are player %d of %d\n", me + 1, players);
     fflush(stdout);
-    active = 1;
     return 0;
 }
 

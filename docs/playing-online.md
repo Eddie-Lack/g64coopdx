@@ -12,23 +12,27 @@ local network. It is a test build: see "What does not work yet" below.
   - Linux: `g64coopdx-linux.tar.gz` from the same places, or `make client`, which builds
     `weemitt/build/studio64/weemitt-studio`.
 
-The examples below use the Windows name, `g64coopdx.exe`, run from a command prompt in the unzipped folder.
+## Start
 
-## Host a game
+1. Put your ROM next to `g64coopdx.exe` and name it `glover.z64`.
+2. Double-click `g64coopdx.exe`. A start screen opens.
+3. To host: choose the number of players and press **Host**. The screen shows a room code such as `F3J7WZ`; press
+   **Copy code** and send it to the other players. The game starts when everyone is in.
+4. To join: type the code under **Join an online game** and press **Join**.
 
-The host starts first and gets a room code:
+**Play alone** starts the normal game.
+
+## From a command prompt
+
+The same, without the start screen:
 
 ```sh
 g64coopdx.exe --rom glover.z64 --online-host --players 2
-```
-
-The program prints a line such as `Room code: F3J7WZ`. Send the code to the other players.
-
-## Join a game
-
-```sh
 g64coopdx.exe --rom glover.z64 --online-join F3J7WZ
 ```
+
+The host's program prints the room code (`Room code: F3J7WZ`). `--launcher` opens the start screen even with other
+options.
 
 Nobody forwards a port: every player connects out to the relay on the lobby server, which passes the game's packets
 on inside the room. Windows may ask whether to allow the program on networks. Allow it.
