@@ -9,7 +9,8 @@ enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4 };
 /* Message layouts, all numbers little-endian:
  *   input    type, player, ack (u32: confirmed frames the client has), first (u32), count (0..RB_INPUT_REPEAT),
  *            count inputs: the client's own inputs for frames first .. first + count - 1
- *   confirm  type, players, first (u32), count (1..RB_CONFIRM_BATCH), count * players inputs
+ *   confirm  type, players, first (u32), count (1..RB_CONFIRM_BATCH), count frames: present (u16, a bit per
+ *            player), players inputs
  *   hash     type, player, frame (u32), hash (u64)
  *   desync   type, frame (u32)
  * An input is buttons (u16), x (s8), y (s8). */
@@ -50,12 +51,16 @@ static rb_input get_input(const uint8_t *p) {
     in.buttons = (uint16_t)(p[0] | p[1] << 8);
     in.x = (int8_t)p[2];
     in.y = (int8_t)p[3];
+    in.present = 0;
     return in;
 }
 
-static int same_input(rb_input a, rb_input b) {
-    return a.buttons == b.buttons && a.x == b.x && a.y == b.y;
-}
+static int same_controller(rb_input a, rb_input b) { return a.buttons == b.buttons && a.x == b.x && a.y == b.y; }
+
+static int same_input(rb_input a, rb_input b) { return same_controller(a, b) && a.present == b.present; }
+
+/* The bytes of one confirmed frame in a confirm message. */
+static size_t frame_size(int players) { return 2 + 4 * (size_t)players; }
 
 static int valid_ops(const rb_game_ops *ops) {
     return ops && ops->state_size > 0 && ops->step && ops->save && ops->load && ops->hash_state;
@@ -89,7 +94,13 @@ static uint8_t *slot(const rb_client *c, uint32_t f) {
 
 rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me, int window, rb_send_fn send,
                          rb_frame_fn on_final, void *user) {
+    return rb_client_new_at(ops, game, players, me, window, 0, NULL, send, on_final, user);
+}
+
+rb_client *rb_client_new_at(const rb_game_ops *ops, void *game, int players, int me, int window, uint32_t start,
+                            const rb_input *last, rb_send_fn send, rb_frame_fn on_final, void *user) {
     rb_client *c;
+    int p;
     if (window == 0)
         window = RB_WINDOW;
     if (!valid_ops(ops) || !send || players < 1 || players > RB_MAX_PLAYERS || me < 0 || me >= players ||
@@ -111,7 +122,14 @@ rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me
     c->send = send;
     c->on_final = on_final;
     c->user = user;
-    ops->save(game, slot(c, 0));
+    c->frame = c->confirmed = c->reported = start;
+    for (p = 0; p < players; p++) {
+        if (last)
+            c->last[p] = last[p];
+        else
+            c->last[p].present = 1;
+    }
+    ops->save(game, slot(c, start));
     return c;
 }
 
@@ -130,8 +148,10 @@ static void inputs_for(rb_client *c, uint32_t f, rb_input *out) {
         memcpy(out, c->inputs[f % c->window], sizeof(rb_input) * (size_t)c->players);
         return;
     }
-    for (p = 0; p < c->players; p++)
+    for (p = 0; p < c->players; p++) {
         out[p] = p == c->me ? c->local[f % c->window] : c->last[p];
+        out[p].present = c->last[p].present;
+    }
 }
 
 static void run_frame(rb_client *c, uint32_t f) {
@@ -198,7 +218,7 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
         return -1;
     first = get32(d + 2);
     count = d[6];
-    if (count < 1 || count > RB_CONFIRM_BATCH || len != CONFIRM_HEAD + (size_t)count * (size_t)c->players * 4 ||
+    if (count < 1 || count > RB_CONFIRM_BATCH || len != CONFIRM_HEAD + (size_t)count * frame_size(c->players) ||
         first > UINT32_MAX - count)
         return -1;
     for (i = 0; i < count; i++) {
@@ -212,8 +232,14 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
         /* Confirmed inputs far ahead of the frames run would overwrite inputs the window still needs. */
         if (f >= c->frame && f - c->frame >= c->window - 1)
             break;
-        for (p = 0; p < c->players; p++)
-            in[p] = get_input(d + CONFIRM_HEAD + 4 * ((size_t)i * (size_t)c->players + (size_t)p));
+        {
+            const uint8_t *fr = d + CONFIRM_HEAD + (size_t)i * frame_size(c->players);
+            unsigned present = (unsigned)fr[0] | (unsigned)fr[1] << 8;
+            for (p = 0; p < c->players; p++) {
+                in[p] = get_input(fr + 2 + 4 * (size_t)p);
+                in[p].present = (uint8_t)((present >> p) & 1);
+            }
+        }
         if (f < c->frame && wrong == UINT32_MAX)
             for (p = 0; p < c->players; p++)
                 if (!same_input(in[p], c->inputs[f % c->window][p])) {
@@ -273,6 +299,7 @@ struct rb_host {
     uint32_t matches, mismatches, late;
     uint32_t ack[RB_MAX_PLAYERS];  /* confirmed frames each client has said it has */
     uint8_t dropped[RB_MAX_PLAYERS]; /* players who left: their input is 0 from then on */
+    uint8_t present[RB_MAX_PLAYERS]; /* players in the game from the next confirmed frame on */
     rb_input last[RB_MAX_PLAYERS]; /* the inputs of frame confirmed - 1 */
     /* Inputs received for frames confirmed .. confirmed + RB_HOST_WINDOW - 1. */
     rb_input pending[RB_HOST_WINDOW][RB_MAX_PLAYERS];
@@ -305,6 +332,7 @@ rb_host *rb_host_new(const rb_game_ops *ops, void *game, int players, uint32_t d
     h->on_confirm = on_confirm;
     h->on_final = on_final;
     h->user = user;
+    memset(h->present, 1, sizeof h->present);
     return h;
 }
 
@@ -320,10 +348,11 @@ static void host_confirm(rb_host *h) {
     int p;
     for (p = 0; p < h->players; p++) {
         /* A player whose input has not arrived repeats their last input. */
-        if (h->dropped[p])
+        if (h->dropped[p] || !h->present[p])
             memset(&h->last[p], 0, sizeof h->last[p]);
         else if (h->have[s][p])
             h->last[p] = h->pending[s][p];
+        h->last[p].present = (uint8_t)(h->present[p] && !h->dropped[p]);
         h->done[s][p] = h->last[p];
         h->have[s][p] = 0;
     }
@@ -350,17 +379,24 @@ static void host_send_confirmed(rb_host *h, int to) {
     count = h->confirmed - first;
     if (count > RB_CONFIRM_BATCH)
         count = RB_CONFIRM_BATCH;
-    if (count > (RB_MAX_WIRE - CONFIRM_HEAD) / (4u * (uint32_t)h->players))
-        count = (RB_MAX_WIRE - CONFIRM_HEAD) / (4u * (uint32_t)h->players);
+    if (count > (RB_MAX_WIRE - CONFIRM_HEAD) / frame_size(h->players))
+        count = (uint32_t)((RB_MAX_WIRE - CONFIRM_HEAD) / frame_size(h->players));
     m[0] = MSG_CONFIRM;
     m[1] = (uint8_t)h->players;
     put32(m + 2, first);
     m[6] = (uint8_t)count;
-    for (i = 0; i < count; i++)
-        for (p = 0; p < h->players; p++)
-            put_input(m + CONFIRM_HEAD + 4 * ((size_t)i * (size_t)h->players + (size_t)p),
-                      h->done[(first + i) % RB_HOST_WINDOW][p]);
-    h->send(h->user, to, m, CONFIRM_HEAD + (size_t)count * (size_t)h->players * 4);
+    for (i = 0; i < count; i++) {
+        uint8_t *fr = m + CONFIRM_HEAD + (size_t)i * frame_size(h->players);
+        const rb_input *in = h->done[(first + i) % RB_HOST_WINDOW];
+        unsigned present = 0;
+        for (p = 0; p < h->players; p++) {
+            put_input(fr + 2 + 4 * (size_t)p, in[p]);
+            present |= (unsigned)(in[p].present & 1) << p;
+        }
+        fr[0] = (uint8_t)present;
+        fr[1] = (uint8_t)(present >> 8);
+    }
+    h->send(h->user, to, m, CONFIRM_HEAD + (size_t)count * frame_size(h->players));
 }
 
 void rb_host_tick(rb_host *h) {
@@ -369,7 +405,8 @@ void rb_host_tick(rb_host *h) {
     while (h->confirmed + h->deadline <= h->clock)
         host_confirm(h);
     for (p = 0; p < h->players; p++)
-        host_send_confirmed(h, p);
+        if (h->present[p] && !h->dropped[p])
+            host_send_confirmed(h, p);
 }
 
 static int host_input(rb_host *h, int from, const uint8_t *d, size_t len) {
@@ -382,6 +419,9 @@ static int host_input(rb_host *h, int from, const uint8_t *d, size_t len) {
     if (count > RB_INPUT_REPEAT || len != INPUT_HEAD + (size_t)count * 4 || ack > h->confirmed ||
         first > UINT32_MAX - count)
         return -1;
+    /* A player who is not in this game sends nothing it needs, for example right after they left it. */
+    if (!h->present[from])
+        return 0;
     if (ack > h->ack[from])
         h->ack[from] = ack;
     for (i = 0; i < count; i++) {
@@ -389,7 +429,7 @@ static int host_input(rb_host *h, int from, const uint8_t *d, size_t len) {
         rb_input in = get_input(d + INPUT_HEAD + 4 * i);
         if (f < h->confirmed) {
             /* Too late: the frame was confirmed without it. Count it when the confirmed input differs. */
-            if (h->confirmed - f <= RB_HOST_WINDOW && !same_input(in, h->done[f % RB_HOST_WINDOW][from]))
+            if (h->confirmed - f <= RB_HOST_WINDOW && !same_controller(in, h->done[f % RB_HOST_WINDOW][from]))
                 h->late++;
         } else if (f - h->confirmed < RB_HOST_WINDOW) {
             h->pending[f % RB_HOST_WINDOW][from] = in;
@@ -439,6 +479,22 @@ void rb_host_drop_player(rb_host *h, int p) {
     if (p >= 0 && p < h->players)
         h->dropped[p] = 1;
 }
+
+void rb_host_set_present(rb_host *h, int p, int present) {
+    if (p < 0 || p >= h->players || (h->present[p] != 0) == (present != 0))
+        return;
+    h->present[p] = (uint8_t)(present != 0);
+    if (present) {
+        uint32_t f;
+        /* Their client starts at the next confirmed frame, and needs nothing before it. Inputs they sent earlier
+           belong to another game. */
+        h->ack[p] = h->confirmed;
+        for (f = 0; f < RB_HOST_WINDOW; f++)
+            h->have[f][p] = 0;
+    }
+}
+
+int rb_host_present(const rb_host *h, int p) { return p >= 0 && p < h->players && h->present[p]; }
 
 uint32_t rb_host_confirmed(const rb_host *h) { return h->confirmed; }
 uint32_t rb_host_hash_matches(const rb_host *h) { return h->matches; }

@@ -93,6 +93,7 @@ static rb_input controller(int player, uint32_t frame) {
     in.x = (int8_t)((int)(h % 141) - 70);
     in.y = (int8_t)((int)((h >> 8) % 141) - 70);
     in.buttons = (h >> 20) % 4 == 0 ? 0x8000 : (h >> 22) % 6 == 0 ? 0x2000 : 0;
+    in.present = 1;
     return in;
 }
 

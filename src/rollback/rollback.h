@@ -28,10 +28,13 @@
 /* A client sends the hash of every confirmed frame whose number is a multiple of this. */
 #define RB_HASH_EVERY 10
 
-/* One player's controller in one frame. */
+/* One player's controller in one frame, and whether the player is in the game in that frame. A client sends only
+ * its controller; the host decides who is present, and the confirmed inputs carry it. A game sees a player arrive
+ * when present turns 1 and leave when it turns 0. */
 typedef struct {
     uint16_t buttons;
     int8_t x, y;
+    uint8_t present;
 } rb_input;
 
 /* The game, as the core sees it. A savestate is state_size bytes. hash_state must give the same value for the
@@ -55,7 +58,7 @@ typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs
 /* The largest message the core sends: a confirm message is cut to RB_MAX_WIRE bytes, which leaves room for a
  * transport's header in one UDP datagram. RB_MAX_MESSAGE is the largest that a receiver accepts. */
 #define RB_MAX_WIRE 1100
-#define RB_MAX_MESSAGE (10 + RB_CONFIRM_BATCH * RB_MAX_PLAYERS * 4)
+#define RB_MAX_MESSAGE (10 + RB_CONFIRM_BATCH * (2 + RB_MAX_PLAYERS * 4))
 
 typedef struct rb_client rb_client;
 typedef struct rb_host rb_host;
@@ -64,6 +67,11 @@ typedef struct rb_host rb_host;
  * (8 to RB_WINDOW; 0 means RB_WINDOW). Returns NULL on bad arguments or no memory. */
 rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me, int window, rb_send_fn send,
                          rb_frame_fn on_final, void *user);
+/* The same, for a client that starts at frame start: game is in the state after frame start - 1, and last holds
+ * that frame's confirmed inputs (the prediction for the next frames; NULL: all zero and present). Frames before start
+ * are final. A player who joins a running game starts this way, after running its confirmed frames. */
+rb_client *rb_client_new_at(const rb_game_ops *ops, void *game, int players, int me, int window, uint32_t start,
+                            const rb_input *last, rb_send_fn send, rb_frame_fn on_final, void *user);
 void rb_client_free(rb_client *c);
 /* Runs the next frame with the local player's input, if the client is not too far ahead of the confirmed frames.
  * Returns 1 if it ran a frame, 0 if it must wait. Sends the input to the host either way. */
@@ -81,7 +89,7 @@ uint32_t rb_client_desyncs(const rb_client *c);
 uint64_t rb_client_rollback_frames(const rb_client *c);
 
 /* The host for players clients. game is in its start state; it becomes the reference copy. deadline is how many
- * frames after its own frame count the host confirms a frame (at least 1). */
+ * frames after its own frame count the host confirms a frame (at least 1). Every player starts present. */
 rb_host *rb_host_new(const rb_game_ops *ops, void *game, int players, uint32_t deadline, rb_send_fn send,
                      rb_confirm_fn on_confirm, rb_frame_fn on_final, void *user);
 void rb_host_free(rb_host *h);
@@ -92,6 +100,11 @@ void rb_host_tick(rb_host *h);
 int rb_host_receive(rb_host *h, int from, const uint8_t *data, size_t len);
 /* Player p left: from the next confirmed frame on, their input is 0 and their messages are refused. */
 void rb_host_drop_player(rb_host *h, int p);
+/* Player p is present (1) or not (0) from the next frame the host confirms, rb_host_confirmed(h). The host does not
+ * wait for the input of a player who is not present: it confirms 0, and ignores their inputs. When p becomes present,
+ * the host sends them confirmed frames from that frame on; their client starts there (rb_client_new_at). */
+void rb_host_set_present(rb_host *h, int p, int present);
+int rb_host_present(const rb_host *h, int p);
 uint32_t rb_host_confirmed(const rb_host *h);
 /* Hashes received from clients that matched, and that did not. */
 uint32_t rb_host_hash_matches(const rb_host *h);
