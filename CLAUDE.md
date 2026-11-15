@@ -60,6 +60,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make crossbuild    # the Linux and Windows builds give equal states and hashes (needs the ROM and Wine)
     make savestates    # the brute forcer's engine and savestates at 64 bits, for Linux and Windows
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
+    make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks and the rollback core's loopback tests; no ROM needed
@@ -79,7 +80,7 @@ run locally: set `GLOVER_ROM`.
 | Where the services run, and how to deploy them | docs/hosting.md |
 | The design and the roadmap | docs/discovery/ |
 | A change to the game's logic (from phase 0) | `weemitt/`, g64coopdx's copy |
-| The rollback core | src/rollback (`rollback.h` describes it) |
+| The rollback core, and the real game behind it | src/rollback (`rollback.h`, `engine_game.h`) |
 | The toy game, the loopback tests, fuzz targets | tests/toy, tests/net, tests/fuzz |
 | Tests that need the ROM (they skip without it) | tests/rom |
 | The network, sessions (later in phase 0 and after) | src/net, src/session |

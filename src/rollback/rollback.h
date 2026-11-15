@@ -16,7 +16,8 @@
 #include <stdint.h>
 
 #define RB_MAX_PLAYERS 16
-/* Frames of savestates and inputs that a client keeps. A client does not predict further ahead than this. */
+/* The most frames of savestates and inputs that a client keeps; rb_client_new takes a smaller window for a game
+ * with large savestates. A client does not predict further ahead than its window. */
 #define RB_WINDOW 128
 /* Frames of confirmed inputs and reference hashes that the host keeps. */
 #define RB_HOST_WINDOW 256
@@ -45,9 +46,9 @@ typedef struct {
 
 /* Sends one message. A client sends to the host (to is 0); the host sends to client number to. */
 typedef void (*rb_send_fn)(void *user, int to, const uint8_t *data, size_t len);
-/* Called once for each frame whose state is final: confirmed, and run on confirmed inputs. hash is the hash of the
- * state after that frame. */
-typedef void (*rb_frame_fn)(void *user, uint32_t frame, uint64_t hash);
+/* Called once for each frame whose state is final: confirmed, and run on confirmed inputs. state is the savestate
+ * after that frame; it is valid only during the call. The core hashes only the frames whose hashes it sends. */
+typedef void (*rb_frame_fn)(void *user, uint32_t frame, const void *state);
 /* Called by the host for each frame it confirms, with the confirmed inputs. */
 typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs, int players);
 
@@ -57,8 +58,9 @@ typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs
 typedef struct rb_client rb_client;
 typedef struct rb_host rb_host;
 
-/* A client for player me of players. game is in its start state. Returns NULL on bad arguments or no memory. */
-rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me, rb_send_fn send,
+/* A client for player me of players. game is in its start state. window is the number of savestates it keeps
+ * (8 to RB_WINDOW; 0 means RB_WINDOW). Returns NULL on bad arguments or no memory. */
+rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me, int window, rb_send_fn send,
                          rb_frame_fn on_final, void *user);
 void rb_client_free(rb_client *c);
 /* Runs the next frame with the local player's input, if the client is not too far ahead of the confirmed frames.

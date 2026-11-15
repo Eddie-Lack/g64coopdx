@@ -58,6 +58,7 @@ typedef struct {
     uint32_t reported[RB_MAX_PLAYERS];
     uint32_t confirmed;
     int bad_order;
+    int window;
 } world;
 
 typedef struct {
@@ -110,14 +111,15 @@ static void host_confirmed(void *user, uint32_t frame, const rb_input *in, int p
     w->confirmed = frame + 1;
 }
 
-static void host_final(void *user, uint32_t frame, uint64_t hash) {
+static void host_final(void *user, uint32_t frame, const void *state) {
     world *w = user;
     if (frame < FRAMES + 512)
-        w->host_hash[frame] = hash;
+        w->host_hash[frame] = toy_ops.hash_state(state);
 }
 
-static void client_final(void *user, uint32_t frame, uint64_t hash) {
+static void client_final(void *user, uint32_t frame, const void *state) {
     endpoint *e = user;
+    uint64_t hash = toy_ops.hash_state(state);
     world *w = e->w;
     if (frame != w->reported[e->id])
         w->bad_order = 1;
@@ -178,7 +180,7 @@ static void check(int ok, const char *what) {
 }
 
 /* Runs a session. flawed is a client number whose game differs, or -1. Returns the world for the caller's checks. */
-static world *session(const network *net, int players, int flawed) {
+static world *session(const network *net, int players, int flawed, int window) {
     static endpoint ends[RB_MAX_PLAYERS];
     static rb_game_ops flawed_full;
     world *w = calloc(1, sizeof *w);
@@ -186,6 +188,7 @@ static world *session(const network *net, int players, int flawed) {
     int i;
     w->net = net;
     w->players = players;
+    w->window = window;
     w->rng = 12345u + (uint32_t)players * 77u;
     w->packets = calloc(MAX_PACKETS, sizeof(packet));
     toy_init(&w->host_game, players);
@@ -197,7 +200,7 @@ static world *session(const network *net, int players, int flawed) {
         ends[i].id = i;
         toy_init(&w->client_game[i], players);
         w->client[i] = rb_client_new(i == flawed ? &flawed_full : &toy_ops, &w->client_game[i], players, i,
-                                     client_send, client_final, &ends[i]);
+                                     window, client_send, client_final, &ends[i]);
     }
     end = FRAMES + net->deadline + (uint32_t)(net->latency + net->jitter) * 4 + 120;
     for (w->now = 0; w->now < end; w->now++) {
@@ -227,9 +230,9 @@ static void finish(world *w) {
     free(w);
 }
 
-static void test_session(const network *net, int players) {
-    char what[160];
-    world *w = session(net, players, -1);
+static void test_session(const network *net, int players, int window) {
+    char what[200];
+    world *w = session(net, players, -1, window);
     toy_game offline;
     uint32_t f, wrong = 0, frames = w->confirmed < FRAMES ? w->confirmed : FRAMES;
     int i, clients_ok = 1, desyncs = 0;
@@ -253,8 +256,8 @@ static void test_session(const network *net, int players) {
         desyncs += (int)rb_client_desyncs(w->client[i]);
         rollbacks += rb_client_rollback_frames(w->client[i]);
     }
-    snprintf(what, sizeof what, "%s, %d players: %u frames confirmed, every client final on all %d", net->name,
-             players, w->confirmed, FRAMES);
+    snprintf(what, sizeof what, "%s, %d players, window %d: %u frames confirmed, every client final on all %d",
+             net->name, players, window, w->confirmed, FRAMES);
     check(clients_ok && w->confirmed >= FRAMES, what);
     snprintf(what, sizeof what, "%s, %d players: every final state equals the offline run (%u differ)", net->name,
              players, wrong);
@@ -267,7 +270,7 @@ static void test_session(const network *net, int players) {
 }
 
 static void test_desync(void) {
-    world *w = session(&NETWORKS[2], 4, 2);
+    world *w = session(&NETWORKS[2], 4, 2, 0);
     char what[160];
     snprintf(what, sizeof what, "a client whose game differs is caught: %u mismatches, %u desync reports to it, %u to "
              "the others", rb_host_hash_mismatches(w->host), rb_client_desyncs(w->client[2]),
@@ -345,7 +348,7 @@ static void test_malformed(void) {
         static endpoint e;
         e.w = &dummy;
         e.id = 1;
-        c = rb_client_new(&toy_ops, &cg, 4, 1, client_send, NULL, &e);
+        c = rb_client_new(&toy_ops, &cg, 4, 1, 0, client_send, NULL, &e);
     }
     dummy.rng = 777;
     for (i = 0; i < 200000; i++) {
@@ -373,8 +376,9 @@ static void test_malformed(void) {
     }
     check(rb_host_new(&toy_ops, &hg, 0, 3, host_send, NULL, NULL, NULL) == NULL &&
               rb_host_new(&toy_ops, &hg, 17, 3, host_send, NULL, NULL, NULL) == NULL &&
-              rb_client_new(&toy_ops, &cg, 4, 4, client_send, NULL, NULL) == NULL,
-          "bad player counts are refused");
+              rb_client_new(&toy_ops, &cg, 4, 4, 0, client_send, NULL, NULL) == NULL &&
+              rb_client_new(&toy_ops, &cg, 4, 1, 4, client_send, NULL, NULL) == NULL,
+          "bad player counts and windows are refused");
     rb_client_free(c);
     rb_host_free(h);
     free(dummy.packets);
@@ -402,7 +406,10 @@ int main(int argc, char **argv) {
     verbose = argc > 1 && !strcmp(argv[1], "-v");
     for (n = 0; n < sizeof NETWORKS / sizeof NETWORKS[0]; n++)
         for (k = 0; k < sizeof counts / sizeof counts[0]; k++)
-            test_session(&NETWORKS[n], counts[k]);
+            test_session(&NETWORKS[n], counts[k], 0);
+    /* A small window, as the real game's large savestates need: clients wait more often. */
+    for (k = 0; k < sizeof counts / sizeof counts[0]; k++)
+        test_session(&NETWORKS[3], counts[k], 16);
     test_desync();
     test_malformed();
     printf("offline run, 16 players, 3000 frames: hash %016llx\n", (unsigned long long)offline_hash());

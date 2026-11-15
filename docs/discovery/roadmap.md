@@ -43,6 +43,17 @@ taking weemitt's fixes by hand costs a little in every phase.
 Test: the toy's every client equals one offline run of the host's confirmed inputs, frame by frame, under every
 simulated network.
 
+Status (15 November 2026):
+
+- Done: the copy and its `SOURCE`; g64coopdx's baseline (it equals weemitt's, 49 runs); the 64-bit builds and
+  `make crossbuild` (Linux equals Windows under Wine in all 49 runs); the toy game, the rollback core and its loopback
+  tests, also under Wine, with a fuzz target; game change 8 (all engine tests pass at 64 bits on Linux and Windows).
+- Done beyond the list: the real game behind the rollback core (`src/rollback/engine_game.c`). One host and three
+  clients play level 13 over a lossy simulated network; every hash check passes and every client equals the offline
+  run (`make rollback-game`, Linux and Wine).
+- Left: the window programs as static builds (they link SDL2 from the system today). The folders `src/net`,
+  `src/session` and the others come with the phases that fill them.
+
 ## Phase 1: two gloves offline
 
 - Game change 1: a pad per player.

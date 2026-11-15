@@ -5,7 +5,7 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: game windows headless savestates savestates-test crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: game windows headless savestates savestates-test rollback-game-build rollback-game crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The game's window program for Linux: weemitt/build/linux64/weemitt (needs SDL2).
 game:
@@ -32,6 +32,25 @@ savestates-test: savestates
 	$(MAKE) -C weemitt/bruteforce -j$(JOBS)
 	cd weemitt/bruteforce && WINE=$(WINE64) WINEPREFIX=$(WINEPREFIX64) python3 tests/run.py --build build/linux64 --wine \
 	    --wine-build build/windows64
+
+# The rollback core with the real game (tests/rom/rollback_game.c), for Linux and for Windows. They link the engine
+# that make savestates builds.
+ENGINE_LINUX := weemitt/bruteforce/build/linux64/libglover.a
+ENGINE_WINDOWS := weemitt/bruteforce/build/windows64/libglover.a
+ROLLBACK_GAME_SRC := tests/rom/rollback_game.c src/rollback/engine_game.c src/rollback/rollback.c
+
+rollback-game-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -g -Wall -Wextra -Werror -no-pie -o build/tests/rollback_game $(ROLLBACK_GAME_SRC) \
+	    $(ENGINE_LINUX) -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/rollback_game.exe $(ROLLBACK_GAME_SRC) $(ENGINE_WINDOWS) -lm
+
+# One host and three clients play level 13 over a lossy simulated network, on Linux and under Wine (needs the ROM in
+# GLOVER_ROM).
+rollback-game: rollback-game-build
+	build/tests/rollback_game "$$GLOVER_ROM" 600
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/rollback_game.exe "$$GLOVER_ROM" 600
 
 # What tests/rom/crossbuild.py runs: the Linux headless build, and the Windows library with its test host.
 crossbuild-build: headless
