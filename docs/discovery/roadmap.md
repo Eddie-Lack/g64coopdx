@@ -63,8 +63,8 @@ fastest way to two gloves for the first online tests. Each extra player's glove,
 blocks live in a slot on the game's heap and are swapped into the globals for that player's part of the frame. The
 other players' gloves and balls are drawn as proxy actors. Four gloves play the first hub level for 3,000 frames with
 the same output and hashes on Linux and Windows (`make twoplayers`); with one player the game still equals the
-baseline. Known gaps: enemies, collectables and puzzles see only player 1; every machine draws from player 1's
-camera; the other gloves have no color of their own.
+baseline. Each player's view is drawn with that player swapped in, and the gloves after the first have colors of
+their own. Known gap: enemies, collectables and puzzles see only player 1.
 
 - Game change 1: a pad per player.
 - Game change 7: an option that turns off every PC addition of weemitt's that the controller can reach, such as the

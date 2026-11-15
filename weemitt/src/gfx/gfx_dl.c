@@ -130,6 +130,8 @@ static struct {
     int noCull;         /* G_CULLDL never ends a list: the host's walk follows every list, and so does its recording */
     float lastMtx[16];  /* the matrix of the latest G_MTX, after the interpolation */
     int lastMtxBlended; /* 1 when the interpolation changed it */
+    int tinted;         /* g64coopdx: vertex colors are multiplied by tint (G_NOOP with a tint word, below) */
+    float tint[3];
 } rsp;
 
 /* ---- Addresses and memory. */
@@ -447,6 +449,11 @@ static void load_vertices(u32 addr, int n, int v0) {
             v->r = p[12] / 255.0f;
             v->g = p[13] / 255.0f;
             v->b = p[14] / 255.0f;
+        }
+        if (rsp.tinted) {
+            v->r *= rsp.tint[0];
+            v->g *= rsp.tint[1];
+            v->b *= rsp.tint[2];
         }
         v->a = p[15] / 255.0f;
         if (gm & GM_FOG) {
@@ -1121,6 +1128,17 @@ static void command(u32 op, u32 w0, u32 w1) {
         case G_SETCIMG:
             rsp.colorImage = seg_addr(w1);
             break;
+        case 0xC0:
+            /* G_NOOP. g64coopdx's player colors use it (src/game/g64players.c): a word 0x67RRGGBB multiplies the
+               following vertices' colors by RR, GG and BB out of 255, and 0x67000000 ends it. On the N64 it does
+               nothing. */
+            if ((w1 >> 24) == 0x67) {
+                rsp.tinted = (w1 & 0xFFFFFF) != 0;
+                rsp.tint[0] = ((w1 >> 16) & 0xFF) / 255.0f;
+                rsp.tint[1] = ((w1 >> 8) & 0xFF) / 255.0f;
+                rsp.tint[2] = (w1 & 0xFF) / 255.0f;
+            }
+            break;
         default:
             break;
     }
@@ -1240,6 +1258,7 @@ void gfx_dl_begin_frame(void) {
     rsp.vpScale[1] = rsp.vpTrans[1] = SCREEN_H / 2;
     rsp.fogMul = rsp.fogOff = 0.0f;
     rsp.numLights = 0;
+    rsp.tinted = 0;
     memset(rsp.lights, 0, sizeof(rsp.lights));
     for (i = 0; i < 8; i++) {
         rsp.lights[i].z = 1.0f;

@@ -346,9 +346,41 @@ void G64ExtraPlayersStep(void) {
     }
 }
 
+/* The player whose slot is swapped into the globals for a view (G64SwapPlayer), or 0. */
+static s32 swapped;
+
 void G64SwapPlayer(s32 p) {
-    if (p >= 1 && p < slotCount && slots[p])
+    if (p >= 1 && p < slotCount && slots[p]) {
         swap_slot(slots[p]);
+        swapped = swapped == p ? 0 : p;
+    }
+}
+
+s32 G64IsProxy(Actor *a) {
+    s32 i;
+    for (i = 1; i < slotCount; i++)
+        if (a == proxyHand[i] || a == proxyBall[i])
+            return 1;
+    return 0;
+}
+
+/* Each player's color as 0xRRGGBB, multiplied into the glove's and ball's colors. Player 1 keeps the game's own. */
+static const u32 playerColor[8] = {0, 0x60A0FF, 0x70FF70, 0xFFE040, 0xFF6060, 0xC070FF, 0xFFA040, 0x60FFFF};
+
+u32 G64ActorTint(Actor *a) {
+    s32 i, p = -1;
+    if (slotCount < 2)
+        return 0;
+    if (a == &hand || a == &ball) {
+        p = swapped;
+    } else {
+        for (i = 1; i < slotCount; i++)
+            if (a == proxyHand[i] || a == proxyBall[i])
+                p = i == swapped ? 0 : i;
+    }
+    if (p <= 0)
+        return 0;
+    return playerColor[p % 8 ? p % 8 : 1];
 }
 
 s32 G64PlayerPosition(s32 p, f32 *x, f32 *y, f32 *z) {
