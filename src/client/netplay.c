@@ -317,7 +317,8 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     return 0;
 }
 
-void netplay_after_draw(void) {
+/* Puts the game back from the local player's view (netplay_frame) to the state the rollback core left. */
+static void restore_view(void) {
     if (viewPending) {
         engine_load(engine, viewState);
         viewPending = 0;
@@ -329,7 +330,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     int n;
     if (!active)
         return -1;
-    netplay_after_draw();
+    restore_view();
     net_relay_tick(sock, now_ms());
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
