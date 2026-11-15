@@ -64,7 +64,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
-    make test          # the server's checks and the rollback core's loopback tests; no ROM needed
+    make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed
     make test-windows  # the loopback tests as a Windows program under Wine; its hash must equal Linux's
     make fuzz          # the message parsers under libFuzzer (needs clang)
     make image         # the lobby server's container image (needs Docker)
@@ -84,4 +84,5 @@ run locally: set `GLOVER_ROM`.
 | The rollback core, and the real game behind it | src/rollback (`rollback.h`, `engine_game.h`) |
 | The toy game, the loopback tests, fuzz targets | tests/toy, tests/net, tests/fuzz |
 | Tests that need the ROM (they skip without it) | tests/rom |
-| The network, sessions (later in phase 0 and after) | src/net, src/session |
+| The UDP transport (direct mode) | src/net (`udp.h`) |
+| Sessions (from phase 2) | src/session |

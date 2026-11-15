@@ -1,0 +1,283 @@
+/* The UDP socket (udp.h). */
+#include "udp.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+typedef SOCKET sock_t;
+#define BAD_SOCKET INVALID_SOCKET
+#define close_socket closesocket
+#else
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+typedef int sock_t;
+#define BAD_SOCKET (-1)
+#define close_socket close
+#endif
+
+struct net_socket {
+    sock_t fd;
+    int v6; /* the socket is IPv6 (it may take IPv4 too, as mapped addresses) */
+    uint16_t port;
+};
+
+int net_init(void) {
+#ifdef _WIN32
+    WSADATA d;
+    return WSAStartup(MAKEWORD(2, 2), &d) == 0 ? 0 : -1;
+#else
+    return 0;
+#endif
+}
+
+void net_shutdown(void) {
+#ifdef _WIN32
+    WSACleanup();
+#endif
+}
+
+static int set_nonblocking(sock_t fd) {
+#ifdef _WIN32
+    u_long on = 1;
+    return ioctlsocket(fd, FIONBIO, &on) == 0 ? 0 : -1;
+#else
+    int flags = fcntl(fd, F_GETFL, 0);
+    return flags >= 0 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0 ? 0 : -1;
+#endif
+}
+
+static void to_net_addr(const struct sockaddr_storage *ss, net_addr *a) {
+    memset(a, 0, sizeof *a);
+    if (ss->ss_family == AF_INET) {
+        const struct sockaddr_in *in = (const struct sockaddr_in *)ss;
+        a->family = 4;
+        memcpy(a->ip, &in->sin_addr, 4);
+        a->port = ntohs(in->sin_port);
+    } else if (ss->ss_family == AF_INET6) {
+        const struct sockaddr_in6 *in6 = (const struct sockaddr_in6 *)ss;
+        static const uint8_t mapped[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
+        /* An IPv4 peer on a dual-stack socket arrives as ::ffff:a.b.c.d; keep it as IPv4. */
+        if (memcmp(&in6->sin6_addr, mapped, 12) == 0) {
+            a->family = 4;
+            memcpy(a->ip, (const uint8_t *)&in6->sin6_addr + 12, 4);
+        } else {
+            a->family = 6;
+            memcpy(a->ip, &in6->sin6_addr, 16);
+        }
+        a->port = ntohs(in6->sin6_port);
+    }
+}
+
+/* The sockaddr for sending to a from socket s. Returns its length, or 0 when s cannot reach that family. */
+static int to_sockaddr(const net_socket *s, const net_addr *a, struct sockaddr_storage *ss) {
+    memset(ss, 0, sizeof *ss);
+    if (s->v6) {
+        struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)ss;
+        in6->sin6_family = AF_INET6;
+        in6->sin6_port = htons(a->port);
+        if (a->family == 4) {
+            uint8_t *b = (uint8_t *)&in6->sin6_addr;
+            b[10] = b[11] = 0xff;
+            memcpy(b + 12, a->ip, 4);
+        } else {
+            memcpy(&in6->sin6_addr, a->ip, 16);
+        }
+        return (int)sizeof *in6;
+    }
+    if (a->family != 4)
+        return 0;
+    {
+        struct sockaddr_in *in = (struct sockaddr_in *)ss;
+        in->sin_family = AF_INET;
+        in->sin_port = htons(a->port);
+        memcpy(&in->sin_addr, a->ip, 4);
+        return (int)sizeof *in;
+    }
+}
+
+net_socket *net_open(uint16_t port, char *err, size_t errSize) {
+    net_socket *s = calloc(1, sizeof *s);
+    struct sockaddr_storage ss;
+    socklen_t len;
+    if (!s) {
+        snprintf(err, errSize, "out of memory");
+        return NULL;
+    }
+    /* A dual-stack IPv6 socket first; plain IPv4 where the system has no IPv6. */
+    s->fd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    if (s->fd != BAD_SOCKET) {
+        struct sockaddr_in6 in6;
+        int off = 0;
+        setsockopt(s->fd, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&off, sizeof off);
+        memset(&in6, 0, sizeof in6);
+        in6.sin6_family = AF_INET6;
+        in6.sin6_addr = in6addr_any;
+        in6.sin6_port = htons(port);
+        if (bind(s->fd, (struct sockaddr *)&in6, sizeof in6) == 0) {
+            s->v6 = 1;
+        } else {
+            close_socket(s->fd);
+            s->fd = BAD_SOCKET;
+        }
+    }
+    if (s->fd == BAD_SOCKET) {
+        struct sockaddr_in in;
+        s->fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        memset(&in, 0, sizeof in);
+        in.sin_family = AF_INET;
+        in.sin_addr.s_addr = htonl(INADDR_ANY);
+        in.sin_port = htons(port);
+        if (s->fd == BAD_SOCKET || bind(s->fd, (struct sockaddr *)&in, sizeof in) != 0) {
+            snprintf(err, errSize, "cannot bind UDP port %u (is it in use?)", (unsigned)port);
+            if (s->fd != BAD_SOCKET)
+                close_socket(s->fd);
+            free(s);
+            return NULL;
+        }
+    }
+    if (set_nonblocking(s->fd) != 0) {
+        snprintf(err, errSize, "cannot make the socket non-blocking");
+        close_socket(s->fd);
+        free(s);
+        return NULL;
+    }
+    len = sizeof ss;
+    if (getsockname(s->fd, (struct sockaddr *)&ss, &len) == 0) {
+        net_addr a;
+        to_net_addr(&ss, &a);
+        s->port = a.port;
+    }
+    return s;
+}
+
+void net_close(net_socket *s) {
+    if (s) {
+        close_socket(s->fd);
+        free(s);
+    }
+}
+
+uint16_t net_port(const net_socket *s) { return s->port; }
+
+int net_resolve(const char *text, uint16_t defaultPort, net_addr *out, char *err, size_t errSize) {
+    char host[256], portText[8];
+    const char *colon;
+    struct addrinfo hints, *res = NULL, *r;
+    size_t n;
+    unsigned long port = defaultPort;
+    if (!text || !*text || strlen(text) >= sizeof host) {
+        snprintf(err, errSize, "no address");
+        return -1;
+    }
+    if (text[0] == '[') {
+        /* [v6]:port */
+        const char *close = strchr(text, ']');
+        if (!close) {
+            snprintf(err, errSize, "a [ without a ]");
+            return -1;
+        }
+        n = (size_t)(close - text - 1);
+        memcpy(host, text + 1, n);
+        host[n] = 0;
+        colon = close[1] == ':' ? close + 1 : NULL;
+    } else {
+        colon = strrchr(text, ':');
+        /* More than one colon without brackets: a bare IPv6 address. */
+        if (colon && strchr(text, ':') != colon)
+            colon = NULL;
+        n = colon ? (size_t)(colon - text) : strlen(text);
+        memcpy(host, text, n);
+        host[n] = 0;
+    }
+    if (colon) {
+        char *end;
+        port = strtoul(colon + 1, &end, 10);
+        if (*end || port == 0 || port > 65535) {
+            snprintf(err, errSize, "a bad port: %s", colon + 1);
+            return -1;
+        }
+    }
+    snprintf(portText, sizeof portText, "%lu", port);
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    if (getaddrinfo(host, portText, &hints, &res) != 0 || !res) {
+        snprintf(err, errSize, "cannot find the address %s", host);
+        return -1;
+    }
+    /* IPv4 first: it reaches most home routers' forwarded ports. */
+    for (r = res; r; r = r->ai_next)
+        if (r->ai_family == AF_INET)
+            break;
+    if (!r)
+        r = res;
+    {
+        struct sockaddr_storage ss;
+        memset(&ss, 0, sizeof ss);
+        memcpy(&ss, r->ai_addr, r->ai_addrlen < sizeof ss ? r->ai_addrlen : sizeof ss);
+        to_net_addr(&ss, out);
+    }
+    freeaddrinfo(res);
+    return out->family ? 0 : -1;
+}
+
+void net_addr_text(const net_addr *a, char *buf, size_t size) {
+    char ip[64] = "?";
+    if (a->family == 4)
+        inet_ntop(AF_INET, a->ip, ip, sizeof ip);
+    else if (a->family == 6)
+        inet_ntop(AF_INET6, a->ip, ip, sizeof ip);
+    if (a->family == 6)
+        snprintf(buf, size, "[%s]:%u", ip, (unsigned)a->port);
+    else
+        snprintf(buf, size, "%s:%u", ip, (unsigned)a->port);
+}
+
+int net_addr_equal(const net_addr *a, const net_addr *b) {
+    size_t n = a->family == 4 ? 4 : 16;
+    return a->family == b->family && a->port == b->port && memcmp(a->ip, b->ip, n) == 0;
+}
+
+int net_send(net_socket *s, const net_addr *to, const void *data, size_t len) {
+    struct sockaddr_storage ss;
+    int sl;
+    if (len > NET_MAX_DATAGRAM)
+        return -1;
+    sl = to_sockaddr(s, to, &ss);
+    if (!sl)
+        return -1;
+    return sendto(s->fd, (const char *)data, (int)len, 0, (struct sockaddr *)&ss, (socklen_t)sl) == (int)len ? 0
+                                                                                                              : -1;
+}
+
+int net_recv(net_socket *s, net_addr *from, void *buf, size_t size) {
+    for (;;) {
+        char tmp[NET_MAX_DATAGRAM + 1];
+        struct sockaddr_storage ss;
+        socklen_t sl = sizeof ss;
+        int n = (int)recvfrom(s->fd, tmp, sizeof tmp, 0, (struct sockaddr *)&ss, &sl);
+        if (n < 0) {
+#ifdef _WIN32
+            /* A reply that a closed port refused (ICMP) shows up as a reset on Windows: skip it. */
+            if (WSAGetLastError() == WSAECONNRESET)
+                continue;
+#endif
+            return -1;
+        }
+        /* Too long for the game, or for the caller's buffer: dropped. */
+        if (n > NET_MAX_DATAGRAM || (size_t)n > size)
+            continue;
+        memcpy(buf, tmp, (size_t)n);
+        to_net_addr(&ss, from);
+        return n;
+    }
+}
