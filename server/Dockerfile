@@ -10,4 +10,5 @@ COPY --from=build /lobby /lobby
 # An unprivileged user id; the image has no user database.
 USER 65532:65532
 EXPOSE 8080
+EXPOSE 27065/udp
 ENTRYPOINT ["/lobby"]

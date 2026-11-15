@@ -16,25 +16,38 @@ The examples below use the Windows name, `g64coopdx.exe`, run from a command pro
 
 ## Host a game
 
-The host starts first and waits for the others:
+The host starts first and gets a room code:
 
 ```sh
-g64coopdx.exe --rom glover.z64 --host 27064 --players 2
+g64coopdx.exe --rom glover.z64 --online-host --players 2
 ```
 
-- Windows may ask whether to allow the program on networks. Allow it.
-- The host's computer must accept UDP on that port from the internet. On a home router, forward UDP port 27064 to the
-  host's computer.
-- Give the other players your public IP address (a search for "what is my IP" shows it).
-- For players far apart, `--deadline 8` (or more) gives inputs more time to reach the host: each step is 50 ms. The
-  default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed game lags further
-  behind.
+The program prints a line such as `Room code: F3J7WZ`. Send the code to the other players.
 
 ## Join a game
 
 ```sh
+g64coopdx.exe --rom glover.z64 --online-join F3J7WZ
+```
+
+Nobody forwards a port: every player connects out to the relay on the lobby server, which passes the game's packets
+on inside the room. Windows may ask whether to allow the program on networks. Allow it.
+
+For players far apart, the host can add `--deadline 8` (or more). It gives inputs more time to reach the host: each
+step is 50 ms, and the default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed
+game lags further behind.
+
+### Without the relay
+
+Players on one network, or a host who forwards UDP port 27064 on their router, can skip the relay:
+
+```sh
+g64coopdx.exe --rom glover.z64 --host 27064 --players 2
 g64coopdx.exe --rom glover.z64 --join HOST-ADDRESS:27064
 ```
+
+`--relay HOST:PORT` uses another relay than the lobby's (`g64coopdx-lobby.fly.dev:27065`); anyone can run the lobby
+server (`server/`).
 
 The game starts when every player is in. The host is player 1. Each player sees their own glove's camera. Player 1's
 glove keeps the game's colors; player 2's is blue, player 3's green and player 4's yellow. The
@@ -68,5 +81,5 @@ checks the hash of its game against the host's every 10 frames.
 
 - There is no sound.
 - Only the first hub level. Enemies, collectables and puzzles react only to player 1.
-- No lobby or relay: the host must forward its port. The lobby at `lobby.slugs.io` comes later.
+- No list of open games: players share the room code themselves.
 - A joiner who leaves stops their glove; the game goes on for the others. If the host leaves, the game ends.

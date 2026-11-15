@@ -20,3 +20,6 @@ build/
 # Secrets
 .env
 .env.*
+
+# A "go build" in server/ leaves its program here
+/server/server

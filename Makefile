@@ -5,7 +5,7 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md).
@@ -129,6 +129,20 @@ build/tests/session_test.exe: tests/net/session_test.c $(SESSION_SRC) src/sessio
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) \
 	    $(ROLLBACK_SRC) -lws2_32
 
+build/tests/relay_test: tests/net/relay_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/relay_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
+
+build/tests/relay_fuzz: tests/fuzz/relay_fuzz.c $(NET_SRC) src/net/udp.h
+	@mkdir -p build/tests
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/relay_fuzz.c $(NET_SRC)
+
+# The session over the lobby's relay: starts build/lobby on spare ports, runs tests/net/relay_test against it.
+test-relay: server build/tests/relay_test
+	PORT=18099 LOBBY_RELAY_PORT=27165 build/lobby > build/tests/lobby.log 2>&1 & pid=$$!; sleep 1; \
+	    build/tests/relay_test 127.0.0.1:27165 > build/tests/relay_test.out; status=$$?; kill $$pid; \
+	    cat build/tests/relay_test.out | tail -1; exit $$status
+
 build/tests/session_fuzz: tests/fuzz/session_fuzz.c $(SESSION_SRC) src/session/session.h $(NET_SRC)
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/session_fuzz.c $(SESSION_SRC) $(NET_SRC)
@@ -175,13 +189,15 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	cmp build/tests/hash-linux.txt build/tests/hash-windows.txt
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
-fuzz: build/tests/rollback_fuzz build/tests/session_fuzz
-	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session
+fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz
+	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay
+	build/tests/relay_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1220 build/fuzz-corpus-relay
+	cd server && go test -run=^$$ -fuzz=FuzzRelayHandle -fuzztime=$(FUZZ_TIME)s .
 	build/tests/rollback_fuzz -max_total_time=$(FUZZ_TIME) -max_len=600 build/fuzz-corpus
 	build/tests/session_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1201 build/fuzz-corpus-session
 
 # Every test that needs no ROM.
-test: test-c
+test: test-c test-relay
 	cd server && test -z "$$(gofmt -l .)" && go vet ./... && go test -race ./...
 
 # The lobby server's container image.

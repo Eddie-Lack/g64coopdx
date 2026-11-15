@@ -62,17 +62,63 @@ static int dropped[G64_SESSION_MAX_PLAYERS];
 int netplay_active(void) { return active; }
 int netplay_failed(void) { return failed; }
 
-int netplay_connect(const char *join, int hostPort, int wanted, int deadline, const uint8_t *rom, size_t romSize,
-                    int *level, int *outPlayers, char *err, size_t errSize) {
+/* Puts the socket in relay mode and waits until the relay has given a room (a host) or a place in one (a joiner). */
+static int connect_relay(const char *relay, const char *room, char *err, size_t errSize) {
+    net_addr relayAddr;
+    uint32_t start = now_ms();
+    if (net_resolve(relay, 27065, &relayAddr, err, errSize) != 0)
+        return -1;
+    if (room ? net_relay_join(sock, &relayAddr, room) : net_relay_host(sock, &relayAddr)) {
+        snprintf(err, errSize, "a room code has %d letters and digits", NET_ROOM_CODE);
+        return -1;
+    }
+    printf("g64coopdx: connecting to the relay at %s\n", relay);
+    fflush(stdout);
+    for (;;) {
+        uint8_t d[NET_MAX_DATAGRAM];
+        net_addr from;
+        net_relay_tick(sock, now_ms());
+        /* The relay's own answers are handled inside net_recv; nothing else comes before the room is ready. */
+        while (net_recv(sock, &from, d, sizeof d) >= 0) {
+        }
+        if (net_relay_state(sock) == 1)
+            break;
+        if (net_relay_state(sock) < 0) {
+            snprintf(err, errSize, "%s", net_relay_refusal(sock) == 2 ? "that room is full" : "there is no room with that code");
+            return -1;
+        }
+        if (now_ms() - start > 15000) {
+            snprintf(err, errSize, "no answer from the relay at %s", relay);
+            return -1;
+        }
+        sleep_ms(10);
+    }
+    return 0;
+}
+
+int netplay_connect(const char *join, int hostPort, const char *relay, const char *room, int wanted, int deadline,
+                    const uint8_t *rom, size_t romSize, int *level, int *outPlayers, char *err, size_t errSize) {
     uint32_t start, last = 0, romHash = g64_rom_hash(rom, romSize);
     if (net_init() != 0) {
         snprintf(err, errSize, "the network did not start");
         return -1;
     }
-    sock = net_open(join ? 0 : (uint16_t)hostPort, err, errSize);
+    sock = net_open(join || relay ? 0 : (uint16_t)hostPort, err, errSize);
     if (!sock)
         return -1;
-    if (join) {
+    if (relay) {
+        if (connect_relay(relay, room, err, errSize) != 0)
+            return -1;
+        if (room) {
+            net_addr hostAddr = net_relay_player(0);
+            session = g64_session_join(sock, &hostAddr, romHash, "player");
+            printf("g64coopdx: joining room %s\n", net_relay_code(sock));
+        } else {
+            session = g64_session_host(sock, wanted, romHash, START_LEVEL, deadline > 0 ? deadline : DEADLINE);
+            printf("g64coopdx: hosting for %d players. Room code: %s\n", wanted, net_relay_code(sock));
+            printf("g64coopdx: the others join with --online-join %s\n", net_relay_code(sock));
+        }
+    } else if (join) {
         net_addr to;
         char text[64];
         if (net_resolve(join, G64_DEFAULT_PORT, &to, err, errSize) != 0)
@@ -92,7 +138,9 @@ int netplay_connect(const char *join, int hostPort, int wanted, int deadline, co
     start = now_ms();
     for (;;) {
         uint32_t t = now_ms();
-        g64_session_state st = g64_session_poll(session, t, NULL, NULL);
+        g64_session_state st;
+        net_relay_tick(sock, t);
+        st = g64_session_poll(session, t, NULL, NULL);
         if (st == G64_SESSION_FAILED) {
             snprintf(err, errSize, "%s", g64_session_error(session));
             return -1;
@@ -103,7 +151,7 @@ int netplay_connect(const char *join, int hostPort, int wanted, int deadline, co
             snprintf(err, errSize, "nobody came");
             return -1;
         }
-        if (!join && g64_session_joined(session) != (int)last) {
+        if (!join && !room && g64_session_joined(session) != (int)last) {
             last = (uint32_t)g64_session_joined(session);
             printf("g64coopdx: %u of %d players\n", last, wanted);
             fflush(stdout);
@@ -192,6 +240,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     if (!active)
         return -1;
     netplay_after_draw();
+    net_relay_tick(sock, now_ms());
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));

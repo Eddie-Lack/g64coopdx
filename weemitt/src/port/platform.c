@@ -32,6 +32,9 @@ typedef struct Options {
     int netHost;             /* g64coopdx: --host PORT (the studio build) */
     const char *netJoin;     /* g64coopdx: --join HOST[:PORT] */
     int netDeadline;         /* g64coopdx: --deadline FRAMES (the host's input deadline) */
+    int netOnlineHost;       /* g64coopdx: --online-host (through the relay) */
+    const char *netRoom;     /* g64coopdx: --online-join CODE */
+    const char *netRelay;    /* g64coopdx: --relay HOST[:PORT] */
     int fullscreen;
     int vsync;               /* set by --no-vsync (-1: not given) */
     const char *savePath;
@@ -1511,7 +1514,8 @@ static void usage(void) {
     printf("usage: weemitt [--rom FILE] [--level N] [--fullscreen] [--no-vsync] [--max-fps N] [--fixed] [--save FILE]\n"
            "               [--no-sound] [--space-demo] [--log FILE] [--easy-ball] [--camera-follow N] [--skip-intro]\n"
            "               [--infinite-lives] [--infinite-health] [--unlock-all] [--level-select] [--ballworld]\n"
-           "       weemitt-studio --host PORT [--players N] | --join HOST[:PORT]   (g64coopdx's online game)\n"
+           "       weemitt-studio --online-host [--players N] | --online-join CODE   (g64coopdx's online game, relay)\n"
+           "       weemitt-studio --host PORT [--players N] | --join HOST[:PORT]   (direct; the host forwards PORT)\n"
            "       weemitt --headless FRAMES [--level N] [--dt D] [--input SCRIPT] [--trace] [--hash | --hash-every N]\n"
            "                [--dump FRAME FILE] [--shot FRAME]... [--shot-prefix PATH] [--shot-size W H] [--audio-out FILE]\n"
            "--audio-out FILE (headless, with the real sound player) writes the sound's 16-bit stereo frames to FILE.\n"
@@ -1577,6 +1581,12 @@ static void parse_args(int argc, char **argv) {
             opt.netHost = atoi(argv[++i]);
         } else if (!strcmp(a, "--join") && next) {
             opt.netJoin = argv[++i];
+        } else if (!strcmp(a, "--online-host")) {
+            opt.netOnlineHost = 1;
+        } else if (!strcmp(a, "--online-join") && next) {
+            opt.netRoom = argv[++i];
+        } else if (!strcmp(a, "--relay") && next) {
+            opt.netRelay = argv[++i];
         } else if (!strcmp(a, "--deadline") && next) {
             opt.netDeadline = atoi(argv[++i]);
         } else if (!strcmp(a, "--players") && next) {
@@ -2028,15 +2038,17 @@ int main(int argc, char **argv) {
     apply_gfx_options(&settings);
     port_set_space_demo(opt.spaceDemo);
 #ifdef PORT_STUDIO
-    if (opt.netHost > 0 || opt.netJoin) {
+    if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
         /* g64coopdx: meet the other players first. Every machine then starts the same game: the host's level, a new
            save, and the settings that change the logic at their defaults. */
         extern int g64Players;
         char err[160];
         int level = 0, players = 0;
 
-        if (netplay_connect(opt.netJoin, opt.netHost, g64Players > 1 ? g64Players : 2, opt.netDeadline, port_rom,
-                            port_rom_size, &level, &players, err, sizeof err) != 0) {
+        const char *relay = opt.netOnlineHost || opt.netRoom ? (opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT) : NULL;
+
+        if (netplay_connect(opt.netJoin, opt.netHost, relay, opt.netRoom, g64Players > 1 ? g64Players : 2,
+                            opt.netDeadline, port_rom, port_rom_size, &level, &players, err, sizeof err) != 0) {
             fprintf(stderr, "g64coopdx: %s\n", err);
             return 1;
         }

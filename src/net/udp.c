@@ -24,10 +24,25 @@ typedef int sock_t;
 #define close_socket close
 #endif
 
+/* The relay's datagrams (server/relay.go): "G64R", a type, then the body. */
+#define RELAY_HEAD 5
+enum { R_OPEN = 0x01, R_JOIN = 0x02, R_TO_HOST = 0x03, R_TO_PEER = 0x04, R_ROOM = 0x81, R_JOINED = 0x82,
+       R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85 };
+/* How often a host asks the relay to keep its room, and a joiner to keep its place, in milliseconds. */
+#define RELAY_KEEP 2000
+
 struct net_socket {
     sock_t fd;
     int v6; /* the socket is IPv6 (it may take IPv4 too, as mapped addresses) */
     uint16_t port;
+    int relay;       /* 0: direct; NET_RELAY_HOST or NET_RELAY_JOIN */
+    net_addr relayAddr;
+    char code[NET_ROOM_CODE + 1]; /* the room: given by the relay to a host, by the player to a joiner */
+    int state;       /* 0 waiting, 1 ready, -1 refused */
+    int refusal;
+    int peer;        /* a joiner's number in the room */
+    uint32_t lastKeep;
+    int kept;
 };
 
 int net_init(void) {
@@ -232,6 +247,10 @@ int net_resolve(const char *text, uint16_t defaultPort, net_addr *out, char *err
 
 void net_addr_text(const net_addr *a, char *buf, size_t size) {
     char ip[64] = "?";
+    if (a->family == NET_FAMILY_RELAY) {
+        snprintf(buf, size, "player %u through the relay", (unsigned)a->ip[0] + 1);
+        return;
+    }
     if (a->family == 4)
         inet_ntop(AF_INET, a->ip, ip, sizeof ip);
     else if (a->family == 6)
@@ -247,10 +266,10 @@ int net_addr_equal(const net_addr *a, const net_addr *b) {
     return a->family == b->family && a->port == b->port && memcmp(a->ip, b->ip, n) == 0;
 }
 
-int net_send(net_socket *s, const net_addr *to, const void *data, size_t len) {
+static int raw_send(net_socket *s, const net_addr *to, const void *data, size_t len) {
     struct sockaddr_storage ss;
     int sl;
-    if (len > NET_MAX_DATAGRAM)
+    if (len > NET_MAX_DATAGRAM + RELAY_HEAD + 1)
         return -1;
     sl = to_sockaddr(s, to, &ss);
     if (!sl)
@@ -259,9 +278,10 @@ int net_send(net_socket *s, const net_addr *to, const void *data, size_t len) {
                                                                                                               : -1;
 }
 
-int net_recv(net_socket *s, net_addr *from, void *buf, size_t size) {
+/* Reads one datagram of up to max bytes into buf (size bytes); -1 when none is waiting. */
+static int raw_recv(net_socket *s, net_addr *from, void *buf, size_t size, size_t max) {
     for (;;) {
-        char tmp[NET_MAX_DATAGRAM + 1];
+        char tmp[NET_MAX_DATAGRAM + RELAY_HEAD + 2];
         struct sockaddr_storage ss;
         socklen_t sl = sizeof ss;
         int n = (int)recvfrom(s->fd, tmp, sizeof tmp, 0, (struct sockaddr *)&ss, &sl);
@@ -274,10 +294,159 @@ int net_recv(net_socket *s, net_addr *from, void *buf, size_t size) {
             return -1;
         }
         /* Too long for the game, or for the caller's buffer: dropped. */
-        if (n > NET_MAX_DATAGRAM || (size_t)n > size)
+        if ((size_t)n > max || (size_t)n > size)
             continue;
         memcpy(buf, tmp, (size_t)n);
         to_net_addr(&ss, from);
         return n;
     }
+}
+
+/* ---- The relay (server/relay.go) */
+
+static void relay_send(net_socket *s, int type, const void *body, size_t len) {
+    uint8_t m[NET_MAX_DATAGRAM + RELAY_HEAD + 1];
+    if (len > sizeof m - RELAY_HEAD)
+        return;
+    memcpy(m, "G64R", 4);
+    m[4] = (uint8_t)type;
+    if (len)
+        memcpy(m + RELAY_HEAD, body, len);
+    raw_send(s, &s->relayAddr, m, RELAY_HEAD + len);
+}
+
+static void keep(net_socket *s) {
+    if (s->relay == NET_RELAY_HOST)
+        relay_send(s, R_OPEN, NULL, 0);
+    else if (s->relay == NET_RELAY_JOIN)
+        relay_send(s, R_JOIN, s->code, NET_ROOM_CODE);
+}
+
+int net_relay_host(net_socket *s, const net_addr *relay) {
+    if (!s || !relay)
+        return -1;
+    s->relay = NET_RELAY_HOST;
+    s->relayAddr = *relay;
+    s->state = 0;
+    s->code[0] = 0;
+    s->kept = 0;
+    keep(s);
+    return 0;
+}
+
+int net_relay_join(net_socket *s, const net_addr *relay, const char *code) {
+    size_t i;
+    if (!s || !relay || !code || strlen(code) != NET_ROOM_CODE)
+        return -1;
+    s->relay = NET_RELAY_JOIN;
+    s->relayAddr = *relay;
+    s->state = 0;
+    for (i = 0; i < NET_ROOM_CODE; i++) {
+        char c = code[i];
+        s->code[i] = c >= 'a' && c <= 'z' ? (char)(c - 'a' + 'A') : c;
+    }
+    s->code[NET_ROOM_CODE] = 0;
+    s->kept = 0;
+    keep(s);
+    return 0;
+}
+
+int net_relay_state(const net_socket *s) { return s->state; }
+const char *net_relay_code(const net_socket *s) { return s->code; }
+int net_relay_refusal(const net_socket *s) { return s->refusal; }
+
+void net_relay_tick(net_socket *s, uint32_t now) {
+    if (!s->relay)
+        return;
+    if (!s->kept || now - s->lastKeep >= (uint32_t)(s->state == 1 ? RELAY_KEEP : 250)) {
+        s->kept = 1;
+        s->lastKeep = now;
+        keep(s);
+    }
+}
+
+net_addr net_relay_player(int p) {
+    net_addr a;
+    memset(&a, 0, sizeof a);
+    a.family = NET_FAMILY_RELAY;
+    a.ip[0] = (uint8_t)p;
+    return a;
+}
+
+int net_send(net_socket *s, const net_addr *to, const void *data, size_t len) {
+    uint8_t m[NET_MAX_DATAGRAM + 1];
+    if (len > NET_MAX_DATAGRAM)
+        return -1;
+    if (s->relay == NET_RELAY_JOIN) {
+        relay_send(s, R_TO_HOST, data, len);
+        return 0;
+    }
+    if (s->relay == NET_RELAY_HOST) {
+        if (to->family != NET_FAMILY_RELAY || to->ip[0] < 1)
+            return -1;
+        m[0] = to->ip[0];
+        memcpy(m + 1, data, len);
+        relay_send(s, R_TO_PEER, m, len + 1);
+        return 0;
+    }
+    return raw_send(s, to, data, len);
+}
+
+int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n, net_addr *from, void *buf,
+                    size_t size) {
+    /* Only the relay speaks to a socket in relay mode. */
+    if (!s->relay || !net_addr_equal(src, &s->relayAddr) || n < RELAY_HEAD || memcmp(d, "G64R", 4) != 0)
+        return -1;
+    switch (d[4]) {
+    case R_ROOM:
+        if (s->relay == NET_RELAY_HOST && n == RELAY_HEAD + NET_ROOM_CODE) {
+            memcpy(s->code, d + RELAY_HEAD, NET_ROOM_CODE);
+            s->code[NET_ROOM_CODE] = 0;
+            s->state = 1;
+        }
+        return -1;
+    case R_JOINED:
+        if (s->relay == NET_RELAY_JOIN && n == RELAY_HEAD + 1 && d[RELAY_HEAD] >= 1) {
+            s->peer = d[RELAY_HEAD];
+            s->state = 1;
+        }
+        return -1;
+    case R_REFUSED:
+        if (s->relay == NET_RELAY_JOIN && s->state == 0 && n == RELAY_HEAD + 1) {
+            s->state = -1;
+            s->refusal = d[RELAY_HEAD];
+        }
+        return -1;
+    case R_FROM_PEER:
+        if (s->relay == NET_RELAY_HOST && n >= RELAY_HEAD + 1 && d[RELAY_HEAD] >= 1 &&
+            n - RELAY_HEAD - 1 <= NET_MAX_DATAGRAM && (size_t)(n - RELAY_HEAD - 1) <= size) {
+            *from = net_relay_player(d[RELAY_HEAD]);
+            memcpy(buf, d + RELAY_HEAD + 1, (size_t)(n - RELAY_HEAD - 1));
+            return n - RELAY_HEAD - 1;
+        }
+        return -1;
+    case R_FROM_HOST:
+        if (s->relay == NET_RELAY_JOIN && n - RELAY_HEAD <= NET_MAX_DATAGRAM && (size_t)(n - RELAY_HEAD) <= size) {
+            *from = net_relay_player(0);
+            memcpy(buf, d + RELAY_HEAD, (size_t)(n - RELAY_HEAD));
+            return n - RELAY_HEAD;
+        }
+        return -1;
+    default:
+        return -1;
+    }
+}
+
+int net_recv(net_socket *s, net_addr *from, void *buf, size_t size) {
+    uint8_t d[NET_MAX_DATAGRAM + RELAY_HEAD + 2];
+    net_addr src;
+    int n;
+    if (!s->relay)
+        return raw_recv(s, from, buf, size, NET_MAX_DATAGRAM);
+    while ((n = raw_recv(s, &src, d, sizeof d, NET_MAX_DATAGRAM + RELAY_HEAD + 1)) >= 0) {
+        int got = net_relay_parse(s, &src, d, n, from, buf, size);
+        if (got >= 0)
+            return got;
+    }
+    return -1;
 }

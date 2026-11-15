@@ -11,9 +11,9 @@
 /* The largest datagram the game sends or accepts. It stays under the usual path MTU. */
 #define NET_MAX_DATAGRAM 1200
 
-/* An address and port, in a form that compares with memcmp after net_addr_normalize. */
+/* An address and port. */
 typedef struct {
-    uint8_t family; /* 4 or 6; 0 for none */
+    uint8_t family; /* 4 or 6, NET_FAMILY_RELAY for a player through the relay (ip[0] is the player); 0 for none */
     uint8_t ip[16]; /* IPv4 in the first 4 bytes */
     uint16_t port;
 } net_addr;
@@ -44,5 +44,31 @@ int net_send(net_socket *s, const net_addr *to, const void *data, size_t len);
 /* Receives one datagram if one is waiting: returns its length (0 to NET_MAX_DATAGRAM) and its sender, or -1 when none
  * is waiting. A datagram longer than NET_MAX_DATAGRAM is dropped. */
 int net_recv(net_socket *s, net_addr *from, void *buf, size_t size);
+
+/* ---- The relay (server/relay.go). A socket in relay mode sends everything through the lobby's relay, and nobody
+ * forwards a port. The host opens a room and gets a code; the others join with the code. net_send and net_recv then
+ * work as before, with virtual addresses: net_relay_player(0) is the host, net_relay_player(k) joiner k. */
+
+#define NET_FAMILY_RELAY 9
+#define NET_ROOM_CODE 6
+enum { NET_RELAY_HOST = 1, NET_RELAY_JOIN = 2 };
+
+/* Puts a socket in relay mode as a host (opens a room) or a joiner (joins the room code). Returns 0, or -1. */
+int net_relay_host(net_socket *s, const net_addr *relay);
+int net_relay_join(net_socket *s, const net_addr *relay, const char *code);
+/* Sends what keeps the room or the place in it; call it often (it sends every 250 ms until ready, then every 2 s). */
+void net_relay_tick(net_socket *s, uint32_t now);
+/* 0 while waiting, 1 when the room is open or joined, -1 when the relay refused the join. */
+int net_relay_state(const net_socket *s);
+/* The room's code (NET_ROOM_CODE letters and digits). */
+const char *net_relay_code(const net_socket *s);
+/* Why the relay refused: 1 no such room, 2 the room is full. */
+int net_relay_refusal(const net_socket *s);
+/* Handles one datagram src sent to a socket in relay mode (net_recv calls it; the fuzz target calls it directly).
+ * Returns the game payload's length, with its sender's virtual address in from, or -1 when it held none. */
+int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n, net_addr *from, void *buf,
+                    size_t size);
+/* The virtual address of player p through the relay (0 is the host). */
+net_addr net_relay_player(int p);
 
 #endif

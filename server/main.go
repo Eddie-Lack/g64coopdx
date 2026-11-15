@@ -1,14 +1,15 @@
 // The lobby server of g64coopdx.
 //
-// This is a placeholder. It answers health checks and describes itself. It lists no sessions and passes no messages
-// yet; phase 4 of the roadmap adds those (docs/discovery/roadmap.md).
+// It answers health checks and describes itself, and runs the relay (relay.go): a UDP service that carries the
+// game's packets between a host and its joiners, so no player has to forward a port. It lists no sessions yet; phase 4
+// of the roadmap adds that (docs/discovery/roadmap.md).
 //
-// The server never sees game data. Its finished form holds session descriptions and passes connection details
-// between a host and a joiner.
+// The server never sees game data: the game's packets hold only inputs, session messages and hashes.
 package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -25,6 +26,18 @@ func main() {
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    8 << 10,
+	}
+	if cfg.RelayAddr != "" {
+		addr, err := net.ResolveUDPAddr("udp", cfg.RelayAddr)
+		if err != nil {
+			log.Fatalf("relay: %v", err)
+		}
+		conn, err := net.ListenUDP("udp", addr)
+		if err != nil {
+			log.Fatalf("relay: %v", err)
+		}
+		serveRelay(conn)
+		log.Printf("relay listens on UDP %s", cfg.RelayAddr)
 	}
 	log.Printf("g64coopdx lobby %s (protocol %d) listens on %s", version, protocolVersion, srv.Addr)
 	log.Fatal(srv.ListenAndServe())
