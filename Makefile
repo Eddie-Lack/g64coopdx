@@ -96,6 +96,15 @@ build/tests/loopback: tests/net/loopback.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
 
+NET_SRC := src/net/udp.c
+build/tests/udp_test: tests/net/udp_test.c $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/udp_test.c $(NET_SRC) $(ROLLBACK_SRC)
+
+build/tests/udp_test.exe: tests/net/udp_test.c $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/udp_test.c $(NET_SRC) $(ROLLBACK_SRC) -lws2_32
+
 build/tests/loopback.exe: tests/net/loopback.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=c99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
@@ -104,13 +113,18 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
-# The loopback tests: 2 to 16 clients over simulated networks.
-test-c: build/tests/loopback
+# The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
+test-c: build/tests/loopback build/tests/udp_test
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
 	tail -2 build/tests/loopback.out
+	build/tests/udp_test > build/tests/udp_test.out || { cat build/tests/udp_test.out; exit 1; }
+	tail -1 build/tests/udp_test.out
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
-test-windows: build/tests/loopback.exe test-c
+test-windows: build/tests/loopback.exe build/tests/udp_test.exe test-c
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/udp_test.exe | tr -d '\r' > build/tests/udp_test-windows.out
+	tail -1 build/tests/udp_test-windows.out
+	grep -q '^ok: 0 failures' build/tests/udp_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/loopback.exe | tr -d '\r' > build/tests/loopback-windows.out
 	tail -2 build/tests/loopback-windows.out
 	grep -q '^ok: 0 failures' build/tests/loopback-windows.out
