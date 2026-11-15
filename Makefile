@@ -67,10 +67,11 @@ rollback-game: rollback-game-build
 	grep 'offline run' build/tests/rollback_game-windows.out > build/tests/game-hash-windows.txt
 	cmp build/tests/game-hash-linux.txt build/tests/game-hash-windows.txt
 
-# Two to four players in one game (tests/rom/twoplayers.c), and players who join and leave it (tests/rom/members.c),
-# on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
+# Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c) and
+# exits in the online game (tests/rom/exits.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
+EXITS_SRC := tests/rom/exits.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -81,6 +82,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/members.exe $(MEMBERS_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/exits $(EXITS_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/exits.exe $(EXITS_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -93,6 +98,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/members.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/members-windows.out
 	cmp build/tests/members.out build/tests/members-windows.out
+	build/tests/exits "$$GLOVER_ROM" > build/tests/exits.out
+	tail -1 build/tests/exits.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/exits.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/exits-windows.out
+	cmp build/tests/exits.out build/tests/exits-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).
