@@ -20,6 +20,7 @@
 #include "studio.h"
 /* g64coopdx: the online mode (g64coopdx's src/client/netplay.c). */
 #include "../../../src/client/netplay.h"
+#include "g64launcher.h"
 #endif
 #include "settings.h"
 
@@ -35,6 +36,7 @@ typedef struct Options {
     int netOnlineHost;       /* g64coopdx: --online-host (through the relay) */
     const char *netRoom;     /* g64coopdx: --online-join CODE */
     const char *netRelay;    /* g64coopdx: --relay HOST[:PORT] */
+    int netLauncher;         /* g64coopdx: --launcher (the start screen, also with other options) */
     int fullscreen;
     int vsync;               /* set by --no-vsync (-1: not given) */
     const char *savePath;
@@ -1585,6 +1587,8 @@ static void parse_args(int argc, char **argv) {
             opt.netOnlineHost = 1;
         } else if (!strcmp(a, "--online-join") && next) {
             opt.netRoom = argv[++i];
+        } else if (!strcmp(a, "--launcher")) {
+            opt.netLauncher = 1;
         } else if (!strcmp(a, "--relay") && next) {
             opt.netRelay = argv[++i];
         } else if (!strcmp(a, "--deadline") && next) {
@@ -2038,24 +2042,38 @@ int main(int argc, char **argv) {
     apply_gfx_options(&settings);
     port_set_space_demo(opt.spaceDemo);
 #ifdef PORT_STUDIO
-    if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
-        /* g64coopdx: meet the other players first. Every machine then starts the same game: the host's level, a new
-           save, and the settings that change the logic at their defaults. */
+    {
+        /* g64coopdx: meet the other players first, from the options or from the start screen (g64launcher.cpp), which
+           opens when the program starts without options. Every machine then starts the same game: the host's level, a
+           new save, and the settings that change the logic at their defaults. */
         extern int g64Players;
-        char err[160];
-        int level = 0, players = 0;
+        int online = 0, level = 0, players = 0;
+        const char *relay = opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT;
 
-        const char *relay = opt.netOnlineHost || opt.netRoom ? (opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT) : NULL;
+        if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
+            char err[160];
 
-        if (netplay_connect(opt.netJoin, opt.netHost, relay, opt.netRoom, g64Players > 1 ? g64Players : 2,
-                            opt.netDeadline, port_rom, port_rom_size, &level, &players, err, sizeof err) != 0) {
-            fprintf(stderr, "g64coopdx: %s\n", err);
-            return 1;
+            if (netplay_connect(opt.netJoin, opt.netHost, opt.netOnlineHost || opt.netRoom ? relay : NULL, opt.netRoom,
+                                g64Players > 1 ? g64Players : 2, opt.netDeadline, port_rom, port_rom_size, &level,
+                                &players, err, sizeof err) != 0) {
+                fprintf(stderr, "g64coopdx: %s\n", err);
+                die("%s", err);
+            }
+            online = 1;
+        } else if (argc == 1 || opt.netLauncher) {
+            int r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
+
+            if (r < 0) {
+                return 0;
+            }
+            online = r == 1;
         }
-        opt.level = level;
-        g64Players = players;
-        memset(port_eeprom, 0xFF, sizeof(port_eeprom));
-        port_set_ballworld(0);
+        if (online) {
+            opt.level = level;
+            g64Players = players;
+            memset(port_eeprom, 0xFF, sizeof(port_eeprom));
+            port_set_ballworld(0);
+        }
     }
 #endif
     port_game_init(opt.level);

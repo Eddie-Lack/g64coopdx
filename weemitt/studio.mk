@@ -53,7 +53,11 @@ G64_ROOT := ..
 G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c session/session.c net/udp.c rollback/rollback.c \
             rollback/engine_game.c)
 G64_OBJS := $(patsubst $(G64_ROOT)/src/%.c,$(BUILD)/g64/%.o,$(G64_SRCS))
-STUDIO_OBJS += $(G64_OBJS)
+STUDIO_OBJS += $(G64_OBJS) $(BUILD)/src/port/g64launcher.o
+
+$(BUILD)/src/port/g64launcher.o: src/port/g64launcher.cpp src/port/g64launcher.h $(G64_ROOT)/src/client/netplay.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(HOST_CXXFLAGS) -c $< -o $@
 
 $(BUILD)/g64/%.o: $(G64_ROOT)/src/%.c $(wildcard $(G64_ROOT)/src/*/*.h)
 	@mkdir -p $(dir $@)

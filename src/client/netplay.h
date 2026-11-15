@@ -16,6 +16,8 @@ extern "C" {
 
 /* The lobby's relay, which carries the game for players who join by room code. */
 #define NET_RELAY_DEFAULT "g64coopdx-lobby.fly.dev:27065"
+/* The letters and digits of a room code (src/net/udp.h's NET_ROOM_CODE). */
+#define NETPLAY_ROOM_CODE 6
 
 typedef struct Engine Engine;
 
@@ -28,6 +30,22 @@ typedef struct Engine Engine;
  * A host confirms each frame deadline frames after its own clock (0: 5 frames, 250 ms). */
 int netplay_connect(const char *join, int hostPort, const char *relay, const char *room, int players, int deadline,
                     const uint8_t *rom, size_t romSize, int *level, int *outPlayers, char *err, size_t errSize);
+/* The same, one step at a time, for a window that keeps drawing while it waits: netplay_start, then netplay_poll
+ * each frame until it returns 1 (the game starts: netplay_level and netplay_players say how) or -1 (netplay_error
+ * says why). netplay_cancel stops at any point. Returns of netplay_start: 0, or -1 with a message in err. */
+int netplay_start(const char *join, int hostPort, const char *relay, const char *room, int players, int deadline,
+                  const uint8_t *rom, size_t romSize, char *err, size_t errSize);
+int netplay_poll(void);
+void netplay_cancel(void);
+/* While connecting: a line for the player, the room's code once the relay has given one ("" before), and how many
+ * players are in (on the host). */
+const char *netplay_wait_status(void);
+const char *netplay_room_code(void);
+int netplay_joined(void);
+int netplay_is_host(void);
+const char *netplay_error(void);
+int netplay_level(void);
+int netplay_players(void);
 /* 1 after a successful netplay_connect. */
 int netplay_active(void);
 /* After the game has started at the level (port_game_init) and the engine is attached: sets up the rollback. */
