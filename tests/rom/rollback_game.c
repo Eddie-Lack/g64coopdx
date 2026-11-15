@@ -174,6 +174,8 @@ int main(int argc, char **argv) {
             }
         }
     }
+    /* For comparing builds: the Linux and Windows programs must print the same value. */
+    printf("     offline run, %u frames: hash %016llx\n", frames, (unsigned long long)rb_engine_game_hash(offline));
     for (i = 0; i < PLAYERS; i++)
         rollbacks += rb_client_rollback_frames(client[i]);
     ok = 1;

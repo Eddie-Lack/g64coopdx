@@ -4,6 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* weemitt's memory hash (weemitt/src/port/statehash.c): it counts pointers into the game's memory as offsets and
+ * pointers to the program as one value, so the Linux and Windows programs give the same hash for the same state. The
+ * engine's own hash also covers variables that hold program addresses, which differ between the two. */
+unsigned int port_hash_ram(void);
+
 struct rb_engine_game {
     uint8_t *state; /* the game's state, unless the engine holds a newer one (live) */
     int live;
@@ -65,7 +70,7 @@ static void load(void *game, const void *state) {
 static uint64_t hash_state(const void *state) {
     leave();
     engine_load(engine, state);
-    return engine_hash(engine);
+    return port_hash_ram();
 }
 
 const rb_game_ops *rb_engine_ops(Engine *e) {
@@ -112,5 +117,5 @@ void rb_engine_game_free(rb_engine_game *g) {
 
 uint64_t rb_engine_game_hash(rb_engine_game *g) {
     enter(g);
-    return engine_hash(engine);
+    return port_hash_ram();
 }

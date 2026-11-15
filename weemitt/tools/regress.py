@@ -208,7 +208,8 @@ def main():
         line = f"{name}: {status}, {count} frames"
         if args.mode == "check":
             if not (OUT / "baseline" / f"{name}.trace").exists():
-                line += "; no baseline"
+                failed += 1
+                line += "; no baseline (record it with: regress.py baseline)"
             else:
                 d = compare(name, OUT / "baseline", dest)
                 if d:

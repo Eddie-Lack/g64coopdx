@@ -28,7 +28,8 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
   into it. Put new players' state on the game's heap. Growing a global means regenerating `gen/`.
 - **g64coopdx keeps its own baseline.** It is the commit named by `BASELINE_REF` in `weemitt/tools/regress.py`.
   Today that is the commit that added the copy, so the logic is still weemitt's at one player. Move it only when a
-  change is meant to alter the game, and say so in the commit.
+  change is meant to alter the game, and say so in the commit. Recording the baseline needs that commit: in a shallow
+  clone, fetch it first (`git fetch origin c592b7efa902907779c1f477ef7b5e236d37ff0b`).
 - **The online game is exact.** It runs whole frames only (`deltaTime` 1). Two machines with the same inputs must
   give the same state hash every frame, on Linux and Windows. A change that breaks this is a bug, even if it fixes
   something else.
@@ -61,7 +62,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make savestates    # the brute forcer's engine and savestates at 64 bits, for Linux and Windows
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
-    make regress       # the game's logic against g64coopdx's baseline (needs the ROM)
+    make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks and the rollback core's loopback tests; no ROM needed
     make test-windows  # the loopback tests as a Windows program under Wine; its hash must equal Linux's

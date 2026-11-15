@@ -37,7 +37,8 @@ savestates-test: savestates
 # that make savestates builds.
 ENGINE_LINUX := weemitt/bruteforce/build/linux64/libglover.a
 ENGINE_WINDOWS := weemitt/bruteforce/build/windows64/libglover.a
-ROLLBACK_GAME_SRC := tests/rom/rollback_game.c src/rollback/engine_game.c src/rollback/rollback.c
+ROLLBACK_GAME_SRC := tests/rom/rollback_game.c src/rollback/engine_game.c src/rollback/rollback.c \
+                     weemitt/src/port/statehash.c
 
 rollback-game-build: savestates
 	@mkdir -p build/tests
@@ -49,8 +50,17 @@ rollback-game-build: savestates
 # One host and three clients play level 13 over a lossy simulated network, on Linux and under Wine (needs the ROM in
 # GLOVER_ROM).
 rollback-game: rollback-game-build
-	build/tests/rollback_game "$$GLOVER_ROM" 600
-	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/rollback_game.exe "$$GLOVER_ROM" 600
+	build/tests/rollback_game "$$GLOVER_ROM" 600 > build/tests/rollback_game.out || \
+	    { cat build/tests/rollback_game.out; exit 1; }
+	cat build/tests/rollback_game.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/rollback_game.exe "$$GLOVER_ROM" 600 | \
+	    tr -d '\r' > build/tests/rollback_game-windows.out
+	cat build/tests/rollback_game-windows.out
+	grep -q 'offline run' build/tests/rollback_game.out
+	grep -c '^FAIL' build/tests/rollback_game-windows.out | grep -qx 0
+	grep 'offline run' build/tests/rollback_game.out > build/tests/game-hash-linux.txt
+	grep 'offline run' build/tests/rollback_game-windows.out > build/tests/game-hash-windows.txt
+	cmp build/tests/game-hash-linux.txt build/tests/game-hash-windows.txt
 
 # What tests/rom/crossbuild.py runs: the Linux headless build, and the Windows library with its test host.
 crossbuild-build: headless
@@ -61,9 +71,10 @@ crossbuild-build: headless
 crossbuild: crossbuild-build
 	python3 tests/rom/crossbuild.py
 
-# The game's logic against g64coopdx's baseline (needs the ROM).
+# The game's logic against g64coopdx's baseline (needs the ROM). The first run records the baseline from the commit
+# that BASELINE_REF in weemitt/tools/regress.py names.
 regress:
-	cd weemitt && python3 tools/regress.py check
+	cd weemitt && { test -d build/regress/baseline || python3 tools/regress.py baseline; } && python3 tools/regress.py check
 
 # The lobby server: build/lobby
 server:
