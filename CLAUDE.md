@@ -54,12 +54,17 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
 
 ## Everyday work
 
+    make headless      # the game without a window: weemitt/build/headless64/weemitt
+    make game          # the game for Linux: weemitt/build/linux64/weemitt (needs SDL2)
+    make windows       # the game for Windows: weemitt/build/windows64/weemitt.exe (needs MinGW-w64 and SDL2)
+    make crossbuild    # the Linux and Windows builds give equal states and hashes (needs the ROM and Wine)
+    make regress       # the game's logic against g64coopdx's baseline (needs the ROM)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # format check, vet and tests; no ROM needed
     make image         # the lobby server's container image (needs Docker)
-    cd weemitt && GLOVER_ROM=ROM python3 tools/regress.py check   # the game's logic against the baseline
 
-CI (`.github/workflows/ci.yml`) runs these on every pull request and publishes the image from `main`.
+CI (`.github/workflows/ci.yml`) runs the tests, builds the server and the game's headless and Windows library builds
+on every pull request, and publishes the image from `main`. The ROM checks run locally: set `GLOVER_ROM`.
 
 ## Where things go
 
