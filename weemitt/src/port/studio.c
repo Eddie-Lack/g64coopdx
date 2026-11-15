@@ -46,6 +46,10 @@ typedef struct Key {
 
 static Engine *engine;
 
+struct Engine *studio_engine(void) {
+    return engine;
+}
+
 /* The timeline. The game holds frame `cur`: the state after cur updates. inputs[f] is the input of update f. */
 static EngineInput *inputs;
 static long length;

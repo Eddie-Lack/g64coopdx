@@ -5,7 +5,12 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+
+# The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
+# with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md).
+client:
+	$(WEEMITT) studio64
 
 # The game's window program for Linux: weemitt/build/linux64/weemitt (needs SDL2).
 game:
@@ -114,6 +119,20 @@ build/tests/loopback: tests/net/loopback.c $(ROLLBACK_DEPS)
 	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
 
 NET_SRC := src/net/udp.c
+SESSION_SRC := src/session/session.c
+build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
+
+build/tests/session_test.exe: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) \
+	    $(ROLLBACK_SRC) -lws2_32
+
+build/tests/session_fuzz: tests/fuzz/session_fuzz.c $(SESSION_SRC) src/session/session.h $(NET_SRC)
+	@mkdir -p build/tests
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/session_fuzz.c $(SESSION_SRC) $(NET_SRC)
+
 build/tests/udp_test: tests/net/udp_test.c $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/udp_test.c $(NET_SRC) $(ROLLBACK_SRC)
@@ -131,14 +150,20 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
-test-c: build/tests/loopback build/tests/udp_test
+test-c: build/tests/loopback build/tests/udp_test build/tests/session_test
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
 	tail -2 build/tests/loopback.out
 	build/tests/udp_test > build/tests/udp_test.out || { cat build/tests/udp_test.out; exit 1; }
 	tail -1 build/tests/udp_test.out
+	build/tests/session_test > build/tests/session_test.out || { cat build/tests/session_test.out; exit 1; }
+	tail -1 build/tests/session_test.out
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
-test-windows: build/tests/loopback.exe build/tests/udp_test.exe test-c
+test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe test-c
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/session_test.exe | tr -d '\r' \
+	    > build/tests/session_test-windows.out
+	tail -1 build/tests/session_test-windows.out
+	grep -q '^ok: 0 failures' build/tests/session_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/udp_test.exe | tr -d '\r' > build/tests/udp_test-windows.out
 	tail -1 build/tests/udp_test-windows.out
 	grep -q '^ok: 0 failures' build/tests/udp_test-windows.out
@@ -150,9 +175,10 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe test-c
 	cmp build/tests/hash-linux.txt build/tests/hash-windows.txt
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
-fuzz: build/tests/rollback_fuzz
-	@mkdir -p build/fuzz-corpus
+fuzz: build/tests/rollback_fuzz build/tests/session_fuzz
+	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session
 	build/tests/rollback_fuzz -max_total_time=$(FUZZ_TIME) -max_len=600 build/fuzz-corpus
+	build/tests/session_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1201 build/fuzz-corpus-session
 
 # Every test that needs no ROM.
 test: test-c

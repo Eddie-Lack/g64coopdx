@@ -9,6 +9,22 @@
  * engine's own hash also covers variables that hold program addresses, which differ between the two. */
 unsigned int port_hash_ram(void);
 
+/* The game's side (weemitt's src/port/frame.h and src/game/g64players.h, which use the game's types). */
+typedef struct {
+    unsigned int addr;
+    unsigned int size;
+    int sprite2d;
+} PortFrameTask;
+extern unsigned short port_buttons;
+extern signed char port_stick_x, port_stick_y;
+extern unsigned short g64Buttons[16];
+extern signed char g64StickX[16], g64StickY[16];
+int port_game_frame(PortFrameTask *tasks, int max);
+
+/* The display lists of the latest frame that a step ran. */
+static PortFrameTask lastTasks[RB_ENGINE_MAX_TASKS];
+static int lastCount;
+
 struct rb_engine_game {
     uint8_t *state; /* the game's state, unless the engine holds a newer one (live) */
     int live;
@@ -41,14 +57,27 @@ static void leave(void) {
 
 static void step(void *game, const rb_input *in, int players) {
     rb_engine_game *g = game;
-    EngineInput e;
-    (void)players;
+    int p;
     enter(g);
-    e.buttons = in[0].buttons;
-    e.x = in[0].x;
-    e.y = in[0].y;
-    engine_step(engine, &e);
+    /* Player 0 is the game's own controller; the others are g64players.c's. */
+    port_buttons = in[0].buttons;
+    port_stick_x = in[0].x;
+    port_stick_y = in[0].y;
+    for (p = 1; p < players && p < 16; p++) {
+        g64Buttons[p] = in[p].buttons;
+        g64StickX[p] = in[p].x;
+        g64StickY[p] = in[p].y;
+    }
+    lastCount = port_game_frame(lastTasks, RB_ENGINE_MAX_TASKS);
+    engine_count_logic(engine);
     g->live = 1;
+}
+
+int rb_engine_last_tasks(void *tasks, int max) {
+    int n = lastCount < max ? lastCount : max;
+    if (n > 0)
+        memcpy(tasks, lastTasks, sizeof(PortFrameTask) * (size_t)n);
+    return lastCount < 0 ? -1 : n;
 }
 
 static void save(void *game, void *state) {

@@ -18,6 +18,8 @@
 #include "hostscene.h"
 #ifdef PORT_STUDIO
 #include "studio.h"
+/* g64coopdx: the online mode (g64coopdx's src/client/netplay.c). */
+#include "../../../src/client/netplay.h"
 #endif
 #include "settings.h"
 
@@ -27,6 +29,8 @@
 typedef struct Options {
     const char *rom;
     long headlessFrames;
+    int netHost;             /* g64coopdx: --host PORT (the studio build) */
+    const char *netJoin;     /* g64coopdx: --join HOST[:PORT] */
     int fullscreen;
     int vsync;               /* set by --no-vsync (-1: not given) */
     const char *savePath;
@@ -1506,6 +1510,7 @@ static void usage(void) {
     printf("usage: weemitt [--rom FILE] [--level N] [--fullscreen] [--no-vsync] [--max-fps N] [--fixed] [--save FILE]\n"
            "               [--no-sound] [--space-demo] [--log FILE] [--easy-ball] [--camera-follow N] [--skip-intro]\n"
            "               [--infinite-lives] [--infinite-health] [--unlock-all] [--level-select] [--ballworld]\n"
+           "       weemitt-studio --host PORT [--players N] | --join HOST[:PORT]   (g64coopdx's online game)\n"
            "       weemitt --headless FRAMES [--level N] [--dt D] [--input SCRIPT] [--trace] [--hash | --hash-every N]\n"
            "                [--dump FRAME FILE] [--shot FRAME]... [--shot-prefix PATH] [--shot-size W H] [--audio-out FILE]\n"
            "--audio-out FILE (headless, with the real sound player) writes the sound's 16-bit stereo frames to FILE.\n"
@@ -1567,6 +1572,10 @@ static void parse_args(int argc, char **argv) {
             opt.level = atol(argv[++i]);
         } else if (!strcmp(a, "--fixed")) {
             opt.fixedRate = 1;
+        } else if (!strcmp(a, "--host") && next) {
+            opt.netHost = atoi(argv[++i]);
+        } else if (!strcmp(a, "--join") && next) {
+            opt.netJoin = argv[++i];
         } else if (!strcmp(a, "--players") && next) {
             /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */
             extern int g64Players;
@@ -2015,9 +2024,36 @@ int main(int argc, char **argv) {
     gfx_init();
     apply_gfx_options(&settings);
     port_set_space_demo(opt.spaceDemo);
+#ifdef PORT_STUDIO
+    if (opt.netHost > 0 || opt.netJoin) {
+        /* g64coopdx: meet the other players first. Every machine then starts the same game: the host's level, a new
+           save, and the settings that change the logic at their defaults. */
+        extern int g64Players;
+        char err[160];
+        int level = 0, players = 0;
+
+        if (netplay_connect(opt.netJoin, opt.netHost, g64Players > 1 ? g64Players : 2, port_rom, port_rom_size, &level,
+                            &players, err, sizeof err) != 0) {
+            fprintf(stderr, "g64coopdx: %s\n", err);
+            return 1;
+        }
+        opt.level = level;
+        g64Players = players;
+        memset(port_eeprom, 0xFF, sizeof(port_eeprom));
+        port_set_ballworld(0);
+    }
+#endif
     port_game_init(opt.level);
 #ifdef PORT_STUDIO
     studio_started();
+    if (netplay_active()) {
+        char err[160];
+
+        if (netplay_begin(studio_engine(), err, sizeof err) != 0) {
+            fprintf(stderr, "g64coopdx: %s\n", err);
+            return 1;
+        }
+    }
 #endif
     port_game_framebuffers(&cfbA, &cfbB);
     gfx_set_framebuffers(cfbA, cfbB);
@@ -2125,6 +2161,34 @@ int main(int argc, char **argv) {
             gfx_interp_record((const GfxTask *)tasks, (int)taskCount, 1);
         }
 #ifdef PORT_STUDIO
+        if (netplay_active()) {
+            /* g64coopdx: the online game runs whole frames at the game's rate. The rollback core decides which
+               frames run, and the newest one is drawn. The settings that change the logic stay at their defaults. */
+            static unsigned titleTick;
+
+            while (acc >= port_game_retraces() / 60.0) {
+                long n;
+
+                acc -= port_game_retraces() / 60.0;
+                port_set_easy_ball(0);
+                port_set_camera_follow(1.0f);
+                port_set_camera_dist_scale(1.0f);
+                port_set_ballworld(0);
+                port_set_cheat_hold(0);
+                port_set_pause_cheats(0);
+                n = netplay_frame(port_buttons | tapPending, port_stick_x, port_stick_y, tasks, 16);
+                tapPending = 0;
+                windowTicks++;
+                if (n >= 0) {
+                    taskCount = n;
+                }
+            }
+            gfx_interp_set(-1.0f);
+            if (titleTick++ % 30 == 0) {
+                SDL_SetWindowTitle(window, netplay_status());
+            }
+            goto netplay_done;
+        }
         if (studio_paused()) {
             long n = studio_apply_seek(tasks, 16);
 
@@ -2219,6 +2283,9 @@ int main(int argc, char **argv) {
                 }
             }
         }
+#ifdef PORT_STUDIO
+    netplay_done:
+#endif
         wasOriginal = original;
 #ifndef PORT_STUDIO
         /* The studio keeps the save in memory: going back on the timeline would rewrite the player's file. */
