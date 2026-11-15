@@ -64,6 +64,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
     make twoplayers    # four gloves in one game; Linux and Wine must print the same (needs the ROM)
+    make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed

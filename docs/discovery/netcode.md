@@ -209,10 +209,20 @@ instance in a worker process. Its cost is small: a confirmed frame costs 0.03 to
 **Why not send a savestate.** A savestate holds the game's memory, and the memory holds data from the ROM (code,
 tables, textures). Sending it would send game data, and its host pointers are only valid in one process.
 
-UNKNOWN: whether a level start is fully set by such a record, or whether more of the game's state carries over from
-the previous level. Settle it in phase 1: start a level two ways (after playing, and from the record) and compare the
-memory. The fallback: a player may join a running instance only if it can be rebuilt; otherwise they wait for a new
-instance of that level.
+**How a level is built (VERIFIED, 15 November 2026).** A level reached by play differs from the same level started
+directly. In Atlantis 2 reached from Atlantis 1, the random seed, the glove and the ball start the same, but the
+camera keeps state from the level before. The camera differs from frame 1, and the glove's path differs from frame 94
+under the same input (the stick moves the glove relative to the camera). So no machine uses a level reached by play.
+Every machine builds every instance the same way: it loads a state saved right after power-on
+(`port_game_boot`), then starts the level from the start record (`port_game_start_level`). This holds for the first
+player in a level as well as for one who joins later. `make levelstart` checks it: each of the 43 levels a player can
+be in gives the same memory hash when it is built again after another level was played, on Linux and under Wine.
+
+What a level carries from the one before, and so what the start record holds beyond the level: the save slot
+(levels done, garib bits, `hubLevel`, `hubTarget`, lives), `gameInfo.world`, `prevLevel` and `prevWorld`,
+`worldComplete[]`, and the hub's left-behind ball (`ballLeftBehind`, `ballEnd`). The glove's start position comes
+from the level file (`TOKEN_HAND_START`), not from the level before. `prevLevel` only picks a cameo in the first hub
+section (`cameo.c:191`).
 
 ### Session events
 

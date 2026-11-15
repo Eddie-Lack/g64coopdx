@@ -78,7 +78,9 @@ their own. Known gap: enemies, collectables and puzzles see only player 1.
   color.
 - Game change 9: start a level from a record, and compare its memory with a level reached by play
   ([netcode.md](netcode.md#instances)). Every instance, every late join and every repair depends on it, so it is
-  settled first.
+  settled first. Done in part: a level reached by play differs (the camera carries over), so every machine builds
+  every level from the power-on state (`port_game_boot`, `port_game_start_level`; `make levelstart`). The start
+  record's carried state is still to come.
 
 Playable: two people on one machine walk, roll and throw their balls in a hub level. Test: with one player the game
 still matches g64coopdx's baseline, unless a change was meant to alter it; the same inputs for two players give the
