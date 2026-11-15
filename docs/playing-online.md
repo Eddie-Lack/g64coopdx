@@ -33,7 +33,8 @@ g64coopdx.exe --rom glover.z64 --host 27064 --players 2
 g64coopdx.exe --rom glover.z64 --join HOST-ADDRESS:27064
 ```
 
-The game starts when every player is in. The host is player 1. Each player sees their own glove's camera. The
+The game starts when every player is in. The host is player 1. Each player sees their own glove's camera. Player 1's
+glove keeps the game's colors; player 2's is blue, player 3's green and player 4's yellow. The
 window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
 The program also prints a status line every 100 frames.
 
@@ -48,6 +49,5 @@ checks the hash of its game against the host's every 10 frames.
 
 - There is no sound.
 - Only the first hub level. Enemies, collectables and puzzles react only to player 1.
-- The other gloves have no color of their own.
 - No lobby or relay: the host must forward its port. The lobby at `lobby.slugs.io` comes later.
 - A player who leaves ends the game for everyone.

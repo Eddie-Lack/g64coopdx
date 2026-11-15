@@ -23,6 +23,10 @@ void G64UpdateProxies(void);
 /* Swaps player p's slot with the globals (twice restores). For drawing player p's view: the globals then hold
    player p, and the proxies show the others. Nothing for player 0 or a player without a slot. */
 void G64SwapPlayer(s32 p);
+/* 1 for a proxy actor (another player's glove or ball). */
+s32 G64IsProxy(struct Actor *a);
+/* The color (0xRRGGBB) to tint an actor with, when it shows a player after the first; 0 for none. */
+u32 G64ActorTint(struct Actor *a);
 /* A player's glove position; 0 when there is no such player. */
 s32 G64PlayerPosition(s32 p, f32 *x, f32 *y, f32 *z);
 

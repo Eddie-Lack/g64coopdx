@@ -9,6 +9,7 @@ PORT_C_BEGIN
 #include "bullet.h"
 #include "debris.h"
 #include "game.h"
+#include "g64players.h"
 #include "overlay.h"
 #include "platform.h"
 #include "banks.h"
@@ -416,7 +417,9 @@ void DrawActor(Actor *ptr) {
     } else {
         staticObj = FALSE;
     }
-    if (!noClip && !IsActorVisible(ptr)) {
+    /* g64coopdx: another player's glove and ball (g64players.c) animate even out of this camera's sight. The game's
+       state comes from one camera on every machine, and that player's own view must not freeze them. */
+    if (!noClip && !G64IsProxy(ptr) && !IsActorVisible(ptr)) {
         return;
     }
     animating = !gamePaused && animateActors
@@ -457,8 +460,22 @@ void DrawActor(Actor *ptr) {
     }
     currentDrawActor = ptr;
     xluOverride = ptr->alpha;
-    if (ptr->inst->obj != NULL) {
-        TransformAndDrawObject(ptr->inst->obj, animTime, 0, 0);
+    {
+        /* g64coopdx: each player's glove and ball in that player's color, through the renderer's tint (gfx_dl.c). */
+        u32 tint = G64ActorTint(ptr);
+        if (tint) {
+            glistp->words.w0 = 0xC0000000;
+            glistp->words.w1 = 0x67000000 | tint;
+            glistp++;
+        }
+        if (ptr->inst->obj != NULL) {
+            TransformAndDrawObject(ptr->inst->obj, animTime, 0, 0);
+        }
+        if (tint) {
+            glistp->words.w0 = 0xC0000000;
+            glistp->words.w1 = 0x67000000;
+            glistp++;
+        }
     }
     if (calcMtx == TRUE || !staticObj) {
         PopMatrix();
