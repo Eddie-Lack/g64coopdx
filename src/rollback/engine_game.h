@@ -19,11 +19,18 @@ const rb_game_ops *rb_engine_ops(Engine *e);
 /* A new game in the engine's current state. NULL when out of memory. */
 rb_engine_game *rb_engine_game_new(void);
 void rb_engine_game_free(rb_engine_game *g);
+/* A new game built from a state: the engine loads state (for g64coopdx, the state right after power-on), setup
+ * changes it (it sets the players and starts a level), and the result is the new game. NULL when out of memory. */
+typedef void (*rb_engine_setup_fn)(void *ctx);
+rb_engine_game *rb_engine_game_build(const void *state, rb_engine_setup_fn setup, void *ctx);
 /* The most display-list tasks of one frame that rb_engine_last_tasks keeps. */
 #define RB_ENGINE_MAX_TASKS 16
 /* The display-list tasks (weemitt's PortFrameTask) of the latest frame any game stepped: what to draw after the
  * local game's newest frame. Returns their count, or -1 when that frame built no lists. */
 int rb_engine_last_tasks(void *tasks, int max);
+/* Puts game g in the engine (the other games are saved first). The engine's memory then holds g's newest state, for
+ * drawing it. */
+void rb_engine_game_enter(rb_engine_game *g);
 /* The hash of the state of a game, as rb_game_ops.hash_state gives it: weemitt's memory hash, the same on Linux and
  * Windows. Slow (it reads all 24 MB of the game's memory). */
 uint64_t rb_engine_game_hash(rb_engine_game *g);

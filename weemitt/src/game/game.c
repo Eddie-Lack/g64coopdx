@@ -3739,6 +3739,50 @@ s32 G64ExitNeedsBall(Platform *platform, s32 *useHand) {
     return 1;
 }
 
+/* g64coopdx: the progress a session shares (G64Save), read from the save slot and written to it. */
+void G64ReadSave(G64Save *save) {
+    s32 i;
+    save->levels = (u32)saveSlot[currentSaveSlot].levels;
+    save->allGaribs = (u32)saveSlot[currentSaveSlot].allGaribs;
+    save->hubTarget = saveSlot[currentSaveSlot].hubTarget;
+    save->hubLevel = saveSlot[currentSaveSlot].hubLevel;
+    save->worldComplete = 0;
+    for (i = 0; i < 7; i++)
+        if (gameInfo.worldComplete[i])
+            save->worldComplete |= 1 << i;
+    save->pad = 0;
+}
+
+void G64WriteSave(s32 world, const G64Save *save) {
+    s32 i;
+    saveSlot[currentSaveSlot].levels = (s32)save->levels;
+    saveSlot[currentSaveSlot].allGaribs = (s32)save->allGaribs;
+    saveSlot[currentSaveSlot].hubTarget = save->hubTarget;
+    saveSlot[currentSaveSlot].hubLevel = save->hubLevel;
+    for (i = 0; i < 7; i++)
+        gameInfo.worldComplete[i] = (save->worldComplete >> i) & 1;
+    gameInfo.world = world;
+}
+
+/* g64coopdx: the progress after an exit: the save as the level leaves it, with what the level change after the fade
+   and CheckForLevelCompleted would add (a level done, all its garibs, a world done). It changes nothing. */
+void G64ExitSave(s32 type, s32 complete, G64Save *save) {
+    s32 bit = levelInfo[gameInfo.level].bit;
+    G64ReadSave(save);
+    if (complete) {
+        save->levels |= 1u << bit;
+        if (player.garibs >= numGaribs && numGaribs > 0)
+            save->allGaribs |= 1u << bit;
+    }
+    if (type == WORLD_EXIT) {
+        if (!((saveSlot[currentSaveSlot].levels >> bit) & 1))
+            save->hubTarget++;
+        save->worldComplete |= 1 << gameInfo.world;
+    } else if (type == CAVE_EXIT && save->hubTarget == 0) {
+        save->hubTarget = 1;
+    }
+}
+
 /* g64coopdx: the level and world an exit leads to, from the level now and the save, as the level change after the
    fade picks them (CheckForExits). It changes nothing. */
 void G64ExitTarget(s32 type, s32 *level, s32 *world) {

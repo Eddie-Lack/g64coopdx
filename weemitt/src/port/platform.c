@@ -2079,7 +2079,17 @@ int main(int argc, char **argv) {
         }
     }
 #endif
+#ifdef PORT_STUDIO
+    if (netplay_active()) {
+        /* g64coopdx: power-on only. netplay_begin saves this state and builds every level from it, the same way on
+           every machine (src/client/instances.c). */
+        port_game_boot();
+    } else {
+        port_game_init(opt.level);
+    }
+#else
     port_game_init(opt.level);
+#endif
 #ifdef PORT_STUDIO
     studio_started();
     if (netplay_active()) {

@@ -12,7 +12,12 @@
 #include "../../weemitt/bruteforce/engine/engine.h"
 
 typedef struct {
-    int player, type, level, world;
+    unsigned levels, allGaribs;
+    unsigned char hubTarget, hubLevel, worldComplete, pad;
+} G64Save;
+typedef struct {
+    int player, type, complete, level, world;
+    G64Save save;
 } G64ExitRecord;
 extern int g64Online;
 extern int g64Players;

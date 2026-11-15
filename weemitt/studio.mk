@@ -50,8 +50,8 @@ BF_PROGRAM_OBJS := $(patsubst $(BF)/%.c,$(BUILD)/bf/%.o,$(wildcard $(BF)/src/*.c
 STUDIO_OBJS := $(BUILD)/src/port/studio.o
 # g64coopdx: the online mode (src/client/netplay.c of the repository around this copy) and what it needs.
 G64_ROOT := ..
-G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c session/session.c net/udp.c rollback/rollback.c \
-            rollback/engine_game.c)
+G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c client/instances.c client/imsg.c session/session.c \
+            net/udp.c rollback/rollback.c rollback/engine_game.c)
 G64_OBJS := $(patsubst $(G64_ROOT)/src/%.c,$(BUILD)/g64/%.o,$(G64_SRCS))
 STUDIO_OBJS += $(G64_OBJS) $(BUILD)/src/port/g64launcher.o
 

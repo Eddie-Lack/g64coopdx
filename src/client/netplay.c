@@ -28,11 +28,16 @@ static uint32_t now_ms(void) {
 #include "../rollback/engine_game.h"
 #include "../rollback/rollback.h"
 #include "../session/session.h"
+#include "instances.h"
 
 /* weemitt's src/game/g64players.c and src/port/frame.c. */
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 int port_game_draw_view(void *tasks, int max);
+typedef struct {
+    int level, frame, player, type;
+} G64TestExit;
+extern G64TestExit g64TestExits[4];
 
 /* The game starts at the first hub level. */
 #define START_LEVEL 0
@@ -46,13 +51,13 @@ int port_game_draw_view(void *tasks, int max);
 static net_socket *sock;
 static g64_session *session;
 static int active, failed, me, players;
-static const rb_game_ops *ops;
-static rb_engine_game *localGame, *hostGame;
-static rb_client *client;
-static rb_host *host;
+/* The instances (instances.c): the host's part on the host, and every machine's own player. */
+static g64_ihost *ihost;
+static g64_iclient *iclient;
+static void *boot; /* the state right after power-on: every level is built from it */
 static char status[160];
-/* The local player's view: a joiner's glove is not in the game's globals, so its view is drawn with its slot swapped
- * in, from a saved state that is loaded again after the draw. */
+/* The local player's view: it is drawn from the local game with that player swapped into the globals, from a saved
+ * state that is loaded again at the next frame. */
 static Engine *engine;
 static void *viewState;
 static int viewPending;
@@ -258,66 +263,109 @@ int netplay_connect(const char *join, int hostPort, const char *relay, const cha
     return 0;
 }
 
-/* The session's game messages go to the rollback core. */
+/* On the host, its own player and the host's part talk through a queue, in this program: each message waits until
+ * the next netplay_frame. */
+#define LOCAL_QUEUE 256
+typedef struct {
+    int to_host;
+    size_t len;
+    uint8_t data[1200];
+} local_message;
+static local_message localQueue[LOCAL_QUEUE];
+static int localCount;
+
+static void queue_local(int to_host, const uint8_t *data, size_t len) {
+    if (localCount >= LOCAL_QUEUE || len > sizeof localQueue[0].data)
+        return;
+    localQueue[localCount].to_host = to_host;
+    localQueue[localCount].len = len;
+    memcpy(localQueue[localCount].data, data, len);
+    localCount++;
+}
+
+static void flush_local(void) {
+    static local_message batch[LOCAL_QUEUE];
+    int i, n = localCount;
+    /* Handling a message can queue new ones: they wait for the next flush. */
+    memcpy(batch, localQueue, sizeof(local_message) * (size_t)n);
+    localCount = 0;
+    for (i = 0; i < n; i++) {
+        if (batch[i].to_host)
+            g64_ihost_receive(ihost, 0, batch[i].data, batch[i].len);
+        else
+            g64_iclient_receive(iclient, batch[i].data, batch[i].len);
+    }
+}
+
+/* The session's game messages go to the instances. */
 static void on_game(void *user, int from, const uint8_t *data, size_t len) {
     (void)user;
-    if (host)
-        rb_host_receive(host, from, data, len);
-    else if (client)
-        rb_client_receive(client, data, len);
-}
-
-/* A joiner's client sends to the host over the network. */
-static void client_send_net(void *user, int to, const uint8_t *data, size_t len) {
-    (void)user, (void)to;
-    g64_session_send_game(session, 0, data, len);
-}
-
-/* On the host, the local client talks to the host directly, and the host to the others over the network. */
-static void client_send_local(void *user, int to, const uint8_t *data, size_t len) {
-    (void)user, (void)to;
-    rb_host_receive(host, 0, data, len);
+    if (ihost)
+        g64_ihost_receive(ihost, from, data, len);
+    else if (iclient)
+        g64_iclient_receive(iclient, data, len);
 }
 
 static void host_send(void *user, int to, const uint8_t *data, size_t len) {
     (void)user;
     if (to == 0)
-        rb_client_receive(client, data, len);
+        queue_local(0, data, len);
     else
         g64_session_send_game(session, to, data, len);
 }
 
-int netplay_begin(Engine *e, char *err, size_t errSize) {
-    engine = e;
-    ops = rb_engine_ops(e);
-    if (me != 0) {
-        viewState = malloc(engine_state_size(e));
-        if (!viewState) {
-            snprintf(err, errSize, "out of memory");
-            return -1;
-        }
+static void client_send(void *user, int to, const uint8_t *data, size_t len) {
+    (void)user, (void)to;
+    if (ihost)
+        queue_local(1, data, len);
+    else
+        g64_session_send_game(session, 0, data, len);
+}
+
+/* For tests of the whole program: G64_TEST_EXITS="level:frame:player:type,..." gives weemitt's g64TestExits. Every
+ * machine of the session must have the same value. */
+static void read_test_exits(void) {
+    const char *v = getenv("G64_TEST_EXITS");
+    int i = 0;
+    while (v && *v && i < 4) {
+        G64TestExit t;
+        if (sscanf(v, "%d:%d:%d:%d", &t.level, &t.frame, &t.player, &t.type) != 4)
+            break;
+        g64TestExits[i++] = t;
+        v = strchr(v, ',');
+        if (v)
+            v++;
     }
-    localGame = rb_engine_game_new();
-    if (!localGame) {
+}
+
+int netplay_begin(Engine *e, char *err, size_t errSize) {
+    uint32_t deadline = (uint32_t)g64_session_deadline(session);
+    engine = e;
+    read_test_exits();
+    boot = malloc(engine_state_size(e));
+    viewState = malloc(engine_state_size(e));
+    if (!boot || !viewState) {
         snprintf(err, errSize, "out of memory");
         return -1;
     }
+    /* The engine holds the state right after power-on (platform.c calls port_game_boot when online). */
+    engine_save(e, boot);
     if (me == 0) {
-        hostGame = rb_engine_game_new();
-        host = rb_host_new(ops, hostGame, players, (uint32_t)g64_session_deadline(session), host_send, NULL, NULL,
-                           NULL);
-        client = rb_client_new(ops, localGame, players, 0, WINDOW, client_send_local, NULL, NULL);
-    } else {
-        client = rb_client_new(ops, localGame, players, me, WINDOW, client_send_net, NULL, NULL);
+        ihost = g64_ihost_new(e, boot, players, clevel, deadline, host_send, NULL);
+        if (!ihost) {
+            snprintf(err, errSize, "cannot start the host's instances");
+            return -1;
+        }
     }
-    if (!client || (me == 0 && !host)) {
-        snprintf(err, errSize, "cannot start the rollback");
+    iclient = g64_iclient_new(e, boot, players, me, clevel, WINDOW, deadline, client_send, NULL);
+    if (!iclient) {
+        snprintf(err, errSize, "cannot start the game");
         return -1;
     }
     return 0;
 }
 
-/* Puts the game back from the local player's view (netplay_frame) to the state the rollback core left. */
+/* Puts the game back from the local player's view (netplay_frame) to the state the local game left. */
 static void restore_view(void) {
     if (viewPending) {
         engine_load(engine, viewState);
@@ -327,7 +375,7 @@ static void restore_view(void) {
 
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
     rb_input in;
-    int n;
+    rb_engine_game *game;
     if (!active)
         return -1;
     restore_view();
@@ -335,57 +383,58 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
-        return rb_engine_last_tasks(tasks, max);
+        return -1;
     }
-    if (host) {
+    if (ihost) {
         int p;
         for (p = 1; p < players; p++)
             if (g64_session_gone(session, p) && !dropped[p]) {
                 dropped[p] = 1;
-                rb_host_drop_player(host, p);
+                g64_ihost_drop(ihost, p);
                 printf("g64coopdx: player %d stopped answering; the game goes on without them\n", p + 1);
                 fflush(stdout);
             }
-        rb_host_tick(host);
+        flush_local();
+        g64_ihost_tick(ihost);
+        flush_local();
     }
+    memset(&in, 0, sizeof in);
     in.buttons = buttons;
     in.x = stickX;
     in.y = stickY;
     /* The host decides who is present; the core fills it in. */
     in.present = 1;
-    /* The local game steps last, so the engine holds it and its newest frame is what is drawn. */
-    if (!rb_client_step(client, in))
-        rb_client_idle(client);
-    n = rb_engine_last_tasks(tasks, max);
-    snprintf(status, sizeof status, "g64coopdx - player %d of %d - %u frames ahead - %u desyncs", me + 1, players,
-             rb_client_frame(client) - rb_client_confirmed(client), rb_client_desyncs(client));
-    if (rb_client_frame(client) % 100 == 0 && rb_client_frame(client) != lastPrinted) {
-        lastPrinted = rb_client_frame(client);
-        printf("g64coopdx: frame %u, %u confirmed, %llu frames run again, %u desyncs", rb_client_frame(client),
-               rb_client_confirmed(client), (unsigned long long)rb_client_rollback_frames(client),
-               rb_client_desyncs(client));
-        if (host)
-            printf(", %u hash checks, %u mismatches, %u late inputs", rb_host_hash_matches(host),
-                   rb_host_hash_mismatches(host), rb_host_late_inputs(host));
-        {
-            int p;
-            for (p = 0; p < players; p++) {
-                float x, y, z;
-                if (G64PlayerPosition(p, &x, &y, &z))
-                    printf(", glove %d at %.0f %.0f %.0f", p + 1, x, y, z);
-            }
-        }
+    g64_iclient_step(iclient, in);
+    if (g64_iclient_moving(iclient)) {
+        snprintf(status, sizeof status, "g64coopdx - player %d of %d - going to level %d...", me + 1, players,
+                 g64_iclient_level(iclient));
+    } else {
+        snprintf(status, sizeof status, "g64coopdx - player %d of %d - level %d - %u frames ahead - %u desyncs",
+                 me + 1, players, g64_iclient_level(iclient),
+                 g64_iclient_frame(iclient) - g64_iclient_confirmed(iclient), g64_iclient_desyncs(iclient));
+    }
+    if (g64_iclient_frame(iclient) % 100 == 0 && g64_iclient_frame(iclient) != lastPrinted) {
+        lastPrinted = g64_iclient_frame(iclient);
+        printf("g64coopdx: level %d, frame %u, %u confirmed, %llu frames run again, %u desyncs",
+               g64_iclient_level(iclient), g64_iclient_frame(iclient), g64_iclient_confirmed(iclient),
+               (unsigned long long)g64_iclient_rollback_frames(iclient), g64_iclient_desyncs(iclient));
+        if (ihost)
+            printf(", %d instances, %u hash checks, %u mismatches", g64_ihost_instances(ihost),
+                   g64_ihost_hash_matches(ihost), g64_ihost_hash_mismatches(ihost));
         printf("\n");
         fflush(stdout);
     }
-    if (me != 0 && !failed) {
-        /* The engine holds the local game's newest frame. Draw it with this player swapped in. */
-        engine_save(engine, viewState);
-        G64SwapPlayer(me);
-        n = port_game_draw_view(tasks, max);
-        viewPending = 1;
-    }
-    return n;
+    /* While the player moves to another level, nothing is drawn. */
+    game = g64_iclient_game(iclient);
+    if (!game)
+        return 0;
+    /* The engine may hold another game (the host's instances): the local game's newest frame goes back in, and is
+       drawn with this player swapped into the globals. */
+    rb_engine_game_enter(game);
+    engine_save(engine, viewState);
+    G64SwapPlayer(me);
+    viewPending = 1;
+    return port_game_draw_view(tasks, max);
 }
 
 const char *netplay_status(void) { return status; }

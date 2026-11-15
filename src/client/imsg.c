@@ -1,0 +1,98 @@
+/* The messages that move players between instances (imsg.h). */
+#include "imsg.h"
+
+static void put16(uint8_t *p, uint32_t v) {
+    p[0] = (uint8_t)v;
+    p[1] = (uint8_t)(v >> 8);
+}
+
+static void put32(uint8_t *p, uint32_t v) {
+    put16(p, v);
+    put16(p + 2, v >> 16);
+}
+
+static uint32_t get16(const uint8_t *p) { return (uint32_t)p[0] | (uint32_t)p[1] << 8; }
+static uint32_t get32(const uint8_t *p) { return get16(p) | get16(p + 2) << 16; }
+
+size_t g64_write_move(uint8_t *d, const g64_move *m) {
+    d[0] = G64_IMSG_MOVE;
+    d[1] = m->instance;
+    d[2] = m->level;
+    d[3] = m->world;
+    d[4] = m->players;
+    put16(d + 5, m->members);
+    put32(d + 7, m->join);
+    put32(d + 11, m->progress.levels);
+    put32(d + 15, m->progress.all_garibs);
+    d[19] = m->progress.hub_target;
+    d[20] = m->progress.hub_level;
+    d[21] = m->progress.worlds_done;
+    d[22] = 0;
+    return G64_MOVE_SIZE;
+}
+
+int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
+    g64_move m;
+    if (!d || len != G64_MOVE_SIZE || d[0] != G64_IMSG_MOVE)
+        return -1;
+    m.instance = d[1];
+    m.level = d[2];
+    m.world = d[3];
+    m.players = d[4];
+    m.members = (uint16_t)get16(d + 5);
+    m.join = get32(d + 7);
+    m.progress.levels = get32(d + 11);
+    m.progress.all_garibs = get32(d + 15);
+    m.progress.hub_target = d[19];
+    m.progress.hub_level = d[20];
+    m.progress.worlds_done = d[21];
+    if (m.level >= G64_NUM_LEVELS || m.world >= G64_NUM_WORLDS || m.players < 1 || m.players > RB_MAX_PLAYERS ||
+        m.join > G64_MAX_LOG || (m.players < 16 && (m.members >> m.players) != 0) || m.members == 0 ||
+        (m.progress.worlds_done >> G64_NUM_WORLDS) != 0)
+        return -1;
+    *out = m;
+    return 0;
+}
+
+static size_t log_frame_size(int players) { return 2 + 4 * (size_t)players; }
+
+int g64_parse_log(const uint8_t *d, size_t len, g64_log_chunk *out) {
+    g64_log_chunk c;
+    if (!d || len < G64_LOG_HEAD || d[0] != G64_IMSG_LOG)
+        return -1;
+    c.instance = d[1];
+    c.players = d[2];
+    c.first = get32(d + 3);
+    c.count = d[7];
+    c.frames = d + G64_LOG_HEAD;
+    if (c.players < 1 || c.players > RB_MAX_PLAYERS || c.count < 1 || c.first > G64_MAX_LOG ||
+        c.count > G64_MAX_LOG - c.first || len != G64_LOG_HEAD + (size_t)c.count * log_frame_size(c.players))
+        return -1;
+    *out = c;
+    return 0;
+}
+
+void g64_log_frame(const g64_log_chunk *c, int i, rb_input *out) {
+    const uint8_t *f = c->frames + (size_t)i * log_frame_size(c->players);
+    uint32_t present = get16(f);
+    int p;
+    for (p = 0; p < c->players; p++) {
+        const uint8_t *in = f + 2 + 4 * (size_t)p;
+        out[p].buttons = (uint16_t)get16(in);
+        out[p].x = (int8_t)in[2];
+        out[p].y = (int8_t)in[3];
+        out[p].present = (uint8_t)((present >> p) & 1);
+    }
+}
+
+int g64_parse_logack(const uint8_t *d, size_t len, uint8_t *instance, uint32_t *join, uint32_t *have) {
+    if (!d || len != G64_LOGACK_SIZE || d[0] != G64_IMSG_LOGACK)
+        return -1;
+    *instance = d[1];
+    *join = get32(d + 2);
+    *have = get32(d + 6);
+    if (*join > G64_MAX_LOG || *have > *join)
+        return -1;
+    return 0;
+}
+
