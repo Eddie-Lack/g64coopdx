@@ -52,7 +52,9 @@ typedef void (*rb_frame_fn)(void *user, uint32_t frame, const void *state);
 /* Called by the host for each frame it confirms, with the confirmed inputs. */
 typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs, int players);
 
-/* The largest message the core sends. */
+/* The largest message the core sends: a confirm message is cut to RB_MAX_WIRE bytes, which leaves room for a
+ * transport's header in one UDP datagram. RB_MAX_MESSAGE is the largest that a receiver accepts. */
+#define RB_MAX_WIRE 1100
 #define RB_MAX_MESSAGE (10 + RB_CONFIRM_BATCH * RB_MAX_PLAYERS * 4)
 
 typedef struct rb_client rb_client;

@@ -21,6 +21,8 @@ int studio_command(int argc, char **argv, int *code);
 /* Sets up the savestates. Call it after the ROM is loaded and before the game starts. Exits with a message when
    it cannot. */
 void studio_init(const unsigned char *rom, unsigned long romSize);
+/* g64coopdx: the attached engine, for the online mode's rollback. */
+struct Engine *studio_engine(void);
 
 /* After port_game_init: the timeline's first state. */
 void studio_started(void);

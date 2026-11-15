@@ -365,6 +365,13 @@ studio:
 studio-windows:
 	$(MAKE) TARGET=windows BUILD=build/studio-windows STUDIO=1 AUDIO=stub
 
+# g64coopdx: the studio at 64 bits, the base of the online program.
+studio64:
+	$(MAKE) BITS=64 BUILD=build/studio64 STUDIO=1 AUDIO=stub
+
+studio-windows64:
+	$(MAKE) TARGET=windows BITS=64 BUILD=build/studio-windows64 STUDIO=1 AUDIO=stub
+
 # The library's link (docs/library.md). A version script keeps every symbol but glover_* local, and -z defs makes
 # sure that the library needs nothing but the C library and libm.
 $(BUILD)/libglover.so: $(LIB_OBJS) src/lib/glover.map

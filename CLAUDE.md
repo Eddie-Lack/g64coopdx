@@ -55,6 +55,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
 
 ## Everyday work
 
+    make client        # the online program: weemitt/build/studio64/weemitt-studio (docs/playing-online.md)
     make headless      # the game without a window: weemitt/build/headless64/weemitt
     make game          # the game for Linux: weemitt/build/linux64/weemitt (needs SDL2)
     make windows       # the game for Windows: weemitt/build/windows64/weemitt.exe (needs MinGW-w64 and SDL2)
@@ -87,4 +88,6 @@ run locally: set `GLOVER_ROM`.
 | Tests that need the ROM (they skip without it) | tests/rom |
 | More than one player in the game (the swap prototype) | weemitt/src/game/g64players.c |
 | The UDP transport (direct mode) | src/net (`udp.h`) |
-| Sessions (from phase 2) | src/session |
+| The direct-mode session (hello, welcome, start, game messages) | src/session (`session.h`) |
+| The online mode of the window program | src/client (`netplay.h`), built into weemitt's studio (`make client`) |
+| How players host and join | docs/playing-online.md |

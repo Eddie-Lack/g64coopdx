@@ -1,0 +1,91 @@
+name: Online program
+
+# Builds the online program (docs/playing-online.md) for Windows and Linux and keeps each as a workflow artifact. A tag
+# that starts with v also publishes them as a release. The builds hold no ROM data: each player needs their own ROM.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows (64-bit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MinGW-w64, CMake and Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64 cmake ninja-build
+      - name: Keep SDL2 for Windows between runs
+        uses: actions/cache@v4
+        with:
+          path: weemitt/deps
+          key: sdl2-mingw-x86_64-release-2.30.x-v1
+      - name: Build SDL2 for Windows
+        run: test -f weemitt/deps/SDL2-mingw/x86_64-w64-mingw32/bin/SDL2.dll || sh weemitt/tools/build_sdl_mingw.sh x86_64
+      - name: Build the online program
+        run: make -C weemitt -j"$(nproc)" studio-windows64
+      - name: Pack it
+        run: |
+          d=g64coopdx-windows
+          mkdir -p "$d"
+          cp weemitt/build/studio-windows64/weemitt-studio.exe "$d/g64coopdx.exe"
+          cp weemitt/deps/SDL2-mingw/x86_64-w64-mingw32/bin/SDL2.dll "$d/"
+          cp docs/playing-online.md "$d/README.md"
+          cp LICENSE "$d/LICENSE.txt"
+          cp weemitt/LICENSE "$d/LICENSE-weemitt.txt"
+          cp THIRD_PARTY_NOTICES.md "$d/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g64coopdx-windows
+          path: g64coopdx-windows
+
+  linux:
+    name: Linux (64-bit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDL2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev
+      - name: Build the online program
+        run: make client
+      - name: Pack it
+        run: |
+          d=g64coopdx-linux
+          mkdir -p "$d"
+          cp weemitt/build/studio64/weemitt-studio "$d/g64coopdx"
+          cp docs/playing-online.md "$d/README.md"
+          cp LICENSE "$d/LICENSE.txt"
+          cp weemitt/LICENSE "$d/LICENSE-weemitt.txt"
+          cp THIRD_PARTY_NOTICES.md "$d/"
+          tar czf g64coopdx-linux.tar.gz "$d"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g64coopdx-linux
+          path: g64coopdx-linux.tar.gz
+
+  release:
+    name: Publish a release
+    needs: [windows, linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd g64coopdx-windows && zip -r ../g64coopdx-windows.zip .)
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+            --notes "The online prototype. See README.md inside. Each player needs their own Glover (USA) ROM." \
+            g64coopdx-windows.zip g64coopdx-linux/g64coopdx-linux.tar.gz

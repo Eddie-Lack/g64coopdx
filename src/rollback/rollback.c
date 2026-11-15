@@ -347,6 +347,8 @@ static void host_send_confirmed(rb_host *h, int to) {
     count = h->confirmed - first;
     if (count > RB_CONFIRM_BATCH)
         count = RB_CONFIRM_BATCH;
+    if (count > (RB_MAX_WIRE - CONFIRM_HEAD) / (4u * (uint32_t)h->players))
+        count = (RB_MAX_WIRE - CONFIRM_HEAD) / (4u * (uint32_t)h->players);
     m[0] = MSG_CONFIRM;
     m[1] = (uint8_t)h->players;
     put32(m + 2, first);

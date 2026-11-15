@@ -4,8 +4,8 @@
  * each rb_engine_game is a savestate, and the one engine plays whichever game steps: it saves the game it held and
  * loads the next. The engine's saves and loads copy only the pages that differ, so a switch is cheap.
  *
- * The game has one player so far: player 0's input drives it, and the other players' inputs are ignored. Phase 1
- * adds the other players to the game. */
+ * Player 0's input is the game's own controller; the other players' inputs go to weemitt's g64players.c, which
+ * runs their gloves when g64Players is above 1. */
 #ifndef G64_ENGINE_GAME_H
 #define G64_ENGINE_GAME_H
 
@@ -19,6 +19,11 @@ const rb_game_ops *rb_engine_ops(Engine *e);
 /* A new game in the engine's current state. NULL when out of memory. */
 rb_engine_game *rb_engine_game_new(void);
 void rb_engine_game_free(rb_engine_game *g);
+/* The most display-list tasks of one frame that rb_engine_last_tasks keeps. */
+#define RB_ENGINE_MAX_TASKS 16
+/* The display-list tasks (weemitt's PortFrameTask) of the latest frame any game stepped: what to draw after the
+ * local game's newest frame. Returns their count, or -1 when that frame built no lists. */
+int rb_engine_last_tasks(void *tasks, int max);
 /* The hash of the state of a game, as rb_game_ops.hash_state gives it: weemitt's memory hash, the same on Linux and
  * Windows. Slow (it reads all 24 MB of the game's memory). */
 uint64_t rb_engine_game_hash(rb_engine_game *g);

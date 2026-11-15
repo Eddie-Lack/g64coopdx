@@ -10,15 +10,31 @@
 BF := bruteforce
 
 ifeq ($(TARGET),windows)
-STUDIO_LD := i686-w64-mingw32-ld
-STUDIO_OBJCOPY := i686-w64-mingw32-objcopy
+STUDIO_LD := $(MINGW)-ld
+STUDIO_OBJCOPY := $(MINGW)-objcopy
 # A state holds pointers to the program's code and data: the program loads at one fixed address, without ASLR and
-# without a relocation table (bruteforce/Makefile).
-LDFLAGS += -Wl,--disable-dynamicbase -Wl,--disable-reloc-section -Wl,--large-address-aware -Wl,--image-base=0x08000000
+# without a relocation table (bruteforce/Makefile). The 64-bit program keeps MinGW's usual base.
+ifeq ($(BITS),64)
+LDFLAGS += -Wl,--disable-dynamicbase -Wl,--disable-reloc-section -Wl,--image-base=0x140000000
+# After the relocatable link, MinGW's inline functions would leave unwind entries that the final link cannot place
+# (bruteforce/Makefile). The game's code needs no unwind tables.
+GAME_CFLAGS += -fno-asynchronous-unwind-tables -fno-unwind-tables
+GAME_CXXFLAGS += -fno-asynchronous-unwind-tables -fno-unwind-tables
 else
-STUDIO_LD := ld -m elf_i386
-STUDIO_OBJCOPY := objcopy
+LDFLAGS += -Wl,--disable-dynamicbase -Wl,--disable-reloc-section -Wl,--large-address-aware -Wl,--image-base=0x08000000
 endif
+else
+STUDIO_LD := ld -m $(if $(filter 64,$(BITS)),elf_x86_64,elf_i386)
+STUDIO_OBJCOPY := objcopy
+ifeq ($(BITS),64)
+# The program loads at one fixed address (bruteforce/Makefile); the game's objects stay position-independent.
+LDFLAGS := -no-pie -Wl,-z,noexecstack
+endif
+endif
+# The 64-bit Linux game is position-independent: its data with addresses is in .data.rel sections, which a state copies
+# too (bruteforce/Makefile).
+STUDIO_DATA_REL := $(if $(and $(filter 64,$(BITS)),$(filter-out windows,$(TARGET))),$(foreach s,.data.rel \
+                   .data.rel.local .data.rel.ro .data.rel.ro.local,--rename-section $(s)=gstate_data))
 
 HOST_CFLAGS += -DPORT_STUDIO -I$(BF)/engine -I$(BF)/src
 HOST_CXXFLAGS += -DPORT_STUDIO -I$(BF)/engine
@@ -32,12 +48,22 @@ BF_ENGINE_OBJS := $(patsubst %.c,$(BUILD)/bf/%.o,$(addprefix engine/,engine.c tr
                   $(BUILD)/bf/symbols.o
 BF_PROGRAM_OBJS := $(patsubst $(BF)/%.c,$(BUILD)/bf/%.o,$(wildcard $(BF)/src/*.c))
 STUDIO_OBJS := $(BUILD)/src/port/studio.o
+# g64coopdx: the online mode (src/client/netplay.c of the repository around this copy) and what it needs.
+G64_ROOT := ..
+G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c session/session.c net/udp.c rollback/rollback.c \
+            rollback/engine_game.c)
+G64_OBJS := $(patsubst $(G64_ROOT)/src/%.c,$(BUILD)/g64/%.o,$(G64_SRCS))
+STUDIO_OBJS += $(G64_OBJS)
+
+$(BUILD)/g64/%.o: $(G64_ROOT)/src/%.c $(wildcard $(G64_ROOT)/src/*/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(BF_CFLAGS) -c $< -o $@
 
 $(BUILD)/game.o: $(STUDIO_GAME_OBJS) $(BF)/engine/hooks.def
 	$(STUDIO_LD) -r -d $(addprefix --wrap=,$(STUDIO_HOOKS)) -o $@.tmp $(STUDIO_GAME_OBJS)
-	$(STUDIO_OBJCOPY) --rename-section .data=gstate_data --rename-section .bss=gstate_bss $@.tmp $@
+	$(STUDIO_OBJCOPY) --rename-section .data=gstate_data --rename-section .bss=gstate_bss $(STUDIO_DATA_REL) $@.tmp $@
 	rm -f $@.tmp
-	@python3 $(BF)/tools/checkgame.py $@ $(TARGET)
+	@python3 $(BF)/tools/checkgame.py $@ $(TARGET) $(BITS)
 
 $(STUDIO_RAM_OBJ): $(BUILD)/gen/ram.o
 	$(STUDIO_OBJCOPY) --rename-section .bss=gram_bss $< $@
@@ -61,6 +87,6 @@ $(BUILD)/src/port/platform.o: src/port/studio.h
 
 $(EXE): $(BUILD)/game.o $(STUDIO_RAM_OBJ) $(BUILD)/src/port/devview.o $(HOST_OBJS) $(BF_ENGINE_OBJS) \
         $(BF_PROGRAM_OBJS) $(STUDIO_OBJS)
-	$(CXX) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(SDL_LIBS) -lm $(if $(filter windows,$(TARGET)),,-lrt -lpthread)
+	$(CXX) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(SDL_LIBS) -lm $(if $(filter windows,$(TARGET)),-lws2_32,-lrt -lpthread)
 
 $(BUILD)/src/port/menu.o: src/port/studio.h
