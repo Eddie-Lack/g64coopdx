@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 )
@@ -242,4 +243,15 @@ func FuzzRelayHandle(f *testing.F) {
 			}
 		}
 	})
+}
+
+func TestInfoDescribesTheRelay(t *testing.T) {
+	r, out, _ := testRelay()
+	activeRelay, activeRelayPort = r, 27065
+	defer func() { activeRelay, activeRelayPort = nil, 0 }()
+	openRoom(t, r, out, addr("1.1.1.1:1"))
+	rec := get(t, newLobby(configFromEnv(env(nil))), "GET", "/v1/info")
+	if body := rec.Body.String(); !strings.Contains(body, `"relay":{"port":27065,"rooms":1,"players":1}`) {
+		t.Fatalf("info: %s", body)
+	}
 }

@@ -36,8 +36,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("relay: %v", err)
 		}
-		serveRelay(conn)
-		log.Printf("relay listens on UDP %s", cfg.RelayAddr)
+		activeRelay = serveRelay(conn)
+		activeRelayPort = conn.LocalAddr().(*net.UDPAddr).Port
+		log.Printf("relay listens on UDP %s", conn.LocalAddr())
 	}
 	log.Printf("g64coopdx lobby %s (protocol %d) listens on %s", version, protocolVersion, srv.Addr)
 	log.Fatal(srv.ListenAndServe())

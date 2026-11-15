@@ -13,7 +13,7 @@ runs.
 | Route | Answer |
 | --- | --- |
 | `GET /healthz` | `ok` |
-| `GET /v1/info` | The server's name, version and protocol version, and `"placeholder": true` |
+| `GET /v1/info` | The server's name, version and protocol version, `"placeholder": true`, and the relay's port with its open rooms and players |
 | `GET /v1/sessions` | An empty list |
 | `GET /v1/ice` | The STUN servers a client should use |
 
