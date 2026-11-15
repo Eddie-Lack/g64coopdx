@@ -1,7 +1,8 @@
 # Playing online (prototype)
 
-This is the first online version. Two to sixteen players play the first hub level together over the internet or a
-local network. It is a test build: see "What does not work yet" below.
+This is the first online version. Two to sixteen players play together over the internet or a local network. Everyone
+starts in the first hub section, and each player can then go through doors alone: every player sees the level they
+are in, with the other players who are in it. It is a test build: see "What does not work yet" below.
 
 ## What you need
 
@@ -85,9 +86,21 @@ predicts the frames it has no confirmed input for yet, and goes back and runs th
 differs ([discovery/netcode.md](discovery/netcode.md)). Only inputs cross the network; no game data does. Each machine
 checks the hash of its game against the host's every 10 frames.
 
+Each level that has players in it runs as its own game, an instance. Your machine runs only the instance you are in.
+The host runs a copy of every instance. When you take an exit, you leave your instance alone. The host puts you in
+the instance of the level the exit leads to, or starts a new one. To join an instance that is already running, your
+machine builds the level from its start and runs the inputs played in it so far; that takes a moment, and the window
+stays black meanwhile. The window's title shows the level number you are in.
+
 ## What does not work yet
 
 - There is no sound.
-- Only the first hub level. Enemies, collectables and puzzles react only to player 1.
+- Enemies, collectables and puzzles react only to one player in each level.
+- An exit takes you at once: there is no spin, fade or end-of-level screen.
+- A level that is already running sees new progress only when it starts again. For example, a hub door that a
+  finished level opens stays shut while someone is in the hub; it opens once the hub is empty and someone enters it
+  again.
+- Players can go to different worlds. The planned rule (a portal to another world opens only when everyone is in
+  the hub) is not there yet.
 - No list of open games: players share the room code themselves.
-- A joiner who leaves stops their glove; the game goes on for the others. If the host leaves, the game ends.
+- A joiner who leaves vanishes; the game goes on for the others. If the host leaves, the game ends.

@@ -1,9 +1,9 @@
-/* The online mode of the window program (weemitt's studio build at 64 bits): the direct-mode session, the rollback
- * core and the game, put together. weemitt/src/port/platform.c calls these functions.
+/* The online mode of the window program (weemitt's studio build at 64 bits): the session, the instances, the
+ * rollback core and the game, put together. weemitt/src/port/platform.c calls these functions.
  *
- * One player hosts (--host PORT, --players N); the others join by address (--join HOST[:PORT]). The game starts when
- * everyone is in. Every machine then runs the same game: player 0 is the host, and each joiner controls the glove
- * the host gave it. */
+ * One player hosts; the others join by room code or by address. The game starts when everyone is in. Player 0 is the
+ * host, and each joiner controls the glove the host gave it. Each level that has players in it is its own game, an
+ * instance (instances.h): a machine runs the one its player is in, and the host runs a copy of every one. */
 #ifndef G64_NETPLAY_H
 #define G64_NETPLAY_H
 
@@ -48,14 +48,16 @@ int netplay_level(void);
 int netplay_players(void);
 /* 1 after a successful netplay_connect. */
 int netplay_active(void);
-/* After the game has started at the level (port_game_init) and the engine is attached: sets up the rollback. */
+/* After power-on (port_game_boot) with the engine attached: saves that state, from which every level is built, and
+ * builds the first level. */
 int netplay_begin(Engine *e, char *err, size_t errSize);
-/* One game frame (20 a second in a level): sends the local controller, runs what the rollback needs, and gives the
- * display-list tasks of the newest frame (weemitt's PortFrameTask). Returns their count, or -1 for none. The tasks
- * point into the game's memory. On a joiner they show that player's own view, and the game keeps that view's state
- * until the next call, which puts the game back first. The window can draw the tasks again until then. */
+/* One game frame (20 a second in a level): sends the local controller, runs the host's instances and the local
+ * game, and gives the display-list tasks of the local game's newest frame (weemitt's PortFrameTask), drawn from the
+ * local player's view. Returns their count: 0 while the player moves to another level, -1 when the session failed.
+ * The tasks point into the game's memory, and the game keeps that view's state until the next call, which puts the
+ * game back first. The window can draw the tasks again until then. */
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max);
-/* A line for the window's title: the player number, the frames ahead of the confirmed ones, desyncs. */
+/* A line for the window's title: the player number, the level, the frames ahead of the confirmed ones, desyncs. */
 const char *netplay_status(void);
 /* 1 when the session has failed; netplay_status says why. */
 int netplay_failed(void);

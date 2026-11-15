@@ -144,6 +144,24 @@ rb_engine_game *rb_engine_game_new(void) {
     return g;
 }
 
+rb_engine_game *rb_engine_game_build(const void *state, rb_engine_setup_fn setup, void *ctx) {
+    rb_engine_game *g = calloc(1, sizeof *g);
+    if (!g)
+        return NULL;
+    g->state = malloc(ops.state_size);
+    if (!g->state) {
+        free(g);
+        return NULL;
+    }
+    leave();
+    engine_load(engine, state);
+    if (setup)
+        setup(ctx);
+    engine_save(engine, g->state);
+    owner = g;
+    return g;
+}
+
 void rb_engine_game_free(rb_engine_game *g) {
     if (!g)
         return;
@@ -151,6 +169,12 @@ void rb_engine_game_free(rb_engine_game *g) {
         owner = NULL;
     free(g->state);
     free(g);
+}
+
+void rb_engine_game_enter(rb_engine_game *g) {
+    enter(g);
+    /* The caller may draw, which writes the game's memory: the state is saved again when another game enters. */
+    g->live = 1;
 }
 
 uint64_t rb_engine_game_hash(rb_engine_game *g) {

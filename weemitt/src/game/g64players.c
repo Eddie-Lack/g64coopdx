@@ -455,9 +455,12 @@ static u32 leaving, gone;
 s32 IsHandHoldingBall(void);
 s32 G64ExitNeedsBall(Platform *platform, s32 *useHand);
 void G64ExitTarget(s32 type, s32 *level, s32 *world);
+void G64ExitSave(s32 type, s32 complete, G64Save *save);
+void G64ReadSave(G64Save *save);
+void G64WriteSave(s32 world, const G64Save *save);
 
 /* A player takes an exit: it is recorded with where it leads, and the player leaves the game at the next frame. */
-static void player_exits(s32 player, s32 type) {
+static void player_exits(s32 player, s32 type, s32 complete) {
     u32 bit = 1u << player;
     G64ExitRecord *r;
     if ((gone & bit) || g64ExitCount >= G64_MAX_PLAYERS)
@@ -467,7 +470,9 @@ static void player_exits(s32 player, s32 type) {
     r = &g64Exits[g64ExitCount++];
     r->player = player;
     r->type = type;
+    r->complete = complete;
     G64ExitTarget(type, &r->level, &r->world);
+    G64ExitSave(type, complete, &r->save);
 }
 
 void G64CheckExit(Platform *platform) {
@@ -493,7 +498,7 @@ void G64CheckExit(Platform *platform) {
         if (needBall && !holding)
             continue;
         if (DistanceBetweenPoints((Vec3 *)(useHand ? &h->pos : &b->pos), &platform->actor.pos) < platform->actor.radius)
-            player_exits(g64Member[i], platform->exitType);
+            player_exits(g64Member[i], platform->exitType, 1);
     }
 }
 
@@ -527,14 +532,41 @@ void G64PlacePlayer(s32 player, f32 x, f32 y, f32 z) {
 
 void G64EveryoneExits(s32 type, s32 complete) {
     s32 i;
-    (void)complete;
     for (i = 0; i < g64Players && i < G64_MAX_PLAYERS; i++)
-        player_exits(g64Member[i], type);
+        player_exits(g64Member[i], type, complete);
 }
 
+/* The start record, until a level start applies it. */
+static s32 recordSet, recordWorld;
+static G64Save recordSave;
+
+void G64SetStartRecord(s32 world, const G64Save *save) {
+    recordSet = 1;
+    recordWorld = world;
+    recordSave = *save;
+}
+
+void G64ApplyStartRecord(void) {
+    if (!recordSet)
+        return;
+    recordSet = 0;
+    G64WriteSave(recordWorld, &recordSave);
+}
+
+G64TestExit g64TestExits[4] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}};
+/* Frames this game has run since its level started (G64SetPresent counts them). */
+static u32 framesRun;
+
 void G64SetPresent(u32 present) {
-    s32 p;
+    s32 p, i;
     g64ExitCount = 0;
+    /* A test's exits at set frames (g64TestExits): the same on every machine, since every copy holds them. */
+    for (i = 0; i < 4; i++) {
+        G64TestExit *t = &g64TestExits[i];
+        if (t->level == gameInfo.level && (u32)t->frame == framesRun && slot_of(t->player) >= 0)
+            player_exits(t->player, t->type, 1);
+    }
+    framesRun++;
     for (p = 0; p < G64_MAX_PLAYERS; p++)
         if (leaving & (1u << p))
             G64RemovePlayer(p);
@@ -566,6 +598,7 @@ void G64StartPlayers(u32 present) {
     lastPresent = present;
     leaving = gone = 0;
     g64ExitCount = 0;
+    framesRun = 0;
 }
 
 void G64RemovePlayer(s32 player) {

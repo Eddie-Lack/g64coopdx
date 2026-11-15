@@ -209,6 +209,24 @@ instance in a worker process. Its cost is small: a confirmed frame costs 0.03 to
 **Why not send a savestate.** A savestate holds the game's memory, and the memory holds data from the ROM (code,
 tables, textures). Sending it would send game data, and its host pointers are only valid in one process.
 
+**What is built (15 November 2026).** `src/client/instances.c` does the above for the online program:
+
+- The host's part runs a reference copy of each instance (`rb_engine_game` games time-share one engine) and keeps each
+  instance's log of confirmed inputs. A player who takes an exit leaves their instance at that frame, in the game
+  itself on every machine (`g64players.c`). The host reads the exit from its reference copy, at a confirmed frame. It
+  then puts the player in the instance of the target level (present from its next confirmed frame), or starts a new
+  instance for them alone, and sends a move: the instance's start record and the join frame. A joiner gets the log up
+  to that frame in chunks, builds the instance, runs the log and starts there (`rb_client_new_at`).
+- The start record holds the level, its world, the players present at the start, and the session's progress (levels
+  done, all-garib bits, the hub's progress, the worlds done). Each exit carries the progress as its level leaves it;
+  the host merges it into the session's progress, and new instances start with it.
+- `make instances` runs a host and three players in one process over a lossy network, with exits at set frames
+  (`g64TestExits`): a new instance, a join into a running one, and a return to the running hub. Every hash check
+  passes, and the Linux and Windows outputs are equal.
+
+Not yet: a running instance does not see progress made elsewhere (a session event into its confirmed inputs); the
+one-world rule at the hub's portals; per-player end-of-level screens.
+
 **How a level is built (VERIFIED, 15 November 2026).** A level reached by play differs from the same level started
 directly. In Atlantis 2 reached from Atlantis 1, the random seed, the glove and the ball start the same, but the
 camera keeps state from the level before. The camera differs from frame 1, and the glove's path differs from frame 94

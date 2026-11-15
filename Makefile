@@ -5,7 +5,7 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md).
@@ -121,6 +121,25 @@ levelstart: levelstart-build
 	    > build/tests/levelstart-windows.out
 	cmp build/tests/levelstart.out build/tests/levelstart-windows.out
 
+# Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
+# be equal (needs the ROM in GLOVER_ROM).
+INSTANCES_SRC := tests/rom/instances.c src/client/instances.c src/client/imsg.c src/rollback/engine_game.c \
+                 src/rollback/rollback.c \
+                 weemitt/src/port/statehash.c
+instances-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/instances $(INSTANCES_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/instances.exe $(INSTANCES_SRC) $(ENGINE_WINDOWS) -lm
+
+instances: instances-build
+	build/tests/instances "$$GLOVER_ROM" > build/tests/instances.out
+	tail -1 build/tests/instances.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/instances.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/instances-windows.out
+	cmp build/tests/instances.out build/tests/instances-windows.out
+
 # What tests/rom/crossbuild.py runs: the Linux headless build, and the Windows library with its test host.
 crossbuild-build: headless
 	$(WEEMITT) lib-windows64-stub
@@ -169,6 +188,10 @@ build/tests/session_test.exe: tests/net/session_test.c $(SESSION_SRC) src/sessio
 build/tests/relay_test: tests/net/relay_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/relay_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
+
+build/tests/instances_fuzz: tests/fuzz/instances_fuzz.c src/client/imsg.c src/client/imsg.h
+	@mkdir -p build/tests
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/instances_fuzz.c src/client/imsg.c
 
 build/tests/relay_fuzz: tests/fuzz/relay_fuzz.c $(NET_SRC) src/net/udp.h
 	@mkdir -p build/tests
@@ -226,8 +249,9 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	cmp build/tests/hash-linux.txt build/tests/hash-windows.txt
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
-fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz
-	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay
+fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz build/tests/instances_fuzz
+	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay build/fuzz-corpus-instances
+	build/tests/instances_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1200 build/fuzz-corpus-instances
 	build/tests/relay_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1220 build/fuzz-corpus-relay
 	cd server && go test -run=^$$ -fuzz=FuzzRelayHandle -fuzztime=$(FUZZ_TIME)s .
 	build/tests/rollback_fuzz -max_total_time=$(FUZZ_TIME) -max_len=600 build/fuzz-corpus

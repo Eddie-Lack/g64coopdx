@@ -18,6 +18,7 @@ PORT_C_BEGIN
 #include "display.h"
 #include "cheat.h"
 #include "porthooks.h"
+#include "g64players.h"
 
 extern MESG32 tlistPointers[2][10];
 extern u8 draw_buffer;
@@ -292,6 +293,8 @@ void port_game_start_level(s32 level) {
     frameCount = frameCount2 = 0;
     FreeLevel();
     StartNewGame();
+    /* g64coopdx: the online game's start record (the world and the session's progress), when one is set. */
+    G64ApplyStartRecord();
     StopDrawing("levelselec");
     ballLeftBehind = -1;
     /* Level 40 (SPACEBOSS3) calls ResetHand before ResetBall, and ResetHand writes through ball.phys. On the N64

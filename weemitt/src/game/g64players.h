@@ -10,13 +10,37 @@ struct Platform;
    moves them to the level the exit leads to); a level-wide exit takes every player. Set it before power-on. */
 extern s32 g64Online;
 
-/* An exit taken in this frame: who, by which exit type (enum ExitType), and the level and world it leads to. */
+/* The progress that a session shares, from the game's save slot: levels done, levels with all garibs, the hub's
+   progress, and the worlds done (a bit per world). */
+typedef struct G64Save {
+    u32 levels;
+    u32 allGaribs;
+    u8 hubTarget;
+    u8 hubLevel;
+    u8 worldComplete;
+    u8 pad;
+} G64Save;
+
+/* An exit taken in this frame: who, by which exit type (enum ExitType), whether it completed the level, the level and
+   world it leads to, and the progress after it (the save as the level leaves it, with the exit's own effects). */
 typedef struct G64ExitRecord {
     s32 player;
     s32 type;
+    s32 complete;
     s32 level;
     s32 world;
+    G64Save save;
 } G64ExitRecord;
+/* For tests: a player who takes an exit at a set frame of a level (the frames counted from G64StartPlayers), as if
+   they had reached an exit platform. level -1: unused. Set it before power-on: every copy of the game then has it. */
+typedef struct G64TestExit {
+    s32 level;
+    s32 frame;
+    s32 player;
+    s32 type;
+} G64TestExit;
+extern G64TestExit g64TestExits[4];
+
 /* The exits taken in the last frame, in the order they were taken. G64SetPresent clears them before each frame. */
 extern G64ExitRecord g64Exits[G64_MAX_PLAYERS];
 extern s32 g64ExitCount;
@@ -66,6 +90,10 @@ void G64StartPlayers(u32 present);
 void G64CheckExit(struct Platform *platform);
 /* Online: a level-wide exit (ExitLevel) takes every player in the game. */
 void G64EveryoneExits(s32 type, s32 complete);
+/* The start record of a level built for the online game: its world and the session's progress. port_game_start_level
+   applies it once, after StartNewGame and before the level starts (G64ApplyStartRecord). */
+void G64SetStartRecord(s32 world, const G64Save *save);
+void G64ApplyStartRecord(void);
 /* For tests: the position of the first exit platform of a type (1), or 0 when the level has none; and a player's glove
    put at a position. */
 s32 G64FindExit(s32 type, f32 *x, f32 *y, f32 *z);
