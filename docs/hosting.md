@@ -31,9 +31,10 @@ The first playable versions (phases 1 to 3) connect directly and need no service
 | The lobby's container image | The GitHub container registry (ghcr.io) | Free |
 | The source and CI | GitHub and GitHub Actions | Free |
 
-No domain name is bought. The project's name is still open
-([discovery/open-questions.md](discovery/open-questions.md#still-open)), so the lobby's address is a setting in the
-game and the first address is the one Fly.io gives the app.
+No domain name is bought for the project. Its name is still open
+([discovery/open-questions.md](discovery/open-questions.md#still-open)). The lobby's address is a setting in the
+game. The first address is `lobby.slugs.io`, a subdomain of the owner's existing domain. The address that Fly.io
+gives the app, `g64coopdx-lobby.fly.dev`, also works.
 
 The owner left this decision to the report. Every part can change later without a change to the game's design.
 
@@ -95,13 +96,13 @@ license, which is still open.
   and asks it for its health. On every push to `main` it also publishes the image to ghcr.io.
 - **The Fly.io settings** in `server/fly.toml`. They hold no secret.
 - **A deploy workflow** (`.github/workflows/deploy-lobby.yml`). It deploys on a push to `main` that changes
-  `server/`, or when started by hand. Until its token exists it deploys nothing.
+  `server/`, or when started by hand.
 
-Nothing runs on Fly.io or Cloudflare yet. The owner has a Fly.io account; the steps below need it.
+The placeholder runs on Fly.io at `https://lobby.slugs.io`. Nothing runs on Cloudflare's relay yet.
 
 ## What the owner has to do
 
-To put the placeholder online (optional before phase 4):
+The placeholder is online. These are the steps that put it there, for reference:
 
 The owner's Fly.io account already runs another project, slugs-game. The lobby is a second app in that account. An
 app has its own machine, address, secrets and bill line, so the two projects do not touch each other.
@@ -121,11 +122,19 @@ app has its own machine, address, secrets and bill line, so the two projects do 
 3. Save the token as the secret `FLY_API_TOKEN` of the g64coopdx repository (Settings, Secrets and variables,
    Actions). slugs-game keeps its own token; a deploy token works for one app.
 4. Run the "Deploy the lobby" workflow from the repository's Actions page. From then on, every push to `main` that
-   changes `server/` deploys. The workflow and `fly.toml` have not run against Fly.io yet.
-5. Check it.
+   changes `server/` deploys.
+5. Give the app the subdomain. Fly.io prints the DNS records it wants.
 
    ```bash
-   curl https://g64coopdx-lobby.fly.dev/v1/info
+   fly certs add lobby.slugs.io -a g64coopdx-lobby
+   ```
+
+6. Add those records at slugs.io's DNS (Cloudflare): an A and an AAAA record named `lobby`, set to "DNS only".
+   Cloudflare's proxy stops Fly.io from issuing the certificate.
+7. Check it.
+
+   ```bash
+   curl https://lobby.slugs.io/v1/info
    ```
 
 To let others run the lobby's image: open the package `g64coopdx-lobby` on GitHub, then Package settings, Change
