@@ -23,6 +23,9 @@ extern unsigned char port_eeprom[512];
 extern int port_eeprom_dirty;
 
 void port_game_init(int level);
+/* port_game_init in two parts, for g64coopdx: power-on without a level, and a level started directly. */
+void port_game_boot(void);
+void port_game_start_level(int level);
 /* Turns the Space demo on (spacedemo.c) before port_game_init. The start level is then ignored. */
 void port_set_space_demo(int on);
 /* Turns the easy difficulty's stick direction on the ball on for every difficulty (Enhancements menu). */

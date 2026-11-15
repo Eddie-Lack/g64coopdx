@@ -269,22 +269,19 @@ int port_goto_level_count(void) {
     return PRESENT;
 }
 
-/* Starts the game. With a level number, it then starts that level the way the level select does, in save slot 6
-   (the one the level select uses), at medium difficulty. */
-void port_game_init(s32 level) {
+/* Power-on: the game's memory, then the game's own start (MainProc), without a level. */
+void port_game_boot(void) {
     port_load_ram();
     port_set_rom_symbols();
     port_ballworld_latch();
     osTvType = OS_TV_NTSC;
     MainProc(NULL);
-    if (spaceDemo) {
-        SpaceDemoStart();
-        return;
-    }
-    if (level < 0) {
-        introStage = 1;
-        return;
-    }
+}
+
+/* Starts a level directly, as --level does: save slot 6, medium difficulty. g64coopdx calls it on the state saved
+   right after port_game_boot, and every machine builds a level the same way. */
+void port_game_start_level(s32 level) {
+    introStage = 0;
     levelSelectCount = 0;
     cheatActivated = 0;
     currentSaveSlot = 6;
@@ -302,6 +299,21 @@ void port_game_init(s32 level) {
     ball.phys = &defaultBehaviour[0];
     StartNewLevel(level);
     levelStartedDirectly = TRUE;
+}
+
+/* Starts the game. With a level number, it then starts that level the way the level select does, in save slot 6
+   (the one the level select uses), at medium difficulty. */
+void port_game_init(s32 level) {
+    port_game_boot();
+    if (spaceDemo) {
+        SpaceDemoStart();
+        return;
+    }
+    if (level < 0) {
+        introStage = 1;
+        return;
+    }
+    port_game_start_level(level);
 }
 
 extern s32 autoPlayback;

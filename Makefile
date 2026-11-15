@@ -5,7 +5,7 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md).
@@ -83,6 +83,23 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/twoplayers.exe "$$GLOVER_ROM" 3000 4 | tr -d '\r' \
 	    > build/tests/twoplayers-windows.out
 	cmp build/tests/twoplayers.out build/tests/twoplayers-windows.out
+
+# Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
+# must be equal (needs the ROM in GLOVER_ROM).
+LEVELSTART_SRC := tests/rom/levelstart.c weemitt/src/port/statehash.c
+levelstart-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/levelstart $(LEVELSTART_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/levelstart.exe $(LEVELSTART_SRC) $(ENGINE_WINDOWS) -lm
+
+levelstart: levelstart-build
+	build/tests/levelstart "$$GLOVER_ROM" > build/tests/levelstart.out
+	tail -1 build/tests/levelstart.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/levelstart.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/levelstart-windows.out
+	cmp build/tests/levelstart.out build/tests/levelstart-windows.out
 
 # What tests/rom/crossbuild.py runs: the Linux headless build, and the Windows library with its test host.
 crossbuild-build: headless
