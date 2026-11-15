@@ -18,6 +18,7 @@ typedef struct {
 extern unsigned short port_buttons;
 extern signed char port_stick_x, port_stick_y;
 extern unsigned short g64Buttons[16];
+extern int g64Member[16];
 extern signed char g64StickX[16], g64StickY[16];
 int port_game_frame(PortFrameTask *tasks, int max);
 
@@ -57,13 +58,15 @@ static void leave(void) {
 
 static void step(void *game, const rb_input *in, int players) {
     rb_engine_game *g = game;
-    int p;
+    int p, q;
     enter(g);
-    /* Player 0 is the game's own controller; the others are g64players.c's. */
-    port_buttons = in[0].buttons;
-    port_stick_x = in[0].x;
-    port_stick_y = in[0].y;
-    for (p = 1; p < players && p < 16; p++) {
+    /* Inputs come by player number. The player in the globals (g64Member[0]) reads the game's own controller; the
+       others read g64players.c's, by number. */
+    q = g64Member[0] >= 0 && g64Member[0] < players ? g64Member[0] : 0;
+    port_buttons = in[q].buttons;
+    port_stick_x = in[q].x;
+    port_stick_y = in[q].y;
+    for (p = 0; p < players && p < 16; p++) {
         g64Buttons[p] = in[p].buttons;
         g64StickX[p] = in[p].x;
         g64StickY[p] = in[p].y;
