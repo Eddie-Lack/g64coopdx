@@ -387,6 +387,27 @@ s32 port_game_update(f32 dt, PortFrameTask *tasks, s32 max) {
     return count;
 }
 
+/* g64coopdx: the display lists of the game as it is now, without running its logic: for drawing another player's
+   view (src/client/netplay.c), which then loads the state from before. */
+s32 port_game_draw_view(PortFrameTask *tasks, s32 max) {
+    s32 count = 0;
+    s32 i;
+
+    currentTask = 1;
+    GraphicsStep();
+    if (dontClearScreen) {
+        return -1;
+    }
+    for (i = 1; i < currentTask && i < 10 && count < max; i++) {
+        NNScTask *t = (NNScTask *)tlistPointers[draw_buffer ^ 1][i];
+        tasks[count].addr = (u32)t->list.t.data_ptr;
+        tasks[count].size = t->list.t.data_size;
+        tasks[count].sprite2d = t->list.t.ucode == (u64 *)gspSprite2DTextStart;
+        count++;
+    }
+    return count;
+}
+
 /* One original game frame, as on the N64. */
 s32 port_game_frame(PortFrameTask *tasks, s32 max) {
     return port_game_update(1.0f, tasks, max);

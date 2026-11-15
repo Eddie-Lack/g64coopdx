@@ -328,10 +328,14 @@ void G64ExtraPlayersStep(void) {
     s32 i;
     if (g64Players < 2 || gamePaused || !GameBeingPlayed())
         return;
-    /* The other players start in the level's first frame of play, when the level has set the first player up (its
-       start position, its first checkpoint). */
-    if (slotCount == 0)
+    /* The other players start as copies of the first, once the level has set the first player up (its start position,
+       its first checkpoint) and its opening camera has given way to the normal one, which follows the glove or the
+       ball. A copy taken earlier would keep the opening camera's fixed target. */
+    if (slotCount == 0) {
+        if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos) || cameraInfo.overrideTimer)
+            return;
         G64ExtraPlayersStart();
+    }
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (!s)
@@ -340,6 +344,11 @@ void G64ExtraPlayersStep(void) {
         player_frame(i);
         swap_slot(s);
     }
+}
+
+void G64SwapPlayer(s32 p) {
+    if (p >= 1 && p < slotCount && slots[p])
+        swap_slot(slots[p]);
 }
 
 s32 G64PlayerPosition(s32 p, f32 *x, f32 *y, f32 *z) {

@@ -6,28 +6,36 @@ local network. It is a test build: see "What does not work yet" below.
 ## What you need
 
 - Your own Glover (USA) ROM. Every player needs the same ROM: the host refuses a different one.
-- The online program, built with `make client`: `weemitt/build/studio64/weemitt-studio`.
+- The online program:
+  - Windows: `g64coopdx-windows` from the repository's Actions page (the "Online program" workflow) or from a
+    release. Unzip it; `g64coopdx.exe` and `SDL2.dll` stay together.
+  - Linux: `g64coopdx-linux.tar.gz` from the same places, or `make client`, which builds
+    `weemitt/build/studio64/weemitt-studio`.
+
+The examples below use the Windows name, `g64coopdx.exe`, run from a command prompt in the unzipped folder.
 
 ## Host a game
 
 The host starts first and waits for the others:
 
 ```sh
-weemitt/build/studio64/weemitt-studio --rom glover.z64 --host 27064 --players 2
+g64coopdx.exe --rom glover.z64 --host 27064 --players 2
 ```
 
-The host's machine must accept UDP on that port from the internet. On a home router this means forwarding UDP port
-27064 to the host's computer. Give the other players your public IP address.
+- Windows may ask whether to allow the program on networks. Allow it.
+- The host's computer must accept UDP on that port from the internet. On a home router, forward UDP port 27064 to the
+  host's computer.
+- Give the other players your public IP address (a search for "what is my IP" shows it).
 
 ## Join a game
 
 ```sh
-weemitt/build/studio64/weemitt-studio --rom glover.z64 --join HOST-ADDRESS:27064
+g64coopdx.exe --rom glover.z64 --join HOST-ADDRESS:27064
 ```
 
-The game starts when every player is in. The host is player 1. The window's title shows your player number, how many
-frames your game runs ahead of the confirmed ones, and any desyncs. The program also prints a status line every 100
-frames.
+The game starts when every player is in. The host is player 1. Each player sees their own glove's camera. The
+window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
+The program also prints a status line every 100 frames.
 
 ## How it works
 
@@ -38,7 +46,6 @@ checks the hash of its game against the host's every 10 frames.
 
 ## What does not work yet
 
-- Every machine shows player 1's camera. Your glove may be off screen.
 - There is no sound.
 - Only the first hub level. Enemies, collectables and puzzles react only to player 1.
 - The other gloves have no color of their own.

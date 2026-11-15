@@ -2300,6 +2300,12 @@ int main(int argc, char **argv) {
         prepare_overlays(&settings);
         gfx_draw_frame((const GfxTask *)tasks, (int)taskCount, w, h);
         menu_draw(window);
+#ifdef PORT_STUDIO
+        if (netplay_active()) {
+            /* g64coopdx: back from the local player's view to the game's own state. */
+            netplay_after_draw();
+        }
+#endif
         SDL_GL_SwapWindow(window);
         plog_tick(port_game_mode(), port_game_level());
         if (drawn++ == crashTestFrame) {

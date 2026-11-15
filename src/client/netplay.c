@@ -2,6 +2,7 @@
 #include "netplay.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -28,8 +29,10 @@ static uint32_t now_ms(void) {
 #include "../rollback/rollback.h"
 #include "../session/session.h"
 
-/* weemitt's src/game/g64players.c. */
+/* weemitt's src/game/g64players.c and src/port/frame.c. */
 int G64PlayerPosition(int p, float *x, float *y, float *z);
+void G64SwapPlayer(int p);
+int port_game_draw_view(void *tasks, int max);
 
 /* The game starts at the first hub level. */
 #define START_LEVEL 0
@@ -48,6 +51,11 @@ static rb_engine_game *localGame, *hostGame;
 static rb_client *client;
 static rb_host *host;
 static char status[160];
+/* The local player's view: a joiner's glove is not in the game's globals, so its view is drawn with its slot swapped
+ * in, from a saved state that is loaded again after the draw. */
+static Engine *engine;
+static void *viewState;
+static int viewPending;
 static uint32_t lastPrinted;
 
 int netplay_active(void) { return active; }
@@ -141,7 +149,15 @@ static void host_send(void *user, int to, const uint8_t *data, size_t len) {
 }
 
 int netplay_begin(Engine *e, char *err, size_t errSize) {
+    engine = e;
     ops = rb_engine_ops(e);
+    if (me != 0) {
+        viewState = malloc(engine_state_size(e));
+        if (!viewState) {
+            snprintf(err, errSize, "out of memory");
+            return -1;
+        }
+    }
     localGame = rb_engine_game_new();
     if (!localGame) {
         snprintf(err, errSize, "out of memory");
@@ -162,10 +178,19 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     return 0;
 }
 
+void netplay_after_draw(void) {
+    if (viewPending) {
+        engine_load(engine, viewState);
+        viewPending = 0;
+    }
+}
+
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
     rb_input in;
+    int n;
     if (!active)
         return -1;
+    netplay_after_draw();
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
@@ -179,6 +204,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     /* The local game steps last, so the engine holds it and its newest frame is what is drawn. */
     if (!rb_client_step(client, in))
         rb_client_idle(client);
+    n = rb_engine_last_tasks(tasks, max);
     snprintf(status, sizeof status, "g64coopdx - player %d of %d - %u frames ahead - %u desyncs", me + 1, players,
              rb_client_frame(client) - rb_client_confirmed(client), rb_client_desyncs(client));
     if (rb_client_frame(client) % 100 == 0 && rb_client_frame(client) != lastPrinted) {
@@ -200,7 +226,14 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         printf("\n");
         fflush(stdout);
     }
-    return rb_engine_last_tasks(tasks, max);
+    if (me != 0 && !failed) {
+        /* The engine holds the local game's newest frame. Draw it with this player swapped in. */
+        engine_save(engine, viewState);
+        G64SwapPlayer(me);
+        n = port_game_draw_view(tasks, max);
+        viewPending = 1;
+    }
+    return n;
 }
 
 const char *netplay_status(void) { return status; }

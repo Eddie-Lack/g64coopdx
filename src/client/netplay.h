@@ -28,6 +28,9 @@ int netplay_begin(Engine *e, char *err, size_t errSize);
 /* One game frame (20 a second in a level): sends the local controller, runs what the rollback needs, and gives the
  * display-list tasks of the newest frame (weemitt's PortFrameTask). Returns their count, or -1 for none. */
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max);
+/* After the window has drawn the frame that netplay_frame gave: when that frame showed the local player's own view,
+ * puts the game back as it was. */
+void netplay_after_draw(void);
 /* A line for the window's title: the player number, the frames ahead of the confirmed ones, desyncs. */
 const char *netplay_status(void);
 /* 1 when the session has failed; netplay_status says why. */
