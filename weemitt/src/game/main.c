@@ -5,6 +5,7 @@ PORT_C_BEGIN
 #include "timer.h"
 #include "nnsched.h"
 #include "game.h"
+#include "g64players.h"
 #include "camera.h"
 #include "maths.h"
 #include "save.h"
@@ -800,6 +801,8 @@ void GraphicsStep(void) {
     f32 moved;
     f32 dist;
 
+    /* g64coopdx: the other players' gloves and balls are drawn as proxies (g64players.c). */
+    G64UpdateProxies();
     if (!gfxTasks) {
         if (codeDrawingRequest == 1) {
             gfxIsDrawing = 1;
@@ -1092,6 +1095,8 @@ void MainGameLoop(void) {
             PlayerSpinCamera();
             LoadCameraRequests(&requests);
         }
+        /* g64coopdx: the other players' parts of the frame (g64players.c). */
+        G64ExtraPlayersStep();
         CalculateShadows();
         UpdateLights();
         if (!cameraInfo.overrideTimer || !(cameraInfo.overrideFlags & 2)) {

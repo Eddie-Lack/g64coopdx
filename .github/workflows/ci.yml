@@ -48,6 +48,8 @@ jobs:
         run: make savestates
       - name: Build the rollback test with the real game, for Linux and Windows (it runs only with the ROM)
         run: make rollback-game-build
+      - name: Build the multi-player test, for Linux and Windows (it runs only with the ROM)
+        run: make twoplayers-build
       - name: Check the Windows files
         run: |
           file weemitt/build/lib-windows64-stub/glover.dll | grep -q 'PE32+'

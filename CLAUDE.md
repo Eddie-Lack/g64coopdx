@@ -62,6 +62,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make savestates    # the brute forcer's engine and savestates at 64 bits, for Linux and Windows
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
+    make twoplayers    # four gloves in one game; Linux and Wine must print the same (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed
@@ -84,5 +85,6 @@ run locally: set `GLOVER_ROM`.
 | The rollback core, and the real game behind it | src/rollback (`rollback.h`, `engine_game.h`) |
 | The toy game, the loopback tests, fuzz targets | tests/toy, tests/net, tests/fuzz |
 | Tests that need the ROM (they skip without it) | tests/rom |
+| More than one player in the game (the swap prototype) | weemitt/src/game/g64players.c |
 | The UDP transport (direct mode) | src/net (`udp.h`) |
 | Sessions (from phase 2) | src/session |
