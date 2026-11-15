@@ -157,7 +157,9 @@ For the lobby's relay, once:
    ```
 
 2. The next deploy (any push to `main` that changes `server/`, or the "Deploy the lobby" workflow) adds the UDP
-   service and keeps the machine running. `g64coopdx-lobby.fly.dev` then points at the new address too.
+   service and keeps the machine running. `g64coopdx-lobby.fly.dev` then points at the new address too. It also keeps
+   Fly.io's shared IPv4 address, which drops UDP. The program sends to each of the relay's addresses until one answers,
+   then keeps that one.
 3. Optional: point `lobby.slugs.io` at it. Replace the `lobby` A record at slugs.io's DNS with the new address that
    `fly ips list -a g64coopdx-lobby` shows, still "DNS only". The game's default relay is `g64coopdx-lobby.fly.dev`,
    so this is not needed.

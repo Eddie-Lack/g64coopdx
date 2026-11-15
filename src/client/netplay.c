@@ -126,10 +126,11 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
         return fail_connect(err);
     cstart = now_ms();
     if (relay) {
-        net_addr relayAddr;
-        if (net_resolve(relay, 27065, &relayAddr, err, errSize) != 0)
+        net_addr relays[NET_RELAY_ADDRS];
+        int count = net_resolve_all(relay, 27065, relays, NET_RELAY_ADDRS, err, errSize);
+        if (count < 0)
             return fail_connect(err);
-        if (room ? net_relay_join(sock, &relayAddr, room) : net_relay_host(sock, &relayAddr)) {
+        if (room ? net_relay_join(sock, relays, count, room) : net_relay_host(sock, relays, count)) {
             snprintf(err, errSize, "a room code has %d letters and digits", NET_ROOM_CODE);
             return fail_connect(err);
         }
