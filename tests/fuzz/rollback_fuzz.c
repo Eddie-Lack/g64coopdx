@@ -23,7 +23,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         toy_init(&host_game, 4);
         toy_init(&client_game, 4);
         host = rb_host_new(&toy_ops, &host_game, 4, 3, drop, NULL, NULL, NULL);
-        client = rb_client_new(&toy_ops, &client_game, 4, 1, drop, NULL, NULL);
+        client = rb_client_new(&toy_ops, &client_game, 4, 1, 0, drop, NULL, NULL);
     }
     if (size < 1)
         return 0;

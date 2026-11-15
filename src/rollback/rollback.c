@@ -68,6 +68,7 @@ struct rb_client {
     const rb_game_ops *ops;
     void *game;
     int players, me;
+    uint32_t window; /* savestates kept: slots for frames f % window */
     rb_send_fn send;
     rb_frame_fn on_final;
     void *user;
@@ -79,22 +80,26 @@ struct rb_client {
     rb_input last[RB_MAX_PLAYERS]; /* the inputs of frame confirmed - 1: the prediction for the others */
     rb_input inputs[RB_WINDOW][RB_MAX_PLAYERS]; /* the inputs each kept frame was run with, or its confirmed inputs */
     rb_input local[RB_WINDOW];                  /* the local player's own input for each kept frame */
-    uint8_t *states;                            /* RB_WINDOW savestates: slot f % RB_WINDOW is the state before f */
+    uint8_t *states;                            /* window savestates: slot f % window is the state before f */
 };
 
 static uint8_t *slot(const rb_client *c, uint32_t f) {
-    return c->states + (size_t)(f % RB_WINDOW) * c->ops->state_size;
+    return c->states + (size_t)(f % c->window) * c->ops->state_size;
 }
 
-rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me, rb_send_fn send,
+rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me, int window, rb_send_fn send,
                          rb_frame_fn on_final, void *user) {
     rb_client *c;
-    if (!valid_ops(ops) || !send || players < 1 || players > RB_MAX_PLAYERS || me < 0 || me >= players)
+    if (window == 0)
+        window = RB_WINDOW;
+    if (!valid_ops(ops) || !send || players < 1 || players > RB_MAX_PLAYERS || me < 0 || me >= players ||
+        window < 8 || window > RB_WINDOW)
         return NULL;
     c = calloc(1, sizeof *c);
     if (!c)
         return NULL;
-    c->states = malloc(RB_WINDOW * ops->state_size);
+    c->window = (uint32_t)window;
+    c->states = malloc((size_t)window * ops->state_size);
     if (!c->states) {
         free(c);
         return NULL;
@@ -122,17 +127,17 @@ void rb_client_free(rb_client *c) {
 static void inputs_for(rb_client *c, uint32_t f, rb_input *out) {
     int p;
     if (f < c->confirmed) {
-        memcpy(out, c->inputs[f % RB_WINDOW], sizeof(rb_input) * (size_t)c->players);
+        memcpy(out, c->inputs[f % c->window], sizeof(rb_input) * (size_t)c->players);
         return;
     }
     for (p = 0; p < c->players; p++)
-        out[p] = p == c->me ? c->local[f % RB_WINDOW] : c->last[p];
+        out[p] = p == c->me ? c->local[f % c->window] : c->last[p];
 }
 
 static void run_frame(rb_client *c, uint32_t f) {
     rb_input in[RB_MAX_PLAYERS];
     inputs_for(c, f, in);
-    memcpy(c->inputs[f % RB_WINDOW], in, sizeof(rb_input) * (size_t)c->players);
+    memcpy(c->inputs[f % c->window], in, sizeof(rb_input) * (size_t)c->players);
     c->ops->step(c->game, in, c->players);
     c->ops->save(c->game, slot(c, f + 1));
 }
@@ -147,7 +152,7 @@ static void send_input(rb_client *c) {
     put32(m + 6, first);
     m[10] = (uint8_t)count;
     for (i = 0; i < count; i++)
-        put_input(m + INPUT_HEAD + 4 * i, c->local[(first + i) % RB_WINDOW]);
+        put_input(m + INPUT_HEAD + 4 * i, c->local[(first + i) % c->window]);
     c->send(c->user, 0, m, INPUT_HEAD + 4 * count);
 }
 
@@ -156,10 +161,10 @@ static void report_final(rb_client *c) {
     uint32_t limit = c->confirmed < c->frame ? c->confirmed : c->frame;
     while (c->reported < limit) {
         uint32_t f = c->reported++;
-        uint64_t h = c->ops->hash_state(slot(c, f + 1));
         if (c->on_final)
-            c->on_final(c->user, f, h);
+            c->on_final(c->user, f, slot(c, f + 1));
         if (f % RB_HASH_EVERY == 0) {
+            uint64_t h = c->ops->hash_state(slot(c, f + 1));
             uint8_t m[HASH_SIZE];
             m[0] = MSG_HASH;
             m[1] = (uint8_t)c->me;
@@ -172,11 +177,11 @@ static void report_final(rb_client *c) {
 
 int rb_client_step(rb_client *c, rb_input local) {
     /* The window holds the savestates from the first unconfirmed frame to the newest one. */
-    if (c->frame >= c->confirmed && c->frame - c->confirmed > RB_WINDOW - 2) {
+    if (c->frame >= c->confirmed && c->frame - c->confirmed > c->window - 2) {
         send_input(c);
         return 0;
     }
-    c->local[c->frame % RB_WINDOW] = local;
+    c->local[c->frame % c->window] = local;
     run_frame(c, c->frame);
     c->frame++;
     report_final(c);
@@ -205,17 +210,17 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
         if (f > c->confirmed)
             break;
         /* Confirmed inputs far ahead of the frames run would overwrite inputs the window still needs. */
-        if (f >= c->frame && f - c->frame >= RB_WINDOW - 1)
+        if (f >= c->frame && f - c->frame >= c->window - 1)
             break;
         for (p = 0; p < c->players; p++)
             in[p] = get_input(d + CONFIRM_HEAD + 4 * ((size_t)i * (size_t)c->players + (size_t)p));
         if (f < c->frame && wrong == UINT32_MAX)
             for (p = 0; p < c->players; p++)
-                if (!same_input(in[p], c->inputs[f % RB_WINDOW][p])) {
+                if (!same_input(in[p], c->inputs[f % c->window][p])) {
                     wrong = f;
                     break;
                 }
-        memcpy(c->inputs[f % RB_WINDOW], in, sizeof(rb_input) * (size_t)c->players);
+        memcpy(c->inputs[f % c->window], in, sizeof(rb_input) * (size_t)c->players);
         memcpy(c->last, in, sizeof(rb_input) * (size_t)c->players);
         c->confirmed++;
     }
@@ -321,11 +326,12 @@ static void host_confirm(rb_host *h) {
     }
     h->ops->step(h->game, h->done[s], h->players);
     h->ops->save(h->game, h->state);
-    h->hash[s] = h->ops->hash_state(h->state);
+    if (f % RB_HASH_EVERY == 0)
+        h->hash[s] = h->ops->hash_state(h->state);
     if (h->on_confirm)
         h->on_confirm(h->user, f, h->done[s], h->players);
     if (h->on_final)
-        h->on_final(h->user, f, h->hash[s]);
+        h->on_final(h->user, f, h->state);
     h->confirmed++;
 }
 
@@ -393,8 +399,9 @@ static int host_hash(rb_host *h, int from, const uint8_t *d, size_t len) {
     if (len != HASH_SIZE || d[1] != from)
         return -1;
     f = get32(d + 2);
-    /* A client cannot have a final state of a frame the host has not confirmed. */
-    if (f >= h->confirmed)
+    /* A client cannot have a final state of a frame the host has not confirmed, and sends only every
+     * RB_HASH_EVERY-th frame's hash. */
+    if (f >= h->confirmed || f % RB_HASH_EVERY != 0)
         return -1;
     if (h->confirmed - f > RB_HOST_WINDOW)
         return 0;
