@@ -1567,6 +1567,10 @@ static void parse_args(int argc, char **argv) {
             opt.level = atol(argv[++i]);
         } else if (!strcmp(a, "--fixed")) {
             opt.fixedRate = 1;
+        } else if (!strcmp(a, "--players") && next) {
+            /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */
+            extern int g64Players;
+            g64Players = atoi(argv[++i]);
         } else if (!strcmp(a, "--dt") && next) {
             opt.dt = atof(argv[++i]);
         } else if (!strcmp(a, "--dt-jitter") && next) {

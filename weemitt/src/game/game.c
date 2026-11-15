@@ -13,6 +13,7 @@ PORT_C_BEGIN
 #include "banks.h"
 #include "ident.h"
 #include "game.h"
+#include "g64players.h"
 #include "overlay.h"
 #include "jalloc.h"
 #include "save.h"
@@ -506,6 +507,7 @@ void FreeScreen(void) {
     InitOverlayList();
     FreeBackdropListInline();
     LoadFont();
+    G64ExtraPlayersFree();
     DestroyAndFreeActor(&camera);
     DestroyAndFreeActor(&cameraInfo.actor);
     JallocInit(PORT_P2W(jallocHeapStart), PORT_HEAP_TOP - PORT_P2W(jallocHeapStart));
@@ -765,6 +767,7 @@ void FreeLevel2(s32 full) {
         vent2 = vent->next;
         JallocFree(&vent);
     }
+    G64ExtraPlayersFree();
     DestroyAndFreeActor(&camera);
     DestroyAndFreeActor(&cameraInfo.actor);
     DestroyAndFreeActor(&hand);

@@ -58,6 +58,14 @@ Status (15 November 2026):
 
 ## Phase 1: two gloves offline
 
+Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`), and kept for now: it is the
+fastest way to two gloves for the first online tests. Each extra player's glove, ball, camera, pad and their control
+blocks live in a slot on the game's heap and are swapped into the globals for that player's part of the frame. The
+other players' gloves and balls are drawn as proxy actors. Four gloves play the first hub level for 3,000 frames with
+the same output and hashes on Linux and Windows (`make twoplayers`); with one player the game still equals the
+baseline. Known gaps: enemies, collectables and puzzles see only player 1; every machine draws from player 1's
+camera; the other gloves have no color of their own.
+
 - Game change 1: a pad per player.
 - Game change 7: an option that turns off every PC addition of weemitt's that the controller can reach, such as the
   cheat list in the pause menu.
