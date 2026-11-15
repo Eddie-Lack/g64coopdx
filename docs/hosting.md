@@ -24,9 +24,9 @@ The first playable versions (phases 1 to 3) connect directly and need no service
 
 | Thing | Where it runs | Cost while idle |
 | --- | --- | --- |
-| The lobby server | A small container on Fly.io that stops when nobody is connected | A few cents a month |
+| The lobby server | A small container on Fly.io that keeps running (the relay needs it) | About $2.19 a month |
 | STUN | Cloudflare's public STUN server | Free |
-| The relay | Cloudflare Realtime TURN, a managed service | Free |
+| The relay | For now: the lobby's own UDP relay on Fly.io, with rooms joined by code (`server/relay.go`). Later, if it carries much: Cloudflare Realtime TURN | $2 a month for the dedicated IPv4 address that UDP needs, and $0.02 per GB |
 | Downloads | GitHub Releases | Free |
 | The lobby's container image | The GitHub container registry (ghcr.io) | Free |
 | The source and CI | GitHub and GitHub Actions | Free |
@@ -37,6 +37,12 @@ game. The first address is `lobby.slugs.io`, a subdomain of the owner's existing
 gives the app, `g64coopdx-lobby.fly.dev`, also works.
 
 The owner left this decision to the report. Every part can change later without a change to the game's design.
+
+The relay changed on 15 November 2026: the owner asked for online play without port forwarding before phase 4. The
+lobby's own relay needs no Cloudflare account and no NAT traversal in the game: every player sends to one UDP port,
+and the relay passes each packet on inside its room. At the estimate below (about 30 MB an hour per relayed player)
+an hour of a two-player game costs well under a cent. Cloudflare's TURN service, or direct connections through
+libjuice, can replace it in phase 4.
 
 ## Why
 
@@ -89,8 +95,9 @@ weemitt's MIT license.
 
 ## What is set up today
 
-- **The lobby server placeholder** in [`server/`](../server/README.md): a program that answers a health check and
-  describes itself. It lists no sessions yet. It is built with a supported Go release (1.27 today).
+- **The lobby server** in [`server/`](../server/README.md): a program that answers a health check, describes
+  itself, and runs the relay on UDP port 27065. It lists no sessions yet. It is built with a supported Go release
+  (1.27 today).
 - **Its container image**, built by `make image` from `server/Dockerfile`.
 - **CI** (`.github/workflows/ci.yml`): on every pull request it tests the placeholder, builds the image, runs it
   and asks it for its health. On every push to `main` it also publishes the image to ghcr.io.
@@ -98,7 +105,8 @@ weemitt's MIT license.
 - **A deploy workflow** (`.github/workflows/deploy-lobby.yml`). It deploys on a push to `main` that changes
   `server/`, or when started by hand.
 
-The placeholder runs on Fly.io at `https://lobby.slugs.io`. Nothing runs on Cloudflare's relay yet.
+The lobby runs on Fly.io at `https://lobby.slugs.io`. The relay answers at `g64coopdx-lobby.fly.dev:27065` once the
+app has its dedicated IPv4 address (below).
 
 ## What the owner has to do
 
@@ -140,7 +148,21 @@ app has its own machine, address, secrets and bill line, so the two projects do 
 To let others run the lobby's image: open the package `g64coopdx-lobby` on GitHub, then Package settings, Change
 visibility, Public. A new package is private, and a public one cannot be made private again.
 
-For the relay, in phase 4:
+For the lobby's relay, once:
+
+1. Give the app a dedicated IPv4 address. Fly.io delivers UDP only to one. It costs $2 a month.
+
+   ```bash
+   fly ips allocate-v4 -a g64coopdx-lobby
+   ```
+
+2. The next deploy (any push to `main` that changes `server/`, or the "Deploy the lobby" workflow) adds the UDP
+   service and keeps the machine running. `g64coopdx-lobby.fly.dev` then points at the new address too.
+3. Optional: point `lobby.slugs.io` at it. Replace the `lobby` A record at slugs.io's DNS with the new address that
+   `fly ips list -a g64coopdx-lobby` shows, still "DNS only". The game's default relay is `g64coopdx-lobby.fly.dev`,
+   so this is not needed.
+
+For Cloudflare's relay, if the lobby's own one ever carries too much:
 
 1. Open a Cloudflare account and create a TURN key under Realtime.
 2. Give the lobby the key's id and its API token as Fly.io secrets, never in a file.

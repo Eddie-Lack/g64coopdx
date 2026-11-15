@@ -24,11 +24,23 @@ type config struct {
 	// STUNURLs lists the STUN servers that clients are told to use. A STUN server tells a machine its public
 	// address.
 	STUNURLs []string
+	// RelayAddr is the UDP address the relay listens on; empty turns the relay off.
+	RelayAddr string
 }
 
 // configFromEnv reads the settings. A missing or bad value falls back to its default.
 func configFromEnv(getenv func(string) string) config {
-	cfg := config{Port: "8080", STUNURLs: []string{"stun:stun.cloudflare.com:3478"}}
+	cfg := config{Port: "8080", STUNURLs: []string{"stun:stun.cloudflare.com:3478"}, RelayAddr: ":27065"}
+	if p, err := strconv.Atoi(getenv("LOBBY_RELAY_PORT")); err == nil && p >= 0 && p < 65536 {
+		cfg.RelayAddr = ":" + strconv.Itoa(p)
+		if p == 0 {
+			cfg.RelayAddr = ""
+		}
+	}
+	// Fly.io delivers UDP only to sockets bound to this name (docs.fly.io/networking/udp-and-tcp).
+	if getenv("FLY_APP_NAME") != "" && cfg.RelayAddr != "" {
+		cfg.RelayAddr = "fly-global-services" + cfg.RelayAddr
+	}
 	if p, err := strconv.Atoi(getenv("PORT")); err == nil && p > 0 && p < 65536 {
 		cfg.Port = strconv.Itoa(p)
 	}

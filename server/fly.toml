@@ -3,7 +3,8 @@
 #   fly apps create g64coopdx-lobby
 
 app = "g64coopdx-lobby"
-# Chicago, as the account's other app. The lobby carries no game traffic, so its place matters little.
+# Chicago, as the account's other app. The relay carries the game's packets for players who join by room code; a
+# relay far from both players adds delay to every input.
 primary_region = "ord"
 
 [build]
@@ -12,10 +13,11 @@ primary_region = "ord"
 [http_service]
   internal_port = 8080
   force_https = true
-  # The machine stops when nobody is connected, and starts on the next request.
-  auto_stop_machines = "stop"
+  # The machine keeps running: the relay's UDP packets do not start a stopped machine, and a game must not lose its
+  # relay halfway through.
+  auto_stop_machines = "off"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
 
   [[http_service.checks]]
     method = "GET"
@@ -23,6 +25,15 @@ primary_region = "ord"
     interval = "30s"
     timeout = "5s"
     grace_period = "5s"
+
+# The relay (relay.go). Fly.io delivers UDP only to a dedicated IPv4 address (fly ips allocate-v4), and only to a
+# socket bound to fly-global-services, which the server does when FLY_APP_NAME is set.
+[[services]]
+  internal_port = 27065
+  protocol = "udp"
+
+  [[services.ports]]
+    port = 27065
 
 [[vm]]
   size = "shared-cpu-1x"

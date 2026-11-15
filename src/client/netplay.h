@@ -14,14 +14,20 @@
 extern "C" {
 #endif
 
+/* The lobby's relay, which carries the game for players who join by room code. */
+#define NET_RELAY_DEFAULT "g64coopdx-lobby.fly.dev:27065"
+
 typedef struct Engine Engine;
 
-/* Connects before the game starts: hosts on port hostPort when join is NULL, or joins the address join. A host
- * confirms each frame deadline frames after its own clock (0: 5 frames, 250 ms; more suits players far apart). It
- * waits (printing progress on standard output) until the game starts, then gives the level and the number of
- * players. Returns 0, or -1 with a message in err. */
-int netplay_connect(const char *join, int hostPort, int players, int deadline, const uint8_t *rom, size_t romSize,
-                    int *level, int *outPlayers, char *err, size_t errSize);
+/* Connects before the game starts and waits (printing progress on standard output) until it starts; then gives the
+ * level and the number of players. Returns 0, or -1 with a message in err. The ways to connect:
+ *   relay set, room NULL: host through the relay at relay (HOST[:PORT]); it prints the room's code
+ *   relay set, room set: join the room with that code through the relay
+ *   relay NULL, join NULL: host directly on UDP port hostPort (the host forwards that port)
+ *   relay NULL, join set: join the host at join (HOST[:PORT]) directly
+ * A host confirms each frame deadline frames after its own clock (0: 5 frames, 250 ms). */
+int netplay_connect(const char *join, int hostPort, const char *relay, const char *room, int players, int deadline,
+                    const uint8_t *rom, size_t romSize, int *level, int *outPlayers, char *err, size_t errSize);
 /* 1 after a successful netplay_connect. */
 int netplay_active(void);
 /* After the game has started at the level (port_game_init) and the engine is attached: sets up the rollback. */

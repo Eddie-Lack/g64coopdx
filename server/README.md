@@ -3,7 +3,10 @@
 The lobby server introduces players to each other. Its finished form lists open sessions, passes connection details
 between a host and a joiner, and hands out short-lived credentials for the relay. It never sees game data.
 
-**This is a placeholder.** It answers the routes below and does nothing else. Phase 4 of the
+It answers the routes below and runs the relay (`relay.go`): a UDP service on port 27065 that carries the game's
+packets between a host and its joiners inside a room, so no player forwards a port. A host opens a room and gets a
+six-character code; joiners join with the code. The relay never reads the game's packets. The HTTP routes are still
+a placeholder. Phase 4 of the
 [roadmap](../docs/discovery/roadmap.md) writes the real one. [docs/hosting.md](../docs/hosting.md) says where it
 runs.
 
@@ -22,6 +25,7 @@ The server reads its settings from environment variables.
 | --- | --- | --- |
 | `PORT` | `8080` | The TCP port to listen on |
 | `LOBBY_STUN_URLS` | `stun:stun.cloudflare.com:3478` | STUN servers, separated by commas |
+| `LOBBY_RELAY_PORT` | `27065` | The relay's UDP port; 0 turns the relay off. On Fly.io (`FLY_APP_NAME` set) it binds to `fly-global-services` |
 
 ## Run it
 
