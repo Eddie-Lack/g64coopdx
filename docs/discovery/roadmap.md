@@ -144,7 +144,7 @@ and plays.
 - A 64-bit Windows release, with SDL2 and the notices.
 - Crash reports that hold no game memory.
 - Player docs in the owner's style.
-- The name ([open-questions.md](open-questions.md)); weemitt's license, which a release also needs.
+- The name ([open-questions.md](open-questions.md)).
 
 ## Game changes by phase
 

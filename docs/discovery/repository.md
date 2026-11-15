@@ -92,7 +92,7 @@ Glovebox's CI works the same way: the tests that need the ROM skip themselves (`
 | Thing | May be distributed? |
 | --- | --- |
 | g64coopdx's own source | Yes, under its license |
-| The copy of weemitt in `weemitt/` | It is decompiled game C, from the owner's own weemitt. It is under weemitt's terms, and weemitt has no license yet; MIT does not cover it. A release needs weemitt's license |
+| The copy of weemitt in `weemitt/` | It is decompiled game C, from the owner's own weemitt. It is under weemitt's own MIT license (`weemitt/LICENSE`) |
 | Vendored libraries | Yes, under their licenses (MIT, ISC, MPL-2.0, zlib), with their notices |
 | Release builds | **Decided: yes.** They contain the game's code compiled from the decompilation, but no ROM data, as sm64coopdx's and other decompilation ports' builds do. Players supply their own ROM |
 | The lobby server | Yes; the project runs it |
@@ -116,9 +116,8 @@ Facts (VERIFIED):
 - MIT fits every library above. MPL-2.0 asks only that libjuice's own files keep their license; use them unchanged.
 - The `LICENSE` file comes with the first code (phase 0). Its copyright holder is "The g64coopdx contributors" (decided).
 - Keep `THIRD_PARTY_NOTICES.md` from the first commit, as gloveworld and Glovebox do.
-- MIT covers g64coopdx's own code, not the copy in `weemitt/`. weemitt, gloveworld and Glovebox still have no license.
-  The repository and its release builds contain weemitt's code, so a release needs weemitt's license too (INFERRED,
-  not legal advice).
+- g64coopdx's `LICENSE` covers its own code. The copy in `weemitt/` keeps weemitt's own MIT license
+  (`weemitt/LICENSE`), and `THIRD_PARTY_NOTICES.md` names it.
 
 ## Draft CLAUDE.md
 
