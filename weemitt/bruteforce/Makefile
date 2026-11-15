@@ -2,6 +2,7 @@
 #
 #   make                 Linux build: build/linux/glover
 #   make windows         Windows build: build/windows/glover.exe (cross-compiled with MinGW-w64, 32-bit)
+#   make BITS=64         a 64-bit build: build/linux64/glover, or build/windows64/glover.exe with make windows64
 #   make test            the engine tests (tests/README.md)
 #   make OPT=fast        a faster build of the game's code (see GAME_OPT below)
 #
@@ -12,29 +13,37 @@
 TARGET ?= linux
 W := ..
 OPT ?= base
+BITS ?= 32
+B64 := $(if $(filter 64,$(BITS)),64)
 
 ifeq ($(TARGET),windows)
-CC := i686-w64-mingw32-gcc
-CXX := i686-w64-mingw32-g++
-LD := i686-w64-mingw32-ld
-OBJCOPY := i686-w64-mingw32-objcopy
+MINGW := $(if $(B64),x86_64,i686)-w64-mingw32
+CC := $(MINGW)-gcc
+CXX := $(MINGW)-g++
+LD := $(MINGW)-ld
+OBJCOPY := $(MINGW)-objcopy
 EXE := .exe
-BUILD ?= build/windows$(if $(filter-out base,$(OPT)),-$(OPT))
+BUILD ?= build/windows$(B64)$(if $(filter-out base,$(OPT)),-$(OPT))
 # The game's data holds pointers to the program's code and data. A state saved in one worker loads in another only when
 # both hold these at the same addresses. So the program loads at one fixed address: no ASLR and no relocation table,
 # which Windows would need to move it. The address is near the Linux build's (0x08048000). Lower down, the ROM offsets
 # that the game's data holds (up to 0x77DE20) would look like pointers to the program to engine_check_hash. The
 # program may use 4 GB of address space.
+# The 64-bit program keeps MinGW's usual base above 4 GB; its game data holds offsets, not pointers (docs/port64.md).
+ifeq ($(B64),64)
+LDFLAGS := -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section -Wl,--image-base=0x140000000
+else
 LDFLAGS := -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section -Wl,--large-address-aware \
            -Wl,--image-base=0x08000000
+endif
 LIBS := -lm
 else
 CC := gcc
 CXX := g++
-LD := ld -m elf_i386
+LD := ld -m $(if $(B64),elf_x86_64,elf_i386)
 OBJCOPY := objcopy
 EXE :=
-BUILD ?= build/linux$(if $(filter-out base,$(OPT)),-$(OPT))
+BUILD ?= build/linux$(B64)$(if $(filter-out base,$(OPT)),-$(OPT))
 LDFLAGS := -no-pie -Wl,-z,noexecstack
 LIBS := -lm -lrt -lpthread
 endif
@@ -42,7 +51,7 @@ endif
 # weemitt's flags and source lists for its headless build (no renderer, the silent stand-in sound player). The game's
 # file list leaves out devview.c: it only draws the Developer menu's views and keeps a large buffer of lines.
 WVARS := $(BUILD)/weemitt.mk
-$(shell mkdir -p $(BUILD) && $(MAKE) -s --no-print-directory -C $(W) -pn TARGET=$(TARGET) RENDERER=null AUDIO=stub nothing 2>/dev/null \
+$(shell mkdir -p $(BUILD) && $(MAKE) -s --no-print-directory -C $(W) -pn TARGET=$(TARGET) BITS=$(BITS) RENDERER=null AUDIO=stub nothing 2>/dev/null \
 	| grep -E '^(GAME_CFLAGS|GAME_CXXFLAGS|GAME_SRCS|PORT_SRCS|PORT_CXX_SRCS|AUDIO_SRCS|ASM_SRCS|ARCH_FLAGS) :=' \
 	| sed -e 's| -I| -I$(W)/|g' -e 's|-include src/|-include $(W)/src/|' -e 's|^\([A-Z_]*\) :=|W_\1 :=|' > $(WVARS).tmp \
 	&& (cmp -s $(WVARS).tmp $(WVARS) || mv $(WVARS).tmp $(WVARS)); rm -f $(WVARS).tmp)
@@ -61,6 +70,13 @@ else ifeq ($(OPT),znver4)
 GAME_OPT := -O3 -fno-stack-protector -U_FORTIFY_SOURCE -march=znver4
 else
 GAME_OPT := $(OPT_FLAGS)
+endif
+
+# The 64-bit Windows game is linked into one relocatable object first (game.o below). MinGW's inline functions
+# (snprintf and others) then leave unwind entries (.pdata) that point at copies the final link drops, and the link
+# fails. The game's code has no exceptions and needs no unwind tables; leaving them out changes no result.
+ifeq ($(TARGET)$(B64),windows64)
+GAME_OPT += -fno-asynchronous-unwind-tables -fno-unwind-tables
 endif
 
 GAME_CFLAGS := $(W_GAME_CFLAGS) $(GAME_OPT)
@@ -93,15 +109,24 @@ all: $(PROGRAM)
 windows:
 	$(MAKE) TARGET=windows
 
+windows64:
+	$(MAKE) TARGET=windows BITS=64
+
 # The game's code in one relocatable object. Its writable data goes into two sections of its own, gstate_data and
 # gstate_bss. A savestate copies exactly these and nothing of the C library or the programs. -d puts common symbols
 # into .bss first. The game's memory (port_ram, gen/ram.S) stays apart: a savestate copies only the parts in use.
 # --wrap sends the game's calls of the functions in engine/hooks.def to the engine's hooks.
 $(BUILD)/game.o: $(GAME_OBJS) engine/hooks.def
 	$(LD) -r -d $(addprefix --wrap=,$(HOOKS)) -o $@.tmp $(GAME_OBJS)
-	$(OBJCOPY) --rename-section .data=gstate_data --rename-section .bss=gstate_bss $@.tmp $@
+	$(OBJCOPY) --rename-section .data=gstate_data --rename-section .bss=gstate_bss $(DATA_REL_RENAMES) $@.tmp $@
 	rm -f $@.tmp
-	@python3 tools/checkgame.py $@ $(TARGET)
+	@python3 tools/checkgame.py $@ $(TARGET) $(BITS)
+
+# The 64-bit Linux game is position-independent (weemitt's -fpie). Its writable data that holds addresses is in
+# .data.rel sections, which go to gstate_data too. .data.rel.ro holds addresses that never change after loading, so
+# copying it with the state is harmless.
+DATA_REL_RENAMES := $(if $(and $(B64),$(filter linux,$(TARGET))),$(foreach s,.data.rel .data.rel.local .data.rel.ro \
+                    .data.rel.ro.local,--rename-section $(s)=gstate_data))
 
 $(LIB): $(BUILD)/game.o $(RAM_OBJ) $(ENGINE_OBJS)
 	rm -f $@
@@ -154,7 +179,7 @@ test: all
 clean:
 	rm -rf build
 
-.PHONY: all windows test clean
+.PHONY: all windows windows64 test clean
 # Keep the objects that pattern rules make on the way. Delete a target whose recipe fails (a game.o that failed
 # checkgame.py, a half-written symbols.c).
 .SECONDARY:

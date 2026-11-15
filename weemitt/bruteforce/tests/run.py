@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Runs the engine tests.
 
-    python3 tests/run.py [--build build/linux] [--base build/linux] [--rom ROM] [--quick] [--wine]
+    python3 tests/run.py [--build build/linux] [--base build/linux] [--rom ROM] [--quick] [--wine [--wine-build DIR]]
 
 The ROM is found as in the README (--rom, $GLOVER_ROM, or glover.z64 in the working directory). The tests:
 - saveload: in a boss level, in Atlantis 1 and from power-on (src/saveload.c explains what it checks);
@@ -12,7 +12,9 @@ The ROM is found as in the README (--rom, $GLOVER_ROM, or glover.z64 in the work
 - the trimmed draw gives the same state trace as the full draw, frame by frame;
 - the same game as the base build: when --build is not the base build, both builds play the same input and must
   print the same state trace for every frame;
-- with --wine, the same for the Windows build (build/windows) under Wine, which needs a Windows build and Wine.
+- with --wine, the same for the Windows build (build/windows, or --wine-build build/windows64) under Wine, which needs
+  a Windows build and Wine. $WINE names the Wine program (default: wine); a 64-bit build needs a 64-bit prefix
+  ($WINEPREFIX).
 --quick plays shorter games.
 """
 import argparse
@@ -35,10 +37,13 @@ def find_rom(arg):
     sys.exit('run.py: give the ROM with --rom or $GLOVER_ROM')
 
 
+WINE = os.environ.get('WINE', 'wine')
+
+
 def run(cmd, wine=False):
     """Runs cmd and returns (exit status, standard output). A failure prints its standard error."""
     if wine:
-        cmd = ['wine'] + cmd
+        cmd = [WINE] + cmd
     env = dict(os.environ, WINEDEBUG='-all')
     p = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if p.returncode != 0:
@@ -74,11 +79,12 @@ def main():
     ap.add_argument('--rom')
     ap.add_argument('--quick', action='store_true')
     ap.add_argument('--wine', action='store_true')
+    ap.add_argument('--wine-build', default=os.path.join(ROOT, 'build', 'windows'))
     args = ap.parse_args()
     rom = find_rom(args.rom)
     builds = [(args.build, '', False)]
     if args.wine:
-        builds.append((os.path.join(ROOT, 'build', 'windows'), '.exe', True))
+        builds.append((args.wine_build, '.exe', True))
     failed = [0]
     tmp = tempfile.mkdtemp()
     frames = 300 if args.quick else 600
@@ -150,7 +156,7 @@ def main():
 
         with open(stop_script, 'w') as fs:
             fs.write('R 0 0\nD\nL\n@ UpdateActor=0x1\nR 0 0\n@end\n')
-        p = subprocess.run((['wine'] if wine else []) + [exe, 'play', '--rom', rom, '--events', stop_script],
+        p = subprocess.run(([WINE] if wine else []) + [exe, 'play', '--rom', rom, '--events', stop_script],
                            capture_output=True, text=True, env=dict(os.environ, WINEDEBUG='-all'))
         report(p.returncode == 0 and 'did not reach' in p.stderr, f'{name} a stop that is not reached', failed)
 

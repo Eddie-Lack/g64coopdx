@@ -21,11 +21,17 @@ built and how its savestates work.
   `.bss` becomes `gram_bss`.
 - `game.o`, `ram.o`, the engine and the symbol table go into `libglover.a`. The one program, `glover`, links it
   statically, with a command for each tool (`src/main.c`).
-- The program is 32-bit, as weemitt is. On Linux it is not position-independent and loads at 0x08048000. On Windows
-  it is linked with `--disable-dynamicbase` and `--disable-reloc-section` at 0x08000000: it loads there or not at
-  all. So every process of the program has the game's memory, code and variables at the same addresses, and a state
+- The program is 32-bit by default, as weemitt is. On Linux it is not position-independent and loads at
+  0x08048000. On Windows it is linked with `--disable-dynamicbase` and `--disable-reloc-section` at 0x08000000: it
+  loads there or not at all. So every process of the program has the game's memory, code and variables at the same addresses, and a state
   saved in one process loads in another. A separately linked program would place the game's code and variables
   elsewhere: the state header's build value refuses its states.
+- `BITS=64` builds a 64-bit program. On Linux the game's objects are position-independent (weemitt's `-fpie`), but
+  the program is not: it loads at 0x400000. Their `.data.rel` sections go into `gstate_data` with `.data`. On Windows
+  the program loads at MinGW's usual 0x140000000, again only there. The game's objects are built without unwind
+  tables: after the relocatable link, MinGW's inline functions would leave unwind entries that the final link cannot
+  place. The game's memory holds offsets at 64 bits (weemitt's `docs/port64.md`), and the engine's hash skips the
+  whole 8-byte ROM pointer.
 - `OPT=fast` adds `-O3` and turns off the stack protector; `OPT=znver4` also adds `-march=znver4`. The game is still
   compiled with `-ffp-contract=off` and SSE floating point. The benchmark's check line is the same for all of them
   (see "Checks").

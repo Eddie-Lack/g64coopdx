@@ -502,16 +502,20 @@ static uint64_t hash_words(uint64_t h, const void *p, size_t n) {
 uint64_t engine_hash(Engine *e) {
     uint64_t h = 1469598103934665603ull;
 
-    size_t a = rom_slot() < rom_size_slot() ? rom_slot() : rom_size_slot();
-    size_t b = rom_slot() < rom_size_slot() ? rom_size_slot() : rom_slot();
+    /* The two slots in order, with their widths: a pointer has 8 bytes in a 64-bit build. */
+    int romFirst = rom_slot() < rom_size_slot();
+    size_t a = romFirst ? rom_slot() : rom_size_slot();
+    size_t b = romFirst ? rom_size_slot() : rom_slot();
+    size_t aw = romFirst ? sizeof(port_rom) : sizeof(port_rom_size);
+    size_t bw = romFirst ? sizeof(port_rom_size) : sizeof(port_rom);
 
     /* The whole heap, not only the part a state holds: the marks depend on the game's history, the state does
        not. The ROM's address and size are left out, as a save leaves them out. */
     h = (h ^ e->frame) * 1099511628211ull;
     h = hash_words(h, __start_gstate_data, data_size());
     h = hash_words(h, __start_gstate_bss, a);
-    h = hash_words(h, __start_gstate_bss + a + 4, b - a - 4);
-    h = hash_words(h, __start_gstate_bss + b + 4, bss_size() - b - 4);
+    h = hash_words(h, __start_gstate_bss + a + aw, b - a - aw);
+    h = hash_words(h, __start_gstate_bss + b + bw, bss_size() - b - bw);
     h = hash_words(h, hw_start(), hw_size());
     h = hash_words(h, port_ram, HEAP_TOP);
     return h;
