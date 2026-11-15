@@ -1,13 +1,19 @@
 name: Online program
 
 # Builds the online program (docs/playing-online.md) for Windows and Linux and keeps each as a workflow artifact. A tag
-# that starts with v also publishes them as a release. The builds hold no ROM data: each player needs their own ROM.
+# that starts with v also publishes them as a release. So does a run started by hand with a version (such as v0.1.0):
+# it tags the run's commit. The builds hold no ROM data: each player needs their own ROM.
 on:
   push:
     branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Publish a release with this tag, such as v0.1.0 (empty: build only)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -75,7 +81,7 @@ jobs:
   release:
     name: Publish a release
     needs: [windows, linux]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -84,8 +90,11 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version || github.ref_name }}
         run: |
+          # A version from a run started by hand must look like v1.2.3.
+          echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "Bad version: $VERSION"; exit 1; }
           (cd g64coopdx-windows && zip -r ../g64coopdx-windows.zip .)
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION" \
             --notes "The online prototype. See README.md inside. Each player needs their own Glover (USA) ROM." \
             g64coopdx-windows.zip g64coopdx-linux/g64coopdx-linux.tar.gz
