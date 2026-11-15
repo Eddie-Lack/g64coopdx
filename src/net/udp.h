@@ -34,6 +34,9 @@ uint16_t net_port(const net_socket *s);
 /* Resolves "host", "host:port", "[v6]:port" or "v6" to an address; defaultPort is used when none is given. Returns 0,
  * or -1 with a message in err. It may block while it asks DNS. */
 int net_resolve(const char *text, uint16_t defaultPort, net_addr *out, char *err, size_t errSize);
+/* The same, with up to max of the name's addresses: IPv4 ones first, each once. Returns their count (1 or more), or -1
+ * with a message in err. */
+int net_resolve_all(const char *text, uint16_t defaultPort, net_addr *out, int max, char *err, size_t errSize);
 /* Writes an address as text ("1.2.3.4:5000" or "[::1]:5000"). */
 void net_addr_text(const net_addr *a, char *buf, size_t size);
 /* 1 when two addresses are the same. */
@@ -51,11 +54,15 @@ int net_recv(net_socket *s, net_addr *from, void *buf, size_t size);
 
 #define NET_FAMILY_RELAY 9
 #define NET_ROOM_CODE 6
+/* The most addresses of the relay that a socket tries. */
+#define NET_RELAY_ADDRS 4
 enum { NET_RELAY_HOST = 1, NET_RELAY_JOIN = 2 };
 
-/* Puts a socket in relay mode as a host (opens a room) or a joiner (joins the room code). Returns 0, or -1. */
-int net_relay_host(net_socket *s, const net_addr *relay);
-int net_relay_join(net_socket *s, const net_addr *relay, const char *code);
+/* Puts a socket in relay mode as a host (opens a room) or a joiner (joins the room code). relays holds count of the
+ * relay's addresses (1 to NET_RELAY_ADDRS). A name can have addresses that do not carry UDP: the socket sends to every
+ * one until the relay answers, then only to the address that answered. Returns 0, or -1. */
+int net_relay_host(net_socket *s, const net_addr *relays, int count);
+int net_relay_join(net_socket *s, const net_addr *relays, int count, const char *code);
 /* Sends what keeps the room or the place in it; call it often (it sends every 250 ms until ready, then every 2 s). */
 void net_relay_tick(net_socket *s, uint32_t now);
 /* 0 while waiting, 1 when the room is open or joined, -1 when the relay refused the join. */

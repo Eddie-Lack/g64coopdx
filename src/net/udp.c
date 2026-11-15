@@ -36,7 +36,8 @@ struct net_socket {
     int v6; /* the socket is IPv6 (it may take IPv4 too, as mapped addresses) */
     uint16_t port;
     int relay;       /* 0: direct; NET_RELAY_HOST or NET_RELAY_JOIN */
-    net_addr relayAddr;
+    net_addr relayAddr[NET_RELAY_ADDRS]; /* the relay's addresses; only the first once the relay has answered */
+    int relayAddrs;
     char code[NET_ROOM_CODE + 1]; /* the room: given by the relay to a host, by the player to a joiner */
     int state;       /* 0 waiting, 1 ready, -1 refused */
     int refusal;
@@ -184,6 +185,10 @@ void net_close(net_socket *s) {
 uint16_t net_port(const net_socket *s) { return s->port; }
 
 int net_resolve(const char *text, uint16_t defaultPort, net_addr *out, char *err, size_t errSize) {
+    return net_resolve_all(text, defaultPort, out, 1, err, errSize) > 0 ? 0 : -1;
+}
+
+int net_resolve_all(const char *text, uint16_t defaultPort, net_addr *out, int max, char *err, size_t errSize) {
     char host[256], portText[8];
     const char *colon;
     struct addrinfo hints, *res = NULL, *r;
@@ -230,19 +235,34 @@ int net_resolve(const char *text, uint16_t defaultPort, net_addr *out, char *err
         return -1;
     }
     /* IPv4 first: it reaches most home routers' forwarded ports. */
-    for (r = res; r; r = r->ai_next)
-        if (r->ai_family == AF_INET)
-            break;
-    if (!r)
-        r = res;
     {
-        struct sockaddr_storage ss;
-        memset(&ss, 0, sizeof ss);
-        memcpy(&ss, r->ai_addr, r->ai_addrlen < sizeof ss ? r->ai_addrlen : sizeof ss);
-        to_net_addr(&ss, out);
+        int count = 0, pass;
+        for (pass = 0; pass < 2; pass++) {
+            for (r = res; r && count < max; r = r->ai_next) {
+                struct sockaddr_storage ss;
+                net_addr a;
+                int i, seen = 0;
+                if ((r->ai_family == AF_INET) != (pass == 0))
+                    continue;
+                memset(&ss, 0, sizeof ss);
+                memcpy(&ss, r->ai_addr, r->ai_addrlen < sizeof ss ? r->ai_addrlen : sizeof ss);
+                memset(&a, 0, sizeof a);
+                to_net_addr(&ss, &a);
+                if (!a.family)
+                    continue;
+                for (i = 0; i < count; i++)
+                    seen |= net_addr_equal(&out[i], &a);
+                if (!seen)
+                    out[count++] = a;
+            }
+        }
+        freeaddrinfo(res);
+        if (count == 0) {
+            snprintf(err, errSize, "cannot find the address %s", host);
+            return -1;
+        }
+        return count;
     }
-    freeaddrinfo(res);
-    return out->family ? 0 : -1;
 }
 
 void net_addr_text(const net_addr *a, char *buf, size_t size) {
@@ -306,13 +326,31 @@ static int raw_recv(net_socket *s, net_addr *from, void *buf, size_t size, size_
 
 static void relay_send(net_socket *s, int type, const void *body, size_t len) {
     uint8_t m[NET_MAX_DATAGRAM + RELAY_HEAD + 1];
+    int i;
     if (len > sizeof m - RELAY_HEAD)
         return;
     memcpy(m, "G64R", 4);
     m[4] = (uint8_t)type;
     if (len)
         memcpy(m + RELAY_HEAD, body, len);
-    raw_send(s, &s->relayAddr, m, RELAY_HEAD + len);
+    for (i = 0; i < s->relayAddrs; i++)
+        raw_send(s, &s->relayAddr[i], m, RELAY_HEAD + len);
+}
+
+static int set_relays(net_socket *s, const net_addr *relays, int count) {
+    int i;
+    if (!relays || count < 1 || count > NET_RELAY_ADDRS)
+        return -1;
+    for (i = 0; i < count; i++)
+        s->relayAddr[i] = relays[i];
+    s->relayAddrs = count;
+    return 0;
+}
+
+/* The relay answered from address i: from now on, only that address is used. */
+static void settle(net_socket *s, int i) {
+    s->relayAddr[0] = s->relayAddr[i];
+    s->relayAddrs = 1;
 }
 
 static void keep(net_socket *s) {
@@ -322,11 +360,10 @@ static void keep(net_socket *s) {
         relay_send(s, R_JOIN, s->code, NET_ROOM_CODE);
 }
 
-int net_relay_host(net_socket *s, const net_addr *relay) {
-    if (!s || !relay)
+int net_relay_host(net_socket *s, const net_addr *relays, int count) {
+    if (!s || set_relays(s, relays, count) != 0)
         return -1;
     s->relay = NET_RELAY_HOST;
-    s->relayAddr = *relay;
     s->state = 0;
     s->code[0] = 0;
     s->kept = 0;
@@ -334,12 +371,11 @@ int net_relay_host(net_socket *s, const net_addr *relay) {
     return 0;
 }
 
-int net_relay_join(net_socket *s, const net_addr *relay, const char *code) {
+int net_relay_join(net_socket *s, const net_addr *relays, int count, const char *code) {
     size_t i;
-    if (!s || !relay || !code || strlen(code) != NET_ROOM_CODE)
+    if (!s || !code || strlen(code) != NET_ROOM_CODE || set_relays(s, relays, count) != 0)
         return -1;
     s->relay = NET_RELAY_JOIN;
-    s->relayAddr = *relay;
     s->state = 0;
     for (i = 0; i < NET_ROOM_CODE; i++) {
         char c = code[i];
@@ -394,12 +430,22 @@ int net_send(net_socket *s, const net_addr *to, const void *data, size_t len) {
 
 int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n, net_addr *from, void *buf,
                     size_t size) {
+    int i;
     /* Only the relay speaks to a socket in relay mode. */
-    if (!s->relay || !net_addr_equal(src, &s->relayAddr) || n < RELAY_HEAD || memcmp(d, "G64R", 4) != 0)
+    if (!s->relay || n < RELAY_HEAD || memcmp(d, "G64R", 4) != 0)
+        return -1;
+    for (i = 0; i < s->relayAddrs; i++)
+        if (net_addr_equal(src, &s->relayAddr[i]))
+            break;
+    if (i == s->relayAddrs)
+        return -1;
+    /* Before its first answer, the relay may answer from any of its addresses; game data comes only after it. */
+    if (s->relayAddrs > 1 && d[4] != R_ROOM && d[4] != R_JOINED && d[4] != R_REFUSED)
         return -1;
     switch (d[4]) {
     case R_ROOM:
         if (s->relay == NET_RELAY_HOST && n == RELAY_HEAD + NET_ROOM_CODE) {
+            settle(s, i);
             memcpy(s->code, d + RELAY_HEAD, NET_ROOM_CODE);
             s->code[NET_ROOM_CODE] = 0;
             s->state = 1;
@@ -407,12 +453,14 @@ int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n,
         return -1;
     case R_JOINED:
         if (s->relay == NET_RELAY_JOIN && n == RELAY_HEAD + 1 && d[RELAY_HEAD] >= 1) {
+            settle(s, i);
             s->peer = d[RELAY_HEAD];
             s->state = 1;
         }
         return -1;
     case R_REFUSED:
         if (s->relay == NET_RELAY_JOIN && s->state == 0 && n == RELAY_HEAD + 1) {
+            settle(s, i);
             s->state = -1;
             s->refusal = d[RELAY_HEAD];
         }

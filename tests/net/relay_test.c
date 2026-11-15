@@ -89,7 +89,7 @@ static rb_input controller(int p, uint32_t f) {
 
 int main(int argc, char **argv) {
     char err[128];
-    net_addr relay;
+    net_addr relay[2];
     uint32_t clock = 1, f, wrong = 0;
     int i, ready = 0, started = 0, ok = 1;
     if (argc < 2) {
@@ -97,13 +97,16 @@ int main(int argc, char **argv) {
         return 0;
     }
     net_init();
-    if (net_resolve(argv[1], 27065, &relay, err, sizeof err) != 0) {
+    /* The first address answers nothing, like Fly.io's shared address, which drops UDP. Every socket must find the
+       relay at the second one. */
+    if (net_resolve("127.0.0.1:1", 1, &relay[0], err, sizeof err) != 0 ||
+        net_resolve(argv[1], 27065, &relay[1], err, sizeof err) != 0) {
         printf("FAIL %s\n", err);
         return 1;
     }
     for (i = 0; i < PLAYERS; i++)
         m[i].sock = net_open(0, err, sizeof err);
-    net_relay_host(m[0].sock, &relay);
+    net_relay_host(m[0].sock, relay, 2);
     for (f = 0; f < 2000 && net_relay_state(m[0].sock) != 1; f++) {
         uint8_t d[NET_MAX_DATAGRAM];
         net_addr from;
@@ -117,7 +120,7 @@ int main(int argc, char **argv) {
     {
         /* A code that names no room is refused. */
         net_socket *s = net_open(0, err, sizeof err);
-        net_relay_join(s, &relay, "ZZZZZZ");
+        net_relay_join(s, relay, 2, "ZZZZZZ");
         for (f = 0; f < 2000 && net_relay_state(s) == 0; f++) {
             uint8_t d[NET_MAX_DATAGRAM];
             net_addr from;
@@ -130,7 +133,7 @@ int main(int argc, char **argv) {
         net_close(s);
     }
     for (i = 1; i < PLAYERS; i++)
-        net_relay_join(m[i].sock, &relay, net_relay_code(m[0].sock));
+        net_relay_join(m[i].sock, relay, 2, net_relay_code(m[0].sock));
     for (f = 0; f < 2000 && ready < PLAYERS - 1; f++) {
         ready = 0;
         for (i = 1; i < PLAYERS; i++) {
