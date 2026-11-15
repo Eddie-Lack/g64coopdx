@@ -17,7 +17,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 1
+#define G64_PROTOCOL 2
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 

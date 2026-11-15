@@ -2048,6 +2048,7 @@ int main(int argc, char **argv) {
            new save, and the settings that change the logic at their defaults. */
         extern int g64Players;
         int online = 0, level = 0, players = 0;
+
         const char *relay = opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT;
 
         if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
@@ -2069,8 +2070,10 @@ int main(int argc, char **argv) {
             online = r == 1;
         }
         if (online) {
+            extern void G64StartPlayers(unsigned present);
+
             opt.level = level;
-            g64Players = players;
+            G64StartPlayers(players >= 16 ? 0xFFFFu : (1u << players) - 1u);
             memset(port_eeprom, 0xFF, sizeof(port_eeprom));
             port_set_ballworld(0);
         }

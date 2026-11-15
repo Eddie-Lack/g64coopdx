@@ -2,8 +2,8 @@
  * stands in for Glover in the tests that need no ROM (docs/discovery/repository.md, "Layout").
  *
  * Each player has a body in a square arena. The stick pushes it, A gives a dash, bodies bounce off the walls and off
- * each other, and they collect coins that reappear at random places. All arithmetic is on integers, so every machine
- * gives the same state. */
+ * each other, and they collect coins that reappear at random places. A player who is not present (rb_input.present)
+ * stays still and touches nothing. All arithmetic is on integers, so every machine gives the same state. */
 #ifndef G64_TOY_H
 #define G64_TOY_H
 

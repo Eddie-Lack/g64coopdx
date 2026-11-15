@@ -19,6 +19,8 @@ PORT_C_BEGIN
 #include "game.h"
 #include "jalloc.h"
 #include "delta.h"
+#include "platform.h"
+#include "maths.h"
 PORT_C_END
 
 #include <string.h>
@@ -46,6 +48,9 @@ void RestartPlayer(void);
 void UpdateActor(Actor *actor);
 
 s32 g64Players = 1;
+s32 g64Online;
+G64ExitRecord g64Exits[G64_MAX_PLAYERS];
+s32 g64ExitCount;
 s32 g64Member[G64_MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 u16 g64Buttons[G64_MAX_PLAYERS];
 s8 g64StickX[G64_MAX_PLAYERS];
@@ -444,12 +449,100 @@ void G64AddPlayer(s32 player) {
 
 /* The players who were present in the last frame's inputs, one bit each (G64SetPresent). Part of the game's state. */
 static u32 lastPresent = 1;
+/* Players who took an exit: they leave at the start of the next frame (leaving), and take no other exit (gone). */
+static u32 leaving, gone;
+
+s32 IsHandHoldingBall(void);
+s32 G64ExitNeedsBall(Platform *platform, s32 *useHand);
+void G64ExitTarget(s32 type, s32 *level, s32 *world);
+
+/* A player takes an exit: it is recorded with where it leads, and the player leaves the game at the next frame. */
+static void player_exits(s32 player, s32 type) {
+    u32 bit = 1u << player;
+    G64ExitRecord *r;
+    if ((gone & bit) || g64ExitCount >= G64_MAX_PLAYERS)
+        return;
+    gone |= bit;
+    leaving |= bit;
+    r = &g64Exits[g64ExitCount++];
+    r->player = player;
+    r->type = type;
+    G64ExitTarget(type, &r->level, &r->world);
+}
+
+void G64CheckExit(Platform *platform) {
+    s32 i, useHand, needBall;
+    if (!deltaTick)
+        return;
+    needBall = G64ExitNeedsBall(platform, &useHand);
+    for (i = 0; i < g64Players && i < G64_MAX_PLAYERS; i++) {
+        const Actor *h, *b;
+        s32 holding;
+        if (i == 0) {
+            h = &hand;
+            b = &ball;
+            holding = IsHandHoldingBall() || ball.link == &hand;
+        } else if (i < slotCount && slots[i]) {
+            /* A slot's ball holds the globals' address as its link while its own glove holds it. */
+            h = &((G64Slot *)slots[i])->hand;
+            b = &((G64Slot *)slots[i])->ball;
+            holding = b->link == &hand;
+        } else {
+            continue;
+        }
+        if (needBall && !holding)
+            continue;
+        if (DistanceBetweenPoints((Vec3 *)(useHand ? &h->pos : &b->pos), &platform->actor.pos) < platform->actor.radius)
+            player_exits(g64Member[i], platform->exitType);
+    }
+}
+
+s32 G64FindExit(s32 type, f32 *x, f32 *y, f32 *z) {
+    Platform *platform;
+    for (platform = platformList.head.next; platform != &platformList.head; platform = platform->next) {
+        if (platform->exitType == type) {
+            *x = platform->actor.pos.x;
+            *y = platform->actor.pos.y;
+            *z = platform->actor.pos.z;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void G64PlacePlayer(s32 player, f32 x, f32 y, f32 z) {
+    s32 i = slot_of(player);
+    Actor *h;
+    if (i == 0) {
+        h = &hand;
+    } else if (i > 0 && i < slotCount && slots[i]) {
+        h = &((G64Slot *)slots[i])->hand;
+    } else {
+        return;
+    }
+    h->pos.x = x;
+    h->pos.y = y;
+    h->pos.z = z;
+}
+
+void G64EveryoneExits(s32 type, s32 complete) {
+    s32 i;
+    (void)complete;
+    for (i = 0; i < g64Players && i < G64_MAX_PLAYERS; i++)
+        player_exits(g64Member[i], type);
+}
 
 void G64SetPresent(u32 present) {
     s32 p;
+    g64ExitCount = 0;
+    for (p = 0; p < G64_MAX_PLAYERS; p++)
+        if (leaving & (1u << p))
+            G64RemovePlayer(p);
+    leaving = 0;
     for (p = 0; p < G64_MAX_PLAYERS; p++) {
         u32 bit = 1u << p;
         if ((present & bit) && !(lastPresent & bit)) {
+            gone &= ~bit;
             G64AddPlayer(p);
         } else if (!(present & bit) && (lastPresent & bit)) {
             G64RemovePlayer(p);
@@ -471,6 +564,8 @@ void G64StartPlayers(u32 present) {
     for (p = g64Players; p < G64_MAX_PLAYERS; p++)
         g64Member[p] = 0;
     lastPresent = present;
+    leaving = gone = 0;
+    g64ExitCount = 0;
 }
 
 void G64RemovePlayer(s32 player) {

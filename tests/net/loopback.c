@@ -2,8 +2,8 @@
  *
  * One host and 2 to 16 clients run in one process over a simulated network that delays, loses, duplicates and
  * reorders messages. The test: every client's final state of every frame equals one offline run of the host's
- * confirmed inputs, frame by frame, and every hash check passes. Two more tests check that a client whose game
- * differs is caught, and that malformed messages are refused.
+ * confirmed inputs, frame by frame, and every hash check passes. More tests check that a player can leave the game and
+ * join it again at a later frame, that a client whose game differs is caught, and that malformed messages are refused.
  *
  * Usage: loopback [-v]. Exits with 1 if a test fails. */
 #include <stdio.h>
@@ -138,6 +138,7 @@ static rb_input controller(int player, uint32_t frame) {
     in.x = (int8_t)((int)(h % 161) - 80);
     in.y = (int8_t)((int)((h >> 8) % 161) - 80);
     in.buttons = (h >> 20) % 5 == 0 ? 0x8000 : 0;
+    in.present = 1;
     return in;
 }
 
@@ -154,7 +155,7 @@ static void deliver(world *w) {
         }
         if (p->to < 0)
             rb_host_receive(w->host, p->from, p->data, p->len);
-        else
+        else if (w->client[p->to])
             rb_client_receive(w->client[p->to], p->data, p->len);
     }
     w->count = kept;
@@ -266,6 +267,105 @@ static void test_session(const network *net, int players, int window) {
              "again, %u late inputs", net->name, players, rb_host_hash_matches(w->host),
              rb_host_hash_mismatches(w->host), desyncs, (unsigned long long)rollbacks, rb_host_late_inputs(w->host));
     check(rb_host_hash_matches(w->host) > 0 && rb_host_hash_mismatches(w->host) == 0 && desyncs == 0, what);
+    finish(w);
+}
+
+/* A player leaves the game at a frame and joins it again later. The host sets them absent; their client stops. Later
+ * the host sets them present again, and a new client for them runs the host's confirmed inputs up to that frame
+ * offline and starts there (rb_client_new_at). Every client's final states must still equal the offline run. */
+static void test_join(const network *net) {
+    static endpoint ends[RB_MAX_PLAYERS];
+    const int players = 4, mover = 3;
+    const uint32_t leave_at = 150, join_at = 320;
+    world *w = calloc(1, sizeof *w);
+    uint32_t end, f, joined = 0, wrong = 0, frames, left = 0, kept = 0;
+    int i, gone = 0, clients_ok = 1, desyncs = 0;
+    toy_game offline;
+    char what[200];
+    w->net = net;
+    w->players = players;
+    w->rng = 999u;
+    w->packets = calloc(MAX_PACKETS, sizeof(packet));
+    toy_init(&w->host_game, players);
+    w->host = rb_host_new(&toy_ops, &w->host_game, players, net->deadline, host_send, host_confirmed, host_final, w);
+    for (i = 0; i < players; i++) {
+        ends[i].w = w;
+        ends[i].id = i;
+        toy_init(&w->client_game[i], players);
+        w->client[i] = rb_client_new(&toy_ops, &w->client_game[i], players, i, 0, client_send, client_final, &ends[i]);
+    }
+    end = FRAMES + net->deadline + (uint32_t)(net->latency + net->jitter) * 4 + 120;
+    for (w->now = 0; w->now < end; w->now++) {
+        deliver(w);
+        if (w->now == leave_at) {
+            left = rb_host_confirmed(w->host);
+            kept = w->reported[mover];
+            rb_host_set_present(w->host, mover, 0);
+            rb_client_free(w->client[mover]);
+            w->client[mover] = NULL;
+            gone = 1;
+        }
+        if (w->now == join_at) {
+            /* The joiner builds the game from its start and the host's log, then starts at the next frame the host
+               confirms, as present. */
+            joined = rb_host_confirmed(w->host);
+            rb_host_set_present(w->host, mover, 1);
+            toy_init(&w->client_game[mover], players);
+            for (f = 0; f < joined; f++)
+                toy_ops.step(&w->client_game[mover], w->log[f], players);
+            w->reported[mover] = joined;
+            w->client[mover] = rb_client_new_at(&toy_ops, &w->client_game[mover], players, mover, 0, joined,
+                                                joined ? w->log[joined - 1] : NULL, client_send, client_final,
+                                                &ends[mover]);
+            gone = 0;
+        }
+        rb_host_tick(w->host);
+        for (i = 0; i < players; i++) {
+            int steps = 0;
+            if (!w->client[i])
+                continue;
+            while (steps < 3 && rb_client_frame(w->client[i]) <= w->now && rb_client_frame(w->client[i]) < FRAMES) {
+                if (!rb_client_step(w->client[i], controller(i, rb_client_frame(w->client[i]))))
+                    break;
+                steps++;
+            }
+            if (steps == 0)
+                rb_client_idle(w->client[i]);
+        }
+    }
+    frames = w->confirmed < FRAMES ? w->confirmed : FRAMES;
+    toy_init(&offline, players);
+    for (f = 0; f < frames; f++) {
+        toy_game copy;
+        uint64_t h;
+        toy_ops.step(&offline, w->log[f], players);
+        toy_ops.save(&offline, &copy);
+        h = toy_ops.hash_state(&copy);
+        if (h != w->host_hash[f])
+            wrong++;
+        for (i = 0; i < players; i++) {
+            /* The mover's first client reported the frames before it left; the second one from the join on. */
+            if (i == mover && f >= kept && f < joined)
+                continue;
+            if (w->reported[i] > f && w->final[i][f] != h)
+                wrong++;
+        }
+    }
+    for (i = 0; i < players; i++) {
+        if (w->reported[i] < FRAMES)
+            clients_ok = 0;
+        desyncs += (int)rb_client_desyncs(w->client[i]);
+    }
+    snprintf(what, sizeof what, "%s: a player leaves at frame %u and joins again at frame %u; every client final on all "
+             "%d frames", net->name, leave_at, joined, FRAMES);
+    check(!gone && joined > leave_at && clients_ok, what);
+    snprintf(what, sizeof what, "%s: absent from frame %u, present again from frame %u in the confirmed inputs",
+             net->name, left, joined);
+    check(w->log[left - 1][mover].present && !w->log[left][mover].present && !w->log[joined - 1][mover].present &&
+          w->log[joined][mover].present, what);
+    snprintf(what, sizeof what, "%s: with a join, every final state equals the offline run (%u differ), %u mismatches, "
+             "%d desync reports", net->name, wrong, rb_host_hash_mismatches(w->host), desyncs);
+    check(wrong == 0 && !w->bad_order && rb_host_hash_mismatches(w->host) == 0 && desyncs == 0, what);
     finish(w);
 }
 
@@ -410,6 +510,8 @@ int main(int argc, char **argv) {
     /* A small window, as the real game's large savestates need: clients wait more often. */
     for (k = 0; k < sizeof counts / sizeof counts[0]; k++)
         test_session(&NETWORKS[3], counts[k], 16);
+    for (n = 0; n < sizeof NETWORKS / sizeof NETWORKS[0]; n++)
+        test_join(&NETWORKS[n]);
     test_desync();
     test_malformed();
     printf("offline run, 16 players, 3000 frames: hash %016llx\n", (unsigned long long)offline_hash());

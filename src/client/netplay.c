@@ -351,6 +351,8 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     in.buttons = buttons;
     in.x = stickX;
     in.y = stickY;
+    /* The host decides who is present; the core fills it in. */
+    in.present = 1;
     /* The local game steps last, so the engine holds it and its newest frame is what is drawn. */
     if (!rb_client_step(client, in))
         rb_client_idle(client);

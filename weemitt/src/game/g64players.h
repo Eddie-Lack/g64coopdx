@@ -4,6 +4,23 @@
 
 #define G64_MAX_PLAYERS 16
 
+struct Platform;
+
+/* 1 in the online game (src/client/netplay.c). Each player then takes an exit alone, and leaves the game (the session
+   moves them to the level the exit leads to); a level-wide exit takes every player. Set it before power-on. */
+extern s32 g64Online;
+
+/* An exit taken in this frame: who, by which exit type (enum ExitType), and the level and world it leads to. */
+typedef struct G64ExitRecord {
+    s32 player;
+    s32 type;
+    s32 level;
+    s32 world;
+} G64ExitRecord;
+/* The exits taken in the last frame, in the order they were taken. G64SetPresent clears them before each frame. */
+extern G64ExitRecord g64Exits[G64_MAX_PLAYERS];
+extern s32 g64ExitCount;
+
 /* The number of players in this game, 1 to G64_MAX_PLAYERS. Set it before a level starts. */
 extern s32 g64Players;
 /* Each player's number in the session, by place in this game: g64Member[0] is the player in the globals, the others
@@ -45,6 +62,14 @@ void G64RemovePlayer(s32 player);
    since the last frame and removes one whose bit has gone off. Only a change counts: a player who left by an exit
    stays out while their bit is still on. */
 void G64StartPlayers(u32 present);
+/* Online: for an exit platform (CheckForExit), every player whose glove or ball reaches it takes it. */
+void G64CheckExit(struct Platform *platform);
+/* Online: a level-wide exit (ExitLevel) takes every player in the game. */
+void G64EveryoneExits(s32 type, s32 complete);
+/* For tests: the position of the first exit platform of a type (1), or 0 when the level has none; and a player's glove
+   put at a position. */
+s32 G64FindExit(s32 type, f32 *x, f32 *y, f32 *z);
+void G64PlacePlayer(s32 player, f32 x, f32 y, f32 z);
 void G64SetPresent(u32 present);
 
 #endif

@@ -80,6 +80,9 @@ static void toy_step(void *game, const rb_input *in, int players) {
     int i, j, n = players < (int)g->players ? players : (int)g->players;
     for (i = 0; i < n; i++) {
         toy_body *b = &g->body[i];
+        /* A player who is not present stays where they are and touches nothing. */
+        if (!in[i].present)
+            continue;
         b->vx += in[i].x * 16;
         b->vy += in[i].y * 16;
         if ((in[i].buttons & BUTTON_A) && b->cooldown == 0) {
@@ -99,9 +102,12 @@ static void toy_step(void *game, const rb_input *in, int players) {
     }
     for (i = 0; i < n; i++)
         for (j = i + 1; j < n; j++)
-            collide(&g->body[i], &g->body[j]);
+            if (in[i].present && in[j].present)
+                collide(&g->body[i], &g->body[j]);
     for (i = 0; i < n; i++) {
         toy_body *b = &g->body[i];
+        if (!in[i].present)
+            continue;
         bounce_walls(b);
         for (j = 0; j < TOY_COINS; j++) {
             int64_t dx = (int64_t)g->coin_x[j] - b->x, dy = (int64_t)g->coin_y[j] - b->y;

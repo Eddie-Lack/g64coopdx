@@ -2576,6 +2576,10 @@ void CheckForExit(Platform *platform) {
         && gameInfo.worldComplete[platform->exitType - 5] == 0) {
         return;
     }
+    if (g64Online) {
+        G64CheckExit(platform);
+        return;
+    }
     if (platform->exitType == 12 || platform->exitType == 21 || platform->exitType == 6 || platform->exitType == 8 || platform->exitType == 7 || platform->exitType == 9
         || platform->exitType == 10 || platform->exitType == 11 || (platform->exitType == 13 && gameInfo.level != ACOURSE) || gameInfo.level == WAYROOM
         || gameInfo.level == ATLANTISBONUS || gameInfo.level == ATLANTIS3A || gameInfo.level == CARNIVAL1) {
@@ -3716,7 +3720,97 @@ s32 BonusOpen(void) {
     return open;
 }
 
+/* g64coopdx: how a player takes an exit platform in the online game. Sets *useHand when the glove (not the ball) must
+   reach the platform, and returns 1 when the player must hold the ball. The same choices as CheckForExit's. */
+s32 G64ExitNeedsBall(Platform *platform, s32 *useHand) {
+    s32 type = platform->exitType;
+    s32 handExit = type == 12 || type == 21 || (type >= 6 && type <= 11) || (type == 13 && gameInfo.level != ACOURSE)
+                   || gameInfo.level == WAYROOM || gameInfo.level == ATLANTISBONUS || gameInfo.level == ATLANTIS3A
+                   || gameInfo.level == CARNIVAL1;
+    *useHand = handExit;
+    if (gameInfo.level == WAYROOM || gameInfo.level == CAVE || gameInfo.level == ATLANTISBONUS
+        || gameInfo.level == ATLANTIS3A || gameInfo.level == CARNIVAL1 || type == 12 || type == 21
+        || (type >= 6 && type <= 11)) {
+        return 0;
+    }
+    if (type == 13) {
+        return !(saveSlot[currentSaveSlot].hubLevel == saveSlot[currentSaveSlot].hubTarget || ballStatic);
+    }
+    return 1;
+}
+
+/* g64coopdx: the level and world an exit leads to, from the level now and the save, as the level change after the
+   fade picks them (CheckForExits). It changes nothing. */
+void G64ExitTarget(s32 type, s32 *level, s32 *world) {
+    *level = gameInfo.level;
+    *world = gameInfo.world;
+    switch (type) {
+        case GAME_WON_EXIT:
+            *level = OUTRO;
+            break;
+        case ASSAULT_EXIT:
+            *level = ACOURSE;
+            *world = HUB;
+            break;
+        case LEVEL_1_EXIT:
+        case LEVEL_2_EXIT:
+        case LEVEL_3_EXIT:
+        case LEVEL_BOSS_EXIT:
+        case LEVEL_BONUS_EXIT:
+            *level = (&worldInfo[gameInfo.world].firstLevel)[type - 16];
+            break;
+        case LEVEL_EXIT:
+        case SUB_LEVEL_EXIT:
+            *level = gameInfo.level + 1;
+            break;
+        case WORLD_EXIT:
+            if (BonusOpen()) {
+                *level = WAYROOM;
+            } else {
+                *level = (cheatActivated & 0x1000000) ? HUB8 : saveSlot[currentSaveSlot].hubLevel;
+                *world = HUB;
+            }
+            break;
+        case BONUS_EXIT:
+            *level = worldInfo[gameInfo.world].extraLevels[1];
+            break;
+        case BONUS_DONE_EXIT:
+            *level = WAYROOM;
+            break;
+        case CAVE_EXIT:
+            *level = CAVE;
+            break;
+        case CAMEO_EXIT:
+            if (gameInfo.level == INTRO) {
+                *level = HUB1;
+                *world = HUB;
+            }
+            break;
+        case HUB_EXIT:
+        case QUIT_EXIT:
+            *level = (cheatActivated & 0x1000000) ? HUB8 : saveSlot[currentSaveSlot].hubLevel;
+            *world = HUB;
+            break;
+        case ATLANTIS_EXIT:
+        case CARNIVAL_EXIT:
+        case PIRATES_EXIT:
+        case PREHISTORIC_EXIT:
+        case FEAR_EXIT:
+        case SPACE_EXIT:
+            *level = WAYROOM;
+            *world = ATLANTIS + (type - ATLANTIS_EXIT);
+            break;
+        default:
+            break;
+    }
+}
+
 void ExitLevel(s32 type, s32 pause, s32 complete) {
+    if (g64Online) {
+        /* g64coopdx: the level ends for every player in it, and each goes where the exit leads (g64players.c). */
+        G64EveryoneExits(type, complete);
+        return;
+    }
     if (!(gameInfo.exitFlags & 1) || type == 15) {
         gameInfo.exitFlags |= 1;
         if (complete) {
