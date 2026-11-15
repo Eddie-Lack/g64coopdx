@@ -19,7 +19,8 @@ const rb_game_ops *rb_engine_ops(Engine *e);
 /* A new game in the engine's current state. NULL when out of memory. */
 rb_engine_game *rb_engine_game_new(void);
 void rb_engine_game_free(rb_engine_game *g);
-/* The hash of the state of a game, as rb_game_ops.hash_state gives it. Slow (it reads the whole heap). */
+/* The hash of the state of a game, as rb_game_ops.hash_state gives it: weemitt's memory hash, the same on Linux and
+ * Windows. Slow (it reads all 24 MB of the game's memory). */
 uint64_t rb_engine_game_hash(rb_engine_game *g);
 
 #endif

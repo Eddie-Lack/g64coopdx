@@ -47,10 +47,12 @@ Status (15 November 2026):
 
 - Done: the copy and its `SOURCE`; g64coopdx's baseline (it equals weemitt's, 49 runs); the 64-bit builds and
   `make crossbuild` (Linux equals Windows under Wine in all 49 runs); the toy game, the rollback core and its loopback
-  tests, also under Wine, with a fuzz target; game change 8 (all engine tests pass at 64 bits on Linux and Windows).
+  tests, also under Wine, with a fuzz target; game change 8 (all engine tests pass at 64 bits on Linux and on
+  Windows under Wine).
 - Done beyond the list: the real game behind the rollback core (`src/rollback/engine_game.c`). One host and three
   clients play level 13 over a lossy simulated network; every hash check passes and every client equals the offline
-  run (`make rollback-game`, Linux and Wine).
+  run (`make rollback-game`, Linux and Wine). The hash is weemitt's memory hash, and the Linux and Windows programs
+  give the same value for the same state.
 - Left: the window programs as static builds (they link SDL2 from the system today). The folders `src/net`,
   `src/session` and the others come with the phases that fill them.
 
