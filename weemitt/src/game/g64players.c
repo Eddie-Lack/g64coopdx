@@ -46,6 +46,7 @@ void RestartPlayer(void);
 void UpdateActor(Actor *actor);
 
 s32 g64Players = 1;
+s32 g64Member[G64_MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 u16 g64Buttons[G64_MAX_PLAYERS];
 s8 g64StickX[G64_MAX_PLAYERS];
 s8 g64StickY[G64_MAX_PLAYERS];
@@ -208,45 +209,74 @@ static Actor *slot_hand_actor(G64Slot *s, Actor *global) {
     return (Actor *)(s->handBlock + ((u8 *)global - (u8 *)&handControl));
 }
 
+/* Makes slot i, for a player who starts as a copy of the player in the globals, with heap blocks of their own. */
+static void new_slot(s32 i) {
+    G64Slot *s = (G64Slot *)JallocAlloc(sizeof(G64Slot), 1, "G64Slot");
+    memcpy(&s->hand, &hand, sizeof(Actor));
+    memcpy(&s->ball, &ball, sizeof(Actor));
+    memcpy(&s->camera, &camera, sizeof(Actor));
+    memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
+    memcpy(s->handBlock, &handControl, hand_block_size());
+    memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
+    memcpy(&s->pad, &pad[ActiveController], sizeof(Pad));
+    s->oldHandPos = oldHandPos;
+    s->ballWithHand = ballWithHand;
+    s->ballStatic = ballStatic;
+    s->ballLeftBehind = ballLeftBehind;
+    s->handInertia = handInertia;
+    s->handFallLifted = handFallLifted;
+    s->cameraUpVect = cameraUpVect;
+    s->cameraUpVectAim = cameraUpVectAim;
+    s->ballFrameVel = ballFrameVel;
+    s->tickCameraRequests = tickCameraRequests;
+    clone_blocks(&s->hand);
+    clone_blocks(&s->ball);
+    clone_blocks(&s->camera);
+    clone_blocks(&s->cameraInfo.actor);
+    clone_blocks(slot_hand_actor(s, &handControl.edgeProbe));
+    clone_blocks(slot_hand_actor(s, &handControl.frontProbe));
+    /* Side by side, not inside each other. */
+    s->hand.pos.x += 40.0f * i;
+    s->ball.pos.x += 40.0f * i;
+    slots[i] = s;
+    proxyHand[i] = new_proxy(&s->hand);
+    proxyBall[i] = new_proxy(&s->ball);
+}
+
+/* Frees slot i and its proxies. blocks: also the heap blocks of its actors, which a slot made by new_slot owns. */
+static void free_slot(s32 i, s32 blocks) {
+    G64Slot *s = slots[i];
+    if (proxyHand[i]) {
+        SubActor(proxyHand[i]);
+        JallocFree(&proxyHand[i]);
+    }
+    if (proxyBall[i]) {
+        SubActor(proxyBall[i]);
+        JallocFree(&proxyBall[i]);
+    }
+    if (!s)
+        return;
+    if (!blocks) {
+        JallocFree(&slots[i]);
+        return;
+    }
+    free_blocks(&s->hand);
+    free_blocks(&s->ball);
+    free_blocks(&s->camera);
+    free_blocks(&s->cameraInfo.actor);
+    free_blocks(slot_hand_actor(s, &handControl.edgeProbe));
+    free_blocks(slot_hand_actor(s, &handControl.frontProbe));
+    JallocFree(&slots[i]);
+}
+
 void G64ExtraPlayersStart(void) {
     s32 i;
     G64ExtraPlayersFree();
     if (g64Players < 2 || hand_block_size() > HAND_BLOCK_MAX)
         return;
     slotCount = g64Players > G64_MAX_PLAYERS ? G64_MAX_PLAYERS : g64Players;
-    for (i = 1; i < slotCount; i++) {
-        G64Slot *s = (G64Slot *)JallocAlloc(sizeof(G64Slot), 1, "G64Slot");
-        /* The new player starts as a copy of the first one, with heap blocks of their own. */
-        memcpy(&s->hand, &hand, sizeof(Actor));
-        memcpy(&s->ball, &ball, sizeof(Actor));
-        memcpy(&s->camera, &camera, sizeof(Actor));
-        memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
-        memcpy(s->handBlock, &handControl, hand_block_size());
-        memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
-        memcpy(&s->pad, &pad[ActiveController], sizeof(Pad));
-        s->oldHandPos = oldHandPos;
-        s->ballWithHand = ballWithHand;
-        s->ballStatic = ballStatic;
-        s->ballLeftBehind = ballLeftBehind;
-        s->handInertia = handInertia;
-        s->handFallLifted = handFallLifted;
-        s->cameraUpVect = cameraUpVect;
-        s->cameraUpVectAim = cameraUpVectAim;
-        s->ballFrameVel = ballFrameVel;
-        s->tickCameraRequests = tickCameraRequests;
-        clone_blocks(&s->hand);
-        clone_blocks(&s->ball);
-        clone_blocks(&s->camera);
-        clone_blocks(&s->cameraInfo.actor);
-        clone_blocks(slot_hand_actor(s, &handControl.edgeProbe));
-        clone_blocks(slot_hand_actor(s, &handControl.frontProbe));
-        /* Side by side, not inside each other. */
-        s->hand.pos.x += 40.0f * i;
-        s->ball.pos.x += 40.0f * i;
-        slots[i] = s;
-        proxyHand[i] = new_proxy(&s->hand);
-        proxyBall[i] = new_proxy(&s->ball);
-    }
+    for (i = 1; i < slotCount; i++)
+        new_slot(i);
 }
 
 void G64UpdateProxies(void) {
@@ -262,26 +292,8 @@ void G64UpdateProxies(void) {
 
 void G64ExtraPlayersFree(void) {
     s32 i;
-    for (i = 1; i < G64_MAX_PLAYERS; i++) {
-        G64Slot *s = slots[i];
-        if (proxyHand[i]) {
-            SubActor(proxyHand[i]);
-            JallocFree(&proxyHand[i]);
-        }
-        if (proxyBall[i]) {
-            SubActor(proxyBall[i]);
-            JallocFree(&proxyBall[i]);
-        }
-        if (!s)
-            continue;
-        free_blocks(&s->hand);
-        free_blocks(&s->ball);
-        free_blocks(&s->camera);
-        free_blocks(&s->cameraInfo.actor);
-        free_blocks(slot_hand_actor(s, &handControl.edgeProbe));
-        free_blocks(slot_hand_actor(s, &handControl.frontProbe));
-        JallocFree(&slots[i]);
-    }
+    for (i = 1; i < G64_MAX_PLAYERS; i++)
+        free_slot(i, 1);
     slotCount = 0;
 }
 
@@ -290,9 +302,9 @@ static void player_frame(s32 p) {
     Vec3 tempVect;
     if (deltaNewFrame) {
         OSContPad saved = controllerdata[ActiveController];
-        controllerdata[ActiveController].button = g64Buttons[p];
-        controllerdata[ActiveController].stick_x = g64StickX[p];
-        controllerdata[ActiveController].stick_y = g64StickY[p];
+        controllerdata[ActiveController].button = g64Buttons[g64Member[p]];
+        controllerdata[ActiveController].stick_x = g64StickX[g64Member[p]];
+        controllerdata[ActiveController].stick_y = g64StickY[g64Member[p]];
         ReadController(ActiveController);
         controllerdata[ActiveController] = saved;
     }
@@ -346,13 +358,23 @@ void G64ExtraPlayersStep(void) {
     }
 }
 
-/* The player whose slot is swapped into the globals for a view (G64SwapPlayer), or 0. */
+/* The slot swapped into the globals for a view (G64SwapPlayer), or 0. */
 static s32 swapped;
 
-void G64SwapPlayer(s32 p) {
-    if (p >= 1 && p < slotCount && slots[p]) {
-        swap_slot(slots[p]);
-        swapped = swapped == p ? 0 : p;
+/* The slot of the player with this number, or -1. */
+static s32 slot_of(s32 player) {
+    s32 i;
+    for (i = 0; i < g64Players && i < G64_MAX_PLAYERS; i++)
+        if (g64Member[i] == player)
+            return i;
+    return -1;
+}
+
+void G64SwapPlayer(s32 player) {
+    s32 i = slot_of(player);
+    if (i >= 1 && i < slotCount && slots[i]) {
+        swap_slot(slots[i]);
+        swapped = swapped == i ? 0 : i;
     }
 }
 
@@ -368,27 +390,31 @@ s32 G64IsProxy(Actor *a) {
 static const u32 playerColor[8] = {0, 0x60A0FF, 0x70FF70, 0xFFE040, 0xFF6060, 0xC070FF, 0xFFA040, 0x60FFFF};
 
 u32 G64ActorTint(Actor *a) {
-    s32 i, p = -1;
-    if (slotCount < 2)
+    s32 i, slot = -1, p;
+    if (g64Players < 2 && g64Member[0] == 0)
         return 0;
     if (a == &hand || a == &ball) {
-        p = swapped;
+        slot = swapped;
     } else {
         for (i = 1; i < slotCount; i++)
             if (a == proxyHand[i] || a == proxyBall[i])
-                p = i == swapped ? 0 : i;
+                slot = i == swapped ? 0 : i;
     }
+    if (slot < 0)
+        return 0;
+    p = g64Member[slot];
     if (p <= 0)
         return 0;
     return playerColor[p % 8 ? p % 8 : 1];
 }
 
-s32 G64PlayerPosition(s32 p, f32 *x, f32 *y, f32 *z) {
+s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z) {
     const Actor *a;
-    if (p == 0) {
+    s32 i = slot_of(player);
+    if (i == 0) {
         a = &hand;
-    } else if (p < slotCount && slots[p]) {
-        a = &((G64Slot *)slots[p])->hand;
+    } else if (i > 0 && i < slotCount && slots[i]) {
+        a = &((G64Slot *)slots[i])->hand;
     } else {
         return 0;
     }
@@ -396,5 +422,84 @@ s32 G64PlayerPosition(s32 p, f32 *x, f32 *y, f32 *z) {
     *y = a->pos.y;
     *z = a->pos.z;
     return 1;
+}
+
+s32 G64HasPlayer(s32 player) {
+    return slot_of(player) >= 0;
+}
+
+void G64AddPlayer(s32 player) {
+    s32 i;
+    if (player < 0 || player >= G64_MAX_PLAYERS || slot_of(player) >= 0 || g64Players >= G64_MAX_PLAYERS)
+        return;
+    i = g64Players;
+    g64Member[i] = player;
+    g64Players++;
+    /* Before the slots exist, G64ExtraPlayersStart makes one for every member. After, the new player gets one now. */
+    if (slotCount > 0) {
+        new_slot(i);
+        slotCount = g64Players;
+    }
+}
+
+/* The players who were present in the last frame's inputs, one bit each (G64SetPresent). Part of the game's state. */
+static u32 lastPresent = 1;
+
+void G64SetPresent(u32 present) {
+    s32 p;
+    for (p = 0; p < G64_MAX_PLAYERS; p++) {
+        u32 bit = 1u << p;
+        if ((present & bit) && !(lastPresent & bit)) {
+            G64AddPlayer(p);
+        } else if (!(present & bit) && (lastPresent & bit)) {
+            G64RemovePlayer(p);
+        }
+    }
+    lastPresent = present;
+}
+
+void G64StartPlayers(u32 present) {
+    s32 p;
+    g64Players = 0;
+    for (p = 0; p < G64_MAX_PLAYERS; p++)
+        if (present & (1u << p))
+            g64Member[g64Players++] = p;
+    if (g64Players == 0) {
+        g64Member[0] = 0;
+        g64Players = 1;
+    }
+    for (p = g64Players; p < G64_MAX_PLAYERS; p++)
+        g64Member[p] = 0;
+    lastPresent = present;
+}
+
+void G64RemovePlayer(s32 player) {
+    s32 i = slot_of(player), j, blocks = 1;
+    if (i < 0 || g64Players < 2)
+        return;
+    if (i == 0 && slotCount > 1) {
+        /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
+           the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
+        swap_slot(slots[1]);
+        g64Member[0] = g64Member[1];
+        i = 1;
+        blocks = 0;
+    }
+    if (slotCount > i) {
+        free_slot(i, blocks);
+        for (j = i; j + 1 < slotCount; j++) {
+            slots[j] = slots[j + 1];
+            proxyHand[j] = proxyHand[j + 1];
+            proxyBall[j] = proxyBall[j + 1];
+        }
+        slots[slotCount - 1] = NULL;
+        proxyHand[slotCount - 1] = NULL;
+        proxyBall[slotCount - 1] = NULL;
+        slotCount--;
+    }
+    for (j = i; j + 1 < g64Players; j++)
+        g64Member[j] = g64Member[j + 1];
+    g64Players--;
+    g64Member[g64Players] = 0;
 }
 PORT_C_END
