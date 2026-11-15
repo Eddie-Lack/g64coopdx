@@ -90,6 +90,8 @@ void rb_host_free(rb_host *h);
 void rb_host_tick(rb_host *h);
 /* Handles one message from client from. Returns 0, or -1 if the message is malformed (it is then ignored). */
 int rb_host_receive(rb_host *h, int from, const uint8_t *data, size_t len);
+/* Player p left: from the next confirmed frame on, their input is 0 and their messages are refused. */
+void rb_host_drop_player(rb_host *h, int p);
 uint32_t rb_host_confirmed(const rb_host *h);
 /* Hashes received from clients that matched, and that did not. */
 uint32_t rb_host_hash_matches(const rb_host *h);
