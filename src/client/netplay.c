@@ -57,12 +57,13 @@ static Engine *engine;
 static void *viewState;
 static int viewPending;
 static uint32_t lastPrinted;
+static int dropped[G64_SESSION_MAX_PLAYERS];
 
 int netplay_active(void) { return active; }
 int netplay_failed(void) { return failed; }
 
-int netplay_connect(const char *join, int hostPort, int wanted, const uint8_t *rom, size_t romSize, int *level,
-                    int *outPlayers, char *err, size_t errSize) {
+int netplay_connect(const char *join, int hostPort, int wanted, int deadline, const uint8_t *rom, size_t romSize,
+                    int *level, int *outPlayers, char *err, size_t errSize) {
     uint32_t start, last = 0, romHash = g64_rom_hash(rom, romSize);
     if (net_init() != 0) {
         snprintf(err, errSize, "the network did not start");
@@ -80,7 +81,7 @@ int netplay_connect(const char *join, int hostPort, int wanted, const uint8_t *r
         net_addr_text(&to, text, sizeof text);
         printf("g64coopdx: joining %s\n", text);
     } else {
-        session = g64_session_host(sock, wanted, romHash, START_LEVEL, DEADLINE);
+        session = g64_session_host(sock, wanted, romHash, START_LEVEL, deadline > 0 ? deadline : DEADLINE);
         printf("g64coopdx: hosting on UDP port %u for %d players\n", (unsigned)net_port(sock), wanted);
     }
     if (!session) {
@@ -196,8 +197,17 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
         return rb_engine_last_tasks(tasks, max);
     }
-    if (host)
+    if (host) {
+        int p;
+        for (p = 1; p < players; p++)
+            if (g64_session_gone(session, p) && !dropped[p]) {
+                dropped[p] = 1;
+                rb_host_drop_player(host, p);
+                printf("g64coopdx: player %d stopped answering; the game goes on without them\n", p + 1);
+                fflush(stdout);
+            }
         rb_host_tick(host);
+    }
     in.buttons = buttons;
     in.x = stickX;
     in.y = stickY;

@@ -160,6 +160,19 @@ int main(void) {
     check(ok && wrong == 0 && rb_host_hash_mismatches(m[0].host) == 0 && rb_host_hash_matches(m[0].host) > 0,
           "the toy game through the session: every machine has the same state on every frame");
     test_refusals(hostAddr, &clock);
+    /* A joiner who stops answering: the host's game goes on without it. */
+    {
+        int k;
+        for (k = 0; k < 300; k++) {
+            clock += 50;
+            g64_session_poll(m[0].session, clock, on_game, &m[0]);
+            g64_session_poll(m[1].session, clock, on_game, &m[1]);
+        }
+        check(g64_session_poll(m[0].session, clock, on_game, &m[0]) == G64_SESSION_STARTED &&
+                  g64_session_gone(m[0].session, g64_session_me(m[2].session)) &&
+                  !g64_session_gone(m[0].session, g64_session_me(m[1].session)),
+              "a joiner who stops answering is gone, and the game goes on");
+    }
     for (i = 0; i < PLAYERS; i++) {
         g64_session_free(m[i].session);
         net_close(sock[i]);

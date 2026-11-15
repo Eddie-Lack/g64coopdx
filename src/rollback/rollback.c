@@ -272,6 +272,7 @@ struct rb_host {
     uint32_t confirmed; /* frames 0 .. confirmed - 1 are confirmed */
     uint32_t matches, mismatches, late;
     uint32_t ack[RB_MAX_PLAYERS];  /* confirmed frames each client has said it has */
+    uint8_t dropped[RB_MAX_PLAYERS]; /* players who left: their input is 0 from then on */
     rb_input last[RB_MAX_PLAYERS]; /* the inputs of frame confirmed - 1 */
     /* Inputs received for frames confirmed .. confirmed + RB_HOST_WINDOW - 1. */
     rb_input pending[RB_HOST_WINDOW][RB_MAX_PLAYERS];
@@ -319,7 +320,9 @@ static void host_confirm(rb_host *h) {
     int p;
     for (p = 0; p < h->players; p++) {
         /* A player whose input has not arrived repeats their last input. */
-        if (h->have[s][p])
+        if (h->dropped[p])
+            memset(&h->last[p], 0, sizeof h->last[p]);
+        else if (h->have[s][p])
             h->last[p] = h->pending[s][p];
         h->done[s][p] = h->last[p];
         h->have[s][p] = 0;
@@ -371,7 +374,7 @@ void rb_host_tick(rb_host *h) {
 
 static int host_input(rb_host *h, int from, const uint8_t *d, size_t len) {
     uint32_t ack, first, count, i;
-    if (len < INPUT_HEAD || d[1] != from)
+    if (len < INPUT_HEAD || d[1] != from || h->dropped[from])
         return -1;
     ack = get32(d + 2);
     first = get32(d + 6);
@@ -430,6 +433,11 @@ int rb_host_receive(rb_host *h, int from, const uint8_t *data, size_t len) {
     default:
         return -1;
     }
+}
+
+void rb_host_drop_player(rb_host *h, int p) {
+    if (p >= 0 && p < h->players)
+        h->dropped[p] = 1;
 }
 
 uint32_t rb_host_confirmed(const rb_host *h) { return h->confirmed; }

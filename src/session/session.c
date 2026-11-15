@@ -19,6 +19,7 @@ typedef struct {
     net_addr addr;
     uint32_t heard; /* when a datagram last came from this peer */
     int started;    /* the peer has sent a game message, so it has the start */
+    int gone;       /* stopped answering after the start */
     char name[NAME_MAX + 1];
 } peer;
 
@@ -107,7 +108,7 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
                           g64_game_fn on_game, void *user) {
     int p, free_slot = -1;
     for (p = 1; p < g->players; p++)
-        if (g->peers[p].used && net_addr_equal(&g->peers[p].addr, from))
+        if (g->peers[p].used && !g->peers[p].gone && net_addr_equal(&g->peers[p].addr, from))
             break;
     if (p < g->players) {
         g->peers[p].heard = now;
@@ -224,10 +225,13 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
             peer *q = &g->peers[p];
             if (!q->used)
                 continue;
+            if (q->gone)
+                continue;
             if (now - q->heard > TIMEOUT) {
                 if (g->state == G64_SESSION_STARTED) {
-                    fail(g, "a player stopped answering");
-                    return g->state;
+                    /* The game goes on without them: the host gives their glove no input from now on. */
+                    q->gone = 1;
+                    continue;
                 }
                 q->used = 0;
                 continue;
@@ -239,14 +243,14 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
         if (g->state == G64_SESSION_STARTED && now - g->lastSend >= RESEND) {
             g->lastSend = now;
             for (p = 1; p < g->players; p++)
-                if (g->peers[p].used && !g->peers[p].started)
+                if (g->peers[p].used && !g->peers[p].started && !g->peers[p].gone)
                     send_start(g, p);
         }
         if (now - g->lastPing >= PING_EVERY) {
             uint8_t m = MSG_PING;
             g->lastPing = now;
             for (p = 1; p < g->players; p++)
-                if (g->peers[p].used)
+                if (g->peers[p].used && !g->peers[p].gone)
                     send_bytes(g, &g->peers[p].addr, &m, 1);
         }
     } else {
@@ -280,7 +284,7 @@ void g64_session_send_game(g64_session *g, int to, const uint8_t *data, size_t l
     if (len + 1 > sizeof m || g->state != G64_SESSION_STARTED)
         return;
     if (g->host) {
-        if (to < 1 || to >= g->players || !g->peers[to].used)
+        if (to < 1 || to >= g->players || !g->peers[to].used || g->peers[to].gone)
             return;
         a = &g->peers[to].addr;
     } else {
@@ -289,6 +293,10 @@ void g64_session_send_game(g64_session *g, int to, const uint8_t *data, size_t l
     m[0] = MSG_GAME;
     memcpy(m + 1, data, len);
     net_send(g->sock, a, m, len + 1);
+}
+
+int g64_session_gone(const g64_session *g, int p) {
+    return g->host && p >= 1 && p < g->players && g->peers[p].gone;
 }
 
 int g64_session_me(const g64_session *g) { return g->host ? 0 : g->me; }

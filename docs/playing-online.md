@@ -26,6 +26,9 @@ g64coopdx.exe --rom glover.z64 --host 27064 --players 2
 - The host's computer must accept UDP on that port from the internet. On a home router, forward UDP port 27064 to the
   host's computer.
 - Give the other players your public IP address (a search for "what is my IP" shows it).
+- For players far apart, `--deadline 8` (or more) gives inputs more time to reach the host: each step is 50 ms. The
+  default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed game lags further
+  behind.
 
 ## Join a game
 
@@ -66,4 +69,4 @@ checks the hash of its game against the host's every 10 frames.
 - There is no sound.
 - Only the first hub level. Enemies, collectables and puzzles react only to player 1.
 - No lobby or relay: the host must forward its port. The lobby at `lobby.slugs.io` comes later.
-- A player who leaves ends the game for everyone.
+- A joiner who leaves stops their glove; the game goes on for the others. If the host leaves, the game ends.

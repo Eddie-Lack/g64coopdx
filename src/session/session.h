@@ -59,6 +59,8 @@ int g64_session_level(const g64_session *g);
 int g64_session_deadline(const g64_session *g);
 /* Players who have joined so far, the host included (the host's count; a joiner knows only itself). */
 int g64_session_joined(const g64_session *g);
+/* On the host after the start: 1 when player p stopped answering. The game goes on without them. */
+int g64_session_gone(const g64_session *g, int p);
 /* Why the session failed, in words. */
 const char *g64_session_error(const g64_session *g);
 

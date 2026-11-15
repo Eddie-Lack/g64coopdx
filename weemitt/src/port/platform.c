@@ -31,6 +31,7 @@ typedef struct Options {
     long headlessFrames;
     int netHost;             /* g64coopdx: --host PORT (the studio build) */
     const char *netJoin;     /* g64coopdx: --join HOST[:PORT] */
+    int netDeadline;         /* g64coopdx: --deadline FRAMES (the host's input deadline) */
     int fullscreen;
     int vsync;               /* set by --no-vsync (-1: not given) */
     const char *savePath;
@@ -1576,6 +1577,8 @@ static void parse_args(int argc, char **argv) {
             opt.netHost = atoi(argv[++i]);
         } else if (!strcmp(a, "--join") && next) {
             opt.netJoin = argv[++i];
+        } else if (!strcmp(a, "--deadline") && next) {
+            opt.netDeadline = atoi(argv[++i]);
         } else if (!strcmp(a, "--players") && next) {
             /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */
             extern int g64Players;
@@ -2032,8 +2035,8 @@ int main(int argc, char **argv) {
         char err[160];
         int level = 0, players = 0;
 
-        if (netplay_connect(opt.netJoin, opt.netHost, g64Players > 1 ? g64Players : 2, port_rom, port_rom_size, &level,
-                            &players, err, sizeof err) != 0) {
+        if (netplay_connect(opt.netJoin, opt.netHost, g64Players > 1 ? g64Players : 2, opt.netDeadline, port_rom,
+                            port_rom_size, &level, &players, err, sizeof err) != 0) {
             fprintf(stderr, "g64coopdx: %s\n", err);
             return 1;
         }
