@@ -38,6 +38,22 @@ glove keeps the game's colors; player 2's is blue, player 3's green and player 4
 window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
 The program also prints a status line every 100 frames.
 
+## Controls
+
+A gamepad works as an N64 controller. On the keyboard:
+
+| Key | N64 |
+| --- | --- |
+| Arrow keys or W A S D | Stick |
+| Space | A |
+| X | B |
+| Z or left Shift | Z |
+| Q, E | L, R |
+| I, K, J, L | C buttons |
+| Enter | Start |
+
+The online game has no menu: its cheats, level jumps and the studio's tools would change one player's game only.
+
 ## How it works
 
 The host confirms every player's input for each frame, a quarter of a second behind its own clock. Every machine

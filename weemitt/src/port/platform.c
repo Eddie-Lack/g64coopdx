@@ -2078,9 +2078,17 @@ int main(int argc, char **argv) {
             unsigned short pressed = input_event_buttons(&settings, &e, !menu_is_open(), pad != NULL,
                                                          pad == NULL && joy != NULL);
 
+#ifdef PORT_STUDIO
+            /* g64coopdx: no menu in the online game. Its cheats, level jumps and the studio's timeline would change
+               one machine's game only. */
+            if (!netplay_active() && menu_handle_event(&e)) {
+                continue;
+            }
+#else
             if (menu_handle_event(&e)) {
                 continue;
             }
+#endif
             tapPending |= pressed;
             if (e.type == SDL_QUIT) {
                 running = 0;
@@ -2136,7 +2144,9 @@ int main(int argc, char **argv) {
         }
         scripted_debug(windowTicks);
 #ifdef PORT_STUDIO
-        studio_poll(&port_buttons, &port_stick_x, &port_stick_y);
+        if (!netplay_active()) {
+            studio_poll(&port_buttons, &port_stick_x, &port_stick_y);
+        }
         tapPending &= ~studio_input_mask();
 #endif
 
