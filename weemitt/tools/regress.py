@@ -29,9 +29,9 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "build" / "regress"
 LEVELS = list(range(0, 48))
-# The commit whose logic is the reference. This repository starts from one commit without earlier history, and its
-# logic was checked against the earlier reference before it was published. An empty value means the first commit.
-BASELINE_REF = ""
+# The commit whose logic is the reference. In g64coopdx it is the commit that added this copy of weemitt (weemitt's
+# de065e327c00, unchanged). An empty value means the repository's first commit.
+BASELINE_REF = "c592b7efa902907779c1f477ef7b5e236d37ff0b"
 ATTRACT_FRAMES = 30000
 
 
@@ -170,6 +170,11 @@ def build_baseline():
         ref = BASELINE_REF or subprocess.run(["git", "rev-list", "--max-parents=0", "HEAD"], cwd=ROOT, check=True,
                                              capture_output=True, text=True).stdout.split()[0]
         subprocess.run(["git", "worktree", "add", "--detach", str(src), ref], cwd=ROOT, check=True)
+    # In a repository that holds weemitt in a folder (g64coopdx's weemitt/), the worktree holds the whole
+    # repository, and the game is in the same folder of it.
+    prefix = subprocess.run(["git", "rev-parse", "--show-prefix"], cwd=ROOT, check=True, capture_output=True,
+                            text=True).stdout.strip()
+    src = src / prefix
     fix_ram_alignment(src)
     fix_direct_start(src)
     fix_float_swap(src)

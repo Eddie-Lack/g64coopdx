@@ -84,8 +84,8 @@ the machine running.
 ### Downloads
 
 GitHub Releases holds the builds, as it does for Glovebox. Builds contain no ROM data
-([discovery/repository.md](discovery/repository.md#what-may-be-distributed)). A release also needs weemitt's
-license, which is still open.
+([discovery/repository.md](discovery/repository.md#what-may-be-distributed)). weemitt's code in them is under
+weemitt's MIT license.
 
 ## What is set up today
 
