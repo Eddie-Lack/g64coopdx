@@ -33,6 +33,22 @@ jobs:
           done
           curl -fsS http://localhost:8080/v1/info | grep '"placeholder":true'
 
+  game:
+    name: Game builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the compilers and SDL2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev g++-mingw-w64-x86-64
+      - name: Build the Linux headless game and the Windows library and test host
+        run: make crossbuild-build
+      - name: Check the Windows files
+        run: |
+          file weemitt/build/lib-windows64-stub/glover.dll | grep -q 'PE32+'
+          file weemitt/build/libhost-windows64/glover-host.exe | grep -q 'PE32+'
+
   publish:
     name: Publish the lobby image
     needs: server
