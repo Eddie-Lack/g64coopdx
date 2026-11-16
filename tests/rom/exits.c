@@ -3,7 +3,8 @@
  * Two players play the first hub section with g64Online on. Player 1's glove is put on a world door: player 1 must
  * take it alone, with a record of where it leads (the way room of that world), and leave the game at the next frame
  * while player 0 stays. Then a level-wide exit (ExitLevel) takes player 0 to the hub; as the last player, player 0
- * stays in the game but takes no other exit. make twoplayers runs it on Linux and under Wine and compares the outputs.
+ * stays in the game but takes no other exit. Start, pressed by player 0, must not pause the game: a pause would stop
+ * it for every player. make twoplayers runs it on Linux and under Wine and compares the outputs.
  *
  * Usage: exits ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -30,6 +31,7 @@ void G64SetPresent(unsigned present);
 int G64FindExit(int type, float *x, float *y, float *z);
 void G64PlacePlayer(int p, float x, float y, float z);
 void ExitLevel(int type, int pause, int complete);
+extern unsigned char pauseMode;
 unsigned int port_hash_ram(void);
 
 /* enum ExitType and enum Level (weemitt/include/enums.h). */
@@ -70,6 +72,10 @@ int main(int argc, char **argv) {
         /* A presses close the opening tip; the other players' slots come once its camera has gone. */
         if (f < 600 && f % 30 == 0)
             in.buttons = 0x8000;
+        if (f == 620)
+            in.buttons = 0x1000; /* Start */
+        if (f == 625)
+            check(!pauseMode, "Start does not pause the online game");
         G64SetPresent(0x3);
         if (took >= 0 && f == (unsigned)took + 1) {
             check(!G64HasPlayer(1) && G64HasPlayer(0) && g64Players == 1,
