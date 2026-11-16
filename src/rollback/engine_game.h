@@ -31,6 +31,9 @@ int rb_engine_last_tasks(void *tasks, int max);
 /* Puts game g in the engine (the other games are saved first). The engine's memory then holds g's newest state, for
  * drawing it. */
 void rb_engine_game_enter(rb_engine_game *g);
+/* Saves the game the engine holds, and leaves the engine to the caller, who may load any state into it. The next
+ * game that steps or enters is loaded again. */
+void rb_engine_release(void);
 /* The hash of the state of a game, as rb_game_ops.hash_state gives it: weemitt's memory hash, the same on Linux and
  * Windows. Slow (it reads all 24 MB of the game's memory). */
 uint64_t rb_engine_game_hash(rb_engine_game *g);

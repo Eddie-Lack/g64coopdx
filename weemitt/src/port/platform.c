@@ -2071,6 +2071,19 @@ int main(int argc, char **argv) {
         }
         if (online) {
             extern void G64StartPlayers(unsigned present);
+            char *pref = SDL_GetPrefPath("weemitt", "Glover");
+
+            /* The online program always writes a log: on Windows it has no console. */
+            if (pref != NULL && opt.logPath == NULL) {
+                char logFile[600];
+
+                snprintf(logFile, sizeof(logFile), "%sg64coopdx-%s.log", pref, netplay_is_host() ? "host" : "join");
+                plog_set_file(logFile);
+                plog_printf("g64coopdx: the log of this online game: %s", logFile);
+            }
+            if (pref != NULL) {
+                SDL_free(pref);
+            }
 
             opt.level = level;
             G64StartPlayers(players >= 16 ? 0xFFFFu : (1u << players) - 1u);
@@ -2219,7 +2232,8 @@ int main(int argc, char **argv) {
 #ifdef PORT_STUDIO
         if (netplay_active()) {
             /* g64coopdx: the online game runs whole frames at the game's rate. The rollback core decides which
-               frames run, and the newest one is drawn. The settings that change the logic stay at their defaults. */
+               frames run, and the newest one is drawn, blended with the one before. The settings that change the
+               logic stay at their defaults. */
             static unsigned titleTick;
 
             while (acc >= port_game_retraces() / 60.0) {
@@ -2238,8 +2252,13 @@ int main(int argc, char **argv) {
                 if (n >= 0) {
                     taskCount = n;
                 }
+                if (n > 0) {
+                    /* The drawn frames blend the last two game frames, as in the Original mode. A correction after a
+                       wrong prediction then moves the other gloves over a frame, not at once. */
+                    gfx_interp_record((const GfxTask *)tasks, (int)n, (int)port_game_cut());
+                }
             }
-            gfx_interp_set(-1.0f);
+            gfx_interp_set((float)(acc / (port_game_retraces() / 60.0)));
             if (titleTick++ % 30 == 0) {
                 SDL_SetWindowTitle(window, netplay_status());
             }

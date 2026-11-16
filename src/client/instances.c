@@ -115,6 +115,8 @@ struct g64_ihost {
     int exit_count;
     uint32_t clock;
     uint32_t matches, mismatches; /* of instances that have ended */
+    g64_final_fn on_final;
+    void *final_user;
 };
 
 static void host_rb_send(void *user, int to, const uint8_t *data, size_t len) {
@@ -150,7 +152,8 @@ static void host_on_final(void *user, uint32_t frame, const void *state) {
     inst *i = user;
     g64_ihost *h = i->h;
     int k;
-    (void)frame, (void)state;
+    if (h->on_final)
+        h->on_final(h->final_user, i->id, frame, state);
     for (k = 0; k < g64ExitCount && k < 16 && h->exit_count < MAX_PENDING; k++) {
         h->exits[h->exit_count].slot = (int)(i - h->inst);
         h->exits[h->exit_count].r = g64Exits[k];
@@ -415,6 +418,11 @@ void g64_ihost_drop(g64_ihost *h, int p) {
     }
 }
 
+void g64_ihost_on_final(g64_ihost *h, g64_final_fn fn, void *user) {
+    h->on_final = fn;
+    h->final_user = user;
+}
+
 int g64_ihost_instances(const g64_ihost *h) {
     int i, n = 0;
     for (i = 0; i < G64_MAX_INSTANCES; i++)
@@ -466,7 +474,15 @@ struct g64_iclient {
     uint32_t have;
     uint32_t desyncs;
     uint64_t rollback_frames;
+    g64_final_fn on_final;
+    void *final_user;
 };
+
+static void client_final(void *user, uint32_t frame, const void *state) {
+    g64_iclient *c = user;
+    if (c->on_final)
+        c->on_final(c->final_user, c->id, frame, state);
+}
 
 static void client_rb_send(void *user, int to, const uint8_t *data, size_t len) {
     g64_iclient *c = user;
@@ -524,8 +540,8 @@ static int finish_move(g64_iclient *c) {
         for (p = 0; p < c->players; p++)
             last[p].present = (uint8_t)((r.members >> p) & 1);
     }
-    c->rb = rb_client_new_at(c->ops, c->game, c->players, c->me, c->window, c->mv.join, last, client_rb_send, NULL,
-                             c);
+    c->rb = rb_client_new_at(c->ops, c->game, c->players, c->me, c->window, c->mv.join, last, client_rb_send,
+                             client_final, c);
     if (!c->rb)
         return -1;
     c->id = c->mv.instance;
@@ -560,7 +576,7 @@ g64_iclient *g64_iclient_new(Engine *e, const void *boot, int players, int me, i
     r.level = level;
     r.members = all_players(players);
     c->game = build(boot, &r);
-    c->rb = c->game ? rb_client_new(c->ops, c->game, players, me, window, client_rb_send, NULL, c) : NULL;
+    c->rb = c->game ? rb_client_new(c->ops, c->game, players, me, window, client_rb_send, client_final, c) : NULL;
     if (!c->rb) {
         drop_game(c);
         free(c);
@@ -653,6 +669,12 @@ int g64_iclient_step(g64_iclient *c, rb_input local) {
     return 1;
 }
 
+void g64_iclient_on_final(g64_iclient *c, g64_final_fn fn, void *user) {
+    c->on_final = fn;
+    c->final_user = user;
+}
+
+int g64_iclient_instance(const g64_iclient *c) { return c->id; }
 int g64_iclient_moving(const g64_iclient *c) { return c->moving; }
 rb_engine_game *g64_iclient_game(g64_iclient *c) { return c->moving ? NULL : c->game; }
 int g64_iclient_level(const g64_iclient *c) { return c->level; }

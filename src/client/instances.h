@@ -47,6 +47,10 @@ void g64_ihost_tick(g64_ihost *h);
 int g64_ihost_receive(g64_ihost *h, int from, const uint8_t *data, size_t len);
 /* Player p left the session: they leave their instance. */
 void g64_ihost_drop(g64_ihost *h, int p);
+/* For checks: fn is called with each confirmed frame's final state of the reference copy of every instance, with
+ * the instance's number. The state is valid only during the call. */
+typedef void (*g64_final_fn)(void *user, int instance, uint32_t frame, const void *state);
+void g64_ihost_on_final(g64_ihost *h, g64_final_fn fn, void *user);
 /* For status lines and tests. */
 int g64_ihost_instances(const g64_ihost *h);
 int g64_ihost_level_of(const g64_ihost *h, int p);
@@ -63,6 +67,10 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len);
 /* One frame with the local controller. Returns 1 when the local game ran a frame (its display lists are the
  * engine's latest), 0 when it waits (for the host, or while it moves to another instance). */
 int g64_iclient_step(g64_iclient *c, rb_input local);
+/* For checks: fn is called with each final frame of the local game (confirmed and run on confirmed inputs). */
+void g64_iclient_on_final(g64_iclient *c, g64_final_fn fn, void *user);
+/* The local player's instance number. */
+int g64_iclient_instance(const g64_iclient *c);
 /* 1 while the player moves to another instance (the game is being built). */
 int g64_iclient_moving(const g64_iclient *c);
 /* The local game (for drawing the local player's view), or NULL while moving. */

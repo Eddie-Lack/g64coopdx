@@ -34,6 +34,8 @@ static uint32_t now_ms(void) {
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 int port_game_draw_view(void *tasks, int max);
+/* weemitt's log (src/port/log.c): the online program has no console on Windows, so its lines go to a file too. */
+void plog_printf(const char *fmt, ...);
 typedef struct {
     int level, frame, player, type;
 } G64TestExit;
@@ -83,13 +85,20 @@ static int fail_connect(const char *why) {
     return -1;
 }
 
+/* The level the host starts the game in: the first hub section, or G64_START_LEVEL for tests. */
+static int start_level(void) {
+    const char *v = getenv("G64_START_LEVEL");
+    int level = v ? atoi(v) : START_LEVEL;
+    return level >= 0 && level < G64_NUM_LEVELS ? level : START_LEVEL;
+}
+
 /* Makes the session once the socket is ready: at once in the direct mode, after the relay's answer through it. */
 static int make_session(void) {
     if (crelay[0] && !chost) {
         net_addr hostAddr = net_relay_player(0);
         session = g64_session_join(sock, &hostAddr, romHash, "player");
     } else if (crelay[0]) {
-        session = g64_session_host(sock, cwanted, romHash, START_LEVEL, cdeadline > 0 ? cdeadline : DEADLINE);
+        session = g64_session_host(sock, cwanted, romHash, start_level(), cdeadline > 0 ? cdeadline : DEADLINE);
     } else if (cjoin[0]) {
         net_addr to;
         char err[160];
@@ -97,7 +106,7 @@ static int make_session(void) {
             return fail_connect(err);
         session = g64_session_join(sock, &to, romHash, "player");
     } else {
-        session = g64_session_host(sock, cwanted, romHash, START_LEVEL, cdeadline > 0 ? cdeadline : DEADLINE);
+        session = g64_session_host(sock, cwanted, romHash, start_level(), cdeadline > 0 ? cdeadline : DEADLINE);
     }
     if (!session) {
         char why[96];
@@ -338,6 +347,83 @@ static void read_test_exits(void) {
     }
 }
 
+/* The host's self-check. On the host, its own player's game and the host's reference copy of the same instance run
+ * in one process. Every 10th confirmed frame, their states must be equal. When they are not, the log lists where the
+ * game's memory differs, as N64 addresses (no contents): the place to look for what is not deterministic. */
+#define CHECK_EVERY 10
+#define CHECK_KEEP 4
+#define CHECK_REPORTS 5
+#define RAM_BYTES 0x1800000u
+typedef struct {
+    int used, instance;
+    uint32_t frame;
+    void *state;
+} kept_state;
+static kept_state kept[CHECK_KEEP];
+static unsigned char *ramCopy;
+static int reports;
+
+static void on_reference_final(void *user, int instance, uint32_t frame, const void *state) {
+    kept_state *k = &kept[(frame / CHECK_EVERY) % CHECK_KEEP];
+    (void)user;
+    if (frame % CHECK_EVERY != 0 || instance != g64_iclient_instance(iclient) || !k->state)
+        return;
+    memcpy(k->state, state, engine_state_used(state));
+    k->used = 1;
+    k->instance = instance;
+    k->frame = frame;
+}
+
+/* Lists the ranges of the game's memory where two states differ (at most 40, merged across gaps under 16 bytes). */
+static void report_difference(const void *reference, const void *local, int instance, uint32_t frame) {
+    const unsigned char *ram = engine_ram(engine);
+    uint32_t i, start = 0, end = 0, total = 0;
+    int ranges = 0, open = 0;
+    char line[1024];
+    size_t n;
+    rb_engine_release();
+    engine_load(engine, reference);
+    memcpy(ramCopy, ram, RAM_BYTES);
+    engine_load(engine, local);
+    n = (size_t)snprintf(line, sizeof line, "g64coopdx: self-check: level %d (instance %d), frame %u differs at",
+                         g64_iclient_level(iclient), instance, frame);
+    for (i = 0; i < RAM_BYTES; i++) {
+        if (ram[i] == ramCopy[i])
+            continue;
+        total++;
+        if (open && i - end < 16) {
+            end = i + 1;
+            continue;
+        }
+        if (open && ranges < 40 && n < sizeof line - 40)
+            n += (size_t)snprintf(line + n, sizeof line - n, " %08x+%u", 0x80000000u + start, end - start);
+        if (open)
+            ranges++;
+        open = 1;
+        start = i;
+        end = i + 1;
+    }
+    if (open && ranges < 40 && n < sizeof line - 40)
+        n += (size_t)snprintf(line + n, sizeof line - n, " %08x+%u", 0x80000000u + start, end - start);
+    if (open)
+        ranges++;
+    plog_printf("%s; %u bytes in %d ranges", line, total, ranges);
+}
+
+static void on_local_final(void *user, int instance, uint32_t frame, const void *state) {
+    kept_state *k = &kept[(frame / CHECK_EVERY) % CHECK_KEEP];
+    const rb_game_ops *ops = rb_engine_ops(engine);
+    (void)user;
+    if (frame % CHECK_EVERY != 0 || reports >= CHECK_REPORTS || !k->used || k->instance != instance ||
+        k->frame != frame || !ramCopy)
+        return;
+    k->used = 0;
+    if (ops->hash_state(k->state) == ops->hash_state(state))
+        return;
+    reports++;
+    report_difference(k->state, state, instance, frame);
+}
+
 int netplay_begin(Engine *e, char *err, size_t errSize) {
     uint32_t deadline = (uint32_t)g64_session_deadline(session);
     engine = e;
@@ -362,6 +448,15 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         snprintf(err, errSize, "cannot start the game");
         return -1;
     }
+    if (ihost) {
+        int i;
+        ramCopy = malloc(RAM_BYTES);
+        for (i = 0; i < CHECK_KEEP && ramCopy; i++)
+            kept[i].state = malloc(engine_state_size(e));
+        g64_ihost_on_final(ihost, on_reference_final, NULL);
+        g64_iclient_on_final(iclient, on_local_final, NULL);
+    }
+    plog_printf("g64coopdx: player %d of %d, level %d, deadline %u", me + 1, players, clevel, deadline);
     return 0;
 }
 
@@ -391,8 +486,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             if (g64_session_gone(session, p) && !dropped[p]) {
                 dropped[p] = 1;
                 g64_ihost_drop(ihost, p);
-                printf("g64coopdx: player %d stopped answering; the game goes on without them\n", p + 1);
-                fflush(stdout);
+                plog_printf("g64coopdx: player %d stopped answering; the game goes on without them", p + 1);
             }
         flush_local();
         g64_ihost_tick(ihost);
@@ -415,14 +509,14 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     }
     if (g64_iclient_frame(iclient) % 100 == 0 && g64_iclient_frame(iclient) != lastPrinted) {
         lastPrinted = g64_iclient_frame(iclient);
-        printf("g64coopdx: level %d, frame %u, %u confirmed, %llu frames run again, %u desyncs",
-               g64_iclient_level(iclient), g64_iclient_frame(iclient), g64_iclient_confirmed(iclient),
-               (unsigned long long)g64_iclient_rollback_frames(iclient), g64_iclient_desyncs(iclient));
-        if (ihost)
-            printf(", %d instances, %u hash checks, %u mismatches", g64_ihost_instances(ihost),
-                   g64_ihost_hash_matches(ihost), g64_ihost_hash_mismatches(ihost));
-        printf("\n");
-        fflush(stdout);
+        char line[256];
+        int n = snprintf(line, sizeof line, "g64coopdx: level %d, frame %u, %u confirmed, %llu frames run again, %u desyncs",
+                         g64_iclient_level(iclient), g64_iclient_frame(iclient), g64_iclient_confirmed(iclient),
+                         (unsigned long long)g64_iclient_rollback_frames(iclient), g64_iclient_desyncs(iclient));
+        if (ihost && n > 0 && (size_t)n < sizeof line)
+            snprintf(line + n, sizeof line - (size_t)n, ", %d instances, %u hash checks, %u mismatches",
+                     g64_ihost_instances(ihost), g64_ihost_hash_matches(ihost), g64_ihost_hash_mismatches(ihost));
+        plog_printf("%s", line);
     }
     /* While the player moves to another level, nothing is drawn. */
     game = g64_iclient_game(iclient);

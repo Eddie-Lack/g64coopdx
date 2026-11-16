@@ -171,6 +171,8 @@ void rb_engine_game_free(rb_engine_game *g) {
     free(g);
 }
 
+void rb_engine_release(void) { leave(); }
+
 void rb_engine_game_enter(rb_engine_game *g) {
     enter(g);
     /* The caller may draw, which writes the game's memory: the state is saved again when another game enters. */
