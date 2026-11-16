@@ -1,5 +1,6 @@
 /* The studio (studio.h). */
 #include "studio.h"
+#include "prefpath.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -639,7 +640,7 @@ int studio_start_search(int workers, double seconds, const char *limits) {
     if (searchWindow > length - startFrame) {
         searchWindow = length - startFrame;
     }
-    base = SDL_GetPrefPath("weemitt", "Glover");
+    base = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
     if (base == NULL) {
         snprintf(search.message, sizeof(search.message), "No folder for the search: %s", SDL_GetError());
         return -1;

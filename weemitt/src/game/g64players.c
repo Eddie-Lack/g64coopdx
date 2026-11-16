@@ -429,6 +429,22 @@ s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z) {
     return 1;
 }
 
+void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz) {
+    s32 i = slot_of(player);
+    Actor *h, *b;
+    if (i == 0) {
+        h = &hand;
+        b = &ball;
+    } else if (i > 0 && i < slotCount && slots[i]) {
+        h = &((G64Slot *)slots[i])->hand;
+        b = &((G64Slot *)slots[i])->ball;
+    } else {
+        return;
+    }
+    h->pos.x += dx, h->pos.y += dy, h->pos.z += dz;
+    b->pos.x += dx, b->pos.y += dy, b->pos.z += dz;
+}
+
 s32 G64HasPlayer(s32 player) {
     return slot_of(player) >= 0;
 }
