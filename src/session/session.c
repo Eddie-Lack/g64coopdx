@@ -21,6 +21,7 @@ typedef struct {
     int started;    /* the peer has sent a game message, so it has the start */
     int gone;       /* stopped answering after the start */
     char name[NAME_MAX + 1];
+    uint32_t glove, ball; /* the player's colors (session.h, G64_COLOR_SET) */
 } peer;
 
 struct g64_session {
@@ -34,7 +35,13 @@ struct g64_session {
     /* The host: players 1 .. players - 1. A joiner: peer 0 is the host. */
     peer peers[G64_SESSION_MAX_PLAYERS];
     char name[NAME_MAX + 1];
+    uint32_t glove, ball; /* this machine's player's colors */
+    /* After the start: every player's colors, by player number. */
+    uint32_t colors[G64_SESSION_MAX_PLAYERS][2];
 };
+
+/* A color from the network: the chosen bit and 24 bits of color, nothing else. */
+static int valid_color(uint32_t c) { return (c >> 25) == 0; }
 
 uint32_t g64_rom_hash(const uint8_t *rom, size_t size) {
     uint32_t h = 2166136261u;
@@ -99,8 +106,14 @@ void g64_session_free(g64_session *g) { free(g); }
 static void send_bytes(g64_session *g, const net_addr *to, const uint8_t *d, size_t n) { net_send(g->sock, to, d, n); }
 
 static void send_start(g64_session *g, int p) {
-    uint8_t m[5] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level, (uint8_t)g->deadline, (uint8_t)g->flags};
-    send_bytes(g, &g->peers[p].addr, m, sizeof m);
+    uint8_t m[5 + 8 * G64_SESSION_MAX_PLAYERS] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level,
+                                                  (uint8_t)g->deadline, (uint8_t)g->flags};
+    int q;
+    for (q = 0; q < g->players; q++) {
+        put32(m + 5 + 8 * q, q == 0 ? g->glove : g->peers[q].glove);
+        put32(m + 9 + 8 * q, q == 0 ? g->ball : g->peers[q].ball);
+    }
+    send_bytes(g, &g->peers[p].addr, m, 5 + 8 * (size_t)g->players);
 }
 
 /* The host's handling of one datagram. */
@@ -129,7 +142,8 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         return;
     {
         uint8_t refuse[2] = {MSG_REFUSE, 0};
-        if (n < 9 || memcmp(d + 1, "G64", 3) != 0 || d[4] != G64_PROTOCOL) {
+        if (n < 17 || memcmp(d + 1, "G64", 3) != 0 || d[4] != G64_PROTOCOL || !valid_color(get32(d + 9)) ||
+            !valid_color(get32(d + 13))) {
             refuse[1] = G64_REFUSE_PROTOCOL;
         } else if (get32(d + 5) != g->rom) {
             refuse[1] = G64_REFUSE_ROM;
@@ -151,15 +165,17 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
     }
     {
         peer *q = &g->peers[free_slot];
-        int len = n - 9 > NAME_MAX ? NAME_MAX : n - 9, i;
+        int len = n - 17 > NAME_MAX ? NAME_MAX : n - 17, i;
         uint8_t m[3] = {MSG_WELCOME, (uint8_t)free_slot, (uint8_t)g->players};
         memset(q, 0, sizeof *q);
         q->used = 1;
         q->addr = *from;
         q->heard = now;
+        q->glove = get32(d + 9);
+        q->ball = get32(d + 13);
         /* The name: printable ASCII only. */
         for (i = 0; i < len; i++)
-            q->name[i] = d[9 + i] >= 32 && d[9 + i] < 127 ? (char)d[9 + i] : '?';
+            q->name[i] = d[17 + i] >= 32 && d[17 + i] < 127 ? (char)d[17 + i] : '?';
         send_bytes(g, from, m, sizeof m);
     }
 }
@@ -186,8 +202,17 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         }
         break;
     case MSG_START:
-        if (n == 5 && g->me >= 1 && d[1] == g->players && d[3] >= 1 && (d[4] & ~G64_FLAGS_KNOWN) == 0 &&
-            g->state == G64_SESSION_WAITING) {
+        if (n >= 5 && g->me >= 1 && d[1] == g->players && n == 5 + 8 * g->players && d[3] >= 1 &&
+            (d[4] & ~G64_FLAGS_KNOWN) == 0 && g->state == G64_SESSION_WAITING) {
+            int q, ok = 1;
+            for (q = 0; q < g->players; q++)
+                ok &= valid_color(get32(d + 5 + 8 * q)) && valid_color(get32(d + 9 + 8 * q));
+            if (!ok)
+                break;
+            for (q = 0; q < g->players; q++) {
+                g->colors[q][0] = get32(d + 5 + 8 * q);
+                g->colors[q][1] = get32(d + 9 + 8 * q);
+            }
             g->level = d[2];
             g->deadline = d[3];
             g->flags = d[4];
@@ -259,15 +284,17 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
         if (g->peers[0].heard == 0 && g->lastSend == 0)
             g->peers[0].heard = now ? now : 1;
         if (g->state == G64_SESSION_WAITING && (g->lastSend == 0 || now - g->lastSend >= RESEND)) {
-            uint8_t m[9 + NAME_MAX];
+            uint8_t m[17 + NAME_MAX];
             size_t len = strlen(g->name);
             g->lastSend = now ? now : 1;
             m[0] = MSG_HELLO;
             memcpy(m + 1, "G64", 3);
             m[4] = G64_PROTOCOL;
             put32(m + 5, g->rom);
-            memcpy(m + 9, g->name, len);
-            send_bytes(g, &g->peers[0].addr, m, 9 + len);
+            put32(m + 9, g->glove);
+            put32(m + 13, g->ball);
+            memcpy(m + 17, g->name, len);
+            send_bytes(g, &g->peers[0].addr, m, 17 + len);
         }
         if (now - g->lastPing >= PING_EVERY) {
             uint8_t m = MSG_PING;
@@ -306,6 +333,26 @@ int g64_session_players(const g64_session *g) { return g->players; }
 int g64_session_level(const g64_session *g) { return g->level; }
 int g64_session_deadline(const g64_session *g) { return g->deadline; }
 int g64_session_flags(const g64_session *g) { return g->flags; }
+
+void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball) {
+    if (g->state == G64_SESSION_WAITING && valid_color(glove) && valid_color(ball)) {
+        g->glove = glove;
+        g->ball = ball;
+    }
+}
+
+void g64_session_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball) {
+    *glove = *ball = 0;
+    if (p < 0 || p >= g->players)
+        return;
+    if (g->me == 0) {
+        *glove = p == 0 ? g->glove : g->peers[p].glove;
+        *ball = p == 0 ? g->ball : g->peers[p].ball;
+    } else {
+        *glove = g->colors[p][0];
+        *ball = g->colors[p][1];
+    }
+}
 
 void g64_session_set_flags(g64_session *g, int flags) {
     if (g->me == 0 && g->state == G64_SESSION_WAITING)

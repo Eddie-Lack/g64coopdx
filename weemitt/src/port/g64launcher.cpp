@@ -9,7 +9,9 @@
 #include "backends/imgui_impl_opengl3.h"
 #include "backends/imgui_impl_sdl2.h"
 #include "g64launcher.h"
+#include "prefpath.h"
 #include "../../../src/client/netplay.h"
+#include "../../../src/session/session.h"
 
 /* A room code: letters and digits, without blanks, in capitals. */
 static int code_char(ImGuiInputTextCallbackData *d) {
@@ -21,6 +23,109 @@ static int code_char(ImGuiInputTextCallbackData *d) {
     return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ? 0 : 1;
 }
 
+/* The player's colors: a palette, or custom. Each color is chosen (G64_COLOR_SET plus 0xRRGGBB) or automatic (0, the
+   color of the player's number). The colors multiply the glove's and the ball's own: white keeps them. They are kept in
+   colors.txt, in the program's own folder: the palette's number and the two custom colors. */
+typedef struct {
+    const char *name;
+    unsigned glove, ball;
+} palette;
+static const palette palettes[] = {
+    {"Automatic", 0, 0},
+    {"Classic", G64_COLOR_SET | 0xFFFFFF, G64_COLOR_SET | 0xFFFFFF},
+    {"Cross-Stitch", G64_COLOR_SET | 0x3A3A44, G64_COLOR_SET | 0x8C1A1A},
+    {"Blue", G64_COLOR_SET | 0x60A0FF, G64_COLOR_SET | 0x60A0FF},
+    {"Green", G64_COLOR_SET | 0x70FF70, G64_COLOR_SET | 0x70FF70},
+    {"Yellow", G64_COLOR_SET | 0xFFE040, G64_COLOR_SET | 0xFFE040},
+    {"Red", G64_COLOR_SET | 0xFF6060, G64_COLOR_SET | 0xFF6060},
+    {"Purple", G64_COLOR_SET | 0xC070FF, G64_COLOR_SET | 0xC070FF},
+    {"Orange", G64_COLOR_SET | 0xFFA040, G64_COLOR_SET | 0xFFA040},
+    {"Cyan", G64_COLOR_SET | 0x60FFFF, G64_COLOR_SET | 0x60FFFF},
+};
+#define PALETTES ((int)(sizeof palettes / sizeof palettes[0]))
+#define CUSTOM PALETTES
+static int choice;
+static unsigned custom[2] = {G64_COLOR_SET | 0xFFFFFF, G64_COLOR_SET | 0xFFFFFF};
+static int colorsLoaded;
+
+static void colors_path(char *out, size_t size) {
+    char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
+    snprintf(out, size, "%scolors.txt", pref ? pref : "");
+    if (pref)
+        SDL_free(pref);
+}
+
+static void apply_colors(void) {
+    if (choice == CUSTOM)
+        netplay_set_colors(custom[0], custom[1]);
+    else
+        netplay_set_colors(palettes[choice].glove, palettes[choice].ball);
+}
+
+static void load_colors(void) {
+    char path[1024];
+    FILE *f;
+    int c;
+    unsigned g, b;
+    colorsLoaded = 1;
+    colors_path(path, sizeof path);
+    f = fopen(path, "r");
+    if (f) {
+        if (fscanf(f, "%d %x %x", &c, &g, &b) == 3 && c >= 0 && c <= CUSTOM) {
+            choice = c;
+            custom[0] = G64_COLOR_SET | (g & 0xFFFFFF);
+            custom[1] = G64_COLOR_SET | (b & 0xFFFFFF);
+        }
+        fclose(f);
+    }
+    apply_colors();
+}
+
+static void save_colors(void) {
+    char path[1024];
+    FILE *f;
+    colors_path(path, sizeof path);
+    f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%d %06x %06x\n", choice, custom[0] & 0xFFFFFF, custom[1] & 0xFFFFFF);
+        fclose(f);
+    }
+}
+
+/* One custom color. Returns 1 when it changed. */
+static int color_picker(const char *label, unsigned *c) {
+    float rgb[3] = {((*c >> 16) & 255) / 255.0f, ((*c >> 8) & 255) / 255.0f, (*c & 255) / 255.0f};
+    if (!ImGui::ColorEdit3(label, rgb, ImGuiColorEditFlags_NoInputs))
+        return 0;
+    *c = G64_COLOR_SET | (unsigned)(rgb[0] * 255.0f + 0.5f) << 16 | (unsigned)(rgb[1] * 255.0f + 0.5f) << 8 |
+         (unsigned)(rgb[2] * 255.0f + 0.5f);
+    return 1;
+}
+
+/* The colors' part of the start screen. */
+static void colors_ui(void) {
+    int changed = 0, i;
+    if (!colorsLoaded)
+        load_colors();
+    if (ImGui::BeginCombo("Colors", choice == CUSTOM ? "Custom" : palettes[choice].name)) {
+        for (i = 0; i <= CUSTOM; i++)
+            if (ImGui::Selectable(i == CUSTOM ? "Custom" : palettes[i].name, i == choice)) {
+                choice = i;
+                changed = 1;
+            }
+        ImGui::EndCombo();
+    }
+    if (choice == CUSTOM) {
+        changed |= color_picker("Glove", &custom[0]);
+        ImGui::SameLine();
+        changed |= color_picker("Ball", &custom[1]);
+    }
+    if (changed) {
+        apply_colors();
+        save_colors();
+    }
+}
+
 int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long romSize, const char *relay, int *level,
                  int *players) {
     static int wanted = 2;
@@ -30,6 +135,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
     /* A test: G64_LAUNCHER_AUTO=host or join:CODE presses Host or Join at once. */
     const char *autoPress = getenv("G64_LAUNCHER_AUTO");
 
+    if (!colorsLoaded)
+        load_colors();
     if (autoPress && !strncmp(autoPress, "join:", 5)) {
         snprintf(code, sizeof code, "%s", autoPress + 5);
     }
@@ -112,6 +219,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             if (ImGui::SliderInt("Input delay", &delay, 0, 8)) {
                 netplay_set_input_delay(delay);
             }
+            colors_ui();
             ImGui::TextWrapped("Frames of 50 ms. More: the other gloves jump less. Less: yours answers sooner.");
             ImGui::Separator();
             if (ImGui::Button("Play alone", ImVec2(-1, 0))) {

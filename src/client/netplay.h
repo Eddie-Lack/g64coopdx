@@ -52,6 +52,11 @@ int netplay_active(void);
  * netplay_start. Every machine plays with the host's choice: netplay_normal_ball gives it after the start. */
 void netplay_set_normal_ball(int on);
 int netplay_normal_ball(void);
+/* This player's glove and ball colors: G64_COLOR_SET (session.h) plus 0xRRGGBB, or 0 for the color of their player
+ * number. Call it before netplay_start. After the start, netplay_apply_colors gives every player's colors to the game
+ * (netplay_begin calls it after power-on). */
+void netplay_set_colors(uint32_t glove, uint32_t ball);
+void netplay_apply_colors(void);
 /* The local player's input delay in frames (0 to 8; the default is 1): an input is for the frame that many frames
  * later and reaches the others sooner, so they predict less. Call it before netplay_begin. */
 void netplay_set_input_delay(int frames);

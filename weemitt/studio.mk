@@ -39,6 +39,7 @@ STUDIO_DATA_REL := $(if $(and $(filter 64,$(BITS)),$(filter-out windows,$(TARGET
 HOST_CFLAGS += -DPORT_STUDIO -I$(BF)/engine -I$(BF)/src
 # g64coopdx: the online program keeps its own folder for the player's files (src/port/prefpath.h).
 HOST_CFLAGS += -DPORT_PREF_ORG='"g64coopdx"' -DPORT_PREF_APP='"Glover"'
+HOST_CXXFLAGS += -DPORT_PREF_ORG='"g64coopdx"' -DPORT_PREF_APP='"Glover"'
 HOST_CXXFLAGS += -DPORT_STUDIO -I$(BF)/engine
 BF_CFLAGS := $(ARCH_FLAGS) -std=gnu99 -O2 -g -fno-pie -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare \
              -I$(BF)/engine -I$(BF)/src -I$(BUILD)/bf -DBUILD_OPT='"studio"' -DGLOVER_EMBEDDED

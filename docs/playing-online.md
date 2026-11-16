@@ -43,6 +43,11 @@ before they need it, and the other gloves move without corrections. The start sc
 `--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump; a lower one
 makes your own glove answer sooner. Each player chooses their own.
 
+Your glove's and ball's colors are under **Colors** on the start screen: **Automatic** (the color of your player
+number), **Classic** (the game's own), **Cross-Stitch**, a few plain colors, or **Custom**, with a color for the glove
+and one for the ball. A color tints the glove's and the ball's own, so white keeps them as they are. Every player sees
+everyone's choice. The start screen keeps yours for next time.
+
 Everyone plays with the easy ball controls. The host can tick **Normal ball controls** on the start screen (or add
 `--normal-ball`) for the game's own controls; every player then has them.
 
@@ -66,8 +71,9 @@ g64coopdx.exe --rom glover.z64 --join HOST-ADDRESS:27064
 `--relay HOST:PORT` uses another relay than the lobby's (`g64coopdx-lobby.fly.dev:27065`); anyone can run the lobby
 server (`server/`).
 
-The game starts when every player is in. The host is player 1. Each player sees their own glove's camera. Player 1's
-glove keeps the game's colors; player 2's is blue, player 3's green and player 4's yellow. The
+The game starts when every player is in. The host is player 1. Each player sees their own glove's camera. With
+**Automatic** colors, player 1's glove keeps the game's colors; player 2's is blue, player 3's green and player 4's
+yellow. The
 window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
 The program also prints a status line every 100 frames.
 
