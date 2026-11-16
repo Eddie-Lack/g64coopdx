@@ -90,8 +90,22 @@ A gamepad works as an N64 controller. On the keyboard:
 | Q, E | L, R |
 | I, K, J, L | C buttons |
 | Enter | Start |
+| Esc | Your pause menu |
 
-The online game has no menu: its cheats, level jumps and the studio's tools would change one player's game only.
+The studio's menu is off in the online game: its cheats, level jumps and tools would change one player's game only.
+
+## Your pause menu
+
+Start or Esc opens your own pause menu. It does not stop the game: the others play on, and your glove waits.
+
+| Choice | What it does |
+| --- | --- |
+| Resume | Closes the menu |
+| Back to checkpoint | Puts your glove and ball at your last checkpoint, or at the level's start |
+| Back to the hub | Takes you out of the level, the same way the hub exit does |
+| Leave the online game | Closes the program; the others play on |
+
+Up and down choose, A picks, and B, Start or Esc closes it. The choices act for you alone.
 
 ## How it works
 
@@ -120,8 +134,6 @@ game data, only addresses and counts.
 - There is no sound.
 - Enemies, collectables and puzzles react only to one player in each level.
 - An exit takes you at once: there is no spin, fade or end-of-level screen.
-- Start does not pause the online game: the game's own pause would stop the level for everyone in it, and its choices
-  (back to the checkpoint, quit) would act on every player. A pause menu of your own is still to come.
 - A level that is already running sees new progress only when it starts again. For example, a hub door that a
   finished level opens stays shut while someone is in the hub; it opens once the hub is empty and someone enters it
   again.

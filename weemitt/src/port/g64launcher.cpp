@@ -267,3 +267,33 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         SDL_Delay(10);
     }
 }
+
+/* g64coopdx: the player's own pause menu in the online game (netplay.c): the choices in the middle of the screen, the
+   chosen one highlighted. The controller drives it; the game goes on behind it. */
+void g64_pause_draw(SDL_Window *window) {
+    int w, h, i;
+    if (!netplay_pause_open())
+        return;
+    SDL_GetWindowSize(window, &w, &h);
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
+    ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_Always);
+    ImGui::Begin("Paused", NULL,
+                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
+                     | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
+    ImGui::SetWindowFontScale(1.4f);
+    for (i = 0; i < netplay_pause_items(); i++) {
+        if (i == netplay_pause_selection())
+            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "> %s", netplay_pause_item(i));
+        else
+            ImGui::Text("  %s", netplay_pause_item(i));
+    }
+    ImGui::Spacing();
+    ImGui::SetWindowFontScale(1.0f);
+    ImGui::TextDisabled("The game goes on for everyone.\nUp and down choose, A picks, B or Start closes.");
+    ImGui::End();
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}

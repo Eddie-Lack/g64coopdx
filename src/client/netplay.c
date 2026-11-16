@@ -580,6 +580,69 @@ static void restore_view(void) {
     }
 }
 
+/* Each player's own pause menu. It does not stop the game: while it is open the player's glove gets no input. A
+ * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames,
+ * so the host confirms it even if one input is lost; doing it twice does nothing more. */
+#define ACTION_BUTTON 0x0080
+#define ACTION_FRAMES 3
+enum { PAUSE_RESUME, PAUSE_CHECKPOINT, PAUSE_HUB, PAUSE_LEAVE, PAUSE_ITEMS };
+static const char *const pauseItems[PAUSE_ITEMS] = {"Resume", "Back to checkpoint", "Back to the hub",
+                                                    "Leave the online game"};
+static int pauseOpen, pauseSelection, pauseQuit, actionFrames, action;
+static uint16_t lastButtons;
+static int8_t lastStickY;
+
+void netplay_pause_toggle(void) {
+    pauseOpen = !pauseOpen;
+    pauseSelection = 0;
+}
+
+int netplay_pause_open(void) { return pauseOpen; }
+int netplay_pause_selection(void) { return pauseSelection; }
+int netplay_pause_items(void) { return PAUSE_ITEMS; }
+const char *netplay_pause_item(int i) { return i >= 0 && i < PAUSE_ITEMS ? pauseItems[i] : ""; }
+int netplay_quit_requested(void) { return pauseQuit; }
+
+/* The menu, driven by the local controller: Start opens it; up and down choose; A picks; B or Start closes it. */
+static void pause_menu(uint16_t buttons, int8_t stickY) {
+    uint16_t pressed = (uint16_t)(buttons & ~lastButtons);
+    int up = (pressed & 0x0800) || (stickY > 40 && lastStickY <= 40);
+    int down = (pressed & 0x0400) || (stickY < -40 && lastStickY >= -40);
+    lastButtons = buttons;
+    lastStickY = stickY;
+    if (!pauseOpen) {
+        if (pressed & 0x1000)
+            netplay_pause_toggle();
+        return;
+    }
+    if (pressed & (0x1000 | 0x4000)) {
+        pauseOpen = 0;
+        return;
+    }
+    if (up)
+        pauseSelection = (pauseSelection + PAUSE_ITEMS - 1) % PAUSE_ITEMS;
+    if (down)
+        pauseSelection = (pauseSelection + 1) % PAUSE_ITEMS;
+    if (!(pressed & 0x8000))
+        return;
+    switch (pauseSelection) {
+    case PAUSE_CHECKPOINT:
+        action = 1;
+        actionFrames = ACTION_FRAMES;
+        break;
+    case PAUSE_HUB:
+        action = 2;
+        actionFrames = ACTION_FRAMES;
+        break;
+    case PAUSE_LEAVE:
+        pauseQuit = 1;
+        break;
+    default:
+        break;
+    }
+    pauseOpen = 0;
+}
+
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
     rb_input in;
     rb_engine_game *game;
@@ -610,9 +673,19 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     }
     measure_corrections();
     memset(&in, 0, sizeof in);
-    in.buttons = buttons;
-    in.x = stickX;
-    in.y = stickY;
+    /* The menu's own button never comes from the controller. */
+    buttons = (uint16_t)(buttons & ~ACTION_BUTTON);
+    pause_menu(buttons, stickY);
+    if (actionFrames > 0) {
+        actionFrames--;
+        in.buttons = ACTION_BUTTON;
+        in.x = (int8_t)action;
+    } else if (!pauseOpen) {
+        /* Start opens the menu; the game never sees it. */
+        in.buttons = (uint16_t)(buttons & ~0x1000);
+        in.x = stickX;
+        in.y = stickY;
+    }
     /* The host decides who is present; the core fills it in. */
     in.present = 1;
     g64_iclient_step(iclient, in);

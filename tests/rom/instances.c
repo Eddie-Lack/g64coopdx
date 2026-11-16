@@ -4,8 +4,9 @@
  * the first hub section. The game's test exits (g64TestExits) then move them, the same way on every machine:
  *   - player 1 takes the Atlantis door: a new instance of the way room starts for them alone;
  *   - player 2 takes the same door later: they join the way room's running instance, after its log;
- *   - player 1 takes the way room's exit back to the hub: they join the hub's running instance, after its log.
- * The test: every player ends up in the right level, every instance's hash checks pass, and no player is told of a
+ *   - player 1 takes the way room's exit back to the hub: they join the hub's running instance, after its log;
+ *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input, and they join the hub too.
+ * The test: every player ends up in the hub, every instance's hash checks pass, and no player is told of a
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
  *
@@ -25,7 +26,7 @@ extern G64TestExit g64TestExits[4];
 enum { HUB1 = 0, WAYROOM = 42, ATLANTIS_EXIT = 6, HUB_EXIT = 13 };
 
 #define PLAYERS 4
-#define FRAMES 1800
+#define FRAMES 2100
 #define LATENCY 2
 #define LOSS 30 /* per 1000 messages */
 #define MAX_PACKETS 8192
@@ -105,6 +106,10 @@ static rb_input controller(int p, uint32_t f) {
     memset(&in, 0, sizeof in);
     if (f < 600) {
         in.buttons = f % 30 == 0 ? 0x8000 : 0;
+    } else if (p == 2 && now >= 1600 && now < 1603) {
+        /* The pause menu's choice, as netplay.c sends it: G64_ACTION_BUTTON with the choice in x. */
+        in.buttons = 0x0080;
+        in.x = 2;
     } else {
         in.x = dirs[(f / 40 + (uint32_t)p) % 4][0];
         in.y = dirs[(f / 40 + (uint32_t)p) % 4][1];
@@ -162,10 +167,9 @@ int main(int argc, char **argv) {
         }
     }
     check(g64_iclient_level(player[0]) == HUB1 && g64_iclient_level(player[1]) == HUB1 &&
-              g64_iclient_level(player[2]) == WAYROOM && g64_iclient_level(player[3]) == HUB1,
-          "players 0, 1 and 3 are in the hub, player 2 in the way room");
-    check(g64_ihost_level_of(host, 1) == HUB1 && g64_ihost_level_of(host, 2) == WAYROOM && g64_ihost_instances(host) == 2,
-          "the host agrees: two instances");
+              g64_iclient_level(player[2]) == HUB1 && g64_iclient_level(player[3]) == HUB1,
+          "every player is in the hub");
+    check(g64_ihost_level_of(host, 1) == HUB1 && g64_ihost_level_of(host, 2) == HUB1, "the host agrees");
     for (p = 0; p < PLAYERS; p++) {
         char what[160];
         snprintf(what, sizeof what, "player %d: not moving, %u frames confirmed, %u desyncs", p,

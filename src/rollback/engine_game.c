@@ -20,6 +20,9 @@ extern signed char port_stick_x, port_stick_y;
 extern unsigned short g64Buttons[16];
 extern int g64Member[16];
 void G64SetPresent(unsigned present);
+void G64PlayerAction(int player, int action);
+/* weemitt's G64_ACTION_BUTTON (g64players.h): a choice from a player's pause menu. */
+#define ACTION_BUTTON 0x0080
 extern signed char g64StickX[16], g64StickY[16];
 int port_game_frame(PortFrameTask *tasks, int max);
 
@@ -60,22 +63,29 @@ static void leave(void) {
 static void step(void *game, const rb_input *in, int players) {
     rb_engine_game *g = game;
     int p, q;
-    unsigned present = 0;
+    unsigned present = 0, acted = 0;
     enter(g);
     /* Who is in the game: a player arrives or leaves when their bit changes (g64players.c). */
     for (p = 0; p < players && p < 16; p++)
         present |= (unsigned)(in[p].present & 1) << p;
     G64SetPresent(present);
+    /* A choice from a player's own pause menu, carried in their input: it acts for them, with no controller input. */
+    for (p = 0; p < players && p < 16; p++)
+        if (in[p].present && (in[p].buttons & ACTION_BUTTON)) {
+            G64PlayerAction(p, in[p].x);
+            acted |= 1u << p;
+        }
     /* Inputs come by player number. The player in the globals (g64Member[0]) reads the game's own controller; the
        others read g64players.c's, by number. */
     q = g64Member[0] >= 0 && g64Member[0] < players ? g64Member[0] : 0;
-    port_buttons = in[q].buttons;
-    port_stick_x = in[q].x;
-    port_stick_y = in[q].y;
+    port_buttons = (acted >> q) & 1 ? 0 : in[q].buttons;
+    port_stick_x = (acted >> q) & 1 ? 0 : in[q].x;
+    port_stick_y = (acted >> q) & 1 ? 0 : in[q].y;
     for (p = 0; p < players && p < 16; p++) {
-        g64Buttons[p] = in[p].buttons;
-        g64StickX[p] = in[p].x;
-        g64StickY[p] = in[p].y;
+        int quiet = (acted >> p) & 1;
+        g64Buttons[p] = quiet ? 0 : in[p].buttons;
+        g64StickX[p] = quiet ? 0 : in[p].x;
+        g64StickY[p] = quiet ? 0 : in[p].y;
     }
     lastCount = port_game_frame(lastTasks, RB_ENGINE_MAX_TASKS);
     engine_count_logic(engine);

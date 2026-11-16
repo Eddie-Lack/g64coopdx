@@ -82,6 +82,12 @@ s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a
    state it loads again after the draw. */
 void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz);
+/* A player's own pause menu (src/client/netplay.c) sends a choice as an input: the reserved button G64_ACTION_BUTTON,
+   which no controller has, with the action in the stick's x. The game carries it out for that player alone. */
+#define G64_ACTION_BUTTON 0x0080
+#define G64_ACTION_CHECKPOINT 1 /* the glove, ball and camera go back to the player's last checkpoint */
+#define G64_ACTION_HUB 2        /* the player leaves for the hub, as by an exit */
+void G64PlayerAction(s32 player, s32 action);
 /* 1 when the player with this number is in this game. */
 s32 G64HasPlayer(s32 player);
 /* Between two frames: a player joins (a copy of the player in the globals: beside it before the level's first frame

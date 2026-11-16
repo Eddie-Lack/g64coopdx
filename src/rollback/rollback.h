@@ -100,6 +100,12 @@ uint32_t rb_client_hints(const rb_client *c);
  * it is behind the host by the message's travel time, so the host's inputs, sent ahead by its input delay, reach the
  * client in time. */
 uint32_t rb_client_host_clock(const rb_client *c);
+/* The frame this client should have run by now: the host's clock, plus one frame for each time the host confirmed a
+ * frame without this player's input because it came too late (at most RB_MAX_LEAD). A client behind it catches up. */
+#define RB_MAX_LEAD 8
+uint32_t rb_client_target(const rb_client *c);
+/* Frames the host confirmed without this player's own input. */
+uint32_t rb_client_late_inputs(const rb_client *c);
 
 /* The host for players clients. game is in its start state; it becomes the reference copy. deadline is how many
  * frames after its own frame count the host confirms a frame (at least 1). Every player starts present. */

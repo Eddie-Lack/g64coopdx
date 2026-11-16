@@ -124,7 +124,7 @@ harness at N players and by the determinism tests:
 5. Exits and the hub: each player exits alone, the ball left behind, world doors.
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
 7. Cameos: which glove they move.
-8. Pause and tips as local overlays.
+8. Pause and tips as local overlays. Pause is done: each player has their own menu.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).
 
 Playable: the whole game, start to end, with 8 players. Test: a scripted run of each level by N bots in the harness;

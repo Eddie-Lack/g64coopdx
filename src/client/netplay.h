@@ -72,6 +72,15 @@ int netplay_begin(Engine *e, char *err, size_t errSize);
  * The tasks point into the game's memory, and the game keeps that view's state until the next call, which puts the
  * game back first. The window can draw the tasks again until then. */
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max);
+/* Each player's own pause menu (it does not stop the game). Start opens it in netplay_frame; netplay_pause_toggle
+ * opens or closes it (the window's Esc). The window draws it from these. netplay_quit_requested is 1 after the player
+ * chose to leave the online game. */
+void netplay_pause_toggle(void);
+int netplay_pause_open(void);
+int netplay_pause_selection(void);
+int netplay_pause_items(void);
+const char *netplay_pause_item(int i);
+int netplay_quit_requested(void);
 /* A line for the window's title: the player number, the level, the frames ahead of the confirmed ones, desyncs. */
 const char *netplay_status(void);
 /* 1 when the session has failed; netplay_status says why. */

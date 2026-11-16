@@ -470,6 +470,44 @@ static void shift_actor(Actor *a, const Vec3 *d) {
     a->vel.x = a->vel.y = a->vel.z = 0.0f;
 }
 
+static void player_exits(s32 player, s32 type, s32 complete);
+
+void G64PlayerAction(s32 player, s32 action) {
+    s32 i = slot_of(player);
+    Actor *h, *b, *c, *ci;
+    HandControl *hc;
+    Vec3 target, d;
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return;
+    if (action == G64_ACTION_HUB) {
+        player_exits(player, HUB_EXIT, 0);
+        return;
+    }
+    if (action != G64_ACTION_CHECKPOINT)
+        return;
+    if (i == 0) {
+        h = &hand, b = &ball, c = &camera, ci = &cameraInfo.actor;
+        hc = &handControl;
+    } else {
+        G64Slot *s = slots[i];
+        h = &s->hand, b = &s->ball, c = &s->camera, ci = &s->cameraInfo.actor;
+        hc = (HandControl *)s->handBlock;
+    }
+    /* The player's own last checkpoint, where a respawn puts the glove; the level's start before the first. */
+    if (hc->checkpoint != NULL)
+        target = hc->checkpoint->actor.pos;
+    else
+        target = handStart;
+    d.x = target.x - h->pos.x;
+    d.y = target.y - h->pos.y;
+    d.z = target.z - h->pos.z;
+    shift_actor(h, &d);
+    shift_actor(b, &d);
+    shift_actor(c, &d);
+    shift_actor(ci, &d);
+}
+
+
 void G64AddPlayer(s32 player) {
     s32 i;
     if (player < 0 || player >= G64_MAX_PLAYERS || slot_of(player) >= 0 || g64Players >= G64_MAX_PLAYERS)
