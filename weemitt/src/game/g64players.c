@@ -449,6 +449,15 @@ s32 G64HasPlayer(s32 player) {
     return slot_of(player) >= 0;
 }
 
+extern Vec3 handStart;
+
+/* Moves an actor by d, and stops it. */
+static void shift_actor(Actor *a, const Vec3 *d) {
+    a->pos.x += d->x, a->pos.y += d->y, a->pos.z += d->z;
+    a->prevPos.x += d->x, a->prevPos.y += d->y, a->prevPos.z += d->z;
+    a->vel.x = a->vel.y = a->vel.z = 0.0f;
+}
+
 void G64AddPlayer(s32 player) {
     s32 i;
     if (player < 0 || player >= G64_MAX_PLAYERS || slot_of(player) >= 0 || g64Players >= G64_MAX_PLAYERS)
@@ -456,10 +465,21 @@ void G64AddPlayer(s32 player) {
     i = g64Players;
     g64Member[i] = player;
     g64Players++;
-    /* Before the slots exist, G64ExtraPlayersStart makes one for every member. After, the new player gets one now. */
+    /* Before the slots exist, G64ExtraPlayersStart makes one for every member. After, the new player gets one now,
+       at the level's start: the copy of the player in the globals moves there with its ball and camera. */
     if (slotCount > 0) {
+        G64Slot *n;
+        Vec3 d;
         new_slot(i);
         slotCount = g64Players;
+        n = slots[i];
+        d.x = handStart.x - n->hand.pos.x;
+        d.y = handStart.y - n->hand.pos.y;
+        d.z = handStart.z - n->hand.pos.z;
+        shift_actor(&n->hand, &d);
+        shift_actor(&n->ball, &d);
+        shift_actor(&n->camera, &d);
+        shift_actor(&n->cameraInfo.actor, &d);
     }
 }
 
