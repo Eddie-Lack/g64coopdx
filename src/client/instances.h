@@ -51,6 +51,11 @@ void g64_ihost_drop(g64_ihost *h, int p);
  * the instance's number. The state is valid only during the call. */
 typedef void (*g64_final_fn)(void *user, int instance, uint32_t frame, const void *state);
 void g64_ihost_on_final(g64_ihost *h, g64_final_fn fn, void *user);
+/* For logs: fn is called for each move, with the player, the exit type (weemitt's enum ExitType), the level they
+ * left, the level and world they go to, the frame they join at, and the session's progress after the exit. */
+typedef void (*g64_move_fn)(void *user, int player, int exit_type, int from_level, int level, int world,
+                            uint32_t join, const g64_progress *progress);
+void g64_ihost_on_move(g64_ihost *h, g64_move_fn fn, void *user);
 /* For status lines and tests. */
 int g64_ihost_instances(const g64_ihost *h);
 int g64_ihost_level_of(const g64_ihost *h, int p);

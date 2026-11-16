@@ -117,6 +117,8 @@ struct g64_ihost {
     uint32_t matches, mismatches; /* of instances that have ended */
     g64_final_fn on_final;
     void *final_user;
+    g64_move_fn on_move;
+    void *move_user;
 };
 
 static void host_rb_send(void *user, int to, const uint8_t *data, size_t len) {
@@ -293,11 +295,12 @@ static void merge_progress(g64_progress *a, const G64Save *s) {
 }
 
 static void take_exit(g64_ihost *h, const pending_exit *e) {
-    int p = e->r.player, s = e->slot, t;
+    int p = e->r.player, s = e->slot, t, from;
     if (p < 0 || p >= h->players || h->where[p] != s || e->r.level < 0 || e->r.level >= G64_NUM_LEVELS ||
         e->r.world < 0 || e->r.world >= G64_NUM_WORLDS)
         return;
     merge_progress(&h->progress, &e->r.save);
+    from = h->inst[s].start.level;
     leave_instance(h, p);
     t = find_instance(h, e->r.level, e->r.world);
     memset(&h->move[p], 0, sizeof h->move[p]);
@@ -316,6 +319,8 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
     h->move[p].active = 1;
     h->move[p].slot = t;
     h->move[p].id = h->inst[t].id;
+    if (h->on_move)
+        h->on_move(h->move_user, p, e->r.type, from, e->r.level, e->r.world, h->move[p].join, &h->progress);
     send_move(h, p);
 }
 
@@ -416,6 +421,11 @@ void g64_ihost_drop(g64_ihost *h, int p) {
         h->move[p].active = 0;
         leave_instance(h, p);
     }
+}
+
+void g64_ihost_on_move(g64_ihost *h, g64_move_fn fn, void *user) {
+    h->on_move = fn;
+    h->move_user = user;
 }
 
 void g64_ihost_on_final(g64_ihost *h, g64_final_fn fn, void *user) {

@@ -410,6 +410,15 @@ static void report_difference(const void *reference, const void *local, int inst
     plog_printf("%s; %u bytes in %d ranges", line, total, ranges);
 }
 
+static void on_move(void *user, int player, int exit_type, int from_level, int level, int world, uint32_t join,
+                    const g64_progress *g) {
+    (void)user;
+    plog_printf("g64coopdx: player %d took exit type %d: level %d to level %d (world %d), joining at frame %u; "
+                "progress: levels %08x, all garibs %08x, hub target %u, hub level %u, worlds done %02x",
+                player + 1, exit_type, from_level, level, world, join, g->levels, g->all_garibs, g->hub_target,
+                g->hub_level, g->worlds_done);
+}
+
 static void on_local_final(void *user, int instance, uint32_t frame, const void *state) {
     kept_state *k = &kept[(frame / CHECK_EVERY) % CHECK_KEEP];
     const rb_game_ops *ops = rb_engine_ops(engine);
@@ -454,6 +463,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         for (i = 0; i < CHECK_KEEP && ramCopy; i++)
             kept[i].state = malloc(engine_state_size(e));
         g64_ihost_on_final(ihost, on_reference_final, NULL);
+        g64_ihost_on_move(ihost, on_move, NULL);
         g64_iclient_on_final(iclient, on_local_final, NULL);
     }
     plog_printf("g64coopdx: player %d of %d, level %d, deadline %u", me + 1, players, clevel, deadline);
