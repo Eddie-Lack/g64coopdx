@@ -94,6 +94,27 @@ void netplay_set_normal_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_NOR
 
 int netplay_normal_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_NORMAL_BALL) != 0; }
 
+/* This player's colors (netplay_set_colors), and weemitt's table of every player's (g64players.c). */
+static uint32_t myGlove, myBall;
+extern unsigned g64PlayerColor[16][2];
+
+void netplay_set_colors(uint32_t glove, uint32_t ball) {
+    myGlove = glove & 0x1FFFFFFu;
+    myBall = ball & 0x1FFFFFFu;
+}
+
+void netplay_apply_colors(void) {
+    int p;
+    for (p = 0; p < 16; p++)
+        g64PlayerColor[p][0] = g64PlayerColor[p][1] = 0;
+    for (p = 0; session && p < players && p < 16; p++) {
+        uint32_t g, b;
+        g64_session_colors(session, p, &g, &b);
+        g64PlayerColor[p][0] = g;
+        g64PlayerColor[p][1] = b;
+    }
+}
+
 /* The level the host starts the game in: the first hub section, or G64_START_LEVEL for tests. */
 static int start_level(void) {
     const char *v = getenv("G64_START_LEVEL");
@@ -117,8 +138,10 @@ static int make_session(void) {
     } else {
         session = g64_session_host(sock, cwanted, romHash, start_level(), cdeadline > 0 ? cdeadline : DEADLINE);
     }
-    if (session)
+    if (session) {
         g64_session_set_flags(session, hostFlags);
+        g64_session_set_colors(session, myGlove, myBall);
+    }
     if (!session) {
         char why[96];
         snprintf(why, sizeof why, "cannot start the session (2 to %d players)", G64_SESSION_MAX_PLAYERS);
@@ -462,7 +485,9 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         snprintf(err, errSize, "out of memory");
         return -1;
     }
-    /* The engine holds the state right after power-on (platform.c calls port_game_boot when online). */
+    /* The engine holds the state right after power-on (platform.c calls port_game_boot when online). Power-on sets the
+       game's variables, so every player's colors go in after it, and the saved state holds them. */
+    netplay_apply_colors();
     engine_save(e, boot);
     if (me == 0) {
         ihost = g64_ihost_new(e, boot, players, clevel, deadline, host_send, NULL);
@@ -488,6 +513,12 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     }
     plog_printf("g64coopdx: player %d of %d, level %d, deadline %u, input delay %d", me + 1, players, clevel, deadline,
                 inputDelay);
+    {
+        int p;
+        for (p = 0; p < players && p < 16; p++)
+            plog_printf("g64coopdx: player %d's colors: glove %07x, ball %07x", p + 1, g64PlayerColor[p][0],
+                        g64PlayerColor[p][1]);
+    }
     return 0;
 }
 

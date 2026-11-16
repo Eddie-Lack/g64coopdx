@@ -71,7 +71,11 @@ void G64UpdateProxies(void);
 void G64SwapPlayer(s32 player);
 /* 1 for a proxy actor (another player's glove or ball). */
 s32 G64IsProxy(struct Actor *a);
-/* The color (0xRRGGBB) to tint an actor with, when it shows a player other than number 0; 0 for none. */
+/* Each player's chosen glove and ball colors, by player number: G64_COLOR_SET plus 0xRRGGBB, or 0 for the color of
+   the player's number (player 0 keeps the game's own). Set it before power-on: every machine has the same. */
+#define G64_COLOR_SET 0x1000000u
+extern u32 g64PlayerColor[G64_MAX_PLAYERS][2];
+/* The color (0xRRGGBB) to tint an actor with, for a player's glove or ball; 0 for none. */
 u32 G64ActorTint(struct Actor *a);
 /* A player's glove position, by number; 0 when the player is not in this game. */
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);

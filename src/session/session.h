@@ -3,10 +3,13 @@
  * rollback core's messages between the host and each client.
  *
  * Messages, all numbers little-endian. The first byte is the type; the rollback core's own types are 1 to 4.
- *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), name (up to 16 bytes)
+ *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), glove color (u32), ball color
+ *            (u32), name (up to 16 bytes)
  *   welcome  0x41, player (u8), players (u8)
  *   refuse   0x42, reason (u8)
- *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_)
+ *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_), and for each
+ *            player: glove color (u32), ball color (u32)
+ * A color is G64_COLOR_SET plus 0xRRGGBB when the player chose it, or 0 for the color of their player number.
  *   ping     0x44 (either way; keeps the connection and a router's mapping open)
  *   game     0x45, then one rollback message
  * Every message from the network is untrusted: lengths, counts and player numbers are checked before use. */
@@ -17,12 +20,13 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 3
+#define G64_PROTOCOL 4
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
 #define G64_FLAG_NORMAL_BALL 0x01 /* the game's normal ball controls; without it, the easy ball controls */
 #define G64_FLAGS_KNOWN 0x01
+#define G64_COLOR_SET 0x1000000u
 
 enum {
     G64_REFUSE_FULL = 1,     /* every player slot is taken */
@@ -63,6 +67,10 @@ int g64_session_deadline(const g64_session *g);
 /* The host's options (G64_FLAG_): the host sets them before the start; a joiner gets them with the start. */
 int g64_session_flags(const g64_session *g);
 void g64_session_set_flags(g64_session *g, int flags);
+/* This machine's player's glove and ball colors, before the start (0, or G64_COLOR_SET plus 0xRRGGBB). After the
+ * start, every player's, by player number; the host has them as the joiners sent them. */
+void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball);
+void g64_session_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball);
 /* Players who have joined so far, the host included (the host's count; a joiner knows only itself). */
 int g64_session_joined(const g64_session *g);
 /* On the host after the start: 1 when player p stopped answering. The game goes on without them. */

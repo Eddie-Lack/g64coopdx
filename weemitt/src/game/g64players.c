@@ -394,21 +394,33 @@ s32 G64IsProxy(Actor *a) {
 /* Each player's color as 0xRRGGBB, multiplied into the glove's and ball's colors. Player 1 keeps the game's own. */
 static const u32 playerColor[8] = {0, 0x60A0FF, 0x70FF70, 0xFFE040, 0xFF6060, 0xC070FF, 0xFFA040, 0x60FFFF};
 
+u32 g64PlayerColor[G64_MAX_PLAYERS][2];
+
 u32 G64ActorTint(Actor *a) {
-    s32 i, slot = -1, p;
-    if (g64Players < 2 && g64Member[0] == 0)
-        return 0;
+    s32 i, slot = -1, p, isBall = 0;
+    u32 c;
     if (a == &hand || a == &ball) {
         slot = swapped;
+        isBall = a == &ball;
     } else {
         for (i = 1; i < slotCount; i++)
-            if (a == proxyHand[i] || a == proxyBall[i])
+            if (a == proxyHand[i] || a == proxyBall[i]) {
                 slot = i == swapped ? 0 : i;
+                isBall = a == proxyBall[i];
+            }
     }
     if (slot < 0)
         return 0;
     p = g64Member[slot];
-    if (p <= 0)
+    if (p < 0 || p >= G64_MAX_PLAYERS)
+        return 0;
+    c = g64PlayerColor[p][isBall];
+    if (c & G64_COLOR_SET) {
+        /* A chosen black stays black: 0 means no tint. */
+        c &= 0xFFFFFF;
+        return c ? c : 0x010101;
+    }
+    if (p == 0 || (g64Players < 2 && g64Member[0] == 0))
         return 0;
     return playerColor[p % 8 ? p % 8 : 1];
 }
