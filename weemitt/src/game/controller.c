@@ -1,6 +1,7 @@
 PORT_C_BEGIN
 #include "common.h"
 #include "ident.h"
+#include "g64players.h"
 #include "controller.h"
 #include "actor.h"
 #include "camera.h"
@@ -385,7 +386,10 @@ void ProcessInput(void) {
     Plane *plane;
     s32 index;
 
-    if (pad[ActiveController].pressed[BUTTON_START] && !pauseMode && !gameInfo.fade && !gameOverCount && !disablePause) {
+    /* g64coopdx: in the online game the pause would stop the level for every player in it, and its choices would act
+       on all of them: Start does not pause there. */
+    if (pad[ActiveController].pressed[BUTTON_START] && !pauseMode && !gameInfo.fade && !gameOverCount && !disablePause
+        && !g64Online) {
         PlaySampleNot3D(179, 120, 128, 128);
         pauseMode = TRUE;
     }

@@ -120,6 +120,8 @@ game data, only addresses and counts.
 - There is no sound.
 - Enemies, collectables and puzzles react only to one player in each level.
 - An exit takes you at once: there is no spin, fade or end-of-level screen.
+- Start does not pause the online game: the game's own pause would stop the level for everyone in it, and its choices
+  (back to the checkpoint, quit) would act on every player. A pause menu of your own is still to come.
 - A level that is already running sees new progress only when it starts again. For example, a hub door that a
   finished level opens stays shut while someone is in the hub; it opens once the hub is empty and someone enters it
   again.
