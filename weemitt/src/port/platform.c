@@ -34,6 +34,7 @@ typedef struct Options {
     int netHost;             /* g64coopdx: --host PORT (the studio build) */
     const char *netJoin;     /* g64coopdx: --join HOST[:PORT] */
     int netDeadline;         /* g64coopdx: --deadline FRAMES (the host's input deadline) */
+    int netInputDelay;       /* g64coopdx: --input-delay FRAMES (-1: the default) */
     int netOnlineHost;       /* g64coopdx: --online-host (through the relay) */
     const char *netRoom;     /* g64coopdx: --online-join CODE */
     const char *netRelay;    /* g64coopdx: --relay HOST[:PORT] */
@@ -1594,6 +1595,7 @@ static void parse_args(int argc, char **argv) {
     opt.texFilter = -1;
     opt.widescreen = -1;
     opt.level = -1;
+    opt.netInputDelay = -1;
     opt.physics = -1;
     opt.interpShot = -1;
     opt.gotoFrame = -1;
@@ -1629,6 +1631,8 @@ static void parse_args(int argc, char **argv) {
             opt.netRelay = argv[++i];
         } else if (!strcmp(a, "--deadline") && next) {
             opt.netDeadline = atoi(argv[++i]);
+        } else if (!strcmp(a, "--input-delay") && next) {
+            opt.netInputDelay = atoi(argv[++i]);
         } else if (!strcmp(a, "--players") && next) {
             /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */
             extern int g64Players;
@@ -2153,6 +2157,9 @@ int main(int argc, char **argv) {
     if (netplay_active()) {
         char err[160];
 
+        if (opt.netInputDelay >= 0) {
+            netplay_set_input_delay(opt.netInputDelay);
+        }
         if (netplay_begin(studio_engine(), err, sizeof err) != 0) {
             fprintf(stderr, "g64coopdx: %s\n", err);
             return 1;

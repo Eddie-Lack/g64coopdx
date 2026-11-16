@@ -48,6 +48,9 @@ int netplay_level(void);
 int netplay_players(void);
 /* 1 after a successful netplay_connect. */
 int netplay_active(void);
+/* The local player's input delay in frames (0 to 8; the default is 2): an input is for the frame that many frames
+ * later and reaches the others sooner, so they predict less. Call it before netplay_begin. */
+void netplay_set_input_delay(int frames);
 /* After power-on (port_game_boot) with the engine attached: saves that state, from which every level is built, and
  * builds the first level. */
 int netplay_begin(Engine *e, char *err, size_t errSize);

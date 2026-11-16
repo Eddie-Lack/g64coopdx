@@ -76,6 +76,8 @@ struct rb_client {
     void *game;
     int players, me;
     uint32_t window; /* savestates kept: slots for frames f % window */
+    uint32_t delay;  /* frames between a local input and the frame it is for (rb_client_set_input_delay) */
+    uint32_t queued; /* frames 0 .. queued - 1 have the local player's input */
     rb_send_fn send;
     rb_frame_fn on_final;
     void *user;
@@ -129,7 +131,7 @@ rb_client *rb_client_new_at(const rb_game_ops *ops, void *game, int players, int
     c->send = send;
     c->on_final = on_final;
     c->user = user;
-    c->frame = c->confirmed = c->reported = start;
+    c->frame = c->confirmed = c->reported = c->queued = start;
     for (p = 0; p < players; p++) {
         if (last)
             c->last[p] = last[p];
@@ -185,8 +187,8 @@ static void run_frame(rb_client *c, uint32_t f) {
 
 static void send_input(rb_client *c) {
     uint8_t m[INPUT_HEAD + RB_INPUT_REPEAT * 4];
-    uint32_t count = c->frame < RB_INPUT_REPEAT ? c->frame : RB_INPUT_REPEAT;
-    uint32_t first = c->frame - count, i;
+    uint32_t count = c->queued < RB_INPUT_REPEAT ? c->queued : RB_INPUT_REPEAT;
+    uint32_t first = c->queued - count, i;
     m[0] = MSG_INPUT;
     m[1] = (uint8_t)c->me;
     put32(m + 2, c->confirmed);
@@ -216,13 +218,28 @@ static void report_final(rb_client *c) {
     }
 }
 
+int rb_client_set_input_delay(rb_client *c, int frames) {
+    uint32_t f;
+    if (frames < 0 || frames > RB_MAX_INPUT_DELAY || (uint32_t)frames > c->window / 4 || c->queued != c->frame)
+        return -1;
+    /* The first frames after the start have no local input yet: none is pressed. */
+    for (f = c->frame; f < c->frame + (uint32_t)frames; f++)
+        memset(&c->local[f % c->window], 0, sizeof c->local[0]);
+    c->delay = (uint32_t)frames;
+    c->queued = c->frame + (uint32_t)frames;
+    return 0;
+}
+
 int rb_client_step(rb_client *c, rb_input local) {
-    /* The window holds the savestates from the first unconfirmed frame to the newest one. */
-    if (c->frame >= c->confirmed && c->frame - c->confirmed > c->window - 2) {
+    /* The window holds the savestates from the first unconfirmed frame to the newest one, and the local inputs up to
+       delay frames past it. */
+    if (c->frame >= c->confirmed && c->frame - c->confirmed > c->window - 2 - c->delay) {
         send_input(c);
         return 0;
     }
-    c->local[c->frame % c->window] = local;
+    /* The input pressed now is for a frame delay frames on. It goes to the host now, ahead of its frame. */
+    c->local[c->queued % c->window] = local;
+    c->queued++;
     run_frame(c, c->frame);
     c->frame++;
     report_final(c);

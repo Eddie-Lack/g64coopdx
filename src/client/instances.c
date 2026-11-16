@@ -470,7 +470,7 @@ struct g64_iclient {
     Engine *e;
     const void *boot;
     const rb_game_ops *ops;
-    int players, me, window;
+    int players, me, window, input_delay;
     uint32_t deadline;
     g64_isend_fn send;
     void *user;
@@ -554,6 +554,7 @@ static int finish_move(g64_iclient *c) {
                              client_final, c);
     if (!c->rb)
         return -1;
+    rb_client_set_input_delay(c->rb, c->input_delay);
     c->id = c->mv.instance;
     c->level = c->mv.level;
     c->moving = 0;
@@ -677,6 +678,13 @@ int g64_iclient_step(g64_iclient *c, rb_input local) {
         if (!rb_client_step(c->rb, local))
             break;
     return 1;
+}
+
+int g64_iclient_set_input_delay(g64_iclient *c, int frames) {
+    if (c->rb && rb_client_set_input_delay(c->rb, frames) != 0)
+        return -1;
+    c->input_delay = frames;
+    return 0;
 }
 
 void g64_iclient_on_final(g64_iclient *c, g64_final_fn fn, void *user) {
