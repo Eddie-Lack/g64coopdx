@@ -29,7 +29,7 @@ struct g64_session {
     g64_session_state state;
     char error[96];
     uint32_t rom;
-    int players, me, level, deadline;
+    int players, me, level, deadline, flags;
     uint32_t lastSend, lastPing;
     /* The host: players 1 .. players - 1. A joiner: peer 0 is the host. */
     peer peers[G64_SESSION_MAX_PLAYERS];
@@ -99,7 +99,7 @@ void g64_session_free(g64_session *g) { free(g); }
 static void send_bytes(g64_session *g, const net_addr *to, const uint8_t *d, size_t n) { net_send(g->sock, to, d, n); }
 
 static void send_start(g64_session *g, int p) {
-    uint8_t m[4] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level, (uint8_t)g->deadline};
+    uint8_t m[5] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level, (uint8_t)g->deadline, (uint8_t)g->flags};
     send_bytes(g, &g->peers[p].addr, m, sizeof m);
 }
 
@@ -186,9 +186,11 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         }
         break;
     case MSG_START:
-        if (n == 4 && g->me >= 1 && d[1] == g->players && d[3] >= 1 && g->state == G64_SESSION_WAITING) {
+        if (n == 5 && g->me >= 1 && d[1] == g->players && d[3] >= 1 && (d[4] & ~G64_FLAGS_KNOWN) == 0 &&
+            g->state == G64_SESSION_WAITING) {
             g->level = d[2];
             g->deadline = d[3];
+            g->flags = d[4];
             g->state = G64_SESSION_STARTED;
         }
         break;
@@ -303,6 +305,12 @@ int g64_session_me(const g64_session *g) { return g->host ? 0 : g->me; }
 int g64_session_players(const g64_session *g) { return g->players; }
 int g64_session_level(const g64_session *g) { return g->level; }
 int g64_session_deadline(const g64_session *g) { return g->deadline; }
+int g64_session_flags(const g64_session *g) { return g->flags; }
+
+void g64_session_set_flags(g64_session *g, int flags) {
+    if (g->me == 0 && g->state == G64_SESSION_WAITING)
+        g->flags = flags & G64_FLAGS_KNOWN;
+}
 const char *g64_session_error(const g64_session *g) { return g->error; }
 
 int g64_session_joined(const g64_session *g) {

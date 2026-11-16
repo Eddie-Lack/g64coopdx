@@ -59,7 +59,7 @@ typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs
 /* The largest message the core sends: a confirm message is cut to RB_MAX_WIRE bytes, which leaves room for a
  * transport's header in one UDP datagram. RB_MAX_MESSAGE is the largest that a receiver accepts. */
 #define RB_MAX_WIRE 1100
-#define RB_MAX_MESSAGE (10 + RB_CONFIRM_BATCH * (2 + RB_MAX_PLAYERS * 4))
+#define RB_MAX_MESSAGE (14 + RB_CONFIRM_BATCH * (2 + RB_MAX_PLAYERS * 4))
 
 typedef struct rb_client rb_client;
 typedef struct rb_host rb_host;
@@ -96,6 +96,10 @@ uint32_t rb_client_desyncs(const rb_client *c);
 uint64_t rb_client_rollback_frames(const rb_client *c);
 /* Other players' inputs received as hints (the host forwards each input before it confirms it). */
 uint32_t rb_client_hints(const rb_client *c);
+/* The host's clock, as the newest confirm message gave it. A client that runs behind it catches up; one that runs at
+ * it is behind the host by the message's travel time, so the host's inputs, sent ahead by its input delay, reach the
+ * client in time. */
+uint32_t rb_client_host_clock(const rb_client *c);
 
 /* The host for players clients. game is in its start state; it becomes the reference copy. deadline is how many
  * frames after its own frame count the host confirms a frame (at least 1). Every player starts present. */

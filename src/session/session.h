@@ -6,7 +6,7 @@
  *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), name (up to 16 bytes)
  *   welcome  0x41, player (u8), players (u8)
  *   refuse   0x42, reason (u8)
- *   start    0x43, players (u8), level (u8), deadline (u8)
+ *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_)
  *   ping     0x44 (either way; keeps the connection and a router's mapping open)
  *   game     0x45, then one rollback message
  * Every message from the network is untrusted: lengths, counts and player numbers are checked before use. */
@@ -17,9 +17,12 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 2
+#define G64_PROTOCOL 3
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
+/* The host's options, which every machine must share (they change the game's logic). */
+#define G64_FLAG_NORMAL_BALL 0x01 /* the game's normal ball controls; without it, the easy ball controls */
+#define G64_FLAGS_KNOWN 0x01
 
 enum {
     G64_REFUSE_FULL = 1,     /* every player slot is taken */
@@ -57,6 +60,9 @@ int g64_session_me(const g64_session *g);
 int g64_session_players(const g64_session *g);
 int g64_session_level(const g64_session *g);
 int g64_session_deadline(const g64_session *g);
+/* The host's options (G64_FLAG_): the host sets them before the start; a joiner gets them with the start. */
+int g64_session_flags(const g64_session *g);
+void g64_session_set_flags(g64_session *g, int flags);
 /* Players who have joined so far, the host included (the host's count; a joiner knows only itself). */
 int g64_session_joined(const g64_session *g);
 /* On the host after the start: 1 when player p stopped answering. The game goes on without them. */

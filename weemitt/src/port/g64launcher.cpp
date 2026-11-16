@@ -72,8 +72,15 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         if (!connecting) {
             char err[160];
 
+            int delay = netplay_input_delay();
+            bool normalBall = netplay_host_normal_ball() != 0;
+
             ImGui::TextUnformatted("Host an online game");
             ImGui::SliderInt("Players", &wanted, 2, 8);
+            /* The host's choice, for every player: the game's own ball controls, or the easy ones (the default). */
+            if (ImGui::Checkbox("Normal ball controls", &normalBall)) {
+                netplay_set_normal_ball(normalBall ? 1 : 0);
+            }
             if (ImGui::Button("Host", ImVec2(-1, 0)) || (autoPress && !strcmp(autoPress, "host"))) {
                 autoPress = NULL;
                 error[0] = 0;
@@ -99,6 +106,13 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 }
             }
             ImGui::EndDisabled();
+            ImGui::Separator();
+            /* Each player's own choice: how many frames after a press the input counts (netplay.h). */
+            ImGui::TextUnformatted("Your options");
+            if (ImGui::SliderInt("Input delay", &delay, 0, 8)) {
+                netplay_set_input_delay(delay);
+            }
+            ImGui::TextWrapped("Frames of 50 ms. More: the other gloves jump less. Less: yours answers sooner.");
             ImGui::Separator();
             if (ImGui::Button("Play alone", ImVec2(-1, 0))) {
                 ImGui::End();

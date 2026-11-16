@@ -87,6 +87,13 @@ static int fail_connect(const char *why) {
     return -1;
 }
 
+/* The host's options for the session (session.h, G64_FLAG_), set before it hosts. */
+static int hostFlags;
+
+void netplay_set_normal_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_NORMAL_BALL : hostFlags & ~G64_FLAG_NORMAL_BALL; }
+
+int netplay_normal_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_NORMAL_BALL) != 0; }
+
 /* The level the host starts the game in: the first hub section, or G64_START_LEVEL for tests. */
 static int start_level(void) {
     const char *v = getenv("G64_START_LEVEL");
@@ -110,6 +117,8 @@ static int make_session(void) {
     } else {
         session = g64_session_host(sock, cwanted, romHash, start_level(), cdeadline > 0 ? cdeadline : DEADLINE);
     }
+    if (session)
+        g64_session_set_flags(session, hostFlags);
     if (!session) {
         char why[96];
         snprintf(why, sizeof why, "cannot start the session (2 to %d players)", G64_SESSION_MAX_PLAYERS);
@@ -440,6 +449,8 @@ static void on_local_final(void *user, int instance, uint32_t frame, const void 
 static int inputDelay = INPUT_DELAY;
 
 void netplay_set_input_delay(int frames) { inputDelay = frames < 0 ? 0 : frames > 8 ? 8 : frames; }
+int netplay_input_delay(void) { return inputDelay; }
+int netplay_host_normal_ball(void) { return (hostFlags & G64_FLAG_NORMAL_BALL) != 0; }
 
 int netplay_begin(Engine *e, char *err, size_t errSize) {
     uint32_t deadline = (uint32_t)g64_session_deadline(session);

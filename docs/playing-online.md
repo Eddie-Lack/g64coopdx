@@ -32,15 +32,19 @@ g64coopdx.exe --rom glover.z64 --online-host --players 2
 g64coopdx.exe --rom glover.z64 --online-join F3J7WZ
 ```
 
-The host's program prints the room code (`Room code: F3J7WZ`). `--launcher` opens the start screen even with other
-options.
+The host's program prints the room code (`Room code: F3J7WZ`). The start screen opens unless an option asks for
+something else; `--launcher` opens it in any case.
 
 Nobody forwards a port: every player connects out to the relay on the lobby server, which passes the game's packets
 on inside the room. Windows may ask whether to allow the program on networks. Allow it.
 
 Each program applies your input 2 frames (100 ms) after you press it, and sends it at once: the others then get it
-before they need it, and the other gloves move without corrections. `--input-delay N` changes it (0 to 8 frames). A
-higher value helps when the other gloves still jump; a lower one makes your own glove answer sooner.
+before they need it, and the other gloves move without corrections. The start screen's **Input delay** (or
+`--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump; a lower one
+makes your own glove answer sooner. Each player chooses their own.
+
+Everyone plays with the easy ball controls. The host can tick **Normal ball controls** on the start screen (or add
+`--normal-ball`) for the game's own controls; every player then has them.
 
 For players far apart, the host can add `--deadline 8` (or more). It gives inputs more time to reach the host: each
 step is 50 ms, and the default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed
