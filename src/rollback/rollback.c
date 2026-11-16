@@ -95,6 +95,9 @@ struct rb_client {
     uint32_t hint_at[RB_WINDOW][RB_MAX_PLAYERS];
     uint32_t hints;
     uint32_t host_clock; /* the newest clock the host has sent */
+    /* Frames to stay ahead of host_clock. It grows by one each time the host confirms a frame without this player's
+       own input, because it came too late; lead_at is the frame run when it last grew. */
+    uint32_t lead, lead_at, late;
     uint8_t *states;                            /* window savestates: slot f % window is the state before f */
 };
 
@@ -281,6 +284,15 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
                 in[p].present = (uint8_t)((present >> p) & 1);
             }
         }
+        /* The host confirmed a frame without the input this player sent for it: it came too late. A frame run after
+           the lead last grew shows whether that was enough. */
+        if (f < c->queued && c->queued - f <= c->window && !same_controller(in[c->me], c->local[f % c->window])) {
+            c->late++;
+            if (f >= c->lead_at && c->lead < RB_MAX_LEAD) {
+                c->lead++;
+                c->lead_at = c->frame;
+            }
+        }
         if (f < c->frame && wrong == UINT32_MAX)
             for (p = 0; p < c->players; p++)
                 if (!same_input(in[p], c->inputs[f % c->window][p])) {
@@ -359,6 +371,8 @@ uint32_t rb_client_desyncs(const rb_client *c) { return c->desyncs; }
 uint64_t rb_client_rollback_frames(const rb_client *c) { return c->rollback_frames; }
 uint32_t rb_client_hints(const rb_client *c) { return c->hints; }
 uint32_t rb_client_host_clock(const rb_client *c) { return c->host_clock; }
+uint32_t rb_client_target(const rb_client *c) { return c->host_clock + c->lead; }
+uint32_t rb_client_late_inputs(const rb_client *c) { return c->late; }
 
 /* ---------------------------------------------------------------------------------------------------------------
  * The host */

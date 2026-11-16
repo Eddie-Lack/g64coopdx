@@ -2215,6 +2215,12 @@ int main(int argc, char **argv) {
             tapPending |= pressed;
             if (e.type == SDL_QUIT) {
                 running = 0;
+#ifdef PORT_STUDIO
+            } else if (netplay_active() && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE
+                       && !e.key.repeat) {
+                /* g64coopdx: Escape opens or closes the player's own pause menu. */
+                netplay_pause_toggle();
+#endif
             } else if (e.type == SDL_KEYDOWN && settings.pauseKey != 0 && (int)e.key.keysym.scancode == settings.pauseKey
                        && !e.key.repeat) {
                 /* Developer, Pause game logic. */
@@ -2312,6 +2318,9 @@ int main(int argc, char **argv) {
                 port_set_pause_cheats(0);
                 n = netplay_frame(port_buttons | tapPending, port_stick_x, port_stick_y, tasks, 16);
                 tapPending = 0;
+                if (netplay_quit_requested()) {
+                    running = 0;
+                }
                 windowTicks++;
                 if (n >= 0) {
                     taskCount = n;
@@ -2439,6 +2448,11 @@ int main(int argc, char **argv) {
         prepare_overlays(&settings);
         gfx_draw_frame((const GfxTask *)tasks, (int)taskCount, w, h);
         menu_draw(window);
+#ifdef PORT_STUDIO
+        if (netplay_active()) {
+            g64_pause_draw(window);
+        }
+#endif
         SDL_GL_SwapWindow(window);
         plog_tick(port_game_mode(), port_game_level());
         if (drawn++ == crashTestFrame) {

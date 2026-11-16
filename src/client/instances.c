@@ -673,8 +673,8 @@ int g64_iclient_step(g64_iclient *c, rb_input local) {
         return 0;
     }
     /* A player behind the host's clock (after it joined a running instance) runs more frames now, with the same input,
-       up to the clock the host last sent and no further: that clock is already the message's travel time old. */
-    for (n = 0; n < CATCH_UP && rb_client_frame(c->rb) < rb_client_host_clock(c->rb); n++)
+       up to the frame the client aims for (rb_client_target). */
+    for (n = 0; n < CATCH_UP && rb_client_frame(c->rb) < rb_client_target(c->rb); n++)
         if (!rb_client_step(c->rb, local))
             break;
     return 1;

@@ -138,6 +138,7 @@ The costs of B, and how to meet them:
 | Sound must not replay | [Sound and rollback](#sound-and-rollback) |
 | Scripts must be deterministic and in the state | [mods.md](mods.md#scripts-in-a-rollback-game) |
 | A slow machine falls behind | The host's deadline also bounds how far a client may be behind; a client that falls too far behind is told to catch up (it runs frames faster than real time) or is dropped |
+| A client's inputs reach the host after their frame is confirmed | Each confirm message carries the host's clock. A client runs up to that clock, plus one frame each time the host confirmed a frame without its own input (at most 8, `rb_client_target`) |
 
 Model A remains a fallback inside B: a session with a large input delay and a prediction window of 0 is lockstep.
 
@@ -150,7 +151,10 @@ Model A remains a fallback inside B: a session with a large input delay and a pr
 - A level frame is 3 video retraces (20 a second); a menu frame is 2 (30 a second) (`weemitt/docs/library.md`,
   "Time"). The session's clock counts game frames and follows the game's own retrace count.
 - The pause menu: in a shared game one player's pause cannot stop the others. Pause becomes a local overlay; the
-  game's own pause (which stops the logic) is off; the host may stop the game for everyone (decided).
+  game's own pause (which stops the logic) is off; the host may stop the game for everyone (decided). Done: each
+  player has their own menu (src/client/netplay.c). A choice that acts in the game goes in that player's input for 3
+  frames: the button bit 0x0080, which no N64 controller sets, with the choice in the stick's x. The game acts on it
+  at that confirmed frame (`G64PlayerAction`), for that player only.
 
 ### Messages and their size
 
