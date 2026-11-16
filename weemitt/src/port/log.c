@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #endif
 #include <SDL2/SDL.h>
+#include "prefpath.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -117,7 +118,7 @@ void plog_path(char *out, int size) {
         snprintf(out, size, "%s", overridePath);
         return;
     }
-    pref = SDL_GetPrefPath("weemitt", "Glover");
+    pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
     snprintf(out, size, "%sweemitt.log", pref ? pref : "");
     if (pref == NULL) {
         out[0] = 0;

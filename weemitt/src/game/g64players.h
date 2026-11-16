@@ -75,6 +75,9 @@ s32 G64IsProxy(struct Actor *a);
 u32 G64ActorTint(struct Actor *a);
 /* A player's glove position, by number; 0 when the player is not in this game. */
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
+/* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a
+   state it loads again after the draw. */
+void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz);
 /* 1 when the player with this number is in this game. */
 s32 G64HasPlayer(s32 player);
 /* Between two frames: a player joins (a copy of the player in the globals, beside it) or leaves. When the player in

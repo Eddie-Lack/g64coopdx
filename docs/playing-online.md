@@ -92,8 +92,12 @@ the instance of the level the exit leads to, or starts a new one. To join an ins
 machine builds the level from its start and runs the inputs played in it so far; that takes a moment, and the picture
 stops meanwhile. The window's title shows the level number you are in.
 
-Each program writes a log of the online game, `g64coopdx-host.log` or `g64coopdx-join.log`, in weemitt's folder
-(`%APPDATA%\weemitt\Glover` on Windows). It has a status line every 100 frames. On the host, it also lists where the
+g64coopdx keeps its own folder for your settings, saves and logs: `%APPDATA%\g64coopdx\Glover` on Windows. On its
+first start it copies weemitt's settings, so your keys and picture settings carry over. In an online game, the
+settings that change the game (cheats, the easy ball controls, the camera) are always off: every machine must run the
+same game.
+
+Each program writes a log of the online game, `g64coopdx-host.log` or `g64coopdx-join.log`, in that folder. It has a status line every 100 frames. On the host, it also lists where the
 host's own game and its copy of the same level differ, when they do: send it with a report of desyncs. It holds no
 game data, only addresses and counts.
 

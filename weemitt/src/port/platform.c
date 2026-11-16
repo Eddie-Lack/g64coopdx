@@ -1,6 +1,7 @@
 /* The platform layer: the program's entry point, the window and OpenGL context (SDL2), the controller, the save
    file, the frame pacing, and a headless mode for tests. It sees the game only through frame.h. */
 #include <SDL2/SDL.h>
+#include "prefpath.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -197,6 +198,41 @@ static const char *find_rom(void) {
 
 static char savePath[1024];
 
+/* A program with a folder of its own (prefpath.h) starts with weemitt's settings, once: the keys, the pads and the
+   picture carry over. */
+static void copy_first_settings(const char *path) {
+    char *weemitt;
+    char from[1100];
+    FILE *in, *out;
+    char buf[4096];
+    size_t n;
+
+    if (strcmp(PORT_PREF_ORG, "weemitt") == 0 || (in = fopen(path, "rb")) != NULL) {
+        if (strcmp(PORT_PREF_ORG, "weemitt") != 0) {
+            fclose(in);
+        }
+        return;
+    }
+    weemitt = SDL_GetPrefPath("weemitt", "Glover");
+    if (weemitt == NULL) {
+        return;
+    }
+    snprintf(from, sizeof(from), "%ssettings.ini", weemitt);
+    SDL_free(weemitt);
+    in = fopen(from, "rb");
+    if (in == NULL) {
+        return;
+    }
+    out = fopen(path, "wb");
+    if (out != NULL) {
+        while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+            fwrite(buf, 1, n, out);
+        }
+        fclose(out);
+    }
+    fclose(in);
+}
+
 static void load_save(void) {
     FILE *f;
 
@@ -204,7 +240,7 @@ static void load_save(void) {
     if (opt.savePath) {
         snprintf(savePath, sizeof(savePath), "%s", opt.savePath);
     } else {
-        char *pref = SDL_GetPrefPath("weemitt", "Glover");
+        char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
         snprintf(savePath, sizeof(savePath), port_get_ballworld() ? "%seeprom-ballworld.bin" : "%seeprom.bin", pref ? pref : "");
         if (pref) {
             SDL_free(pref);
@@ -255,7 +291,7 @@ void port_record_folder(char *out, int size) {
         n = slash != NULL ? (int)(slash - opt.savePath) + 1 : 0;
         snprintf(out, size, "%.*s", n, opt.savePath);
     } else {
-        char *pref = SDL_GetPrefPath("weemitt", "Glover");
+        char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
 
         snprintf(out, size, "%s", pref ? pref : "");
         if (pref) {
@@ -327,7 +363,7 @@ static void load_pad_mappings(void) {
     int i;
 
     dirs[0] = SDL_GetBasePath();
-    dirs[1] = SDL_GetPrefPath("weemitt", "Glover");
+    dirs[1] = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
     for (i = 0; i < 2; i++) {
         FILE *f;
 
@@ -1899,6 +1935,7 @@ int main(int argc, char **argv) {
     if (!opt.headlessFrames) {
         /* The settings come first so that the log file captures the start-up messages. */
         settings_path(settingsFile, sizeof(settingsFile));
+        copy_first_settings(settingsFile);
         settings_load(&settings, settingsFile);
         if (settings.logFile && opt.logPath == NULL) {
             char logFile[512];
@@ -2071,7 +2108,7 @@ int main(int argc, char **argv) {
         }
         if (online) {
             extern void G64StartPlayers(unsigned present);
-            char *pref = SDL_GetPrefPath("weemitt", "Glover");
+            char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
 
             /* The online program always writes a log: on Windows it has no console. */
             if (pref != NULL && opt.logPath == NULL) {
@@ -2095,7 +2132,15 @@ int main(int argc, char **argv) {
 #ifdef PORT_STUDIO
     if (netplay_active()) {
         /* g64coopdx: power-on only. netplay_begin saves this state and builds every level from it, the same way on
-           every machine (src/client/instances.c). */
+           every machine (src/client/instances.c). The port's settings that change the logic are part of that state
+           (the cheats held on from the settings, the easy ball, the camera): they go to their defaults first, or a
+           player's own settings would come back with every level. */
+        port_set_cheat_hold(0);
+        port_set_pause_cheats(0);
+        port_set_easy_ball(0);
+        port_set_camera_follow(1.0f);
+        port_set_camera_dist_scale(1.0f);
+        port_set_ballworld(0);
         port_game_boot();
     } else {
         port_game_init(opt.level);

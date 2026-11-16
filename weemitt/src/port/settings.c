@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "settings.h"
+#include "prefpath.h"
 
 /* The file names an input by these words. */
 static const char *const inputNames[IN_COUNT] = {
@@ -306,7 +307,7 @@ void settings_default_keys(Settings *st) {
 }
 
 void settings_path(char *out, int size) {
-    char *pref = SDL_GetPrefPath("weemitt", "Glover");
+    char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
 
     snprintf(out, size, "%ssettings.ini", pref ? pref : "");
     if (pref == NULL) {

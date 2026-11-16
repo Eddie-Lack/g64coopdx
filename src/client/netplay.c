@@ -33,6 +33,7 @@ static uint32_t now_ms(void) {
 /* weemitt's src/game/g64players.c and src/port/frame.c. */
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
+void G64NudgePlayer(int p, float dx, float dy, float dz);
 int port_game_draw_view(void *tasks, int max);
 /* weemitt's log (src/port/log.c): the online program has no console on Windows, so its lines go to a file too. */
 void plog_printf(const char *fmt, ...);
@@ -470,6 +471,54 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     return 0;
 }
 
+/* Smoothing of the other gloves. A correction after a wrong prediction moves another glove at once. The drawn glove
+ * keeps the old place, and the gap closes over a few frames: offset is the gap still to close, per player. Only the
+ * drawn picture changes, never the game. */
+#define SMOOTH_KEEP 0.7f    /* the part of the gap that remains after each game frame */
+#define SMOOTH_LIMIT 400.0f /* a larger jump is a real move (a respawn): it is not smoothed */
+static float before[G64_SESSION_MAX_PLAYERS][3], offset[G64_SESSION_MAX_PLAYERS][3];
+static int haveBefore[G64_SESSION_MAX_PLAYERS];
+static rb_engine_game *smoothGame;
+
+/* Where each other player's glove is in the local game's newest frame. */
+static void read_positions(rb_engine_game *game, float pos[][3], int *have) {
+    int p;
+    rb_engine_game_enter(game);
+    for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++)
+        have[p] = p != me && G64PlayerPosition(p, &pos[p][0], &pos[p][1], &pos[p][2]);
+}
+
+/* After the messages: the newest frame again. A glove that moved since before was moved by a correction. */
+static void measure_corrections(void) {
+    rb_engine_game *game = g64_iclient_game(iclient);
+    float after[G64_SESSION_MAX_PLAYERS][3];
+    int have[G64_SESSION_MAX_PLAYERS], p, k;
+    if (!game || game != smoothGame) {
+        memset(offset, 0, sizeof offset);
+        memset(haveBefore, 0, sizeof haveBefore);
+        smoothGame = game;
+        return;
+    }
+    read_positions(game, after, have);
+    for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++) {
+        float d[3], len2 = 0;
+        if (!have[p] || !haveBefore[p]) {
+            memset(offset[p], 0, sizeof offset[p]);
+            continue;
+        }
+        for (k = 0; k < 3; k++) {
+            d[k] = before[p][k] - after[p][k];
+            len2 += d[k] * d[k];
+        }
+        if (len2 > SMOOTH_LIMIT * SMOOTH_LIMIT) {
+            memset(offset[p], 0, sizeof offset[p]);
+            continue;
+        }
+        for (k = 0; k < 3; k++)
+            offset[p][k] += d[k];
+    }
+}
+
 /* Puts the game back from the local player's view (netplay_frame) to the state the local game left. */
 static void restore_view(void) {
     if (viewPending) {
@@ -484,6 +533,10 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     if (!active)
         return -1;
     restore_view();
+    if (g64_iclient_game(iclient) && g64_iclient_game(iclient) == smoothGame)
+        read_positions(smoothGame, before, haveBefore);
+    else
+        memset(haveBefore, 0, sizeof haveBefore);
     net_relay_tick(sock, now_ms());
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
@@ -502,6 +555,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         g64_ihost_tick(ihost);
         flush_local();
     }
+    measure_corrections();
     memset(&in, 0, sizeof in);
     in.buttons = buttons;
     in.x = stickX;
@@ -538,6 +592,19 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     engine_save(engine, viewState);
     G64SwapPlayer(me);
     viewPending = 1;
+    {
+        int p, k;
+        for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++) {
+            if (p == me)
+                continue;
+            G64NudgePlayer(p, offset[p][0], offset[p][1], offset[p][2]);
+            for (k = 0; k < 3; k++) {
+                offset[p][k] *= SMOOTH_KEEP;
+                if (offset[p][k] > -0.05f && offset[p][k] < 0.05f)
+                    offset[p][k] = 0;
+            }
+        }
+    }
     return port_game_draw_view(tasks, max);
 }
 

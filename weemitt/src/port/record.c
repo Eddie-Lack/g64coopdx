@@ -15,6 +15,7 @@
 #include <string.h>
 #include <time.h>
 #include "record.h"
+#include "prefpath.h"
 
 #ifndef PORT_BUILD_ID
 #define PORT_BUILD_ID "unknown"
@@ -90,7 +91,7 @@ static void putf(float f) {
 }
 
 void rec_folder(char *dir, int size) {
-    char *pref = SDL_GetPrefPath("weemitt", "Glover");
+    char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
 
     snprintf(dir, size, "%s", pref ? pref : "");
     if (pref) {
