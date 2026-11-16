@@ -89,8 +89,13 @@ checks the hash of its game against the host's every 10 frames.
 Each level that has players in it runs as its own game, an instance. Your machine runs only the instance you are in.
 The host runs a copy of every instance. When you take an exit, you leave your instance alone. The host puts you in
 the instance of the level the exit leads to, or starts a new one. To join an instance that is already running, your
-machine builds the level from its start and runs the inputs played in it so far; that takes a moment, and the window
-stays black meanwhile. The window's title shows the level number you are in.
+machine builds the level from its start and runs the inputs played in it so far; that takes a moment, and the picture
+stops meanwhile. The window's title shows the level number you are in.
+
+Each program writes a log of the online game, `g64coopdx-host.log` or `g64coopdx-join.log`, in weemitt's folder
+(`%APPDATA%\weemitt\Glover` on Windows). It has a status line every 100 frames. On the host, it also lists where the
+host's own game and its copy of the same level differ, when they do: send it with a report of desyncs. It holds no
+game data, only addresses and counts.
 
 ## What does not work yet
 
