@@ -35,6 +35,8 @@ typedef struct Options {
     const char *netJoin;     /* g64coopdx: --join HOST[:PORT] */
     int netDeadline;         /* g64coopdx: --deadline FRAMES (the host's input deadline) */
     int netInputDelay;       /* g64coopdx: --input-delay FRAMES (-1: the default) */
+    int netNormalBall;       /* g64coopdx: --normal-ball (the host plays with the game's normal ball controls) */
+    int netOtherArgs;        /* g64coopdx: an option other than the online settings and --rom was given */
     int netOnlineHost;       /* g64coopdx: --online-host (through the relay) */
     const char *netRoom;     /* g64coopdx: --online-join CODE */
     const char *netRelay;    /* g64coopdx: --relay HOST[:PORT] */
@@ -1607,6 +1609,12 @@ static void parse_args(int argc, char **argv) {
         const char *a = argv[i];
         const char *next = i + 1 < argc ? argv[i + 1] : NULL;
 
+        /* g64coopdx: the start screen opens unless an option asks for something else (online settings and the ROM
+           do not). */
+        if (strcmp(a, "--rom") && strcmp(a, "--input-delay") && strcmp(a, "--deadline") && strcmp(a, "--relay") &&
+            strcmp(a, "--normal-ball") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
+            opt.netOtherArgs = 1;
+        }
         if (!strcmp(a, "--rom") && next) {
             opt.rom = argv[++i];
         } else if (!strcmp(a, "--headless") && next) {
@@ -1633,6 +1641,8 @@ static void parse_args(int argc, char **argv) {
             opt.netDeadline = atoi(argv[++i]);
         } else if (!strcmp(a, "--input-delay") && next) {
             opt.netInputDelay = atoi(argv[++i]);
+        } else if (!strcmp(a, "--normal-ball")) {
+            opt.netNormalBall = 1;
         } else if (!strcmp(a, "--players") && next) {
             /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */
             extern int g64Players;
@@ -2092,6 +2102,10 @@ int main(int argc, char **argv) {
 
         const char *relay = opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT;
 
+        netplay_set_normal_ball(opt.netNormalBall);
+        if (opt.netInputDelay >= 0) {
+            netplay_set_input_delay(opt.netInputDelay);
+        }
         if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
             char err[160];
 
@@ -2102,7 +2116,7 @@ int main(int argc, char **argv) {
                 die("%s", err);
             }
             online = 1;
-        } else if (argc == 1 || opt.netLauncher) {
+        } else if (!opt.netOtherArgs || opt.netLauncher) {
             int r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
 
             if (r < 0) {
@@ -2137,11 +2151,12 @@ int main(int argc, char **argv) {
     if (netplay_active()) {
         /* g64coopdx: power-on only. netplay_begin saves this state and builds every level from it, the same way on
            every machine (src/client/instances.c). The port's settings that change the logic are part of that state
-           (the cheats held on from the settings, the easy ball, the camera): they go to their defaults first, or a
-           player's own settings would come back with every level. */
+           (the cheats held on from the settings, the ball controls, the camera): they take the session's values
+           first (defaults, and the host's choice of ball controls), or a player's own settings would come back with
+           every level. */
         port_set_cheat_hold(0);
         port_set_pause_cheats(0);
-        port_set_easy_ball(0);
+        port_set_easy_ball(!netplay_normal_ball());
         port_set_camera_follow(1.0f);
         port_set_camera_dist_scale(1.0f);
         port_set_ballworld(0);
@@ -2157,9 +2172,6 @@ int main(int argc, char **argv) {
     if (netplay_active()) {
         char err[160];
 
-        if (opt.netInputDelay >= 0) {
-            netplay_set_input_delay(opt.netInputDelay);
-        }
         if (netplay_begin(studio_engine(), err, sizeof err) != 0) {
             fprintf(stderr, "g64coopdx: %s\n", err);
             return 1;
@@ -2292,7 +2304,7 @@ int main(int argc, char **argv) {
                 long n;
 
                 acc -= port_game_retraces() / 60.0;
-                port_set_easy_ball(0);
+                port_set_easy_ball(!netplay_normal_ball());
                 port_set_camera_follow(1.0f);
                 port_set_camera_dist_scale(1.0f);
                 port_set_ballworld(0);

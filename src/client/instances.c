@@ -672,9 +672,9 @@ int g64_iclient_step(g64_iclient *c, rb_input local) {
         rb_client_idle(c->rb);
         return 0;
     }
-    /* In step with the host, a player runs about deadline frames ahead of the confirmed ones. Fewer means it is
-       behind the host's clock: it runs more frames now, with the same input. */
-    for (n = 0; n < CATCH_UP && rb_client_frame(c->rb) < rb_client_confirmed(c->rb) + c->deadline; n++)
+    /* A player behind the host's clock (after it joined a running instance) runs more frames now, with the same input,
+       up to the clock the host last sent and no further: that clock is already the message's travel time old. */
+    for (n = 0; n < CATCH_UP && rb_client_frame(c->rb) < rb_client_host_clock(c->rb); n++)
         if (!rb_client_step(c->rb, local))
             break;
     return 1;

@@ -9,15 +9,15 @@ enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4, MSG_HINT = 
 /* Message layouts, all numbers little-endian:
  *   input    type, player, ack (u32: confirmed frames the client has), first (u32), count (0..RB_INPUT_REPEAT),
  *            count inputs: the client's own inputs for frames first .. first + count - 1
- *   confirm  type, players, first (u32), count (1..RB_CONFIRM_BATCH), count frames: present (u16, a bit per
- *            player), players inputs
+ *   confirm  type, players, first (u32), count (1..RB_CONFIRM_BATCH), the host's clock (u32: frames it has counted),
+ *            count frames: present (u16, a bit per player), players inputs
  *   hash     type, player, frame (u32), hash (u64)
  *   desync   type, frame (u32)
  *   hint     the layout of an input, type 5: another player's inputs as the host received them, before they are
  *            confirmed. The host forwards each input message at once; a client predicts with them.
  * An input is buttons (u16), x (s8), y (s8). */
 #define INPUT_HEAD 11
-#define CONFIRM_HEAD 7
+#define CONFIRM_HEAD 11
 #define HASH_SIZE 14
 #define DESYNC_SIZE 5
 
@@ -94,6 +94,7 @@ struct rb_client {
     rb_input hint[RB_WINDOW][RB_MAX_PLAYERS];
     uint32_t hint_at[RB_WINDOW][RB_MAX_PLAYERS];
     uint32_t hints;
+    uint32_t host_clock; /* the newest clock the host has sent */
     uint8_t *states;                            /* window savestates: slot f % window is the state before f */
 };
 
@@ -257,8 +258,10 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
     first = get32(d + 2);
     count = d[6];
     if (count < 1 || count > RB_CONFIRM_BATCH || len != CONFIRM_HEAD + (size_t)count * frame_size(c->players) ||
-        first > UINT32_MAX - count)
+        first > UINT32_MAX - count || get32(d + 7) < first + count)
         return -1;
+    if (get32(d + 7) > c->host_clock)
+        c->host_clock = get32(d + 7);
     for (i = 0; i < count; i++) {
         rb_input in[RB_MAX_PLAYERS];
         f = first + i;
@@ -355,6 +358,7 @@ uint32_t rb_client_confirmed(const rb_client *c) { return c->confirmed; }
 uint32_t rb_client_desyncs(const rb_client *c) { return c->desyncs; }
 uint64_t rb_client_rollback_frames(const rb_client *c) { return c->rollback_frames; }
 uint32_t rb_client_hints(const rb_client *c) { return c->hints; }
+uint32_t rb_client_host_clock(const rb_client *c) { return c->host_clock; }
 
 /* ---------------------------------------------------------------------------------------------------------------
  * The host */
@@ -459,6 +463,7 @@ static void host_send_confirmed(rb_host *h, int to) {
     m[1] = (uint8_t)h->players;
     put32(m + 2, first);
     m[6] = (uint8_t)count;
+    put32(m + 7, h->clock);
     for (i = 0; i < count; i++) {
         uint8_t *fr = m + CONFIRM_HEAD + (size_t)i * frame_size(h->players);
         const rb_input *in = h->done[(first + i) % RB_HOST_WINDOW];

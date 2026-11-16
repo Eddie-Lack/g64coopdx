@@ -48,9 +48,16 @@ int netplay_level(void);
 int netplay_players(void);
 /* 1 after a successful netplay_connect. */
 int netplay_active(void);
+/* The host's option: the game's normal ball controls (1) or the easy ones (0, the default). Call it before
+ * netplay_start. Every machine plays with the host's choice: netplay_normal_ball gives it after the start. */
+void netplay_set_normal_ball(int on);
+int netplay_normal_ball(void);
 /* The local player's input delay in frames (0 to 8; the default is 2): an input is for the frame that many frames
  * later and reaches the others sooner, so they predict less. Call it before netplay_begin. */
 void netplay_set_input_delay(int frames);
+int netplay_input_delay(void);
+/* The host's own choice of ball controls before it hosts (netplay_set_normal_ball). */
+int netplay_host_normal_ball(void);
 /* After power-on (port_game_boot) with the engine attached: saves that state, from which every level is built, and
  * builds the first level. */
 int netplay_begin(Engine *e, char *err, size_t errSize);

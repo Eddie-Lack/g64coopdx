@@ -416,7 +416,8 @@ static size_t make_message(world *w, uint8_t *m, size_t cap, int from, uint32_t 
         m[0] = 2, m[1] = 4;
         put32le(m + 2, near + rnd(w) % 200 - 20);
         m[6] = (uint8_t)count;
-        len = 7 + 16 * count;
+        put32le(m + 7, near + rnd(w) % 400);
+        len = 11 + 18 * count;
         break;
     case 3: /* hash */
         m[0] = 3, m[1] = (uint8_t)from;
