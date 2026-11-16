@@ -67,6 +67,8 @@ typedef struct {
 } endpoint;
 
 static int verbose;
+/* The clients' input delay in the session test (rb_client_set_input_delay). */
+static int input_delay;
 
 static uint32_t rnd(world *w) {
     uint32_t x = w->rng;
@@ -202,6 +204,8 @@ static world *session(const network *net, int players, int flawed, int window) {
         toy_init(&w->client_game[i], players);
         w->client[i] = rb_client_new(i == flawed ? &flawed_full : &toy_ops, &w->client_game[i], players, i,
                                      window, client_send, client_final, &ends[i]);
+        if (input_delay)
+            rb_client_set_input_delay(w->client[i], input_delay);
     }
     end = FRAMES + net->deadline + (uint32_t)(net->latency + net->jitter) * 4 + 120;
     for (w->now = 0; w->now < end; w->now++) {
@@ -257,8 +261,8 @@ static void test_session(const network *net, int players, int window) {
         desyncs += (int)rb_client_desyncs(w->client[i]);
         rollbacks += rb_client_rollback_frames(w->client[i]);
     }
-    snprintf(what, sizeof what, "%s, %d players, window %d: %u frames confirmed, every client final on all %d",
-             net->name, players, window, w->confirmed, FRAMES);
+    snprintf(what, sizeof what, "%s, %d players, window %d, input delay %d: %u frames confirmed, every client final on "
+             "all %d", net->name, players, window, input_delay, w->confirmed, FRAMES);
     check(clients_ok && w->confirmed >= FRAMES, what);
     snprintf(what, sizeof what, "%s, %d players: every final state equals the offline run (%u differ)", net->name,
              players, wrong);
@@ -510,6 +514,11 @@ int main(int argc, char **argv) {
     /* A small window, as the real game's large savestates need: clients wait more often. */
     for (k = 0; k < sizeof counts / sizeof counts[0]; k++)
         test_session(&NETWORKS[3], counts[k], 16);
+    /* With input delay: inputs reach the others ahead of their frames, so fewer frames run again. */
+    input_delay = 3;
+    for (n = 0; n < sizeof NETWORKS / sizeof NETWORKS[0]; n++)
+        test_session(&NETWORKS[n], 4, 0);
+    input_delay = 0;
     for (n = 0; n < sizeof NETWORKS / sizeof NETWORKS[0]; n++)
         test_join(&NETWORKS[n]);
     test_desync();

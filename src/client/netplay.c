@@ -435,6 +435,12 @@ static void on_local_final(void *user, int instance, uint32_t frame, const void 
     report_difference(k->state, state, instance, frame);
 }
 
+/* The local player's input delay (netplay_set_input_delay). */
+#define INPUT_DELAY 2
+static int inputDelay = INPUT_DELAY;
+
+void netplay_set_input_delay(int frames) { inputDelay = frames < 0 ? 0 : frames > 8 ? 8 : frames; }
+
 int netplay_begin(Engine *e, char *err, size_t errSize) {
     uint32_t deadline = (uint32_t)g64_session_deadline(session);
     engine = e;
@@ -459,6 +465,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         snprintf(err, errSize, "cannot start the game");
         return -1;
     }
+    g64_iclient_set_input_delay(iclient, inputDelay);
     if (ihost) {
         int i;
         ramCopy = malloc(RAM_BYTES);
@@ -468,7 +475,8 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         g64_ihost_on_move(ihost, on_move, NULL);
         g64_iclient_on_final(iclient, on_local_final, NULL);
     }
-    plog_printf("g64coopdx: player %d of %d, level %d, deadline %u", me + 1, players, clevel, deadline);
+    plog_printf("g64coopdx: player %d of %d, level %d, deadline %u, input delay %d", me + 1, players, clevel, deadline,
+                inputDelay);
     return 0;
 }
 

@@ -74,6 +74,12 @@ rb_client *rb_client_new(const rb_game_ops *ops, void *game, int players, int me
 rb_client *rb_client_new_at(const rb_game_ops *ops, void *game, int players, int me, int window, uint32_t start,
                             const rb_input *last, rb_send_fn send, rb_frame_fn on_final, void *user);
 void rb_client_free(rb_client *c);
+/* The most frames of input delay. */
+#define RB_MAX_INPUT_DELAY 8
+/* Input delay: the local input given to a step is for the frame frames later, and is sent to the host at once. The
+ * other machines then often have it before they reach that frame, and predict less. The local glove answers that much
+ * later. Call it before the first step. Returns 0, or -1 (more than RB_MAX_INPUT_DELAY or a quarter of the window). */
+int rb_client_set_input_delay(rb_client *c, int frames);
 /* Runs the next frame with the local player's input, if the client is not too far ahead of the confirmed frames.
  * Returns 1 if it ran a frame, 0 if it must wait. Sends the input to the host either way. */
 int rb_client_step(rb_client *c, rb_input local);

@@ -72,6 +72,8 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len);
 /* One frame with the local controller. Returns 1 when the local game ran a frame (its display lists are the
  * engine's latest), 0 when it waits (for the host, or while it moves to another instance). */
 int g64_iclient_step(g64_iclient *c, rb_input local);
+/* Input delay for this player's games, now and after every move (rb_client_set_input_delay). Returns 0, or -1. */
+int g64_iclient_set_input_delay(g64_iclient *c, int frames);
 /* For checks: fn is called with each final frame of the local game (confirmed and run on confirmed inputs). */
 void g64_iclient_on_final(g64_iclient *c, g64_final_fn fn, void *user);
 /* The local player's instance number. */
