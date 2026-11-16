@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -478,6 +479,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
 #define SMOOTH_LIMIT 400.0f /* a larger jump is a real move (a respawn): it is not smoothed */
 static float before[G64_SESSION_MAX_PLAYERS][3], offset[G64_SESSION_MAX_PLAYERS][3];
 static int haveBefore[G64_SESSION_MAX_PLAYERS];
+static float corrected; /* the distance corrections moved other gloves since the last status line */
 static rb_engine_game *smoothGame;
 
 /* Where each other player's glove is in the local game's newest frame. */
@@ -516,6 +518,7 @@ static void measure_corrections(void) {
         }
         for (k = 0; k < 3; k++)
             offset[p][k] += d[k];
+        corrected += sqrtf(len2);
     }
 }
 
@@ -577,6 +580,9 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         int n = snprintf(line, sizeof line, "g64coopdx: level %d, frame %u, %u confirmed, %llu frames run again, %u desyncs",
                          g64_iclient_level(iclient), g64_iclient_frame(iclient), g64_iclient_confirmed(iclient),
                          (unsigned long long)g64_iclient_rollback_frames(iclient), g64_iclient_desyncs(iclient));
+        if (n > 0 && (size_t)n < sizeof line)
+            n += snprintf(line + n, sizeof line - (size_t)n, ", corrections moved others by %.0f", (double)corrected);
+        corrected = 0;
         if (ihost && n > 0 && (size_t)n < sizeof line)
             snprintf(line + n, sizeof line - (size_t)n, ", %d instances, %u hash checks, %u mismatches",
                      g64_ihost_instances(ihost), g64_ihost_hash_matches(ihost), g64_ihost_hash_mismatches(ihost));
@@ -590,9 +596,9 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
        drawn with this player swapped into the globals. */
     rb_engine_game_enter(game);
     engine_save(engine, viewState);
-    G64SwapPlayer(me);
     viewPending = 1;
     {
+        /* The shifts go by player number, so they come before the swap, which moves this player into the globals. */
         int p, k;
         for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++) {
             if (p == me)
@@ -605,6 +611,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             }
         }
     }
+    G64SwapPlayer(me);
     return port_game_draw_view(tasks, max);
 }
 

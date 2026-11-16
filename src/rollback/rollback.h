@@ -1,7 +1,8 @@
 /* The rollback core: the frame clock, input queues, prediction, savestates, confirmation by the host, and hash
  * checks (docs/discovery/netcode.md, "Recommendation: B with host-confirmed inputs").
  *
- * A client predicts every frame with the inputs it has and sends its own input to the host. At a deadline the host
+ * A client predicts every frame with the inputs it has and sends its own input to the host. The host forwards each
+ * input at once to the other clients, which predict with it until the frame is confirmed. At a deadline the host
  * confirms each frame: it takes each player's input, or repeats that player's last input when it has not arrived. It
  * runs its own copy of the game on the confirmed inputs alone, and sends the confirmed inputs to every client. A
  * client that predicted wrong loads the savestate of the first wrong frame and runs the frames again. Clients send the
@@ -87,6 +88,8 @@ uint32_t rb_client_confirmed(const rb_client *c);
 /* Desync reports received from the host, and frames run again after a wrong prediction. */
 uint32_t rb_client_desyncs(const rb_client *c);
 uint64_t rb_client_rollback_frames(const rb_client *c);
+/* Other players' inputs received as hints (the host forwards each input before it confirms it). */
+uint32_t rb_client_hints(const rb_client *c);
 
 /* The host for players clients. game is in its start state; it becomes the reference copy. deadline is how many
  * frames after its own frame count the host confirms a frame (at least 1). Every player starts present. */

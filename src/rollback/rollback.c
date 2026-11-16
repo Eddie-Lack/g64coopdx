@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4 };
+enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4, MSG_HINT = 5 };
 
 /* Message layouts, all numbers little-endian:
  *   input    type, player, ack (u32: confirmed frames the client has), first (u32), count (0..RB_INPUT_REPEAT),
@@ -13,6 +13,8 @@ enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4 };
  *            player), players inputs
  *   hash     type, player, frame (u32), hash (u64)
  *   desync   type, frame (u32)
+ *   hint     the layout of an input, type 5: another player's inputs as the host received them, before they are
+ *            confirmed. The host forwards each input message at once; a client predicts with them.
  * An input is buttons (u16), x (s8), y (s8). */
 #define INPUT_HEAD 11
 #define CONFIRM_HEAD 7
@@ -85,6 +87,11 @@ struct rb_client {
     rb_input last[RB_MAX_PLAYERS]; /* the inputs of frame confirmed - 1: the prediction for the others */
     rb_input inputs[RB_WINDOW][RB_MAX_PLAYERS]; /* the inputs each kept frame was run with, or its confirmed inputs */
     rb_input local[RB_WINDOW];                  /* the local player's own input for each kept frame */
+    /* Other players' inputs that the host forwarded before confirming them: hint_at is the frame + 1 of the hint
+       in each slot, or 0. */
+    rb_input hint[RB_WINDOW][RB_MAX_PLAYERS];
+    uint32_t hint_at[RB_WINDOW][RB_MAX_PLAYERS];
+    uint32_t hints;
     uint8_t *states;                            /* window savestates: slot f % window is the state before f */
 };
 
@@ -140,8 +147,22 @@ void rb_client_free(rb_client *c) {
     }
 }
 
+/* Another player's input to predict frame f with: the newest hint at or before f, or else their input of the last
+ * confirmed frame. */
+static rb_input predict(const rb_client *c, uint32_t f, int p) {
+    uint32_t g = f;
+    for (;;) {
+        if (c->hint_at[g % c->window][p] == g + 1)
+            return c->hint[g % c->window][p];
+        if (g == c->confirmed || g == 0)
+            break;
+        g--;
+    }
+    return c->last[p];
+}
+
 /* The inputs to run frame f with: its confirmed inputs, or a prediction (the local player's own input, and the
- * others' inputs of the last confirmed frame). */
+ * others' newest known inputs). */
 static void inputs_for(rb_client *c, uint32_t f, rb_input *out) {
     int p;
     if (f < c->confirmed) {
@@ -149,7 +170,7 @@ static void inputs_for(rb_client *c, uint32_t f, rb_input *out) {
         return;
     }
     for (p = 0; p < c->players; p++) {
-        out[p] = p == c->me ? c->local[f % c->window] : c->last[p];
+        out[p] = p == c->me ? c->local[f % c->window] : predict(c, f, p);
         out[p].present = c->last[p].present;
     }
 }
@@ -261,12 +282,47 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
     return 0;
 }
 
+/* Another player's inputs, forwarded by the host. A frame that ran with another prediction runs again now. */
+static int client_hint(rb_client *c, const uint8_t *d, size_t len) {
+    uint32_t first, count, i, wrong = UINT32_MAX, f;
+    int p;
+    if (len < INPUT_HEAD)
+        return -1;
+    p = d[1];
+    first = get32(d + 6);
+    count = d[10];
+    if (p >= c->players || p == c->me || count > RB_INPUT_REPEAT || len != INPUT_HEAD + (size_t)count * 4 ||
+        first > UINT32_MAX - count)
+        return -1;
+    for (i = 0; i < count; i++) {
+        rb_input in = get_input(d + INPUT_HEAD + 4 * i);
+        f = first + i;
+        /* Only frames between the confirmed ones and the window's end: a hint for another frame is of no use. */
+        if (f < c->confirmed || f - c->confirmed >= c->window - 1)
+            continue;
+        c->hint[f % c->window][p] = in;
+        c->hint_at[f % c->window][p] = f + 1;
+        c->hints++;
+        if (f < c->frame && wrong == UINT32_MAX && !same_controller(in, c->inputs[f % c->window][p]))
+            wrong = f;
+    }
+    if (wrong != UINT32_MAX) {
+        c->ops->load(c->game, slot(c, wrong));
+        for (f = wrong; f < c->frame; f++)
+            run_frame(c, f);
+        c->rollback_frames += c->frame - wrong;
+    }
+    return 0;
+}
+
 int rb_client_receive(rb_client *c, const uint8_t *data, size_t len) {
     if (!data || len < 1)
         return -1;
     switch (data[0]) {
     case MSG_CONFIRM:
         return client_confirm(c, data, len);
+    case MSG_HINT:
+        return client_hint(c, data, len);
     case MSG_DESYNC:
         if (len != DESYNC_SIZE)
             return -1;
@@ -281,6 +337,7 @@ uint32_t rb_client_frame(const rb_client *c) { return c->frame; }
 uint32_t rb_client_confirmed(const rb_client *c) { return c->confirmed; }
 uint32_t rb_client_desyncs(const rb_client *c) { return c->desyncs; }
 uint64_t rb_client_rollback_frames(const rb_client *c) { return c->rollback_frames; }
+uint32_t rb_client_hints(const rb_client *c) { return c->hints; }
 
 /* ---------------------------------------------------------------------------------------------------------------
  * The host */
@@ -422,6 +479,16 @@ static int host_input(rb_host *h, int from, const uint8_t *d, size_t len) {
     /* A player who is not in this game sends nothing it needs, for example right after they left it. */
     if (!h->present[from])
         return 0;
+    {
+        /* The others get these inputs at once, as hints for their predictions. */
+        uint8_t m[INPUT_HEAD + RB_INPUT_REPEAT * 4];
+        int p;
+        memcpy(m, d, len);
+        m[0] = MSG_HINT;
+        for (p = 0; p < h->players; p++)
+            if (p != from && h->present[p] && !h->dropped[p])
+                h->send(h->user, p, m, len);
+    }
     if (ack > h->ack[from])
         h->ack[from] = ack;
     for (i = 0; i < count; i++) {
