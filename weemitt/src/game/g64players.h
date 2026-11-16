@@ -80,8 +80,9 @@ s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
 void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz);
 /* 1 when the player with this number is in this game. */
 s32 G64HasPlayer(s32 player);
-/* Between two frames: a player joins (a copy of the player in the globals, beside it) or leaves. When the player in
-   the globals leaves, the player in slot 1 takes the globals. The last player cannot leave. */
+/* Between two frames: a player joins (a copy of the player in the globals: beside it before the level's first frame
+   of play, at the level's start after it) or leaves. When the player in the globals leaves, the player in slot 1
+   takes the globals. The last player cannot leave. */
 void G64AddPlayer(s32 player);
 void G64RemovePlayer(s32 player);
 /* The players in a game, as a bit per player number, from the session's confirmed inputs. G64StartPlayers sets them

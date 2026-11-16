@@ -38,7 +38,7 @@ something else; `--launcher` opens it in any case.
 Nobody forwards a port: every player connects out to the relay on the lobby server, which passes the game's packets
 on inside the room. Windows may ask whether to allow the program on networks. Allow it.
 
-Each program applies your input 2 frames (100 ms) after you press it, and sends it at once: the others then get it
+Each program applies your input 1 frame (50 ms) after you press it, and sends it at once: the others then get it
 before they need it, and the other gloves move without corrections. The start screen's **Input delay** (or
 `--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump; a lower one
 makes your own glove answer sooner. Each player chooses their own.

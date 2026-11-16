@@ -445,7 +445,7 @@ static void on_local_final(void *user, int instance, uint32_t frame, const void 
 }
 
 /* The local player's input delay (netplay_set_input_delay). */
-#define INPUT_DELAY 2
+#define INPUT_DELAY 1
 static int inputDelay = INPUT_DELAY;
 
 void netplay_set_input_delay(int frames) { inputDelay = frames < 0 ? 0 : frames > 8 ? 8 : frames; }

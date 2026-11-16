@@ -22,6 +22,7 @@ extern signed char g64StickX[G64_MAX_PLAYERS];
 extern signed char g64StickY[G64_MAX_PLAYERS];
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 int G64HasPlayer(int p);
+extern float handStart[3];
 void G64RemovePlayer(int p);
 void G64StartPlayers(unsigned present);
 void G64SetPresent(unsigned present);
@@ -90,6 +91,7 @@ int main(int argc, char **argv) {
                 G64SetPresent(present);
                 check(G64HasPlayer(3) && g64Players == 3, "player 3 joins");
                 check(same_place(2, one), "a glove stays where it was when a player joins");
+                check(same_place(3, handStart), "the new player starts at the level's start");
             } else {
                 G64SetPresent(present);
                 check(!G64HasPlayer(2) && g64Players == 2 && g64Member[0] == 1 && g64Member[1] == 3,
