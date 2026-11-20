@@ -3750,7 +3750,7 @@ void G64ReadSave(G64Save *save) {
     for (i = 0; i < 7; i++)
         if (gameInfo.worldComplete[i])
             save->worldComplete |= 1 << i;
-    save->pad = 0;
+    save->raisedBit = 0;
 }
 
 void G64WriteSave(s32 world, const G64Save *save) {
@@ -3815,11 +3815,14 @@ void G64ExitSave(s32 type, s32 complete, G64Save *save) {
             save->allGaribs |= 1u << bit;
     }
     if (type == WORLD_EXIT) {
-        if (!((saveSlot[currentSaveSlot].levels >> bit) & 1))
+        if (!((saveSlot[currentSaveSlot].levels >> bit) & 1)) {
             save->hubTarget++;
+            save->raisedBit = (u8)(bit + 1);
+        }
         save->worldComplete |= 1 << gameInfo.world;
     } else if (type == CAVE_EXIT && save->hubTarget == 0) {
         save->hubTarget = 1;
+        save->raisedBit = G64_RAISED_CAVE;
     }
 }
 

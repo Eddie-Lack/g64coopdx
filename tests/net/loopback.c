@@ -56,6 +56,7 @@ typedef struct {
     rb_input log[FRAMES + 512][RB_MAX_PLAYERS];
     rb_event log_event[FRAMES + 512];
     uint32_t events; /* frames confirmed with an event */
+    uint32_t sets;   /* events the host was given (host_events), each for one frame */
     uint64_t host_hash[FRAMES + 512];
     uint64_t final[RB_MAX_PLAYERS][FRAMES + 512];
     uint32_t reported[RB_MAX_PLAYERS];
@@ -72,6 +73,10 @@ typedef struct {
 static int verbose;
 /* The clients' input delay in the session test (rb_client_set_input_delay). */
 static int input_delay;
+/* The session test's events: 0, one small event every 37 frames; 1, a full-size event on every frame. */
+static int event_burst;
+/* Messages longer than RB_MAX_WIRE, the most a datagram may carry. */
+static int oversize;
 
 static uint32_t rnd(world *w) {
     uint32_t x = w->rng;
@@ -100,10 +105,12 @@ static void queue(world *w, int from, int to, const uint8_t *data, size_t len) {
 static void client_send(void *user, int to, const uint8_t *data, size_t len) {
     endpoint *e = user;
     (void)to;
+    oversize += len > RB_MAX_WIRE;
     queue(e->w, e->id, -1, data, len);
 }
 
 static void host_send(void *user, int to, const uint8_t *data, size_t len) {
+    oversize += len > RB_MAX_WIRE;
     queue(user, -1, to, data, len);
 }
 
@@ -119,15 +126,22 @@ static void host_confirmed(void *user, uint32_t frame, const rb_input *in, int p
     w->confirmed = frame + 1;
 }
 
-/* The host's session events: one every 37 ticks, with a varying body and amount, of 1 to 5 bytes. */
-static void host_events(world *w) {
-    uint8_t d[5];
-    size_t len = 1 + w->now % 5;
-    if (w->now % 37 != 11)
+/* The host's session events: one every 37 ticks, with a varying body and amount, of 1 to 5 bytes; or, in a burst,
+   one of RB_EVENT_MAX bytes every tick once the host confirms a frame each tick. Each is for one frame, so the host
+   must confirm exactly as many frames with an event as it was given (until the last few ticks). */
+static void host_events(world *w, uint32_t end) {
+    uint8_t d[RB_EVENT_MAX];
+    size_t len = 1 + w->now % 5, i;
+    if (event_burst ? w->now < 40 : w->now % 37 != 11)
         return;
+    if (event_burst)
+        len = RB_EVENT_MAX;
+    for (i = 0; i < sizeof d; i++)
+        d[i] = (uint8_t)(w->now * 7 + i);
     d[0] = (uint8_t)(w->now / 37);
-    d[1] = (uint8_t)w->now, d[2] = 1, d[3] = 0, d[4] = 2;
     rb_host_set_event(w->host, d, len);
+    if (w->now + 2 < end)
+        w->sets++;
 }
 
 /* The offline run's frame f: its event, then its inputs. */
@@ -234,7 +248,7 @@ static world *session(const network *net, int players, int flawed, int window) {
     end = FRAMES + net->deadline + (uint32_t)(net->latency + net->jitter) * 4 + 120;
     for (w->now = 0; w->now < end; w->now++) {
         deliver(w);
-        host_events(w);
+        host_events(w, end);
         rb_host_tick(w->host);
         for (i = 0; i < players; i++) {
             int steps = 0;
@@ -289,9 +303,12 @@ static void test_session(const network *net, int players, int window) {
     snprintf(what, sizeof what, "%s, %d players, window %d, input delay %d: %u frames confirmed, every client final on "
              "all %d", net->name, players, window, input_delay, w->confirmed, FRAMES);
     check(clients_ok && w->confirmed >= FRAMES, what);
-    snprintf(what, sizeof what, "%s, %d players: every final state equals the offline run (%u differ, %u frames with "
-             "an event)", net->name, players, wrong, w->events);
-    check(wrong == 0 && !w->bad_order && w->events > 10, what);
+    snprintf(what, sizeof what, "%s, %d players%s: every final state equals the offline run (%u differ, %u frames with "
+             "an event of %u given, %d messages too long)", net->name, players, event_burst ? ", an event every frame" : "",
+             wrong, w->events, w->sets, oversize);
+    check(wrong == 0 && !w->bad_order && w->events > 10 && w->events >= w->sets && w->events <= w->sets + 2 &&
+              oversize == 0,
+          what);
     snprintf(what, sizeof what, "%s, %d players: %u hash checks, %u mismatches, %d desync reports; %llu frames run "
              "again, %u late inputs", net->name, players, rb_host_hash_matches(w->host),
              rb_host_hash_mismatches(w->host), desyncs, (unsigned long long)rollbacks, rb_host_late_inputs(w->host));
@@ -334,7 +351,7 @@ static void test_join(const network *net) {
             w->client[mover] = NULL;
             gone = 1;
         }
-        host_events(w);
+        host_events(w, end);
         if (w->now == join_at) {
             /* The joiner builds the game from its start and the host's log, then starts at the next frame the host
                confirms, as present. That frame also carries an event: the joiner gets it in a confirm message. */
@@ -556,6 +573,11 @@ int main(int argc, char **argv) {
     for (n = 0; n < sizeof NETWORKS / sizeof NETWORKS[0]; n++)
         test_session(&NETWORKS[n], 4, 0);
     input_delay = 0;
+    /* A full-size event on every frame, with 16 players: every confirm message must still fit in RB_MAX_WIRE. */
+    event_burst = 1;
+    test_session(&NETWORKS[2], 16, 0);
+    test_session(&NETWORKS[3], 16, 16);
+    event_burst = 0;
     for (n = 0; n < sizeof NETWORKS / sizeof NETWORKS[0]; n++)
         test_join(&NETWORKS[n]);
     test_desync();

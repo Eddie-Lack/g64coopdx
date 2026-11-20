@@ -11,7 +11,7 @@ typedef struct {
     uint8_t hubTarget;
     uint8_t hubLevel;
     uint8_t worldComplete;
-    uint8_t pad;
+    uint8_t raisedBit;
 } G64Save;
 typedef struct {
     int32_t player, type, complete, level, world;
@@ -27,6 +27,8 @@ void port_game_start_level(int level);
 
 /* enum ExitType and enum Level (weemitt/include/enums.h): the exits that lead to the hub, and its last level. */
 enum { WORLD_EXIT = 3, HUB_EXIT = 13, HUB8 = 7 };
+/* weemitt's G64_RAISED_CAVE (g64players.h). */
+#define RAISED_CAVE 0xFF
 
 
 static void put16(uint8_t *p, uint32_t v) {
@@ -137,6 +139,10 @@ struct g64_ihost {
     int where[RB_MAX_PLAYERS]; /* each player's instance slot, or -1 */
     move_state move[RB_MAX_PLAYERS];
     g64_progress progress;
+    /* Why the hub's target rose (G64Save.raisedBit): the levels whose first world exit raised it, and the first visit
+       to the cave. */
+    uint32_t raised;
+    int raised_cave;
     pending_exit exits[MAX_PENDING];
     int exit_count;
     uint32_t clock;
@@ -327,22 +333,45 @@ static void leave_instance(g64_ihost *h, int p) {
         free_instance(h, s);
 }
 
-static void merge_progress(g64_progress *a, const G64Save *s) {
+static int bits_set(uint32_t v) {
+    int n = 0;
+    for (; v; v &= v - 1)
+        n++;
+    return n;
+}
+
+static void merge_progress(g64_ihost *h, const G64Save *s) {
+    g64_progress *a = &h->progress;
     a->levels |= s->levels;
     a->all_garibs |= s->allGaribs;
     if (s->hubTarget > a->hub_target)
         a->hub_target = s->hubTarget;
+    /* Each level's first world exit raises the target once, wherever it was taken. Two levels finished in two
+       instances before either heard of the other each report the same raised value: the count of levels is right. */
+    if (s->raisedBit >= 1 && s->raisedBit <= 32)
+        h->raised |= 1u << (s->raisedBit - 1);
+    else if (s->raisedBit == RAISED_CAVE)
+        h->raised_cave = 1;
+    if (bits_set(h->raised) + h->raised_cave > a->hub_target)
+        a->hub_target = (uint8_t)(bits_set(h->raised) + h->raised_cave);
+    if (a->hub_target > G64_MAX_HUB)
+        a->hub_target = G64_MAX_HUB;
     if (s->hubLevel > a->hub_level)
         a->hub_level = s->hubLevel;
     a->worlds_done |= (uint8_t)(s->worldComplete & 0x7F);
 }
 
+static int valid_exit(const g64_ihost *h, const pending_exit *e) {
+    int p = e->r.player;
+    return p >= 0 && p < h->players && h->where[p] == e->slot && e->r.level >= 0 && e->r.level < G64_NUM_LEVELS &&
+           e->r.world >= 0 && e->r.world < G64_NUM_WORLDS;
+}
+
+/* Moves the player of an exit. The exits' progress is already merged (g64_ihost_tick). */
 static void take_exit(g64_ihost *h, const pending_exit *e) {
     int p = e->r.player, s = e->slot, t, from, level = e->r.level;
-    if (p < 0 || p >= h->players || h->where[p] != s || e->r.level < 0 || e->r.level >= G64_NUM_LEVELS ||
-        e->r.world < 0 || e->r.world >= G64_NUM_WORLDS)
+    if (!valid_exit(h, e))
         return;
-    merge_progress(&h->progress, &e->r.save);
     /* An exit to the hub leads to its newest stage. The level the player leaves may not have heard yet of a crystal
        put in the fountain elsewhere. */
     if ((e->r.type == WORLD_EXIT || e->r.type == HUB_EXIT) && level <= HUB8)
@@ -414,6 +443,11 @@ void g64_ihost_tick(g64_ihost *h) {
     for (i = 0; i < G64_MAX_INSTANCES; i++)
         if (h->inst[i].used)
             rb_host_tick(h->inst[i].host);
+    /* The progress of every exit of this frame first: an exit to the hub then goes to the newest stage, even when the
+       exit that made it comes later in the list. */
+    for (i = 0; i < h->exit_count; i++)
+        if (valid_exit(h, &h->exits[i]))
+            merge_progress(h, &h->exits[i].r.save);
     for (i = 0; i < h->exit_count; i++)
         take_exit(h, &h->exits[i]);
     /* Progress made in one instance goes to every other, at its next confirmed frame: the whole progress, so a newer
@@ -702,8 +736,15 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
         if (mv.join > 0) {
             c->log = calloc((size_t)mv.join * (size_t)c->players, sizeof(rb_input));
             c->log_event = calloc((size_t)mv.join, sizeof(rb_event));
-            if (!c->log || !c->log_event)
+            if (!c->log || !c->log_event) {
+                /* No room for the log: the move is not taken. The host sends it again. */
+                free(c->log);
+                free(c->log_event);
+                c->log = NULL;
+                c->log_event = NULL;
+                c->moving = 0;
                 return -1;
+            }
         }
         send_ack(c);
         if (mv.join == 0)

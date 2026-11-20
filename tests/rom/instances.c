@@ -10,11 +10,15 @@
  *     a session event on the frame they join at. The raised target opens the hub's cave door, and player 1's walk
  *     takes them through it to the cave, a new instance. There the crystal flies to the fountain: the hub moves on to
  *     its second stage (HUB2);
- *   - player 1 chooses "Back to the hub" in their pause menu: they go to HUB2, a new instance. The hub players get the
- *     new stage as an event;
- *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input. Their game still says
- *     HUB1, but the host sends them to the newest stage: they join player 1 in HUB2, after its log.
- * The test: players 1 and 2 end up in HUB2 and the others in HUB1, every player's game has the new progress, every instance's hash checks pass, and no player is told of a
+ *   - meanwhile the way room, where player 2 still is, gets the progress as an event: its first door opens at once;
+ *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input. They join HUB1, after
+ *     its log, which holds the progress event;
+ *   - player 1 chooses "Back to the hub" in the cave: they go to HUB2, a new instance. The hub players get the new
+ *     stage as an event;
+ *   - player 3 chooses "Back to the hub" in HUB1 on the same frame. Their game still says HUB1, but the host sends
+ *     them to the newest stage: they join player 1 in HUB2.
+ * The test: players 1 and 3 end up in HUB2 and the others in HUB1, every player's game has the new progress, the way
+ * room's door opened, every message fits in a datagram, every instance's hash checks pass, and no player is told of a
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
  *
@@ -28,6 +32,7 @@
 typedef struct {
     int level, frame, player, type;
 } G64TestExit;
+int G64PlatformPosition(int tag, float *x, float *y, float *z);
 extern G64TestExit g64TestExits[4];
 typedef struct {
     uint32_t levels;
@@ -65,6 +70,8 @@ static g64_ihost *host;
 static g64_iclient *player[PLAYERS];
 static int ids[PLAYERS];
 static int failed;
+/* Messages longer than an RB message's most (RB_MAX_WIRE) and its instance header. */
+static int oversize;
 
 static uint32_t rnd(void) {
     rng ^= rng << 13;
@@ -75,6 +82,7 @@ static uint32_t rnd(void) {
 
 static void queue(int from, int to, const uint8_t *data, size_t len) {
     packet *p;
+    oversize += len > RB_MAX_WIRE + 2;
     if ((int)(rnd() % 1000) < LOSS || count >= MAX_PACKETS || len > sizeof p->data)
         return;
     p = &packets[count++];
@@ -121,7 +129,10 @@ static rb_input controller(int p, uint32_t f) {
     static const signed char dirs[4][2] = {{0, 60}, {60, 0}, {0, -60}, {-60, 0}};
     rb_input in;
     memset(&in, 0, sizeof in);
-    if ((p == 1 && now >= 2000 && now < 2003) || (p == 2 && now >= 2100 && now < 2103)) {
+    /* Player 3's choice starts a frame before player 1's: the host takes both exits in the same frame, before HUB1
+       can hear of the new stage. */
+    if ((p == 1 && now >= 2000 && now < 2003) || (p == 3 && now >= 1999 && now < 2002) ||
+        (p == 2 && now >= 1400 && now < 1403)) {
         /* The pause menu's choice, as netplay.c sends it: G64_ACTION_BUTTON with the choice in x. */
         in.buttons = 0x0080;
         in.x = 2;
@@ -140,6 +151,7 @@ int main(int argc, char **argv) {
     Engine *e;
     char err[256];
     void *boot;
+    float door[2] = {0, 0};
     int p;
     FILE *rom = argc > 1 ? fopen(argv[1], "rb") : NULL;
     if (!rom) {
@@ -177,6 +189,17 @@ int main(int argc, char **argv) {
         g64_ihost_tick(host);
         for (p = 0; p < PLAYERS; p++)
             g64_iclient_step(player[p], controller(p, g64_iclient_frame(player[p])));
+        if (now == 1000 || now == 1390) {
+            /* The way room's first door, in player 2's game: shut before Atlantis 1 is done, gone (moved to y -5000)
+               once the progress event has reached the way room. */
+            float x = 0, y = 0, z = 0;
+            rb_engine_game *g = g64_iclient_game(player[2]);
+            if (g && g64_iclient_level(player[2]) == WAYROOM) {
+                rb_engine_game_enter(g);
+                G64PlatformPosition(1, &x, &y, &z);
+            }
+            door[now == 1390] = y;
+        }
         if ((now + 1) % 300 == 0) {
             printf("frame %u: %d instances; levels", now + 1, g64_ihost_instances(host));
             for (p = 0; p < PLAYERS; p++)
@@ -185,13 +208,20 @@ int main(int argc, char **argv) {
         }
     }
     check(g64_iclient_level(player[0]) == HUB1 && g64_iclient_level(player[1]) == HUB2 &&
-              g64_iclient_level(player[2]) == HUB2 && g64_iclient_level(player[3]) == HUB1,
-          "players 1 and 2 are in HUB2, the others in HUB1");
-    check(g64_ihost_level_of(host, 1) == HUB2 && g64_ihost_level_of(host, 2) == HUB2 && g64_ihost_instances(host) == 2,
+              g64_iclient_level(player[2]) == HUB1 && g64_iclient_level(player[3]) == HUB2,
+          "players 1 and 3 are in HUB2, the others in HUB1");
+    check(g64_ihost_level_of(host, 1) == HUB2 && g64_ihost_level_of(host, 3) == HUB2 && g64_ihost_instances(host) == 2,
           "the host agrees: two instances");
+    {
+        char what[160];
+        snprintf(what, sizeof what, "the way room's first door: y %.1f before the progress, %.1f after", door[0], door[1]);
+        check(door[0] > -4000.0f && door[1] == -5000.0f, what);
+        snprintf(what, sizeof what, "%d messages longer than a datagram may carry", oversize);
+        check(oversize == 0, what);
+    }
     for (p = 0; p < PLAYERS; p++) {
-        /* The progress in the player's own game: players 0 and 3 got it as events while they played in HUB1, and
-           players 1 and 2 in HUB2's start. */
+        /* The progress in the player's own game: player 0 got it as events while they played in HUB1, player 2 from
+           HUB1's log and as an event, and players 1 and 3 in HUB2's start. */
         char what[160];
         G64Save s;
         rb_engine_game *g = g64_iclient_game(player[p]);

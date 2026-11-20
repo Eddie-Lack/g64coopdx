@@ -441,6 +441,18 @@ s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z) {
     return 1;
 }
 
+Platform *TagToFirstPlatform(s32 tag);
+
+s32 G64PlatformPosition(s32 tag, f32 *x, f32 *y, f32 *z) {
+    Platform *platform = TagToFirstPlatform(tag);
+    if (platform == NULL)
+        return 0;
+    *x = platform->actor.pos.x;
+    *y = platform->actor.pos.y;
+    *z = platform->actor.pos.z;
+    return 1;
+}
+
 s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z) {
     const Actor *a;
     s32 i = slot_of(player);
