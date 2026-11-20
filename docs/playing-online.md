@@ -138,8 +138,10 @@ game data, only addresses and counts.
   again. A way room door opens at once. The pedestals in a way room move only at its next start.
 - The hub has a stage for each crystal in the fountain (HUB1 to HUB8). When someone puts a crystal in, you stay in
   your hub stage. Your next exit to the hub takes you to the newest stage.
-- In the cave, the crystal's flight acts on one player only. It is not yet made for several players in the cave at
-  once.
+- In the cave, each player who comes with a crystal due has their own flight to the fountain: only their glove waits.
+  A player who came with nothing due has no flight, even if a crystal becomes due while they are there.
+- A player who comes into a running level starts where the level put the first player, with the level's first
+  checkpoint.
 - Players can go to different worlds. The planned rule (a portal to another world opens only when everyone is in
   the hub) is not there yet.
 - No list of open games: players share the room code themselves.

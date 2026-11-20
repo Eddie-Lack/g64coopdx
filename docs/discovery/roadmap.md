@@ -121,7 +121,8 @@ harness at N players and by the determinism tests:
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
-5. Exits and the hub: each player exits alone, the ball left behind, world doors.
+5. Exits and the hub: each player exits alone, the ball left behind, world doors. Done in part: each player exits
+   alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c).
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu.
