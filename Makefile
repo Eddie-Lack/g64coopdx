@@ -200,9 +200,10 @@ build/tests/relay_test: tests/net/relay_test.c $(SESSION_SRC) src/session/sessio
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/relay_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
 
-build/tests/instances_fuzz: tests/fuzz/instances_fuzz.c src/client/imsg.c src/client/imsg.h
+build/tests/instances_fuzz: tests/fuzz/instances_fuzz.c src/client/imsg.c src/client/imsg.h $(ROLLBACK_SRC)
 	@mkdir -p build/tests
-	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/instances_fuzz.c src/client/imsg.c
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/instances_fuzz.c src/client/imsg.c \
+	    $(ROLLBACK_SRC)
 
 build/tests/relay_fuzz: tests/fuzz/relay_fuzz.c $(NET_SRC) src/net/udp.h
 	@mkdir -p build/tests

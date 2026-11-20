@@ -10,7 +10,8 @@ enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4, MSG_HINT = 
  *   input    type, player, ack (u32: confirmed frames the client has), first (u32), count (0..RB_INPUT_REPEAT),
  *            count inputs: the client's own inputs for frames first .. first + count - 1
  *   confirm  type, players, first (u32), count (1..RB_CONFIRM_BATCH), the host's clock (u32: frames it has counted),
- *            count frames: present (u16, a bit per player), players inputs
+ *            count frames: present (u16, a bit per player), players inputs; then the frames' events
+ *            (rb_events_write)
  *   hash     type, player, frame (u32), hash (u64)
  *   desync   type, frame (u32)
  *   hint     the layout of an input, type 5: another player's inputs as the host received them, before they are
@@ -64,6 +65,65 @@ static int same_input(rb_input a, rb_input b) { return same_controller(a, b) && 
 /* The bytes of one confirmed frame in a confirm message. */
 static size_t frame_size(int players) { return 2 + 4 * (size_t)players; }
 
+static int same_event(const rb_event *a, const rb_event *b) {
+    return a->len == b->len && memcmp(a->data, b->data, a->len) == 0;
+}
+
+size_t rb_events_size(const rb_event *events, uint32_t count) {
+    size_t n = 1;
+    uint32_t i;
+    for (i = 0; i < count; i++)
+        if (events[i].len)
+            n += 2 + events[i].len;
+    return n;
+}
+
+size_t rb_events_write(uint8_t *d, const rb_event *events, uint32_t count) {
+    size_t n = 1;
+    uint32_t i;
+    d[0] = 0;
+    for (i = 0; i < count; i++) {
+        if (!events[i].len)
+            continue;
+        d[0]++;
+        d[n] = (uint8_t)i;
+        d[n + 1] = events[i].len;
+        memcpy(d + n + 2, events[i].data, events[i].len);
+        n += 2 + events[i].len;
+    }
+    return n;
+}
+
+int rb_events_parse(const uint8_t *d, size_t len, uint32_t count, rb_event *events) {
+    rb_event out[255];
+    size_t n = 1;
+    uint32_t i, entries, next = 0;
+    if (!d || len < 1 || count > 255)
+        return -1;
+    entries = d[0];
+    if (entries > count)
+        return -1;
+    memset(out, 0, sizeof(rb_event) * count);
+    for (i = 0; i < entries; i++) {
+        uint32_t at, size;
+        if (len - n < 2)
+            return -1;
+        at = d[n];
+        size = d[n + 1];
+        /* One event per frame, in order, inside the run. */
+        if (at < next || at >= count || size < 1 || size > RB_EVENT_MAX || len - n - 2 < size)
+            return -1;
+        out[at].len = (uint8_t)size;
+        memcpy(out[at].data, d + n + 2, size);
+        n += 2 + size;
+        next = at + 1;
+    }
+    if (n != len)
+        return -1;
+    memcpy(events, out, sizeof(rb_event) * count);
+    return 0;
+}
+
 static int valid_ops(const rb_game_ops *ops) {
     return ops && ops->state_size > 0 && ops->step && ops->save && ops->load && ops->hash_state;
 }
@@ -89,6 +149,8 @@ struct rb_client {
     rb_input last[RB_MAX_PLAYERS]; /* the inputs of frame confirmed - 1: the prediction for the others */
     rb_input inputs[RB_WINDOW][RB_MAX_PLAYERS]; /* the inputs each kept frame was run with, or its confirmed inputs */
     rb_input local[RB_WINDOW];                  /* the local player's own input for each kept frame */
+    rb_event events[RB_WINDOW]; /* each confirmed kept frame's event */
+    rb_event ran[RB_WINDOW];    /* the event each kept frame last ran with: none for a predicted frame */
     /* Other players' inputs that the host forwarded before confirming them: hint_at is the frame + 1 of the hint
        in each slot, or 0. */
     rb_input hint[RB_WINDOW][RB_MAX_PLAYERS];
@@ -183,8 +245,16 @@ static void inputs_for(rb_client *c, uint32_t f, rb_input *out) {
 
 static void run_frame(rb_client *c, uint32_t f) {
     rb_input in[RB_MAX_PLAYERS];
+    rb_event *ran = &c->ran[f % c->window];
     inputs_for(c, f, in);
     memcpy(c->inputs[f % c->window], in, sizeof(rb_input) * (size_t)c->players);
+    /* Only a confirmed frame has an event: a predicted one runs without. */
+    if (f < c->confirmed)
+        *ran = c->events[f % c->window];
+    else
+        ran->len = 0;
+    if (ran->len && c->ops->event)
+        c->ops->event(c->game, ran->data, ran->len);
     c->ops->step(c->game, in, c->players);
     c->ops->save(c->game, slot(c, f + 1));
 }
@@ -255,13 +325,17 @@ void rb_client_idle(rb_client *c) { send_input(c); }
 
 static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
     uint32_t first, count, i, wrong = UINT32_MAX, f;
+    rb_event events[RB_CONFIRM_BATCH];
+    size_t frames;
     int p;
     if (len < CONFIRM_HEAD || d[1] != c->players)
         return -1;
     first = get32(d + 2);
     count = d[6];
-    if (count < 1 || count > RB_CONFIRM_BATCH || len != CONFIRM_HEAD + (size_t)count * frame_size(c->players) ||
-        first > UINT32_MAX - count || get32(d + 7) < first + count)
+    frames = CONFIRM_HEAD + (size_t)count * frame_size(c->players);
+    if (count < 1 || count > RB_CONFIRM_BATCH || len <= frames ||
+        rb_events_parse(d + frames, len - frames, count, events) != 0 || first > UINT32_MAX - count ||
+        get32(d + 7) < first + count)
         return -1;
     if (get32(d + 7) > c->host_clock)
         c->host_clock = get32(d + 7);
@@ -293,12 +367,14 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
                 c->lead_at = c->frame;
             }
         }
-        if (f < c->frame && wrong == UINT32_MAX)
-            for (p = 0; p < c->players; p++)
-                if (!same_input(in[p], c->inputs[f % c->window][p])) {
+        if (f < c->frame && wrong == UINT32_MAX) {
+            if (!same_event(&events[i], &c->ran[f % c->window]))
+                wrong = f;
+            for (p = 0; p < c->players && wrong == UINT32_MAX; p++)
+                if (!same_input(in[p], c->inputs[f % c->window][p]))
                     wrong = f;
-                    break;
-                }
+        }
+        c->events[f % c->window] = events[i];
         memcpy(c->inputs[f % c->window], in, sizeof(rb_input) * (size_t)c->players);
         memcpy(c->last, in, sizeof(rb_input) * (size_t)c->players);
         c->confirmed++;
@@ -398,6 +474,8 @@ struct rb_host {
     uint8_t have[RB_HOST_WINDOW][RB_MAX_PLAYERS];
     /* Confirmed inputs and reference hashes of frames confirmed - RB_HOST_WINDOW .. confirmed - 1. */
     rb_input done[RB_HOST_WINDOW][RB_MAX_PLAYERS];
+    rb_event done_event[RB_HOST_WINDOW];
+    rb_event event; /* the event for the next confirmed frame (rb_host_set_event), or len 0 */
     uint64_t hash[RB_HOST_WINDOW];
     uint8_t *state;
 };
@@ -448,12 +526,17 @@ static void host_confirm(rb_host *h) {
         h->done[s][p] = h->last[p];
         h->have[s][p] = 0;
     }
+    /* The event belongs to this frame only. */
+    h->done_event[s] = h->event;
+    h->event.len = 0;
+    if (h->done_event[s].len && h->ops->event)
+        h->ops->event(h->game, h->done_event[s].data, h->done_event[s].len);
     h->ops->step(h->game, h->done[s], h->players);
     h->ops->save(h->game, h->state);
     if (f % RB_HASH_EVERY == 0)
         h->hash[s] = h->ops->hash_state(h->state);
     if (h->on_confirm)
-        h->on_confirm(h->user, f, h->done[s], h->players);
+        h->on_confirm(h->user, f, h->done[s], h->players, &h->done_event[s]);
     if (h->on_final)
         h->on_final(h->user, f, h->state);
     h->confirmed++;
@@ -461,18 +544,27 @@ static void host_confirm(rb_host *h) {
 
 static void host_send_confirmed(rb_host *h, int to) {
     uint8_t m[RB_MAX_MESSAGE];
-    uint32_t first = h->ack[to], count, i;
+    rb_event events[RB_CONFIRM_BATCH];
+    uint32_t first = h->ack[to], count, avail, i;
+    size_t size = CONFIRM_HEAD + 1;
     int p;
     if (first >= h->confirmed)
         return;
     /* A client further behind than the kept frames cannot catch up from here. */
     if (h->confirmed - first > RB_HOST_WINDOW)
         first = h->confirmed - RB_HOST_WINDOW;
-    count = h->confirmed - first;
-    if (count > RB_CONFIRM_BATCH)
-        count = RB_CONFIRM_BATCH;
-    if (count > (RB_MAX_WIRE - CONFIRM_HEAD) / frame_size(h->players))
-        count = (uint32_t)((RB_MAX_WIRE - CONFIRM_HEAD) / frame_size(h->players));
+    avail = h->confirmed - first;
+    if (avail > RB_CONFIRM_BATCH)
+        avail = RB_CONFIRM_BATCH;
+    /* As many frames as fit in RB_MAX_WIRE bytes with their events. */
+    for (count = 0; count < avail; count++) {
+        const rb_event *e = &h->done_event[(first + count) % RB_HOST_WINDOW];
+        size_t more = frame_size(h->players) + (e->len ? 2u + e->len : 0u);
+        if (count > 0 && size + more > RB_MAX_WIRE)
+            break;
+        size += more;
+        events[count] = *e;
+    }
     m[0] = MSG_CONFIRM;
     m[1] = (uint8_t)h->players;
     put32(m + 2, first);
@@ -489,7 +581,9 @@ static void host_send_confirmed(rb_host *h, int to) {
         fr[0] = (uint8_t)present;
         fr[1] = (uint8_t)(present >> 8);
     }
-    h->send(h->user, to, m, CONFIRM_HEAD + (size_t)count * frame_size(h->players));
+    size = CONFIRM_HEAD + (size_t)count * frame_size(h->players);
+    size += rb_events_write(m + size, events, count);
+    h->send(h->user, to, m, size);
 }
 
 void rb_host_tick(rb_host *h) {
@@ -598,6 +692,14 @@ void rb_host_set_present(rb_host *h, int p, int present) {
 }
 
 int rb_host_present(const rb_host *h, int p) { return p >= 0 && p < h->players && h->present[p]; }
+
+int rb_host_set_event(rb_host *h, const uint8_t *data, size_t len) {
+    if (!data || len < 1 || len > RB_EVENT_MAX)
+        return -1;
+    h->event.len = (uint8_t)len;
+    memcpy(h->event.data, data, len);
+    return 0;
+}
 
 uint32_t rb_host_confirmed(const rb_host *h) { return h->confirmed; }
 uint32_t rb_host_hash_matches(const rb_host *h) { return h->matches; }

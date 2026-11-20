@@ -11,14 +11,18 @@ struct Platform;
 extern s32 g64Online;
 
 /* The progress that a session shares, from the game's save slot: levels done, levels with all garibs, the hub's
-   progress, and the worlds done (a bit per world). */
+   progress, and the worlds done (a bit per world). In an exit's record, raisedBit says why the exit raised hubTarget:
+   the bit (plus 1) of the level whose first world exit raised it, G64_RAISED_CAVE for the first visit to the cave, or
+   0. Two instances that each raise hubTarget from the same value report the same number; the host counts the reasons
+   instead. */
+#define G64_RAISED_CAVE 0xFF
 typedef struct G64Save {
     u32 levels;
     u32 allGaribs;
     u8 hubTarget;
     u8 hubLevel;
     u8 worldComplete;
-    u8 pad;
+    u8 raisedBit;
 } G64Save;
 
 /* An exit taken in this frame: who, by which exit type (enum ExitType), whether it completed the level, the level and
@@ -81,6 +85,8 @@ u32 G64ActorTint(struct Actor *a);
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* The same for a player's ball. */
 s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z);
+/* For tests: the position of the level's first platform with a tag; 0 when there is none. */
+s32 G64PlatformPosition(s32 tag, f32 *x, f32 *y, f32 *z);
 /* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a
    state it loads again after the draw. */
 void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz);

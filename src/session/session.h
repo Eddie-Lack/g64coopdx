@@ -2,7 +2,7 @@
  * game when everyone is in (docs/discovery/netcode.md, "The handshake"). After the start the session carries the
  * rollback core's messages between the host and each client.
  *
- * Messages, all numbers little-endian. The first byte is the type; the rollback core's own types are 1 to 4.
+ * Messages, all numbers little-endian. The first byte is the type; the rollback core's own types are 1 to 5.
  *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), glove color (u32), ball color
  *            (u32), name (up to 16 bytes)
  *   welcome  0x41, player (u8), players (u8)
@@ -20,7 +20,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 4
+#define G64_PROTOCOL 5
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */

@@ -69,8 +69,9 @@ static void host_send(void *user, int to, const uint8_t *data, size_t len) {
     queue(-1, to, data, len);
 }
 
-static void on_confirm(void *user, uint32_t frame, const rb_input *in, int players) {
+static void on_confirm(void *user, uint32_t frame, const rb_input *in, int players, const rb_event *event) {
     (void)user;
+    (void)event;
     if (frame < MAX_FRAMES)
         memcpy(confirmed[frame], in, sizeof(rb_input) * (size_t)players);
     nconfirmed = frame + 1;

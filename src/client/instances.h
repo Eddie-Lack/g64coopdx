@@ -15,10 +15,15 @@
  *   move    0x02, instance (u8), level (u8), world (u8), players (u8), start members (u16), join frame (u32),
  *           progress: levels (u32), all garibs (u32), hub target (u8), hub level (u8), worlds done (u8)
  *                                                                                      host to player
- *   log     0x03, instance (u8), players (u8), first frame (u32), count (u8), count frames: present (u16, a bit per
- *           player), players inputs (buttons u16, x s8, y s8)                          host to player
+ *   log     0x03, instance (u8), players (u8), first frame (u32), count (u8), unused (u8), count frames: present
+ *           (u16, a bit per player), players inputs (buttons u16, x s8, y s8); then the frames' session events
+ *           (rb_events_write)                                                          host to player
  *   logack  0x04, instance (u8), join frame (u32), frames received (u32)              player to host
- * Every message is checked before use: lengths, counts, players, instance numbers, frames. */
+ * Every message is checked before use: lengths, counts, players, instance numbers, frames.
+ *
+ * Progress made in one instance reaches the others as a session event (imsg.h, G64_EVENT_PROGRESS) on a confirmed
+ * frame: the host sends the session's whole progress to every instance whose progress is older, after the frame's
+ * exits. The instance's log keeps each frame's event, so a player who joins later runs it at the same frame. */
 #ifndef G64_INSTANCES_H
 #define G64_INSTANCES_H
 

@@ -121,6 +121,19 @@ static void toy_step(void *game, const rb_input *in, int players) {
     g->frame++;
 }
 
+/* A session event: data[0] names a body (modulo the players), and data[1 .. 4] (u32, little-endian, missing bytes
+ * 0) is added to its score. */
+static void toy_event(void *game, const uint8_t *data, size_t len) {
+    toy_game *g = game;
+    uint32_t add = 0;
+    size_t i;
+    if (len < 1 || g->players == 0)
+        return;
+    for (i = 1; i < len && i <= 4; i++)
+        add |= (uint32_t)data[i] << (8 * (i - 1));
+    g->body[data[0] % g->players].score += add;
+}
+
 static void toy_save(void *game, void *state) { memcpy(state, game, sizeof(toy_game)); }
 static void toy_load(void *game, const void *state) { memcpy(game, state, sizeof(toy_game)); }
 
@@ -136,4 +149,4 @@ static uint64_t toy_hash(const void *state) {
     return h;
 }
 
-const rb_game_ops toy_ops = {sizeof(toy_game), toy_step, toy_save, toy_load, toy_hash};
+const rb_game_ops toy_ops = {sizeof(toy_game), toy_step, toy_save, toy_load, toy_hash, toy_event};

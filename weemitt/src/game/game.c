@@ -3750,7 +3750,7 @@ void G64ReadSave(G64Save *save) {
     for (i = 0; i < 7; i++)
         if (gameInfo.worldComplete[i])
             save->worldComplete |= 1 << i;
-    save->pad = 0;
+    save->raisedBit = 0;
 }
 
 void G64WriteSave(s32 world, const G64Save *save) {
@@ -3764,6 +3764,46 @@ void G64WriteSave(s32 world, const G64Save *save) {
     gameInfo.world = world;
 }
 
+/* g64coopdx: one way room door is open (tags 1 to 3: a level of the world is done; tag 4: the bonus), as
+   StartNewLevel decides it. */
+static s32 G64WayRoomDoorOpen(s32 tag) {
+    if (tag == 4)
+        return BonusOpen();
+    return (cheatActivated & 0x2000000) || ((saveSlot[currentSaveSlot].levels >> ((gameInfo.world - 1) * 5 + tag - 1)) & 1)
+           || ((saveSlot[currentSaveSlot].levels >> ((gameInfo.world - 1) * 5 + tag)) & 1);
+}
+
+/* g64coopdx: progress made in another instance, given to a running level at a confirmed frame (a session event). It
+   only adds: the level bits, the all-garib bits and the worlds done are joined, and the hub counts take the larger
+   value, so progress this level made and has not yet reported stays. The world stays. A way room door that the new
+   progress opens moves away, as at the level's start. Other things the progress changes in this level show at its
+   next start. */
+void G64ApplyProgress(const G64Save *save) {
+    s32 i, tag, wasOpen[5];
+    Platform *platform;
+    if (gameInfo.level == WAYROOM)
+        for (tag = 1; tag <= 4; tag++)
+            wasOpen[tag] = G64WayRoomDoorOpen(tag);
+    saveSlot[currentSaveSlot].levels |= (s32)save->levels;
+    saveSlot[currentSaveSlot].allGaribs |= (s32)save->allGaribs;
+    if (save->hubTarget > saveSlot[currentSaveSlot].hubTarget)
+        saveSlot[currentSaveSlot].hubTarget = save->hubTarget;
+    if (save->hubLevel > saveSlot[currentSaveSlot].hubLevel)
+        saveSlot[currentSaveSlot].hubLevel = save->hubLevel;
+    for (i = 0; i < 7; i++)
+        if ((save->worldComplete >> i) & 1)
+            gameInfo.worldComplete[i] = 1;
+    if (gameInfo.level != WAYROOM)
+        return;
+    for (tag = 1; tag <= 4; tag++) {
+        if (wasOpen[tag] || !G64WayRoomDoorOpen(tag) || (platform = TagToFirstPlatform(tag)) == NULL)
+            continue;
+        platform->actor.pos.y = -5000.0f;
+        InitPlanes(platform->actor.inst->obj->mesh, &platform->actor.pos, platform->actor.faces, &platform->actor.scale,
+                   &platform->actor.rotQuat, 1);
+    }
+}
+
 /* g64coopdx: the progress after an exit: the save as the level leaves it, with what the level change after the fade
    and CheckForLevelCompleted would add (a level done, all its garibs, a world done). It changes nothing. */
 void G64ExitSave(s32 type, s32 complete, G64Save *save) {
@@ -3775,11 +3815,14 @@ void G64ExitSave(s32 type, s32 complete, G64Save *save) {
             save->allGaribs |= 1u << bit;
     }
     if (type == WORLD_EXIT) {
-        if (!((saveSlot[currentSaveSlot].levels >> bit) & 1))
+        if (!((saveSlot[currentSaveSlot].levels >> bit) & 1)) {
             save->hubTarget++;
+            save->raisedBit = (u8)(bit + 1);
+        }
         save->worldComplete |= 1 << gameInfo.world;
     } else if (type == CAVE_EXIT && save->hubTarget == 0) {
         save->hubTarget = 1;
+        save->raisedBit = G64_RAISED_CAVE;
     }
 }
 
