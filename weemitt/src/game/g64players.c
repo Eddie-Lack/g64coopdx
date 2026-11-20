@@ -111,6 +111,10 @@ static PTR32(G64Slot) startSlot;
 static s32 ready;
 /* The players, by number, who came into this level after it started (G64AddPlayer). */
 static u32 cameLate;
+/* Online: where the first player's glove was on the level's first played frame, the level's start. A level's opening
+   can move the glove before its camera gives way, so the start copy may be elsewhere. */
+static Vec3 startPos;
+static s32 startPosSet;
 extern Vec3 ballStart;
 extern s32 frameCount;
 void AddActor(Actor *actor);
@@ -323,18 +327,19 @@ static void new_slot(s32 i) {
     add_slot(i, s);
 }
 
-static void arrive(s32 i, s32 toStart);
+static void arrive(s32 i, const Vec3 *to);
+extern Vec3 handStart;
 
-/* Makes slot i for a player who came after the level started: from the start copy online, which is where the level
-   set the first player up; or else from the player in the globals, moved to the level's start. Then afresh
-   (arrive). */
+/* Makes slot i for a player who came after the level started: from the start copy online, as the level set the first
+   player up, moved to the level's first glove position; or else from the player in the globals, moved to handStart.
+   Then afresh (arrive). */
 static void new_late_slot(s32 i) {
     if (startSlot) {
         add_slot(i, copy_slot(startSlot));
-        arrive(i, 0);
+        arrive(i, startPosSet ? &startPos : NULL);
     } else {
         add_slot(i, copy_globals());
-        arrive(i, 1);
+        arrive(i, &handStart);
     }
 }
 
@@ -400,6 +405,8 @@ void G64ExtraPlayersFree(void) {
     if (globalCave)
         JallocFree(&globalCave);
     ready = 0;
+    cameLate = 0;
+    startPosSet = 0;
 }
 
 /* Online: the start copy, once the level has set the first player up. */
@@ -452,6 +459,10 @@ void G64ExtraPlayersStep(void) {
     s32 i;
     if ((g64Players < 2 && !g64Online) || gamePaused || !GameBeingPlayed())
         return;
+    if (g64Online && !startPosSet) {
+        startPos = hand.pos;
+        startPosSet = 1;
+    }
     /* The other players start as copies of the first, once the level has set the first player up (its start position,
        its first checkpoint) and its opening camera has given way to the normal one, which follows the glove or the
        ball. A copy taken earlier would keep the opening camera's fixed target. Online the start copy is taken then,
@@ -612,6 +623,17 @@ s32 G64CaveTarget(void) {
     return t >= 1 && t <= 7 ? t : 1;
 }
 
+s32 G64CaveTargetsInAir(void) {
+    s32 i, top = 0;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        /* A swapped slot holds the player in the globals' part, which is the other player now. */
+        if (s && s->caveStage != 0 && s->cave.target > top)
+            top = s->cave.target;
+    }
+    return top;
+}
+
 void G64SetCaveTarget(s32 tag) {
     global_cave()->target = tag;
 }
@@ -697,15 +719,15 @@ void G64PlayerAction(s32 player, s32 action) {
 }
 
 
-/* A player who came after the level started, in slot i: moved to the level's start with their ball and camera
-   (toStart: handStart, which the level may have changed since), and afresh (G64Arrive, game.c). */
-static void arrive(s32 i, s32 toStart) {
+/* A player who came after the level started, in slot i: moved with their ball and camera to the position to (or left
+   where they are for NULL), and afresh (G64Arrive, game.c). */
+static void arrive(s32 i, const Vec3 *to) {
     G64Slot *n = slots[i];
     Vec3 d;
-    if (toStart) {
-        d.x = handStart.x - n->hand.pos.x;
-        d.y = handStart.y - n->hand.pos.y;
-        d.z = handStart.z - n->hand.pos.z;
+    if (to) {
+        d.x = to->x - n->hand.pos.x;
+        d.y = to->y - n->hand.pos.y;
+        d.z = to->z - n->hand.pos.z;
         shift_actor(&n->hand, &d);
         shift_actor(&n->ball, &d);
         shift_actor(&n->camera, &d);

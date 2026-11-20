@@ -6,10 +6,12 @@
  *      target (a session event, G64ApplyProgress), and player 1 comes in. Player 1's crystal flies to the fountain.
  *      Player 0 has no scene, and walks exactly as in a run where player 1 never comes.
  *   C. Two players start in the cave with one crystal due. Both fly; one crystal goes in; both can move afterwards.
- *   D. Two players start in the cave with two crystals due. Both go in.
+ *   D. Two players start in the cave with two crystals due. Both go in, each ball to its own pedestal.
  *   E. One player starts in the cave with a crystal due and puts it in. Player 1 comes in with none due (holding the
  *      ball the cave gave at its start). The target then rises: player 1 brought no crystal and has no scene. Player 2
  *      comes in with it due and puts it in.
+ *   F. Two players start in the cave as the seventh crystal goes in: the ending holds both.
+ *   G. The single-player game (offline): one player puts the crystal in, as before the change.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -37,6 +39,7 @@ void G64ReadSave(G64Save *s);
 void G64ApplyProgress(const G64Save *s);
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 int G64BallPosition(int p, float *x, float *y, float *z);
+int G64PlatformPosition(int tag, float *x, float *y, float *z);
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
@@ -180,18 +183,47 @@ static void case_b(void) {
     printf("B: hash %08x\n", port_hash_ram());
 }
 
+/* The pedestal (platform tag 1 .. 7) that a ball came closest to across, and how close. */
+static void closest_pedestal(const float *ball, int *tag, float *best) {
+    int k;
+    for (k = 1; k <= 7; k++) {
+        float x, y, z, d;
+        if (!G64PlatformPosition(k, &x, &y, &z))
+            continue;
+        d = sqrtf((ball[0] - x) * (ball[0] - x) + (ball[2] - z) * (ball[2] - z));
+        if (d < *best) {
+            *best = d;
+            *tag = k;
+        }
+    }
+}
+
 static void case_cd(char name, int target) {
-    float a[3], b[3], a2[3], b2[3], ba[3], bb[3];
+    float a[3], b[3], a2[3], b2[3], ba[3], bb[3], best[2] = {1e9f, 1e9f};
+    int tag[2] = {0, 0}, p;
     unsigned f;
     char what[200];
     start(CAVE, 0x3, 0, target);
-    for (f = 0; f < 400; f++)
+    for (f = 0; f < 400; f++) {
         frame(f, 0x3, 0);
+        /* Where each ball goes while it is still above the floor (a ball put in moves to y -5000). */
+        for (p = 0; p < 2; p++) {
+            float at[3];
+            ball_at(p, at);
+            if (at[1] > -1000.0f && f > 60)
+                closest_pedestal(at, &tag[p], &best[p]);
+        }
+    }
     ball_at(0, ba);
     ball_at(1, bb);
     snprintf(what, sizeof what, "%c: %d crystal%s due, two players: hub level %u; both balls gone (y %.0f, %.0f)", name,
              target, target > 1 ? "s" : "", save().hubLevel, ba[1], bb[1]);
     check(save().hubLevel == target && ba[1] == -5000.0f && bb[1] == -5000.0f, what);
+    snprintf(what, sizeof what, "%c: the balls reach pedestals %d and %d (%.1f and %.1f away)", name, tag[0], tag[1],
+             best[0], best[1]);
+    check(best[0] < 5.0f && best[1] < 5.0f && tag[0] >= 1 && tag[1] >= 1 && tag[0] <= target && tag[1] <= target &&
+              (target == 1 || tag[0] != tag[1]),
+          what);
     where(0, a);
     where(1, b);
     for (; f < 500; f++)
@@ -234,6 +266,49 @@ static void case_e(void) {
     printf("E: hash %08x\n", port_hash_ram());
 }
 
+static void case_f(void) {
+    float a[3], b[3], a2[3], b2[3];
+    unsigned f;
+    char what[200];
+    start(CAVE, 0x3, 6, 7);
+    for (f = 0; f < 200; f++)
+        frame(f, 0x3, 0);
+    where(0, a);
+    where(1, b);
+    for (; f < 260; f++)
+        frame(f, 0x3, 0x3);
+    where(0, a2);
+    where(1, b2);
+    snprintf(what, sizeof what, "F: the ending (hub level %u) holds both players: they walk %.1f and %.1f", save().hubLevel,
+             dist(a, a2), dist(b, b2));
+    check(save().hubLevel == 7 && dist(a, a2) < 1.0f && dist(b, b2) < 1.0f, what);
+}
+
+static void case_g(void) {
+    float ball[3];
+    unsigned f, h = 2166136261u;
+    char what[200];
+    G64Save s;
+    engine_load(engine, boot);
+    g64Online = 0;
+    G64StartPlayers(0x1);
+    memset(&s, 0, sizeof s);
+    s.levels = 1;
+    s.hubTarget = 1;
+    G64SetStartRecord(0, &s);
+    port_game_start_level(CAVE);
+    for (f = 0; f < 300; f++) {
+        frame(f, 0x1, 0);
+        if ((f + 1) % 50 == 0)
+            h = (h ^ port_hash_ram()) * 16777619u;
+    }
+    ball_at(0, ball);
+    snprintf(what, sizeof what, "G: single-player: the crystal goes in: hub level %u, the ball at y %.0f", save().hubLevel,
+             ball[1]);
+    check(save().hubLevel == 1 && ball[1] == -5000.0f, what);
+    printf("G: hash %08x\n", h);
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -258,6 +333,8 @@ int main(int argc, char **argv) {
     case_cd('C', 1);
     case_cd('D', 2);
     case_e();
+    case_f();
+    case_g();
     printf("%s each player has their own crystal scene\n", failed ? "FAIL" : "ok  ");
     free(boot);
     engine_free(engine);

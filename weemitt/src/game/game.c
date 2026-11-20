@@ -2867,9 +2867,12 @@ static void CaveCrystal(void) {
                 ball.link = &hand;
                 handControl.releaseTimer = 0;
                 ballControl.releaseTimer = 0;
-                /* Online the flight's pedestal is the next crystal's, fixed when it starts. */
+                /* Online the flight's pedestal is fixed when it starts: the next one after the hub level and after
+                   any other flight still in the air, and never past the last crystal due. */
                 if (g64Online)
-                    G64SetCaveTarget(MIN(saveSlot[currentSaveSlot].hubLevel + 1, 7));
+                    G64SetCaveTarget(MIN(MIN(MAX(saveSlot[currentSaveSlot].hubLevel, G64CaveTargetsInAir()) + 1,
+                                             saveSlot[currentSaveSlot].hubTarget),
+                                         7));
             }
             return;
         }
@@ -2950,7 +2953,8 @@ static void CaveCrystal(void) {
         ball.pos.y = -5000.0f;
         ball.pos.z = 300.0f;
         ball.link = NULL;
-        platform = TagToFirstPlatform(saveSlot[currentSaveSlot].hubLevel);
+        /* Online the crystal shows on its own flight's pedestal. */
+        platform = TagToFirstPlatform(g64Online ? target : saveSlot[currentSaveSlot].hubLevel);
         if (raise)
             platform->actor.pos.y = -30.0f;
         ballStart = ball.pos;
@@ -3070,6 +3074,10 @@ void DoCaveStuff(void) {
    is not; DoCaveStuff does the same for the player who is: the thumbs-up's turn, the crystal power-up, and the
    crystal's flight. */
 void G64CavePlayer(void) {
+    /* The ending holds every player, as DoCaveStuff holds the player in the globals. */
+    if (saveSlot[currentSaveSlot].hubLevel == 7) {
+        DisableControl(2);
+    }
     if (hand.anim->current == HANDANIM_THUMBSUP) {
         ActorHandleRotaim(&hand, 1);
         GetQuaternionFromXYZRot(&hand.rotQuat, &hand.rot);

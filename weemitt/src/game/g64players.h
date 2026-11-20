@@ -93,6 +93,8 @@ s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z);
 s32 G64CaveFramesHere(void);
 s32 G64CaveDue(void);
 s32 G64CaveTarget(void);
+/* The highest pedestal of the flights of the players who are not in the globals, or 0. */
+s32 G64CaveTargetsInAir(void);
 void G64SetCaveTarget(s32 tag);
 void G64SetCaveArrival(s32 frame, s32 due);
 void G64CavePlayers(void);
