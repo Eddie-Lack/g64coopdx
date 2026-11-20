@@ -2264,6 +2264,9 @@ void CheckForExits(void) {
     }
     if (gameInfo.level == CAVE) {
         DoCaveStuff();
+        /* Online every other player has their own crystal's flight. */
+        if (g64Online)
+            G64CavePlayers();
     } else if (gameInfo.level == OUTRO) {
         DoOutroEffects();
         /* The scripted sounds start on values of frameCount, which holds through an original frame. */
@@ -2826,6 +2829,144 @@ void GameOverScreen(void) {
     }
 }
 
+/* Whether the cave's scene runs for the player in the globals: a crystal is due. Online it runs only for a player who
+   came with a crystal due, and a flight that has started always ends. */
+static s32 CaveCrystalDue(void) {
+    if (g64Online)
+        return gameInfo.caveStage != 0
+               || (G64CaveDue() && saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget);
+    return saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget;
+}
+
+/* The crystal's flight from the player in the globals' ball to the fountain (the cave's scene), for one update. Online
+   (g64players.c) every player has their own flight: the stage, how long they have been in the cave, whether a crystal was
+   due when they came, and the flight's pedestal are theirs. */
+static void CaveCrystal(void) {
+    Vec3 tempVect;
+    Vec3 tempVect2;
+    Platform *platform;
+    f32 dist;
+    s16 r;
+    s16 g;
+    s16 b;
+    s32 here = g64Online ? G64CaveFramesHere() : frameCount;
+    s32 target;
+    s32 raise;
+
+    if ((ball.pos.z < 500.0f || here >= 71) && ballStatic == 0) {
+        if (gameInfo.caveStage == 0) {
+            /* The ball's flight starts in a tick. */
+            if (deltaTick) {
+                gameInfo.caveStage = 1;
+                ball.flags &= ~0x19;
+                ball.obj->onGround = 0;
+                ball.obj->planes[0] = NULL;
+                if (ball.link == &hand) {
+                    ApplyAction(HAND_RELEASE);
+                }
+                ball.link = &hand;
+                handControl.releaseTimer = 0;
+                ballControl.releaseTimer = 0;
+                /* Online the flight's pedestal is fixed when it starts: the next one after the hub level and after
+                   any other flight still in the air, and never past the last crystal due. */
+                if (g64Online)
+                    G64SetCaveTarget(MIN(MIN(MAX(saveSlot[currentSaveSlot].hubLevel, G64CaveTargetsInAir()) + 1,
+                                             saveSlot[currentSaveSlot].hubTarget),
+                                         7));
+            }
+            return;
+        }
+        DisableControl(2000);
+        /* The lightning and the fade of its sound happen once per original frame. */
+        if (deltaTick) {
+            if (saveSlot[currentSaveSlot].hubLevel != saveSlot[currentSaveSlot].hubTarget && Random(10) < 8) {
+                tempVect.y = 0.0f;
+                tempVect.z = 0.0f;
+                tempVect.x = 25.0f;
+                RotateVector2D(&tempVect, &tempVect, TagToFirstPlatform(10)->motion->rot.y);
+                if (caveSfx.handle == 0) {
+                    PlayContinuousSample(&caveSfx, 60, 100, &zero, 128);
+                } else {
+                    caveSfx.volume = 100;
+                }
+                r = Random(160) + 40;
+                g = Random(120) + 195;
+                b = Random(160) + 40;
+                r = MIN(MAX(r, 0), 255);
+                g = MIN(MAX(g, 0), 255);
+                b = MIN(MAX(b, 0), 255);
+                ADD_VECTORS(&tempVect2, &tempVect, &TagToFirstPlatform(10)->actor.pos);
+                AddLightning(&tempVect2, &ball.pos, r, g, b, 8, 1, 6, 0.5f, 1.0f);
+                r = Random(160) + 40;
+                g = Random(120) + 195;
+                b = Random(160) + 40;
+                r = MIN(MAX(r, 0), 255);
+                g = MIN(MAX(g, 0), 255);
+                b = MIN(MAX(b, 0), 255);
+                SUB_VECTORS(&tempVect2, &TagToFirstPlatform(10)->actor.pos, &tempVect);
+                AddLightning(&tempVect2, &ball.pos, r, g, b, 8, 1, 6, 0.5f, 1.0f);
+            } else if (caveSfx.handle) {
+                caveSfx.volume -= 5;
+                if (caveSfx.volume <= 0) {
+                    StopContinuousSample(&caveSfx);
+                }
+            }
+        }
+        target = g64Online ? G64CaveTarget() : saveSlot[currentSaveSlot].hubTarget;
+        SetVector2D(&tempVect, &TagToFirstPlatform(target)->actor.pos);
+        if (gameInfo.caveStage == 1) {
+            tempVect.y = 50.0f;
+        } else {
+            tempVect.y = -30.0f;
+        }
+        SUB_VECTORS(&ball.vel, &tempVect, &ball.pos);
+        dist = sqrtf(DOT_PRODUCT(&ball.vel, &ball.vel));
+        /* The ball arrives when it is less than one update's travel away. */
+        if (dist > ballFlySpeed * deltaTime) {
+            SCALE_VECTOR(&ball.vel, ballFlySpeed / dist);
+            return;
+        }
+        if (++gameInfo.caveStage == 2) {
+            PlaySample((Random(4) + 269), &hand.pos, 100, 128);
+            AnimateActor(&hand, HANDANIM_THUMBSUP, 0, 0, 0.0f);
+            hand.rotAim.y = Aabs(camera.rot.y - PI / 2);
+            hand.state->mode = HAND_NOTHING;
+            handControl.actionLock = 0x3FF;
+            DisableControl(20);
+            ball.pos = tempVect;
+            PlaySample(97, &ball.pos, 100, 128);
+            ActivateCollectable(CRYSTALBALL, 2);
+            FlashScreen(0, 200, 0, 280, -30);
+            ball.flags &= ~0x19;
+            return;
+        }
+        ball.pos = tempVect;
+        gameInfo.caveStage = 0;
+        /* Online another player's crystal may have filled the last place: this flight then puts none in. */
+        raise = !g64Online || saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget;
+        if (raise)
+            saveSlot[currentSaveSlot].hubLevel++;
+        ZERO_VECTOR(&ball.vel);
+        ballWithHand = 0;
+        ball.obj->spheres[0].targetRadius = 2.0f * ball.obj->spheres[0].targetRadius;
+        ball.pos.x = 0.0f;
+        ball.pos.y = -5000.0f;
+        ball.pos.z = 300.0f;
+        ball.link = NULL;
+        /* Online the crystal shows on its own flight's pedestal. */
+        platform = TagToFirstPlatform(g64Online ? target : saveSlot[currentSaveSlot].hubLevel);
+        if (raise)
+            platform->actor.pos.y = -30.0f;
+        ballStart = ball.pos;
+        ballStatic = 2;
+        if (raise) {
+            numBalls++;
+            InitPlanes(platform->actor.inst->obj->mesh, &platform->actor.pos, platform->actor.faces, &platform->actor.scale, &platform->actor.rotQuat, 1);
+        }
+        handControl.noControlTimer = 1;
+    }
+}
+
 void DoCaveStuff(void) {
     Vec3 tempVect;
     Vec3 tempVect2;
@@ -2912,114 +3053,57 @@ void DoCaveStuff(void) {
         numBalls = saveSlot[currentSaveSlot].hubLevel;
         caveSfx.handle = 0;
         gameInfo.caveStage = 0;
+        /* Online: the player in the globals came at the level's start, with a crystal due or not. */
+        if (g64Online)
+            G64SetCaveArrival(0, saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget);
     }
     for (j = 0; j < numBalls; j++) {
         TagToFirstPlatform(j + 1)->actor.alpha = SineWave(5.0f, FrameTimeAfter(), j * 10) * 30.0f + 110.0f;
     }
-    if (saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget) {
-        if ((ball.pos.z < 500.0f || frameCount >= 71) && ballStatic == 0) {
-            if (gameInfo.caveStage == 0) {
-                /* The ball's flight starts in a tick. */
-                if (deltaTick) {
-                    gameInfo.caveStage = 1;
-                    ball.flags &= ~0x19;
-                    ball.obj->onGround = 0;
-                    ball.obj->planes[0] = NULL;
-                    if (ball.link == &hand) {
-                        ApplyAction(HAND_RELEASE);
-                    }
-                    ball.link = &hand;
-                    handControl.releaseTimer = 0;
-                    ballControl.releaseTimer = 0;
-                }
-                return;
-            }
-            DisableControl(2000);
-            /* The lightning and the fade of its sound happen once per original frame. */
-            if (deltaTick) {
-                if (saveSlot[currentSaveSlot].hubLevel != saveSlot[currentSaveSlot].hubTarget && Random(10) < 8) {
-                    tempVect.y = 0.0f;
-                    tempVect.z = 0.0f;
-                    tempVect.x = 25.0f;
-                    RotateVector2D(&tempVect, &tempVect, TagToFirstPlatform(10)->motion->rot.y);
-                    if (caveSfx.handle == 0) {
-                        PlayContinuousSample(&caveSfx, 60, 100, &zero, 128);
-                    } else {
-                        caveSfx.volume = 100;
-                    }
-                    r = Random(160) + 40;
-                    g = Random(120) + 195;
-                    b = Random(160) + 40;
-                    r = MIN(MAX(r, 0), 255);
-                    g = MIN(MAX(g, 0), 255);
-                    b = MIN(MAX(b, 0), 255);
-                    ADD_VECTORS(&tempVect2, &tempVect, &TagToFirstPlatform(10)->actor.pos);
-                    AddLightning(&tempVect2, &ball.pos, r, g, b, 8, 1, 6, 0.5f, 1.0f);
-                    r = Random(160) + 40;
-                    g = Random(120) + 195;
-                    b = Random(160) + 40;
-                    r = MIN(MAX(r, 0), 255);
-                    g = MIN(MAX(g, 0), 255);
-                    b = MIN(MAX(b, 0), 255);
-                    SUB_VECTORS(&tempVect2, &TagToFirstPlatform(10)->actor.pos, &tempVect);
-                    AddLightning(&tempVect2, &ball.pos, r, g, b, 8, 1, 6, 0.5f, 1.0f);
-                } else if (caveSfx.handle) {
-                    caveSfx.volume -= 5;
-                    if (caveSfx.volume <= 0) {
-                        StopContinuousSample(&caveSfx);
-                    }
-                }
-            }
-            SetVector2D(&tempVect, &TagToFirstPlatform(saveSlot[currentSaveSlot].hubTarget)->actor.pos);
-            if (gameInfo.caveStage == 1) {
-                tempVect.y = 50.0f;
-            } else {
-                tempVect.y = -30.0f;
-            }
-            SUB_VECTORS(&ball.vel, &tempVect, &ball.pos);
-            dist = sqrtf(DOT_PRODUCT(&ball.vel, &ball.vel));
-            /* The ball arrives when it is less than one update's travel away. */
-            if (dist > ballFlySpeed * deltaTime) {
-                SCALE_VECTOR(&ball.vel, ballFlySpeed / dist);
-                return;
-            }
-            if (++gameInfo.caveStage == 2) {
-                PlaySample((Random(4) + 269), &hand.pos, 100, 128);
-                AnimateActor(&hand, HANDANIM_THUMBSUP, 0, 0, 0.0f);
-                hand.rotAim.y = Aabs(camera.rot.y - PI / 2);
-                hand.state->mode = HAND_NOTHING;
-                handControl.actionLock = 0x3FF;
-                DisableControl(20);
-                ball.pos = tempVect;
-                PlaySample(97, &ball.pos, 100, 128);
-                ActivateCollectable(CRYSTALBALL, 2);
-                FlashScreen(0, 200, 0, 280, -30);
-                ball.flags &= ~0x19;
-                return;
-            }
-            ball.pos = tempVect;
-            gameInfo.caveStage = 0;
-            saveSlot[currentSaveSlot].hubLevel++;
-            ZERO_VECTOR(&ball.vel);
-            ballWithHand = 0;
-            ball.obj->spheres[0].targetRadius = 2.0f * ball.obj->spheres[0].targetRadius;
-            ball.pos.x = 0.0f;
-            ball.pos.y = -5000.0f;
-            ball.pos.z = 300.0f;
-            ball.link = NULL;
-            platform = TagToFirstPlatform(saveSlot[currentSaveSlot].hubLevel);
-            platform->actor.pos.y = -30.0f;
-            ballStart = ball.pos;
-            ballStatic = 2;
-            numBalls++;
-            InitPlanes(platform->actor.inst->obj->mesh, &platform->actor.pos, platform->actor.faces, &platform->actor.scale, &platform->actor.rotQuat, 1);
-            handControl.noControlTimer = 1;
-        }
+    if (CaveCrystalDue()) {
+        CaveCrystal();
     } else if (deltaTick && caveSfx.handle) {
         caveSfx.volume -= 5;
         if (caveSfx.volume <= 0) {
             StopContinuousSample(&caveSfx);
         }
+    }
+}
+
+/* g64coopdx: the cave's part of one player, with that player in the globals. g64players.c runs it for each player who
+   is not; DoCaveStuff does the same for the player who is: the thumbs-up's turn, the crystal power-up, and the
+   crystal's flight. */
+void G64CavePlayer(void) {
+    /* The ending holds every player, as DoCaveStuff holds the player in the globals. */
+    if (saveSlot[currentSaveSlot].hubLevel == 7) {
+        DisableControl(2);
+    }
+    if (hand.anim->current == HANDANIM_THUMBSUP) {
+        ActorHandleRotaim(&hand, 1);
+        GetQuaternionFromXYZRot(&hand.rotQuat, &hand.rot);
+    }
+    if (player.powerups[CRYSTALBALL]) {
+        player.powerups[CRYSTALBALL] = 2;
+    }
+    if (CaveCrystalDue()) {
+        CaveCrystal();
+    }
+}
+
+/* g64coopdx: a player who comes into a running level, with that player in the globals. They start the cave's scene
+   afresh, and it is theirs if a crystal is due now. A player who comes into the cave with a crystal due and whose
+   start holds no ball (the cave started with none due) gets one at the glove: the scene flies it to the fountain. */
+void G64Arrive(void) {
+    s32 due = saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget;
+    gameInfo.caveStage = 0;
+    G64SetCaveArrival(frameCount, due);
+    if (gameInfo.level == CAVE && due && ballStatic != 0) {
+        ballStatic = 0;
+        ballWithHand = FALSE;
+        ball.link = NULL;
+        ball.pos = hand.pos;
+        ball.pos.y += 20.0f;
+        ZERO_VECTOR(&ball.vel);
     }
 }
 

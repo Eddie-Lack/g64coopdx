@@ -62,6 +62,14 @@ s8 g64StickY[G64_MAX_PLAYERS];
 /* An actor's list links: next, prev, collNext, collPrev, distNext, distPrev. */
 #define LINKS 0x18
 
+/* One player's part of the cave's scene (game.c, DoCaveStuff): the frame they came into the level, whether a crystal
+   was due then, and their flight's pedestal. Their stage is gameInfo.caveStage while they are in the globals. */
+typedef struct G64Cave {
+    s32 arrivedAt;
+    s32 due;
+    s32 target;
+} G64Cave;
+
 typedef struct G64Slot {
     Actor hand;
     Actor ball;
@@ -80,6 +88,10 @@ typedef struct G64Slot {
     Vec3 cameraUpVectAim;
     Vec3 ballFrameVel;
     CameraRequests tickCameraRequests;
+    Vec3 ballStart;
+    G64Cave cave;
+    u8 caveStage;
+    u8 caveStagePad[3];
 } G64Slot;
 
 /* Each extra player's slot, on the game's heap. Slot 0 is unused: player 0 lives in the globals. */
@@ -90,6 +102,21 @@ static s32 slotCount;
    so the proxies always show the players who are not in the globals. */
 static PTR32(Actor) proxyHand[G64_MAX_PLAYERS];
 static PTR32(Actor) proxyBall[G64_MAX_PLAYERS];
+/* Online: the cave's part of the player in the globals (on the heap, in the hashed memory), and a copy of the first
+   player as the level set them up, taken when the opening camera gives way. A player who comes later starts from that
+   copy, at the level's start: not from wherever the player in the globals is now, with their checkpoint and locks. */
+static PTR32(G64Cave) globalCave;
+static PTR32(G64Slot) startSlot;
+/* The level has given its opening camera way to the normal one (G64ExtraPlayersStep). */
+static s32 ready;
+/* The players, by number, who came into this level after it started (G64AddPlayer). */
+static u32 cameLate;
+/* Online: where the first player's glove was on the level's first played frame, the level's start. A level's opening
+   can move the glove before its camera gives way, so the start copy may be elsewhere. */
+static Vec3 startPos;
+static s32 startPosSet;
+extern Vec3 ballStart;
+extern s32 frameCount;
 void AddActor(Actor *actor);
 void SubActor(Actor *actor);
 
@@ -170,6 +197,21 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&cameraUpVectAim, &s->cameraUpVectAim, sizeof(Vec3));
     swap_bytes(&ballFrameVel, &s->ballFrameVel, sizeof(Vec3));
     swap_bytes(&tickCameraRequests, &s->tickCameraRequests, sizeof(CameraRequests));
+    swap_bytes(&ballStart, &s->ballStart, sizeof(Vec3));
+    swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
+    /* Online the globals' part of the cave exists before the first slot does (global_cave). */
+    if (globalCave)
+        swap_bytes((G64Cave *)globalCave, &s->cave, sizeof(G64Cave));
+}
+
+/* The globals' part of the cave, made the first time it is needed. Online only. */
+static G64Cave *global_cave(void) {
+    if (!globalCave) {
+        G64Cave *c = (G64Cave *)JallocAlloc(sizeof(G64Cave), 0, "G64Cave");
+        memset(c, 0, sizeof *c);
+        globalCave = c;
+    }
+    return globalCave;
 }
 
 /* Gives an actor in a slot its own heap blocks: copies of the ones it shares with the first player's actor. */
@@ -214,8 +256,42 @@ static Actor *slot_hand_actor(G64Slot *s, Actor *global) {
     return (Actor *)(s->handBlock + ((u8 *)global - (u8 *)&handControl));
 }
 
-/* Makes slot i, for a player who starts as a copy of the player in the globals, with heap blocks of their own. */
-static void new_slot(s32 i) {
+/* Gives every actor of a slot its own heap blocks. */
+static void clone_slot_blocks(G64Slot *s) {
+    clone_blocks(&s->hand);
+    clone_blocks(&s->ball);
+    clone_blocks(&s->camera);
+    clone_blocks(&s->cameraInfo.actor);
+    clone_blocks(slot_hand_actor(s, &handControl.edgeProbe));
+    clone_blocks(slot_hand_actor(s, &handControl.frontProbe));
+}
+
+static void free_slot_blocks(G64Slot *s) {
+    free_blocks(&s->hand);
+    free_blocks(&s->ball);
+    free_blocks(&s->camera);
+    free_blocks(&s->cameraInfo.actor);
+    free_blocks(slot_hand_actor(s, &handControl.edgeProbe));
+    free_blocks(slot_hand_actor(s, &handControl.frontProbe));
+}
+
+/* Puts slot s in place i, with proxies that show it. */
+static void add_slot(s32 i, G64Slot *s) {
+    slots[i] = s;
+    proxyHand[i] = new_proxy(&s->hand);
+    proxyBall[i] = new_proxy(&s->ball);
+}
+
+/* A new slot that is a copy of slot from (the start copy), with heap blocks of its own. */
+static G64Slot *copy_slot(const G64Slot *from) {
+    G64Slot *s = (G64Slot *)JallocAlloc(sizeof(G64Slot), 1, "G64Slot");
+    memcpy(s, from, sizeof(G64Slot));
+    clone_slot_blocks(s);
+    return s;
+}
+
+/* A new slot that is a copy of the player in the globals, with heap blocks of its own. */
+static G64Slot *copy_globals(void) {
     G64Slot *s = (G64Slot *)JallocAlloc(sizeof(G64Slot), 1, "G64Slot");
     memcpy(&s->hand, &hand, sizeof(Actor));
     memcpy(&s->ball, &ball, sizeof(Actor));
@@ -234,18 +310,37 @@ static void new_slot(s32 i) {
     s->cameraUpVectAim = cameraUpVectAim;
     s->ballFrameVel = ballFrameVel;
     s->tickCameraRequests = tickCameraRequests;
-    clone_blocks(&s->hand);
-    clone_blocks(&s->ball);
-    clone_blocks(&s->camera);
-    clone_blocks(&s->cameraInfo.actor);
-    clone_blocks(slot_hand_actor(s, &handControl.edgeProbe));
-    clone_blocks(slot_hand_actor(s, &handControl.frontProbe));
+    s->ballStart = ballStart;
+    s->caveStage = gameInfo.caveStage;
+    if (globalCave)
+        s->cave = *(G64Cave *)globalCave;
+    clone_slot_blocks(s);
+    return s;
+}
+
+/* Makes slot i, for a player who starts with the level as a copy of the player in the globals. */
+static void new_slot(s32 i) {
+    G64Slot *s = copy_globals();
     /* Side by side, not inside each other. */
     s->hand.pos.x += 40.0f * i;
     s->ball.pos.x += 40.0f * i;
-    slots[i] = s;
-    proxyHand[i] = new_proxy(&s->hand);
-    proxyBall[i] = new_proxy(&s->ball);
+    add_slot(i, s);
+}
+
+static void arrive(s32 i, const Vec3 *to);
+extern Vec3 handStart;
+
+/* Makes slot i for a player who came after the level started: from the start copy online, as the level set the first
+   player up, moved to the level's first glove position; or else from the player in the globals, moved to handStart.
+   Then afresh (arrive). */
+static void new_late_slot(s32 i) {
+    if (startSlot) {
+        add_slot(i, copy_slot(startSlot));
+        arrive(i, startPosSet ? &startPos : NULL);
+    } else {
+        add_slot(i, copy_globals());
+        arrive(i, &handStart);
+    }
 }
 
 /* Frees slot i and its proxies. blocks: also the heap blocks of its actors, which a slot made by new_slot owns. */
@@ -265,23 +360,29 @@ static void free_slot(s32 i, s32 blocks) {
         JallocFree(&slots[i]);
         return;
     }
-    free_blocks(&s->hand);
-    free_blocks(&s->ball);
-    free_blocks(&s->camera);
-    free_blocks(&s->cameraInfo.actor);
-    free_blocks(slot_hand_actor(s, &handControl.edgeProbe));
-    free_blocks(slot_hand_actor(s, &handControl.frontProbe));
+    free_slot_blocks(s);
     JallocFree(&slots[i]);
+}
+
+static void free_slots(void) {
+    s32 i;
+    for (i = 1; i < G64_MAX_PLAYERS; i++)
+        free_slot(i, 1);
+    slotCount = 0;
 }
 
 void G64ExtraPlayersStart(void) {
     s32 i;
-    G64ExtraPlayersFree();
+    free_slots();
     if (g64Players < 2 || hand_block_size() > HAND_BLOCK_MAX)
         return;
     slotCount = g64Players > G64_MAX_PLAYERS ? G64_MAX_PLAYERS : g64Players;
-    for (i = 1; i < slotCount; i++)
-        new_slot(i);
+    for (i = 1; i < slotCount; i++) {
+        if ((cameLate >> g64Member[i]) & 1)
+            new_late_slot(i);
+        else
+            new_slot(i);
+    }
 }
 
 void G64UpdateProxies(void) {
@@ -296,10 +397,23 @@ void G64UpdateProxies(void) {
 }
 
 void G64ExtraPlayersFree(void) {
-    s32 i;
-    for (i = 1; i < G64_MAX_PLAYERS; i++)
-        free_slot(i, 1);
-    slotCount = 0;
+    free_slots();
+    if (startSlot) {
+        free_slot_blocks((G64Slot *)startSlot);
+        JallocFree(&startSlot);
+    }
+    if (globalCave)
+        JallocFree(&globalCave);
+    ready = 0;
+    cameLate = 0;
+    startPosSet = 0;
+}
+
+/* Online: the start copy, once the level has set the first player up. */
+static void take_start(void) {
+    global_cave();
+    if (!startSlot && hand_block_size() <= HAND_BLOCK_MAX)
+        startSlot = copy_globals();
 }
 
 /* One extra player's part of the frame, in the order MainGameLoop runs the first player's (main.c). */
@@ -343,16 +457,27 @@ static void player_frame(s32 p) {
 
 void G64ExtraPlayersStep(void) {
     s32 i;
-    if (g64Players < 2 || gamePaused || !GameBeingPlayed())
+    if ((g64Players < 2 && !g64Online) || gamePaused || !GameBeingPlayed())
         return;
+    if (g64Online && !startPosSet) {
+        startPos = hand.pos;
+        startPosSet = 1;
+    }
     /* The other players start as copies of the first, once the level has set the first player up (its start position,
        its first checkpoint) and its opening camera has given way to the normal one, which follows the glove or the
-       ball. A copy taken earlier would keep the opening camera's fixed target. */
-    if (slotCount == 0) {
+       ball. A copy taken earlier would keep the opening camera's fixed target. Online the start copy is taken then,
+       even by a player alone, for the players who come later. */
+    if (!ready) {
         if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos) || cameraInfo.overrideTimer)
             return;
-        G64ExtraPlayersStart();
+        ready = 1;
+        if (g64Online)
+            take_start();
     }
+    if (g64Players < 2)
+        return;
+    if (slotCount == 0)
+        G64ExtraPlayersStart();
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (!s)
@@ -485,6 +610,52 @@ void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz) {
     b->pos.x += dx, b->pos.y += dy, b->pos.z += dz;
 }
 
+s32 G64CaveFramesHere(void) {
+    return frameCount - global_cave()->arrivedAt;
+}
+
+s32 G64CaveDue(void) {
+    return global_cave()->due;
+}
+
+s32 G64CaveTarget(void) {
+    s32 t = global_cave()->target;
+    return t >= 1 && t <= 7 ? t : 1;
+}
+
+s32 G64CaveTargetsInAir(void) {
+    s32 i, top = 0;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        /* A swapped slot holds the player in the globals' part, which is the other player now. */
+        if (s && s->caveStage != 0 && s->cave.target > top)
+            top = s->cave.target;
+    }
+    return top;
+}
+
+void G64SetCaveTarget(s32 tag) {
+    global_cave()->target = tag;
+}
+
+void G64SetCaveArrival(s32 frame, s32 due) {
+    G64Cave *c = global_cave();
+    c->arrivedAt = frame;
+    c->due = due;
+}
+
+void G64CavePlayers(void) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (!s)
+            continue;
+        swap_slot(s);
+        G64CavePlayer();
+        swap_slot(s);
+    }
+}
+
 s32 G64HasPlayer(s32 player) {
     return slot_of(player) >= 0;
 }
@@ -548,6 +719,27 @@ void G64PlayerAction(s32 player, s32 action) {
 }
 
 
+/* A player who came after the level started, in slot i: moved with their ball and camera to the position to (or left
+   where they are for NULL), and afresh (G64Arrive, game.c). */
+static void arrive(s32 i, const Vec3 *to) {
+    G64Slot *n = slots[i];
+    Vec3 d;
+    if (to) {
+        d.x = to->x - n->hand.pos.x;
+        d.y = to->y - n->hand.pos.y;
+        d.z = to->z - n->hand.pos.z;
+        shift_actor(&n->hand, &d);
+        shift_actor(&n->ball, &d);
+        shift_actor(&n->camera, &d);
+        shift_actor(&n->cameraInfo.actor, &d);
+    }
+    if (g64Online) {
+        swap_slot(n);
+        G64Arrive();
+        swap_slot(n);
+    }
+}
+
 void G64AddPlayer(s32 player) {
     s32 i;
     if (player < 0 || player >= G64_MAX_PLAYERS || slot_of(player) >= 0 || g64Players >= G64_MAX_PLAYERS)
@@ -555,21 +747,14 @@ void G64AddPlayer(s32 player) {
     i = g64Players;
     g64Member[i] = player;
     g64Players++;
-    /* Before the slots exist, G64ExtraPlayersStart makes one for every member. After, the new player gets one now,
-       at the level's start: the copy of the player in the globals moves there with its ball and camera. */
-    if (slotCount > 0) {
-        G64Slot *n;
-        Vec3 d;
-        new_slot(i);
+    cameLate |= 1u << player;
+    /* Before the slots exist, G64ExtraPlayersStart makes one for every member, and one for a player who came late as
+       here. After, or online once the start copy exists, the new player gets one now. */
+    if (slotCount > 0 || (startSlot && hand_block_size() <= HAND_BLOCK_MAX)) {
+        if (slotCount == 0)
+            slotCount = 1;
+        new_late_slot(i);
         slotCount = g64Players;
-        n = slots[i];
-        d.x = handStart.x - n->hand.pos.x;
-        d.y = handStart.y - n->hand.pos.y;
-        d.z = handStart.z - n->hand.pos.z;
-        shift_actor(&n->hand, &d);
-        shift_actor(&n->ball, &d);
-        shift_actor(&n->camera, &d);
-        shift_actor(&n->cameraInfo.actor, &d);
     }
 }
 
@@ -678,7 +863,8 @@ void G64ApplyStartRecord(void) {
     G64WriteSave(recordWorld, &recordSave);
 }
 
-G64TestExit g64TestExits[4] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}};
+G64TestExit g64TestExits[G64_TEST_EXITS] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0},
+                                            {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}};
 /* Frames this game has run since its level started (G64SetPresent counts them). */
 static u32 framesRun;
 
@@ -686,7 +872,7 @@ void G64SetPresent(u32 present) {
     s32 p, i;
     g64ExitCount = 0;
     /* A test's exits at set frames (g64TestExits): the same on every machine, since every copy holds them. */
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < G64_TEST_EXITS; i++) {
         G64TestExit *t = &g64TestExits[i];
         if (t->level == gameInfo.level && (u32)t->frame == framesRun && slot_of(t->player) >= 0)
             player_exits(t->player, t->type, 1);
@@ -710,6 +896,7 @@ void G64SetPresent(u32 present) {
 
 void G64StartPlayers(u32 present) {
     s32 p;
+    cameLate = 0;
     g64Players = 0;
     for (p = 0; p < G64_MAX_PLAYERS; p++)
         if (present & (1u << p))

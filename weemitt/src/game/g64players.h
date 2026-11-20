@@ -43,7 +43,8 @@ typedef struct G64TestExit {
     s32 player;
     s32 type;
 } G64TestExit;
-extern G64TestExit g64TestExits[4];
+#define G64_TEST_EXITS 8
+extern G64TestExit g64TestExits[G64_TEST_EXITS];
 
 /* The exits taken in the last frame, in the order they were taken. G64SetPresent clears them before each frame. */
 extern G64ExitRecord g64Exits[G64_MAX_PLAYERS];
@@ -85,6 +86,20 @@ u32 G64ActorTint(struct Actor *a);
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* The same for a player's ball. */
 s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z);
+/* The cave's scene for each player online (game.c, DoCaveStuff), for the player in the globals: the frames since they
+   came into the level, whether a crystal was due then, their flight's pedestal (a platform tag, 1 to 7), and when
+   they came. G64CavePlayers runs G64CavePlayer for each player who is not in the globals. G64Arrive starts a player who
+   came into a running level afresh. */
+s32 G64CaveFramesHere(void);
+s32 G64CaveDue(void);
+s32 G64CaveTarget(void);
+/* The highest pedestal of the flights of the players who are not in the globals, or 0. */
+s32 G64CaveTargetsInAir(void);
+void G64SetCaveTarget(s32 tag);
+void G64SetCaveArrival(s32 frame, s32 due);
+void G64CavePlayers(void);
+void G64CavePlayer(void);
+void G64Arrive(void);
 /* For tests: the position of the level's first platform with a tag; 0 when there is none. */
 s32 G64PlatformPosition(s32 tag, f32 *x, f32 *y, f32 *z);
 /* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a

@@ -68,11 +68,12 @@ rollback-game: rollback-game-build
 	cmp build/tests/game-hash-linux.txt build/tests/game-hash-windows.txt
 
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
-# (tests/rom/pause.c) and
+# (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
+CAVE_SRC := tests/rom/cave.c weemitt/src/port/statehash.c
 EXITS_SRC := tests/rom/exits.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
@@ -92,6 +93,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/pause.exe $(PAUSE_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/cave $(CAVE_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/cave.exe $(CAVE_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -109,6 +114,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pause.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/pause-windows.out
 	cmp build/tests/pause.out build/tests/pause-windows.out
+	build/tests/cave "$$GLOVER_ROM" > build/tests/cave.out
+	tail -1 build/tests/cave.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/cave.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/cave-windows.out
+	cmp build/tests/cave.out build/tests/cave-windows.out
 	build/tests/exits "$$GLOVER_ROM" > build/tests/exits.out
 	tail -1 build/tests/exits.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/exits.exe "$$GLOVER_ROM" | tr -d '\r' \

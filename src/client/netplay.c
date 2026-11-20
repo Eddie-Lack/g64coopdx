@@ -41,7 +41,8 @@ void plog_printf(const char *fmt, ...);
 typedef struct {
     int level, frame, player, type;
 } G64TestExit;
-extern G64TestExit g64TestExits[4];
+#define TEST_EXITS 8 /* weemitt's G64_TEST_EXITS */
+extern G64TestExit g64TestExits[TEST_EXITS];
 
 /* The game starts at the first hub level. */
 #define START_LEVEL 0
@@ -370,7 +371,7 @@ static void client_send(void *user, int to, const uint8_t *data, size_t len) {
 static void read_test_exits(void) {
     const char *v = getenv("G64_TEST_EXITS");
     int i = 0;
-    while (v && *v && i < 4) {
+    while (v && *v && i < TEST_EXITS) {
         G64TestExit t;
         if (sscanf(v, "%d:%d:%d:%d", &t.level, &t.frame, &t.player, &t.type) != 4)
             break;
