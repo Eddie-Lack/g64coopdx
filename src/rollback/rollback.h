@@ -102,7 +102,7 @@ uint32_t rb_client_hints(const rb_client *c);
 uint32_t rb_client_host_clock(const rb_client *c);
 /* The frame this client should have run by now: the host's clock, plus one frame for each time the host confirmed a
  * frame without this player's input because it came too late (at most RB_MAX_LEAD). A client behind it catches up. */
-#define RB_MAX_LEAD 8
+#define RB_MAX_LEAD 4
 uint32_t rb_client_target(const rb_client *c);
 /* Frames the host confirmed without this player's own input. */
 uint32_t rb_client_late_inputs(const rb_client *c);

@@ -441,6 +441,22 @@ s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z) {
     return 1;
 }
 
+s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z) {
+    const Actor *a;
+    s32 i = slot_of(player);
+    if (i == 0) {
+        a = &ball;
+    } else if (i > 0 && i < slotCount && slots[i]) {
+        a = &((G64Slot *)slots[i])->ball;
+    } else {
+        return 0;
+    }
+    *x = a->pos.x;
+    *y = a->pos.y;
+    *z = a->pos.z;
+    return 1;
+}
+
 void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz) {
     s32 i = slot_of(player);
     Actor *h, *b;
@@ -471,6 +487,9 @@ static void shift_actor(Actor *a, const Vec3 *d) {
 }
 
 static void player_exits(s32 player, s32 type, s32 complete);
+s32 IsHandHoldingBall(void);
+/* How far above the checkpoint a ball left behind is put. */
+#define G64_BALL_DROP 30.0f
 
 void G64PlayerAction(s32 player, s32 action) {
     s32 i = slot_of(player);
@@ -502,9 +521,18 @@ void G64PlayerAction(s32 player, s32 action) {
     d.y = target.y - h->pos.y;
     d.z = target.z - h->pos.z;
     shift_actor(h, &d);
-    shift_actor(b, &d);
     shift_actor(c, &d);
     shift_actor(ci, &d);
+    /* A slot's ball holds the globals' address as its link while its own glove holds it (G64CheckExit). */
+    if (i == 0 ? IsHandHoldingBall() || ball.link == &hand : b->link == &hand) {
+        shift_actor(b, &d);
+    } else {
+        /* A ball left behind comes to the checkpoint too, as in the game's own restart, just above the glove. */
+        d.x = target.x - b->pos.x;
+        d.y = target.y + G64_BALL_DROP - b->pos.y;
+        d.z = target.z - b->pos.z;
+        shift_actor(b, &d);
+    }
 }
 
 
@@ -538,7 +566,6 @@ static u32 lastPresent = 1;
 /* Players who took an exit: they leave at the start of the next frame (leaving), and take no other exit (gone). */
 static u32 leaving, gone;
 
-s32 IsHandHoldingBall(void);
 s32 G64ExitNeedsBall(Platform *platform, s32 *useHand);
 void G64ExitTarget(s32 type, s32 *level, s32 *world);
 void G64ExitSave(s32 type, s32 complete, G64Save *save);

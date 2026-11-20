@@ -590,11 +590,15 @@ static const char *const pauseItems[PAUSE_ITEMS] = {"Resume", "Back to checkpoin
                                                     "Leave the online game"};
 static int pauseOpen, pauseSelection, pauseQuit, actionFrames, action;
 static uint16_t lastButtons;
+/* The buttons held when the menu opened or closed. The game gets none of them until each is released: the press that
+   closes the menu must not also jump or grab. */
+static uint16_t heldBack;
 static int8_t lastStickY;
 
 void netplay_pause_toggle(void) {
     pauseOpen = !pauseOpen;
     pauseSelection = 0;
+    heldBack = lastButtons;
 }
 
 int netplay_pause_open(void) { return pauseOpen; }
@@ -616,7 +620,7 @@ static void pause_menu(uint16_t buttons, int8_t stickY) {
         return;
     }
     if (pressed & (0x1000 | 0x4000)) {
-        pauseOpen = 0;
+        netplay_pause_toggle();
         return;
     }
     if (up)
@@ -640,7 +644,7 @@ static void pause_menu(uint16_t buttons, int8_t stickY) {
     default:
         break;
     }
-    pauseOpen = 0;
+    netplay_pause_toggle();
 }
 
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
@@ -676,13 +680,14 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     /* The menu's own button never comes from the controller. */
     buttons = (uint16_t)(buttons & ~ACTION_BUTTON);
     pause_menu(buttons, stickY);
+    heldBack &= buttons;
     if (actionFrames > 0) {
         actionFrames--;
         in.buttons = ACTION_BUTTON;
         in.x = (int8_t)action;
     } else if (!pauseOpen) {
         /* Start opens the menu; the game never sees it. */
-        in.buttons = (uint16_t)(buttons & ~0x1000);
+        in.buttons = (uint16_t)(buttons & ~0x1000 & ~heldBack);
         in.x = stickX;
         in.y = stickY;
     }

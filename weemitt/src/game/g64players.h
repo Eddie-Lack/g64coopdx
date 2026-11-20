@@ -79,6 +79,8 @@ extern u32 g64PlayerColor[G64_MAX_PLAYERS][2];
 u32 G64ActorTint(struct Actor *a);
 /* A player's glove position, by number; 0 when the player is not in this game. */
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
+/* The same for a player's ball. */
+s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a
    state it loads again after the draw. */
 void G64NudgePlayer(s32 player, f32 dx, f32 dy, f32 dz);
