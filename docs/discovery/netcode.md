@@ -138,7 +138,7 @@ The costs of B, and how to meet them:
 | Sound must not replay | [Sound and rollback](#sound-and-rollback) |
 | Scripts must be deterministic and in the state | [mods.md](mods.md#scripts-in-a-rollback-game) |
 | A slow machine falls behind | The host's deadline also bounds how far a client may be behind; a client that falls too far behind is told to catch up (it runs frames faster than real time) or is dropped |
-| A client's inputs reach the host after their frame is confirmed | Each confirm message carries the host's clock. A client runs up to that clock, plus one frame each time the host confirmed a frame without its own input (at most 8, `rb_client_target`) |
+| A client's inputs reach the host after their frame is confirmed | Each confirm message carries the host's clock. A client runs up to that clock, plus one frame each time the host confirmed a frame without its own input (at most 4, `rb_client_target`). The lead does not shrink: a client that runs ahead stays ahead until it moves to another instance |
 
 Model A remains a fallback inside B: a session with a large input delay and a prediction window of 0 is lockstep.
 

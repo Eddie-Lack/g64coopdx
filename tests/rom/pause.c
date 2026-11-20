@@ -20,6 +20,7 @@ extern unsigned short g64Buttons[G64_MAX_PLAYERS];
 extern signed char g64StickX[G64_MAX_PLAYERS];
 extern signed char g64StickY[G64_MAX_PLAYERS];
 int G64PlayerPosition(int p, float *x, float *y, float *z);
+int G64BallPosition(int p, float *x, float *y, float *z);
 int G64HasPlayer(int p);
 void G64PlayerAction(int p, int action);
 void G64StartPlayers(unsigned present);
@@ -47,21 +48,38 @@ static void where(int p, float *at) {
     G64PlayerPosition(p, &at[0], &at[1], &at[2]);
 }
 
+static void ball_at(int p, float *at) {
+    at[0] = at[1] = at[2] = 0.0f;
+    G64BallPosition(p, &at[0], &at[1], &at[2]);
+}
+
+/* 1 when a and b are closer than d. */
+static int near(const float *a, const float *b, float d) {
+    float x = a[0] - b[0], y = a[1] - b[1], z = a[2] - b[2];
+    return x * x + y * y + z * z < d * d;
+}
+
 static int same(const float *a, const float *b) { return a[0] == b[0] && a[1] == b[1] && a[2] == b[2]; }
 
 /* Player p goes back to their checkpoint; the other player must not move. */
 static void back_to_checkpoint(int p) {
-    float mine[3], mineAfter[3], other[3], otherAfter[3];
+    float mine[3], mineAfter[3], other[3], otherAfter[3], ball[3], ballAfter[3];
     char what[120];
     where(p, mine);
     where(1 - p, other);
+    ball_at(p, ball);
     G64PlayerAction(p, ACTION_CHECKPOINT);
     where(p, mineAfter);
     where(1 - p, otherAfter);
+    ball_at(p, ballAfter);
     printf("player %d: %.1f %.1f %.1f to %.1f %.1f %.1f\n", p, mine[0], mine[1], mine[2], mineAfter[0], mineAfter[1],
            mineAfter[2]);
     snprintf(what, sizeof what, "player %d goes back to their checkpoint; player %d stays", p, 1 - p);
     check(!same(mine, mineAfter) && same(other, otherAfter), what);
+    printf("player %d's ball: %.1f %.1f %.1f to %.1f %.1f %.1f\n", p, ball[0], ball[1], ball[2], ballAfter[0],
+           ballAfter[1], ballAfter[2]);
+    snprintf(what, sizeof what, "player %d's ball comes to the checkpoint too", p);
+    check(near(ballAfter, mineAfter, 50.0f), what);
 }
 
 int main(int argc, char **argv) {
