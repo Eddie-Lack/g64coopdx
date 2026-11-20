@@ -43,7 +43,8 @@ typedef struct G64TestExit {
     s32 player;
     s32 type;
 } G64TestExit;
-extern G64TestExit g64TestExits[4];
+#define G64_TEST_EXITS 8
+extern G64TestExit g64TestExits[G64_TEST_EXITS];
 
 /* The exits taken in the last frame, in the order they were taken. G64SetPresent clears them before each frame. */
 extern G64ExitRecord g64Exits[G64_MAX_PLAYERS];

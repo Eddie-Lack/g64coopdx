@@ -841,7 +841,8 @@ void G64ApplyStartRecord(void) {
     G64WriteSave(recordWorld, &recordSave);
 }
 
-G64TestExit g64TestExits[4] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}};
+G64TestExit g64TestExits[G64_TEST_EXITS] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0},
+                                            {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0, 0, 0}};
 /* Frames this game has run since its level started (G64SetPresent counts them). */
 static u32 framesRun;
 
@@ -849,7 +850,7 @@ void G64SetPresent(u32 present) {
     s32 p, i;
     g64ExitCount = 0;
     /* A test's exits at set frames (g64TestExits): the same on every machine, since every copy holds them. */
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < G64_TEST_EXITS; i++) {
         G64TestExit *t = &g64TestExits[i];
         if (t->level == gameInfo.level && (u32)t->frame == framesRun && slot_of(t->player) >= 0)
             player_exits(t->player, t->type, 1);

@@ -7,8 +7,8 @@
  *   - player 1 takes the way room's first door to Atlantis 1, a new instance;
  *   - player 1 finishes Atlantis 1 (a world exit that completes it): the progress changes (the level done, the hub's
  *     target raised, the world done). They join the hub's running instance; the host sends the new progress to it as
- *     a session event on the frame they join at. The raised target opens the hub's cave door, and player 1's walk
- *     takes them through it to the cave, a new instance. There the crystal flies to the fountain: the hub moves on to
+ *     a session event on the frame they join at. The raised target opens the hub's cave door, and player 1 goes
+ *     through it to the cave, a new instance. There the crystal flies to the fountain: the hub moves on to
  *     its second stage (HUB2);
  *   - meanwhile the way room, where player 2 still is, gets the progress as an event: its first door opens at once;
  *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input. They join HUB1, after
@@ -33,7 +33,7 @@ typedef struct {
     int level, frame, player, type;
 } G64TestExit;
 int G64PlatformPosition(int tag, float *x, float *y, float *z);
-extern G64TestExit g64TestExits[4];
+extern G64TestExit g64TestExits[8];
 typedef struct {
     uint32_t levels;
     uint32_t allGaribs;
@@ -45,7 +45,7 @@ typedef struct {
 void G64ReadSave(G64Save *save);
 
 /* enum Level, enum World and enum ExitType (weemitt/include/enums.h). */
-enum { HUB1 = 0, HUB2 = 1, ATLANTIS1 = 10, WAYROOM = 42, ATLANTIS = 1, WORLD_EXIT = 3, ATLANTIS_EXIT = 6, LEVEL_1_EXIT = 16 };
+enum { HUB1 = 0, HUB2 = 1, ATLANTIS1 = 10, WAYROOM = 42, ATLANTIS = 1, WORLD_EXIT = 3, ATLANTIS_EXIT = 6, CAVE_EXIT = 12, LEVEL_1_EXIT = 16 };
 
 #define PLAYERS 4
 #define FRAMES 2400
@@ -129,9 +129,9 @@ static rb_input controller(int p, uint32_t f) {
     static const signed char dirs[4][2] = {{0, 60}, {60, 0}, {0, -60}, {-60, 0}};
     rb_input in;
     memset(&in, 0, sizeof in);
-    /* Player 3's choice starts a frame before player 1's: the host takes both exits in the same frame, before HUB1
-       can hear of the new stage. */
-    if ((p == 1 && now >= 2000 && now < 2003) || (p == 3 && now >= 1999 && now < 2002) ||
+    /* Players 1 and 3 choose on the same frame: the host takes both exits in the same frame, player 3's first,
+       before HUB1 can hear of the new stage. */
+    if ((p == 1 && now >= 2000 && now < 2003) || (p == 3 && now >= 2000 && now < 2003) ||
         (p == 2 && now >= 1400 && now < 1403)) {
         /* The pause menu's choice, as netplay.c sends it: G64_ACTION_BUTTON with the choice in x. */
         in.buttons = 0x0080;
@@ -164,6 +164,7 @@ int main(int argc, char **argv) {
     g64TestExits[1] = (G64TestExit){HUB1, 900, 2, ATLANTIS_EXIT};
     g64TestExits[2] = (G64TestExit){WAYROOM, 400, 1, LEVEL_1_EXIT};
     g64TestExits[3] = (G64TestExit){ATLANTIS1, 200, 1, WORLD_EXIT};
+    g64TestExits[4] = (G64TestExit){HUB1, 1340, 1, CAVE_EXIT};
     engine_default_options(&opt);
     e = engine_create(argv[1], &opt, err, sizeof err);
     if (!e) {
