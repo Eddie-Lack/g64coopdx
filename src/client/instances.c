@@ -22,7 +22,11 @@ extern G64ExitRecord g64Exits[16];
 extern int g64ExitCount;
 void G64StartPlayers(unsigned present);
 void G64SetStartRecord(int world, const G64Save *save);
+void G64ApplyProgress(const G64Save *save);
 void port_game_start_level(int level);
+
+/* enum ExitType and enum Level (weemitt/include/enums.h): the exits that lead to the hub, and its last level. */
+enum { WORLD_EXIT = 3, HUB_EXIT = 13, HUB8 = 7 };
 
 
 static void put16(uint8_t *p, uint32_t v) {
@@ -37,6 +41,31 @@ static void put32(uint8_t *p, uint32_t v) {
 
 static size_t log_frame_size(int players) { return 2 + 4 * (size_t)players; }
 
+static void to_save(const g64_progress *p, G64Save *s) {
+    memset(s, 0, sizeof *s);
+    s->levels = p->levels;
+    s->allGaribs = p->all_garibs;
+    s->hubTarget = p->hub_target;
+    s->hubLevel = p->hub_level;
+    s->worldComplete = p->worlds_done;
+}
+
+static int same_progress(const g64_progress *a, const g64_progress *b) {
+    return a->levels == b->levels && a->all_garibs == b->all_garibs && a->hub_target == b->hub_target &&
+           a->hub_level == b->hub_level && a->worlds_done == b->worlds_done;
+}
+
+/* A session event, in the game that is about to run the event's frame (rb_engine_set_event_fn). The bytes come from
+   the network: a malformed event changes nothing. */
+static void apply_event(const uint8_t *data, size_t len) {
+    g64_progress p;
+    G64Save s;
+    if (g64_parse_progress_event(data, len, &p) != 0)
+        return;
+    to_save(&p, &s);
+    G64ApplyProgress(&s);
+}
+
 /* ---- Building an instance's game */
 
 typedef struct {
@@ -48,12 +77,7 @@ typedef struct {
 static void build_setup(void *ctx) {
     const start_record *r = ctx;
     G64Save s;
-    memset(&s, 0, sizeof s);
-    s.levels = r->progress.levels;
-    s.allGaribs = r->progress.all_garibs;
-    s.hubTarget = r->progress.hub_target;
-    s.hubLevel = r->progress.hub_level;
-    s.worldComplete = r->progress.worlds_done;
+    to_save(&r->progress, &s);
     g64Online = 1;
     G64StartPlayers(r->members);
     G64SetStartRecord(r->world, &s);
@@ -76,7 +100,9 @@ typedef struct inst {
     rb_engine_game *game;
     rb_host *host;
     rb_input *log; /* log[f * players + p] */
+    rb_event *log_event; /* log_event[f]: each logged frame's session event */
     uint32_t log_len, log_cap;
+    g64_progress sent; /* the progress the instance has: its start's, then the last progress event's */
 } inst;
 
 typedef struct {
@@ -132,7 +158,7 @@ static void host_rb_send(void *user, int to, const uint8_t *data, size_t len) {
     in->h->send(in->h->user, to, m, len + 2);
 }
 
-static void host_on_confirm(void *user, uint32_t frame, const rb_input *in, int players) {
+static void host_on_confirm(void *user, uint32_t frame, const rb_input *in, int players, const rb_event *event) {
     inst *i = user;
     (void)frame;
     if (i->log_len >= G64_MAX_LOG)
@@ -140,12 +166,18 @@ static void host_on_confirm(void *user, uint32_t frame, const rb_input *in, int 
     if (i->log_len == i->log_cap) {
         uint32_t cap = i->log_cap ? i->log_cap * 2 : 1024;
         rb_input *n = realloc(i->log, sizeof(rb_input) * (size_t)cap * (size_t)players);
+        rb_event *e;
         if (!n)
             return;
         i->log = n;
+        e = realloc(i->log_event, sizeof(rb_event) * (size_t)cap);
+        if (!e)
+            return;
+        i->log_event = e;
         i->log_cap = cap;
     }
     memcpy(i->log + (size_t)i->log_len * (size_t)players, in, sizeof(rb_input) * (size_t)players);
+    i->log_event[i->log_len] = *event;
     i->log_len++;
 }
 
@@ -188,6 +220,7 @@ static int new_instance(g64_ihost *h, int level, int world, unsigned members) {
     in->start.world = world;
     in->start.members = members;
     in->start.progress = h->progress;
+    in->sent = h->progress;
     in->game = build(h->boot, &in->start);
     if (!in->game)
         return -1;
@@ -213,6 +246,7 @@ static void free_instance(g64_ihost *h, int i) {
     rb_host_free(in->host);
     rb_engine_game_free(in->game);
     free(in->log);
+    free(in->log_event);
     memset(in, 0, sizeof *in);
 }
 
@@ -235,14 +269,21 @@ static void send_move(g64_ihost *h, int p) {
 static void send_log(g64_ihost *h, int p) {
     const move_state *m = &h->move[p];
     const inst *in = &h->inst[m->slot];
-    uint8_t d[G64_LOG_HEAD + 255 * (2 + 4 * RB_MAX_PLAYERS)];
-    uint32_t per = (uint32_t)((RB_MAX_WIRE - G64_LOG_HEAD) / log_frame_size(h->players)), first = m->acked;
+    uint8_t d[G64_LOG_HEAD + 255 * (2 + 4 * RB_MAX_PLAYERS) + 1 + 255 * (2 + RB_EVENT_MAX)];
+    uint32_t first = m->acked;
     int chunk;
-    if (per > 255)
-        per = 255;
     for (chunk = 0; chunk < CHUNKS_PER_TICK && first < m->join; chunk++) {
-        uint32_t count = m->join - first < per ? m->join - first : per, f;
+        uint32_t count, f;
+        size_t size = G64_LOG_HEAD + 1;
         int q;
+        /* As many frames as fit in RB_MAX_WIRE bytes with their events, at most 255. */
+        for (count = 0; count < 255 && first + count < m->join; count++) {
+            const rb_event *e = &in->log_event[first + count];
+            size_t more = log_frame_size(h->players) + (e->len ? 2u + e->len : 0u);
+            if (count > 0 && size + more > RB_MAX_WIRE)
+                break;
+            size += more;
+        }
         d[0] = G64_IMSG_LOG;
         d[1] = in->id;
         d[2] = (uint8_t)h->players;
@@ -261,7 +302,9 @@ static void send_log(g64_ihost *h, int p) {
             }
             put16(o, present);
         }
-        h->send(h->user, p, d, G64_LOG_HEAD + (size_t)count * log_frame_size(h->players));
+        size = G64_LOG_HEAD + (size_t)count * log_frame_size(h->players);
+        size += rb_events_write(d + size, in->log_event + first, count);
+        h->send(h->user, p, d, size);
         first += count;
     }
 }
@@ -295,17 +338,21 @@ static void merge_progress(g64_progress *a, const G64Save *s) {
 }
 
 static void take_exit(g64_ihost *h, const pending_exit *e) {
-    int p = e->r.player, s = e->slot, t, from;
+    int p = e->r.player, s = e->slot, t, from, level = e->r.level;
     if (p < 0 || p >= h->players || h->where[p] != s || e->r.level < 0 || e->r.level >= G64_NUM_LEVELS ||
         e->r.world < 0 || e->r.world >= G64_NUM_WORLDS)
         return;
     merge_progress(&h->progress, &e->r.save);
+    /* An exit to the hub leads to its newest stage. The level the player leaves may not have heard yet of a crystal
+       put in the fountain elsewhere. */
+    if ((e->r.type == WORLD_EXIT || e->r.type == HUB_EXIT) && level <= HUB8)
+        level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
     from = h->inst[s].start.level;
     leave_instance(h, p);
-    t = find_instance(h, e->r.level, e->r.world);
+    t = find_instance(h, level, e->r.world);
     memset(&h->move[p], 0, sizeof h->move[p]);
     if (t < 0) {
-        t = new_instance(h, e->r.level, e->r.world, 1u << p);
+        t = new_instance(h, level, e->r.world, 1u << p);
         if (t < 0)
             return;
         h->move[p].join = 0;
@@ -320,7 +367,7 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
     h->move[p].slot = t;
     h->move[p].id = h->inst[t].id;
     if (h->on_move)
-        h->on_move(h->move_user, p, e->r.type, from, e->r.level, e->r.world, h->move[p].join, &h->progress);
+        h->on_move(h->move_user, p, e->r.type, from, level, e->r.world, h->move[p].join, &h->progress);
     send_move(h, p);
 }
 
@@ -336,6 +383,7 @@ g64_ihost *g64_ihost_new(Engine *e, const void *boot, int players, int level, ui
     h->e = e;
     h->boot = boot;
     h->ops = rb_engine_ops(e);
+    rb_engine_set_event_fn(apply_event);
     h->players = players;
     h->deadline = deadline;
     h->send = send;
@@ -368,6 +416,16 @@ void g64_ihost_tick(g64_ihost *h) {
             rb_host_tick(h->inst[i].host);
     for (i = 0; i < h->exit_count; i++)
         take_exit(h, &h->exits[i]);
+    /* Progress made in one instance goes to every other, at its next confirmed frame: the whole progress, so a newer
+       event may replace one not yet confirmed. */
+    for (i = 0; i < G64_MAX_INSTANCES; i++) {
+        inst *in = &h->inst[i];
+        uint8_t ev[G64_EVENT_PROGRESS_SIZE];
+        if (!in->used || same_progress(&in->sent, &h->progress))
+            continue;
+        if (rb_host_set_event(in->host, ev, g64_write_progress_event(ev, &h->progress)) == 0)
+            in->sent = h->progress;
+    }
     for (p = 0; p < h->players; p++) {
         move_state *m = &h->move[p];
         if (!m->active)
@@ -481,6 +539,7 @@ struct g64_iclient {
     int moving;
     g64_move mv;
     rb_input *log;
+    rb_event *log_event;
     uint32_t have;
     uint32_t desyncs;
     uint64_t rollback_frames;
@@ -541,8 +600,12 @@ static int finish_move(g64_iclient *c) {
     c->game = build(c->boot, &r);
     if (!c->game)
         return -1;
-    for (f = 0; f < c->mv.join; f++)
+    for (f = 0; f < c->mv.join; f++) {
+        const rb_event *e = &c->log_event[f];
+        if (e->len && c->ops->event)
+            c->ops->event(c->game, e->data, e->len);
         c->ops->step(c->game, c->log + (size_t)f * (size_t)c->players, c->players);
+    }
     if (c->mv.join > 0) {
         memcpy(last, c->log + (size_t)(c->mv.join - 1) * (size_t)c->players, sizeof(rb_input) * (size_t)c->players);
     } else {
@@ -559,7 +622,9 @@ static int finish_move(g64_iclient *c) {
     c->level = c->mv.level;
     c->moving = 0;
     free(c->log);
+    free(c->log_event);
     c->log = NULL;
+    c->log_event = NULL;
     return 0;
 }
 
@@ -576,6 +641,7 @@ g64_iclient *g64_iclient_new(Engine *e, const void *boot, int players, int me, i
     c->e = e;
     c->boot = boot;
     c->ops = rb_engine_ops(e);
+    rb_engine_set_event_fn(apply_event);
     c->players = players;
     c->me = me;
     c->window = window;
@@ -601,6 +667,7 @@ void g64_iclient_free(g64_iclient *c) {
         return;
     drop_game(c);
     free(c->log);
+    free(c->log_event);
     free(c);
 }
 
@@ -626,13 +693,16 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
         }
         drop_game(c);
         free(c->log);
+        free(c->log_event);
         c->log = NULL;
+        c->log_event = NULL;
         c->mv = mv;
         c->have = 0;
         c->moving = 1;
         if (mv.join > 0) {
             c->log = calloc((size_t)mv.join * (size_t)c->players, sizeof(rb_input));
-            if (!c->log)
+            c->log_event = calloc((size_t)mv.join, sizeof(rb_event));
+            if (!c->log || !c->log_event)
                 return -1;
         }
         send_ack(c);
@@ -648,8 +718,10 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
         if (!c->moving || ch.instance != c->mv.instance)
             return 0;
         if (ch.first == c->have) {
-            for (i = 0; i < ch.count && c->have < c->mv.join; i++, c->have++)
+            for (i = 0; i < ch.count && c->have < c->mv.join; i++, c->have++) {
                 g64_log_frame(&ch, (int)i, c->log + (size_t)c->have * (size_t)c->players);
+                c->log_event[c->have] = ch.events[i];
+            }
         }
         send_ack(c);
         if (c->have == c->mv.join)

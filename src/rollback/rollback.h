@@ -38,14 +38,25 @@ typedef struct {
     uint8_t present;
 } rb_input;
 
+/* A session event: a few bytes the host attaches to one confirmed frame, for something no player's input carries
+ * (for g64coopdx, progress made in another instance). Every machine gives it to the game right before that frame's
+ * step, and only for that frame. The core does not read the bytes. len 0 means no event. */
+#define RB_EVENT_MAX 16
+typedef struct {
+    uint8_t len;
+    uint8_t data[RB_EVENT_MAX];
+} rb_event;
+
 /* The game, as the core sees it. A savestate is state_size bytes. hash_state must give the same value for the
- * same game state on every machine. */
+ * same game state on every machine. event may be NULL: a game that takes no events. Otherwise it is called with a
+ * frame's event right before that frame's step, each time the frame runs. */
 typedef struct {
     size_t state_size;
     void (*step)(void *game, const rb_input *inputs, int players);
     void (*save)(void *game, void *state);
     void (*load)(void *game, const void *state);
     uint64_t (*hash_state)(const void *state);
+    void (*event)(void *game, const uint8_t *data, size_t len);
 } rb_game_ops;
 
 /* Sends one message. A client sends to the host (to is 0); the host sends to client number to. */
@@ -53,13 +64,23 @@ typedef void (*rb_send_fn)(void *user, int to, const uint8_t *data, size_t len);
 /* Called once for each frame whose state is final: confirmed, and run on confirmed inputs. state is the savestate
  * after that frame; it is valid only during the call. The core hashes only the frames whose hashes it sends. */
 typedef void (*rb_frame_fn)(void *user, uint32_t frame, const void *state);
-/* Called by the host for each frame it confirms, with the confirmed inputs. */
-typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs, int players);
+/* Called by the host for each frame it confirms, with the confirmed inputs and the frame's event (len 0: none). */
+typedef void (*rb_confirm_fn)(void *user, uint32_t frame, const rb_input *inputs, int players,
+                              const rb_event *event);
 
 /* The largest message the core sends: a confirm message is cut to RB_MAX_WIRE bytes, which leaves room for a
  * transport's header in one UDP datagram. RB_MAX_MESSAGE is the largest that a receiver accepts. */
 #define RB_MAX_WIRE 1100
-#define RB_MAX_MESSAGE (14 + RB_CONFIRM_BATCH * (2 + RB_MAX_PLAYERS * 4))
+#define RB_MAX_MESSAGE (14 + RB_CONFIRM_BATCH * (2 + RB_MAX_PLAYERS * 4 + 2 + RB_EVENT_MAX))
+
+/* The events of a run of count frames, as a confirm message and an instance's log carry them after the frames:
+ * entries (u8), then for each frame that has an event: its index in the run (u8, ascending), len (u8, 1 ..
+ * RB_EVENT_MAX), len bytes. rb_events_size is the bytes for events[0 .. count - 1]; rb_events_write writes them and
+ * returns that size. rb_events_parse reads exactly len bytes into events[0 .. count - 1] (count at most 255); it
+ * returns 0, or -1 when the bytes are malformed, and then changes nothing. */
+size_t rb_events_size(const rb_event *events, uint32_t count);
+size_t rb_events_write(uint8_t *d, const rb_event *events, uint32_t count);
+int rb_events_parse(const uint8_t *d, size_t len, uint32_t count, rb_event *events);
 
 typedef struct rb_client rb_client;
 typedef struct rb_host rb_host;
@@ -124,6 +145,9 @@ void rb_host_drop_player(rb_host *h, int p);
  * the host sends them confirmed frames from that frame on; their client starts there (rb_client_new_at). */
 void rb_host_set_present(rb_host *h, int p, int present);
 int rb_host_present(const rb_host *h, int p);
+/* The next frame the host confirms, rb_host_confirmed(h), carries this event (len 1 to RB_EVENT_MAX). A second call
+ * before that frame replaces the first. Returns 0, or -1 for a bad length. */
+int rb_host_set_event(rb_host *h, const uint8_t *data, size_t len);
 uint32_t rb_host_confirmed(const rb_host *h);
 /* Hashes received from clients that matched, and that did not. */
 uint32_t rb_host_hash_matches(const rb_host *h);

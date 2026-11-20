@@ -249,11 +249,24 @@ section (`cameo.c:191`).
 ### Session events
 
 Some state belongs to the session, not to one instance: the save (levels done, all-garib bits), the world, who is
-where. Changes to it come from one instance and may matter to another: a hub door that opens when a level is done.
+where. Changes to it come from one instance and may matter to another: a way room door that opens when a level is
+done, or the hub's stage after a crystal goes in the fountain.
 
 - An event comes out of an instance at a confirmed frame (a level done when a player exits it).
 - The host applies it to the session's state, and sends it into every instance that it affects as part of the
   confirmed inputs of a frame it picks. Every machine in that instance then sees it at the same frame.
+- Done for progress (src/client/instances.c, imsg.h). After a host frame's exits, the host sends the session's whole
+  progress to every instance whose progress is older. It rides on the next confirmed frame as a session event
+  (`rb_event`, `rb_host_set_event`). The confirm message and the instance's log carry it after their frames, so a
+  player who joins later runs it at the same frame. Every machine gives it to the game right before that frame's
+  step. The game joins it with its own progress (`G64ApplyProgress`: the bits joined, the hub counts at the larger
+  value, the world kept), so progress a level has made and not yet reported stays.
+- Few things in a level read the progress while it runs. A way room door that new progress opens moves away at
+  once. The rest (the way room's pedestals, the cave's crystals, which hub stage is loaded) shows at the level's next
+  start.
+- The hub is eight levels, HUB1 to HUB8, one per crystal in the fountain. A HUBn instance stays HUBn. An exit to the
+  hub (a world exit or a hub exit) leads to the newest stage the host knows, whatever the level the player leaves
+  says. The host learns of a crystal when a player leaves the cave.
 - The world portal: the host opens a portal to another world only while every player is in the hub; entering it
   changes the session's world.
 

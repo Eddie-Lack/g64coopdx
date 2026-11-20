@@ -16,6 +16,10 @@ typedef struct rb_engine_game rb_engine_game;
 
 /* The functions for rb_client_new and rb_host_new, for games of this engine. Call it once, after engine_create. */
 const rb_game_ops *rb_engine_ops(Engine *e);
+/* The game's side of a session event (rb_game_ops.event): fn is called with the game in the engine, right before the
+ * frame's step. It must check the bytes, which come from the network. NULL (the start) ignores events. */
+typedef void (*rb_engine_event_fn)(const uint8_t *data, size_t len);
+void rb_engine_set_event_fn(rb_engine_event_fn fn);
 /* A new game in the engine's current state. NULL when out of memory. */
 rb_engine_game *rb_engine_game_new(void);
 void rb_engine_game_free(rb_engine_game *g);

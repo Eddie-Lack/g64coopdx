@@ -48,7 +48,8 @@ int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
     m.progress.worlds_done = d[21];
     if (m.level >= G64_NUM_LEVELS || m.world >= G64_NUM_WORLDS || m.players < 1 || m.players > RB_MAX_PLAYERS ||
         m.join > G64_MAX_LOG || (m.players < 16 && (m.members >> m.players) != 0) || m.members == 0 ||
-        (m.progress.worlds_done >> G64_NUM_WORLDS) != 0)
+        (m.progress.worlds_done >> G64_NUM_WORLDS) != 0 || m.progress.hub_target > G64_MAX_HUB ||
+        m.progress.hub_level > G64_MAX_HUB)
         return -1;
     *out = m;
     return 0;
@@ -66,8 +67,14 @@ int g64_parse_log(const uint8_t *d, size_t len, g64_log_chunk *out) {
     c.count = d[7];
     c.frames = d + G64_LOG_HEAD;
     if (c.players < 1 || c.players > RB_MAX_PLAYERS || c.count < 1 || c.first > G64_MAX_LOG ||
-        c.count > G64_MAX_LOG - c.first || len != G64_LOG_HEAD + (size_t)c.count * log_frame_size(c.players))
+        c.count > G64_MAX_LOG - c.first || len <= G64_LOG_HEAD + (size_t)c.count * log_frame_size(c.players))
         return -1;
+    /* The frames' events follow the frames (rb_events_write). */
+    {
+        size_t frames = G64_LOG_HEAD + (size_t)c.count * log_frame_size(c.players);
+        if (rb_events_parse(d + frames, len - frames, c.count, c.events) != 0)
+            return -1;
+    }
     *out = c;
     return 0;
 }
@@ -83,6 +90,31 @@ void g64_log_frame(const g64_log_chunk *c, int i, rb_input *out) {
         out[p].y = (int8_t)in[3];
         out[p].present = (uint8_t)((present >> p) & 1);
     }
+}
+
+size_t g64_write_progress_event(uint8_t *d, const g64_progress *p) {
+    d[0] = G64_EVENT_PROGRESS;
+    put32(d + 1, p->levels);
+    put32(d + 5, p->all_garibs);
+    d[9] = p->hub_target;
+    d[10] = p->hub_level;
+    d[11] = p->worlds_done;
+    return G64_EVENT_PROGRESS_SIZE;
+}
+
+int g64_parse_progress_event(const uint8_t *d, size_t len, g64_progress *out) {
+    g64_progress p;
+    if (!d || len != G64_EVENT_PROGRESS_SIZE || d[0] != G64_EVENT_PROGRESS)
+        return -1;
+    p.levels = get32(d + 1);
+    p.all_garibs = get32(d + 5);
+    p.hub_target = d[9];
+    p.hub_level = d[10];
+    p.worlds_done = d[11];
+    if (p.hub_target > G64_MAX_HUB || p.hub_level > G64_MAX_HUB || (p.worlds_done >> G64_NUM_WORLDS) != 0)
+        return -1;
+    *out = p;
+    return 0;
 }
 
 int g64_parse_logack(const uint8_t *d, size_t len, uint8_t *instance, uint32_t *join, uint32_t *have) {

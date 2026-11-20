@@ -134,9 +134,12 @@ game data, only addresses and counts.
 - There is no sound.
 - Enemies, collectables and puzzles react only to one player in each level.
 - An exit takes you at once: there is no spin, fade or end-of-level screen.
-- A level that is already running sees new progress only when it starts again. For example, a hub door that a
-  finished level opens stays shut while someone is in the hub; it opens once the hub is empty and someone enters it
-  again.
+- Progress made by another player reaches your level at once, but only some things show it before the level starts
+  again. A way room door opens at once. The pedestals in a way room move only at its next start.
+- The hub has a stage for each crystal in the fountain (HUB1 to HUB8). When someone puts a crystal in, you stay in
+  your hub stage. Your next exit to the hub takes you to the newest stage.
+- In the cave, the crystal's flight acts on one player only. It is not yet made for several players in the cave at
+  once.
 - Players can go to different worlds. The planned rule (a portal to another world opens only when everyone is in
   the hub) is not there yet.
 - No list of open games: players share the room code themselves.

@@ -38,6 +38,7 @@ struct rb_engine_game {
 static Engine *engine;
 static rb_engine_game *owner; /* the game whose state the engine holds, or NULL */
 static rb_game_ops ops;
+static rb_engine_event_fn event_fn;
 
 /* Puts game g in the engine: saves the game the engine held, if it changed, and loads g. */
 static void enter(rb_engine_game *g) {
@@ -99,6 +100,16 @@ int rb_engine_last_tasks(void *tasks, int max) {
     return lastCount < 0 ? -1 : n;
 }
 
+static void event(void *game, const uint8_t *data, size_t len) {
+    rb_engine_game *g = game;
+    enter(g);
+    if (event_fn)
+        event_fn(data, len);
+    g->live = 1;
+}
+
+void rb_engine_set_event_fn(rb_engine_event_fn fn) { event_fn = fn; }
+
 static void save(void *game, void *state) {
     rb_engine_game *g = game;
     if (owner == g)
@@ -128,6 +139,7 @@ const rb_game_ops *rb_engine_ops(Engine *e) {
     ops.save = save;
     ops.load = load;
     ops.hash_state = hash_state;
+    ops.event = event;
     return &ops;
 }
 

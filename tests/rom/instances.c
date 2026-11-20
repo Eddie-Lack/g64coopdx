@@ -4,9 +4,17 @@
  * the first hub section. The game's test exits (g64TestExits) then move them, the same way on every machine:
  *   - player 1 takes the Atlantis door: a new instance of the way room starts for them alone;
  *   - player 2 takes the same door later: they join the way room's running instance, after its log;
- *   - player 1 takes the way room's exit back to the hub: they join the hub's running instance, after its log;
- *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input, and they join the hub too.
- * The test: every player ends up in the hub, every instance's hash checks pass, and no player is told of a
+ *   - player 1 takes the way room's first door to Atlantis 1, a new instance;
+ *   - player 1 finishes Atlantis 1 (a world exit that completes it): the progress changes (the level done, the hub's
+ *     target raised, the world done). They join the hub's running instance; the host sends the new progress to it as
+ *     a session event on the frame they join at. The raised target opens the hub's cave door, and player 1's walk
+ *     takes them through it to the cave, a new instance. There the crystal flies to the fountain: the hub moves on to
+ *     its second stage (HUB2);
+ *   - player 1 chooses "Back to the hub" in their pause menu: they go to HUB2, a new instance. The hub players get the
+ *     new stage as an event;
+ *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input. Their game still says
+ *     HUB1, but the host sends them to the newest stage: they join player 1 in HUB2, after its log.
+ * The test: players 1 and 2 end up in HUB2 and the others in HUB1, every player's game has the new progress, every instance's hash checks pass, and no player is told of a
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
  *
@@ -21,12 +29,21 @@ typedef struct {
     int level, frame, player, type;
 } G64TestExit;
 extern G64TestExit g64TestExits[4];
+typedef struct {
+    uint32_t levels;
+    uint32_t allGaribs;
+    uint8_t hubTarget;
+    uint8_t hubLevel;
+    uint8_t worldComplete;
+    uint8_t pad;
+} G64Save;
+void G64ReadSave(G64Save *save);
 
 /* enum Level, enum World and enum ExitType (weemitt/include/enums.h). */
-enum { HUB1 = 0, WAYROOM = 42, ATLANTIS_EXIT = 6, HUB_EXIT = 13 };
+enum { HUB1 = 0, HUB2 = 1, ATLANTIS1 = 10, WAYROOM = 42, ATLANTIS = 1, WORLD_EXIT = 3, ATLANTIS_EXIT = 6, LEVEL_1_EXIT = 16 };
 
 #define PLAYERS 4
-#define FRAMES 2100
+#define FRAMES 2400
 #define LATENCY 2
 #define LOSS 30 /* per 1000 messages */
 #define MAX_PACKETS 8192
@@ -104,12 +121,12 @@ static rb_input controller(int p, uint32_t f) {
     static const signed char dirs[4][2] = {{0, 60}, {60, 0}, {0, -60}, {-60, 0}};
     rb_input in;
     memset(&in, 0, sizeof in);
-    if (f < 600) {
-        in.buttons = f % 30 == 0 ? 0x8000 : 0;
-    } else if (p == 2 && now >= 1600 && now < 1603) {
+    if ((p == 1 && now >= 2000 && now < 2003) || (p == 2 && now >= 2100 && now < 2103)) {
         /* The pause menu's choice, as netplay.c sends it: G64_ACTION_BUTTON with the choice in x. */
         in.buttons = 0x0080;
         in.x = 2;
+    } else if (f < 600) {
+        in.buttons = f % 30 == 0 ? 0x8000 : 0;
     } else {
         in.x = dirs[(f / 40 + (uint32_t)p) % 4][0];
         in.y = dirs[(f / 40 + (uint32_t)p) % 4][1];
@@ -133,7 +150,8 @@ int main(int argc, char **argv) {
     /* The schedule of exits, in every copy of the game: it is set before the state after power-on is saved. */
     g64TestExits[0] = (G64TestExit){HUB1, 700, 1, ATLANTIS_EXIT};
     g64TestExits[1] = (G64TestExit){HUB1, 900, 2, ATLANTIS_EXIT};
-    g64TestExits[2] = (G64TestExit){WAYROOM, 400, 1, HUB_EXIT};
+    g64TestExits[2] = (G64TestExit){WAYROOM, 400, 1, LEVEL_1_EXIT};
+    g64TestExits[3] = (G64TestExit){ATLANTIS1, 200, 1, WORLD_EXIT};
     engine_default_options(&opt);
     e = engine_create(argv[1], &opt, err, sizeof err);
     if (!e) {
@@ -166,10 +184,26 @@ int main(int argc, char **argv) {
             printf("; %u hash checks, %u mismatches\n", g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host));
         }
     }
-    check(g64_iclient_level(player[0]) == HUB1 && g64_iclient_level(player[1]) == HUB1 &&
-              g64_iclient_level(player[2]) == HUB1 && g64_iclient_level(player[3]) == HUB1,
-          "every player is in the hub");
-    check(g64_ihost_level_of(host, 1) == HUB1 && g64_ihost_level_of(host, 2) == HUB1, "the host agrees");
+    check(g64_iclient_level(player[0]) == HUB1 && g64_iclient_level(player[1]) == HUB2 &&
+              g64_iclient_level(player[2]) == HUB2 && g64_iclient_level(player[3]) == HUB1,
+          "players 1 and 2 are in HUB2, the others in HUB1");
+    check(g64_ihost_level_of(host, 1) == HUB2 && g64_ihost_level_of(host, 2) == HUB2 && g64_ihost_instances(host) == 2,
+          "the host agrees: two instances");
+    for (p = 0; p < PLAYERS; p++) {
+        /* The progress in the player's own game: players 0 and 3 got it as events while they played in HUB1, and
+           players 1 and 2 in HUB2's start. */
+        char what[160];
+        G64Save s;
+        rb_engine_game *g = g64_iclient_game(player[p]);
+        memset(&s, 0, sizeof s);
+        if (g) {
+            rb_engine_game_enter(g);
+            G64ReadSave(&s);
+        }
+        snprintf(what, sizeof what, "player %d's game has the new progress: levels %08x, hub target %u, hub level %u, "
+                 "worlds done %02x", p, s.levels, s.hubTarget, s.hubLevel, s.worldComplete);
+        check(g && (s.levels & 1) && s.hubTarget == 1 && s.hubLevel == 1 && (s.worldComplete >> ATLANTIS) & 1, what);
+    }
     for (p = 0; p < PLAYERS; p++) {
         char what[160];
         snprintf(what, sizeof what, "player %d: not moving, %u frames confirmed, %u desyncs", p,
