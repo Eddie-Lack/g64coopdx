@@ -10,9 +10,12 @@ PHONY_SOUND := sound sound-build
 .PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
-# with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md).
+# with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
+# from weemitt's library with the real sound player, next to it as g64coopdx-sound.so (src/client/soundout.h).
 client:
 	$(WEEMITT) studio64
+	$(WEEMITT) lib64-sound
+	cp weemitt/build/lib64-sound/libglover.so weemitt/build/studio64/g64coopdx-sound.so
 
 # The game's window program for Linux: weemitt/build/linux64/weemitt (needs SDL2).
 game:

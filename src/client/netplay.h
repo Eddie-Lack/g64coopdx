@@ -60,6 +60,9 @@ void netplay_apply_colors(void);
 /* The local player's input delay in frames (0 to 8; the default is 1): an input is for the frame that many frames
  * later and reaches the others sooner, so they predict less. Call it before netplay_begin. */
 void netplay_set_input_delay(int frames);
+/* The player's own sound volumes, in percent: the master volume, the songs and the effects (Settings). Call it each
+ * window frame; only changes reach the sound player. */
+void netplay_set_volumes(int master, int music, int effects);
 int netplay_input_delay(void);
 /* The host's own choice of ball controls before it hosts (netplay_set_normal_ball). */
 int netplay_host_normal_ball(void);

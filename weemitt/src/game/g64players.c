@@ -667,12 +667,13 @@ extern s32 MAX_SFX_DIST;
 s32 G64SoundListener(s32 player, f32 *pos, f32 *yaw, s32 *maxDist) {
     s32 i = slot_of(player);
     const Actor *c;
-    if (i == 0)
-        c = &camera;
-    else if (i > 0 && i < slotCount && slots[i])
+    if (i < 0)
+        return 0;
+    /* A player whose slot does not exist yet (the level's opening) sees and hears through the globals' camera. */
+    if (i > 0 && i < slotCount && slots[i])
         c = &((G64Slot *)slots[i])->camera;
     else
-        return 0;
+        c = &camera;
     pos[0] = c->pos.x;
     pos[1] = c->pos.y;
     pos[2] = c->pos.z;

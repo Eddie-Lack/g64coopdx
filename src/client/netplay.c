@@ -30,6 +30,13 @@ static uint32_t now_ms(void) {
 #include "../rollback/rollback.h"
 #include "../session/session.h"
 #include "instances.h"
+#include "sound.h"
+#include "soundout.h"
+#include "../../weemitt/src/port/soundtable.h"
+
+/* weemitt's src/port/frame.h: the player's ROM. */
+extern unsigned char *port_rom;
+extern unsigned int port_rom_size;
 
 /* weemitt's src/game/g64players.c and src/port/frame.c. */
 int G64PlayerPosition(int p, float *x, float *y, float *z);
@@ -476,6 +483,20 @@ void netplay_set_input_delay(int frames) { inputDelay = frames < 0 ? 0 : frames 
 int netplay_input_delay(void) { return inputDelay; }
 int netplay_host_normal_ball(void) { return (hostFlags & G64_FLAG_NORMAL_BALL) != 0; }
 
+/* The sound (sound.h, soundout.h): the reader of the local game's sound table, and the game it last read. */
+static g64_sound *sound;
+static rb_engine_game *soundGame;
+static int soundVolumes[3] = {-1, -1, -1};
+
+void netplay_set_volumes(int master, int music, int effects) {
+    if (master == soundVolumes[0] && music == soundVolumes[1] && effects == soundVolumes[2])
+        return;
+    soundVolumes[0] = master;
+    soundVolumes[1] = music;
+    soundVolumes[2] = effects;
+    soundout_volumes(master, music, effects);
+}
+
 int netplay_begin(Engine *e, char *err, size_t errSize) {
     uint32_t deadline = (uint32_t)g64_session_deadline(session);
     engine = e;
@@ -489,7 +510,11 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     /* The engine holds the state right after power-on (platform.c calls port_game_boot when online). Power-on sets the
        game's variables, so every player's colors go in after it, and the saved state holds them. */
     netplay_apply_colors();
+    /* The game records its sound in its sound table from the start: every game built from this state does. */
+    soundtable_enable(1);
     engine_save(e, boot);
+    if (soundout_open(port_rom, port_rom_size) == 0)
+        sound = g64_sound_new(soundout_backend());
     if (me == 0) {
         ihost = g64_ihost_new(e, boot, players, clevel, deadline, host_send, NULL);
         if (!ihost) {
@@ -726,6 +751,16 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     rb_engine_game_enter(game);
     engine_save(engine, viewState);
     viewPending = 1;
+    /* The sound of the local game's newest frame, before this player is swapped into the globals. A new game (after a
+       move) starts the reader afresh. */
+    if (sound) {
+        if (game != soundGame) {
+            g64_sound_reset(sound);
+            soundGame = game;
+        }
+        g64_sound_update(sound, me);
+        soundout_tick();
+    }
     {
         /* The shifts go by player number, so they come before the swap, which moves this player into the globals. */
         int p, k;

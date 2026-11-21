@@ -17,6 +17,7 @@ void MusStop(int flags, int speed);
 void MusSetMasterVolume(int flags, int volume);
 void PrepareSong(unsigned char song);
 void musAudioAdvance(float retraces);
+void musSetGroupGain(int song, int effect);
 
 typedef struct {
     const GloverSoundCmd *cmds;
@@ -62,6 +63,9 @@ static void call_sound(void *arg) {
             break;
         case GLOVER_SOUND_MASTER:
             MusSetMasterVolume(c->a, c->b);
+            break;
+        case GLOVER_SOUND_GAIN:
+            musSetGroupGain(c->a < 0 ? 0 : c->a > 100 ? 100 : c->a, c->b < 0 ? 0 : c->b > 100 ? 100 : c->b);
             break;
         default:
             break;

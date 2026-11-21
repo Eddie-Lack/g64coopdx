@@ -332,6 +332,7 @@ GLOVER_API int32_t glover_audio_read(Glover *g, int16_t *out, int32_t frames);  
 #define GLOVER_SOUND_SET 4       /* a: handle, b: volume, c: pan, e: tempo, f: reverb, freq: offset */
 #define GLOVER_SOUND_STOP_ALL 5  /* a: flags (1 effects, 2 songs), b: speed */
 #define GLOVER_SOUND_MASTER 6    /* a: flags, b: volume */
+#define GLOVER_SOUND_GAIN 7      /* a: the songs' volume, b: the effects' volume, both in percent (0 to 100) */
 typedef struct GloverSoundCmd {
     int32_t op;
     int32_t a, b, c, d, e, f;

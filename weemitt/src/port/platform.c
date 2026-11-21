@@ -2316,6 +2316,9 @@ int main(int argc, char **argv) {
                 port_set_ballworld(0);
                 port_set_cheat_hold(0);
                 port_set_pause_cheats(0);
+                netplay_set_volumes(settings.muteUnfocused && !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS)
+                                        ? 0 : settings.volume,
+                                    settings.musicVolume, settings.effectsVolume);
                 n = netplay_frame(port_buttons | tapPending, port_stick_x, port_stick_y, tasks, 16);
                 tapPending = 0;
                 if (netplay_quit_requested()) {
