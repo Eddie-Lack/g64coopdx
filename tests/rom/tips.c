@@ -150,11 +150,32 @@ static void case_a(void) {
 }
 
 static void case_b(void) {
+    float x, y0, y, z, rise = 0;
+    int f;
     start(TIP_LEVEL, READY, 300);
     ask(0x3);
     check(reads(0) && reads(1), "B: both players at the tip read it");
-    close_tip(0);
+    for (f = 0; f < 30; f++)
+        frame(0, 0, 0, 0);
+    G64PlayerPosition(0, &x, &y0, &z);
+    /* Player 0 holds A down from one press until the tip has closed, and for 20 frames more. */
+    for (f = 0; f < 200 && reads(0); f++) {
+        int k;
+        for (k = 0; k < 15; k++)
+            frame(0, 0, 0, 0);
+        frame(A, 0, 0, 0);
+        if (reads(0))
+            frame(0, 0, 0, 0);
+    }
+    for (f = 0; f < 20; f++) {
+        frame(A, 0, 0, 0);
+        G64PlayerPosition(0, &x, &y, &z);
+        if (y - y0 > rise)
+            rise = y - y0;
+    }
     check(!reads(0) && reads(1), "B: one player closes their tip, and the other still reads");
+    check(rise < 2.0f, "B: the press that closes the tip does not make the glove jump");
+    printf("B: rise %.1f\n", rise);
     printf("B: hash %08x\n", port_hash_ram());
 }
 

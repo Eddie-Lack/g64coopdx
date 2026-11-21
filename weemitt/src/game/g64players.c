@@ -657,7 +657,10 @@ void G64UpdateProxies(void) {
     }
 }
 
+static void forget_tips(void);
+
 void G64ExtraPlayersFree(void) {
+    forget_tips();
     free_slots();
     if (startSlot) {
         free_slot_blocks((G64Slot *)startSlot);
@@ -2197,6 +2200,8 @@ const char *TipLineText(s32 line);
 
 /* The N64 game takes A from the 13th frame of an open tip, when its box has grown. */
 #define TIP_OPENING 13
+/* tipLine when the tip is closed and the player still holds the A that closed it. */
+#define TIP_CLOSING (-1)
 /* tipLine: the number plus 1 of the first line of the page that the player reads, or 0. tipTime: frames since the
    tip opened. tipButtons: the player's buttons of the frame before. */
 static s16 tipLine[G64_MAX_PLAYERS];
@@ -2215,16 +2220,6 @@ static void forget_tips(void) {
     memset(tipLine, 0, sizeof tipLine);
     memset(tipTime, 0, sizeof tipTime);
     memset(tipButtons, 0, sizeof tipButtons);
-}
-
-/* A tip's sound for one player: theirs alone (the sound table, soundtable.h). */
-static void tip_sound(s32 player, s32 sample, Vec3 *pos, s32 vol, s32 pitch) {
-    s32 other = slot_of(player) > 0;
-    if (other)
-        soundtable_set_owner(player);
-    PlaySample(sample, pos, vol, pitch);
-    if (other)
-        soundtable_set_owner(-1);
 }
 
 u32 G64TipEveryone(void) {
@@ -2253,9 +2248,11 @@ s32 G64TipOpen(u32 players, s32 tag, const Vec3 *pos) {
             continue;
         tipLine[p] = (s16)(TipFirstLine(tag) + 1);
         tipTime[p] = 0;
-        tip_sound(p, 59, (Vec3 *)pos, 100, 190);
         opened = 1;
     }
+    /* One sound at the tip, however many players it opened for. */
+    if (opened)
+        PlaySample(59, (Vec3 *)pos, 100, 190);
     return opened;
 }
 
@@ -2273,6 +2270,12 @@ void G64TipsStep(void) {
         }
         if (!tipLine[p])
             continue;
+        /* The tip is closed. The reader stays held until they let go of A: the press that closed it must not
+           also make the glove jump. */
+        if (tipLine[p] == TIP_CLOSING && !(g64Buttons[p] & 0x8000)) {
+            tipLine[p] = 0;
+            continue;
+        }
         /* The reader's glove gets no input. A player whose glove is not made yet has none to hold. */
         if (i == 0) {
             DisableControl(2);
@@ -2280,13 +2283,16 @@ void G64TipsStep(void) {
             DisableControl(2);
             G64HazardEnd(i);
         }
+        if (tipLine[p] == TIP_CLOSING) {
+            continue;
+        }
         if (tipTime[p] < TIP_OPENING) {
             tipTime[p]++;
         } else if (pressed & 0x8000) {
             s32 end = TipPageEnd(tipLine[p] - 1);
             Vec3 *at = i > 0 && slot_used(i) ? &((G64Slot *)slots[i])->hand.pos : &hand.pos;
-            tip_sound(p, 180, at, 120, 120);
-            tipLine[p] = TipLineType(end) == 2 ? 0 : (s16)(end + 2);
+            PlaySample(180, at, 120, 120);
+            tipLine[p] = TipLineType(end) == 2 ? TIP_CLOSING : (s16)(end + 2);
         }
     }
 }
@@ -2297,7 +2303,7 @@ s32 G64TipHeld(void) {
 
 s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
     s32 line, end, n = 0;
-    if (player < 0 || player >= G64_MAX_PLAYERS || !tipLine[player])
+    if (player < 0 || player >= G64_MAX_PLAYERS || tipLine[player] <= 0)
         return 0;
     line = tipLine[player] - 1;
     end = TipPageEnd(line);

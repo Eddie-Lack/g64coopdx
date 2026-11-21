@@ -714,6 +714,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     net_relay_tick(sock, now_ms());
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
+        tipLines = 0;
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
         return -1;
     }

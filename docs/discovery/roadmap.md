@@ -180,7 +180,7 @@ harness at N players and by the determinism tests:
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
    Tips are done: online a tip does not stop the level. Any player opens one with B at the tip, and the two tips
    that the game opens by itself open for every player. The reader's glove gets no input and nothing hurts them;
-   their A turns the page or closes the tip. What each player reads is part of the game's state, by player number,
+   their A turns the page or closes the tip, and they stay held until they let go of it. What each player reads is part of the game's state, by player number,
    so a rollback keeps it. The window draws the reader's box from the local game's memory: the text never crosses
    the network (weemitt/src/game/g64players.c, "Tips"; tip.c; src/client/netplay.c; tests/rom/tips.c). The game's
    own box, with its font, is not drawn online: the window's box has the text in the window's font. Left: a look
