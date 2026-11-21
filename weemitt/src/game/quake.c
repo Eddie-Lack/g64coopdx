@@ -22,6 +22,8 @@ void HurtHand(s32 type, s32 damage);
 void KillHand(s32 type);
 
 void StartEarthquake(s16 duration, s16 maxStrength, s16 minStrength, s16 numCycles, s32 flags) {
+    /* g64coopdx: a quake without a place has one strength for every player. */
+    G64QuakeAt(NULL, 0.0f, 0.0f);
     if (autoPlayback == 0) {
         if (flags & 4) {
             earthQuake.time = duration / 2 + 1;
@@ -60,6 +62,8 @@ void StartEarthquakeAtPoint(Vec3 *pos, s16 duration, f32 maxStrength, f32 minStr
         }
         if (earthQuake.time == 0 || earthQuake.start < dist) {
             StartEarthquake(duration, str, str2, numCycles, flags);
+            /* g64coopdx: the other players feel it by their own distance (g64players.c). */
+            G64QuakeAt(pos, maxStrength, dist);
         }
     }
 }
@@ -145,7 +149,7 @@ void DoEarthquake(void) {
         players = G64SlotCount();
         for (p = 1; p < players; p++) {
             if (G64HazardBegin(p)) {
-                QuakePlayer(str);
+                QuakePlayer(str * G64QuakeScale());
                 G64HazardEnd(p);
             }
         }

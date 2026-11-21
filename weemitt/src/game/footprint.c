@@ -111,6 +111,8 @@ void RemoveFootprint(Footprint *ptr) {
     if (ptr == handControl.footprint) {
         handControl.footprint = NULL;
     }
+    /* g64coopdx: the other players forget this ring too (g64players.c). */
+    G64FootprintGone(ptr);
     JallocFree(&ptr);
 }
 

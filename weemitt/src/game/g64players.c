@@ -678,6 +678,10 @@ static void player_frame(s32 p) {
         MoveCam();
         PlayerSpinCamera();
     }
+    /* A quake rolls the camera, and the roll goes back to its aim. The game does this for the first player in
+       CheckCameraForWater (water.c). */
+    AddScaledVector(&cameraUpVect, &cameraUpVect, DeltaPow(0.49f), &cameraUpVectAim, DeltaTake(0.49f, 0.51f));
+    MakeUnit(&cameraUpVect);
     /* In the look-around mode the camera looks 100 ahead of itself. The game does this for the first player in
        ProcessPersonalLoop (personal.c), after their part of the frame. */
     if (!cameraInfo.mode && !gamePaused) {
@@ -2025,6 +2029,44 @@ void G64HazardEnd(s32 i) {
 }
 
 void DisableControl(s16 time);
+
+void G64FootprintGone(const void *footprint) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        if (slot_used(i) && (const void *)(Footprint *)slot_hand_control(i)->footprint == footprint)
+            slot_hand_control(i)->footprint = NULL;
+    }
+}
+
+/* The running quake's place, the distance within which it is felt, and how far from it the camera target of the
+   player was whose distance set its strength. quakePlaced is 0 for a quake without a place. */
+static Vec3 quakePos;
+static f32 quakeMax, quakeDist;
+static s32 quakePlaced;
+
+void G64QuakeAt(const Vec3 *pos, f32 maxStrength, f32 dist) {
+    quakePlaced = pos != NULL;
+    if (pos != NULL)
+        quakePos = *pos;
+    quakeMax = maxStrength;
+    quakeDist = dist;
+}
+
+/* The game sets a quake's strength from maxStrength minus the distance. Another player's strength is in the same
+   proportion to their own distance. The first space boss's level gives every quake a strength of its own
+   (StartEarthquakeAtPoint), so every player has the same there. */
+f32 G64QuakeScale(void) {
+    f32 mine, first;
+    if (!quakePlaced || gameInfo.level == SPACEBOSS1)
+        return 1.0f;
+    first = quakeMax - quakeDist;
+    mine = quakeMax - DistanceBetweenPoints((Vec3 *)cameraInfo.focus, &quakePos);
+    if (mine <= 0.0f)
+        return 0.0f;
+    if (first < 1.0f)
+        first = 1.0f;
+    return mine / first > 4.0f ? 4.0f : mine / first;
+}
 
 s32 G64IsPlayerFootprint(const void *footprint) {
     s32 i;

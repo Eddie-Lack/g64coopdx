@@ -242,8 +242,15 @@ s32 G64SlotBallBursting(s32 i);
 /* A bonus level ends for the player in the globals (g64players.c): 1 when they took the exit alone, online; 0 when
    the caller must end the level for everyone. */
 s32 G64PlayerExits(s32 type, s32 complete);
-/* 1 when a footprint is the slam ring of a player who is not in the globals (footprint.c). */
+/* 1 when a footprint is the slam ring of a player who is not in the globals (footprint.c). G64FootprintGone: a
+   footprint is freed, and the players whose ring it was forget it. */
 s32 G64IsPlayerFootprint(const void *footprint);
+void G64FootprintGone(const void *footprint);
+/* Quakes (quake.c). G64QuakeAt notes where a quake started, its full strength's range and how far the camera target
+   of the player in the globals was (pos NULL: the quake has no place). G64QuakeScale: how strong the quake is for
+   the player in the globals, as a factor of the strength it was started with. */
+void G64QuakeAt(const struct Vec3 *pos, f32 maxStrength, f32 dist);
+f32 G64QuakeScale(void);
 /* DisableControl(time) for every player who is not in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are
