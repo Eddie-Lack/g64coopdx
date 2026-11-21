@@ -271,8 +271,18 @@ s32 G64QuakeStrength(f32 blend, f32 *str);
    (axis 1), and whether any player has just pressed a button. */
 f32 G64AnyStick(s32 axis);
 s32 G64AnyPressed(s32 button);
-/* Cameos (g64players.c): G64CameoView gives the other players the cameo's camera, and G64CameoHeld is 1 for a
-   player other than the first while a cameo plays. */
+/* Cameos (g64players.c, "Cameos"). A cameo plays for the player who set it off, or for the first player.
+   puzzle.c tells who met a puzzle's conditions (G64PuzzleMetReset, G64PuzzleMet, G64CameoStarter). The cameo's
+   player is in the globals while it starts (G64CameoStartBegin) and steps (G64CameoSwapIn); G64CameoSwapOut puts
+   the first player back. G64CameoView gives the other players the cameo's camera, G64CameoAfter holds them, and
+   G64CameoHeld is 1 for them while it plays. */
+void G64PuzzleMetReset(void);
+void G64PuzzleMet(s32 i);
+void G64CameoStarter(void);
+s32 G64CameoStartBegin(void);
+s32 G64CameoSwapIn(void);
+void G64CameoSwapOut(s32 i);
+void G64CameoAfter(void);
 void G64CameoView(void);
 s32 G64CameoHeld(void);
 /* Tips (g64players.c, "Tips"). Online a tip does not stop the level: each player reads it on their own, and only

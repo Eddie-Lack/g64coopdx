@@ -170,12 +170,14 @@ harness at N players and by the determinism tests:
    level has no code of its own for the player: the changes above cover it. The Carnival
    boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
 7. Cameos: which glove they move.
-   Done in part: a cameo plays for the first player. The other players are held and cannot be hurt while it plays,
-   and they see its camera (cameo.c, g64players.c, "Cameos"). The other players are made only when no cameo plays.
-   In the control room, whose scene plays from a recording of the first player, the other players have no glove
-   and watch through the first player's camera. These have no test of their own: with no input, no level plays a
-   cameo that the test can tell apart. Left: the design's rule that a cameo moves the glove of the player who set
-   it off; hiding the other gloves during a cameo.
+   Done: a cameo plays for the player who set it off, when a puzzle's condition on a player started it. Three
+   cameos in the game start that way: one in the Atlantis hub and two in level 15. Every other cameo plays when a
+   level starts, for the first player. The cameo's player is in the globals while it starts and steps, so the
+   script moves their glove and camera. The other players are held and cannot be hurt while it plays, and they
+   see its camera (cameo.c, puzzle.c, g64players.c, "Cameos"; tests/rom/cameos.c). The other players are made only
+   when no cameo plays. In the control room, whose scene plays from a recording of the first player, the other
+   players have no glove and watch through the first player's camera. Left: hiding the other gloves during a
+   cameo. A cameo whose player leaves goes on with the first player's glove.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
    Tips are done: online a tip does not stop the level. Any player opens one with B at the tip, and the two tips

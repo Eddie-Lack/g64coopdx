@@ -1117,7 +1117,11 @@ void MainGameLoop(void) {
     BallworldBossEnd();
     BallworldEndFrame();
     if (cameoList.count && !gamePaused) {
+        /* g64coopdx: the cameo steps with its player in the globals, and the others are held (g64players.c). */
+        s32 slot = G64CameoSwapIn();
         UpdateCameos();
+        G64CameoSwapOut(slot);
+        G64CameoAfter();
     }
     EndTimer(0);
 }

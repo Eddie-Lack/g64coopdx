@@ -350,9 +350,26 @@ static s32 IsCameraPuzzle(Puzzle *puzzle) {
     return TRUE;
 }
 
+/* g64coopdx: TRUE for a puzzle that starts a cameo. */
+static s32 StartsCameo(Puzzle *puzzle) {
+    PuzzleAction *action;
+
+    for (action = puzzle->actions.head.next; action != &puzzle->actions.head; action = action->next) {
+        if (action->type == ACTION_START_CAMEO) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 static void RunPuzzle(Puzzle *puzzle) {
+    G64PuzzleMetReset();
     if (puzzle->conds.timesLeft && PuzzleEvaluateConditionList(&puzzle->conds)) {
         puzzle->conds.timesLeft--;
+        /* g64coopdx: a cameo plays for the player who met the puzzle's condition (g64players.c, "Cameos"). */
+        if (StartsCameo(puzzle)) {
+            G64CameoStarter();
+        }
         PuzzleStartActionList(&puzzle->actions);
     }
     if (puzzle->actions.active) {
@@ -613,9 +630,13 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             CreateStarCircle(&collectable->actor.pos, 6, 19);
             FlashScreen(0, 0, 255, 245, -30);
             return;
-        case ACTION_START_CAMEO:
+        case ACTION_START_CAMEO: {
+            /* g64coopdx: the cameo starts with its player in the globals. */
+            s32 slot = G64CameoStartBegin();
             StartCameo(action->tag);
+            G64CameoSwapOut(slot);
             return;
+        }
         case ACTION_SET_LEVEL_GRAVITY:
             gravity = action->value;
             return;
@@ -988,6 +1009,7 @@ static s32 AnyPlayer(PuzzleCond *condition) {
             s32 met = EvaluateConditionHere(condition);
             G64PuzzleSlotEnd(i);
             if (met) {
+                G64PuzzleMet(i);
                 return TRUE;
             }
         }
