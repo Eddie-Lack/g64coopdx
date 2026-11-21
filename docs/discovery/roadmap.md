@@ -161,8 +161,9 @@ harness at N players and by the determinism tests:
    ring hurts no other player (footprint.c, quake.c). Every player has the Atlantis boss's camera and the first
    space boss's circling camera, with their own camera height; the robot's foot squashes every glove and bursts
    every ball under it; any player can carry their ball to the robot's platform, and online that exit takes the
-   players at once (nmeprocess2.c; these have no test of their own). Left: the last space boss, the Carnival and space bonus levels and the control
-   room. The Carnival boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
+   players at once (nmeprocess2.c; these have no test of their own). In the last space boss's level each player has a turret of their own: aim, camera, shield
+   and shots (boss.c; tests/rom/bosses.c). Left: that level's game over, which is one player's; the Carnival and
+   space bonus levels and the control room. The Carnival boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).

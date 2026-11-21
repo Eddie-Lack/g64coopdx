@@ -9,6 +9,8 @@
  *   E. The Fortress boss walks to the platform of the glove nearest to it, whoever's glove that is. Each player's
  *      camera stands over the arena's middle.
  *   F. The robot's steps in the first space boss's level shake every player's camera.
+ *   G. In the last space boss's level each player has a turret of their own: their stick turns their own camera
+ *      only, and their A button fires as many shots as the other player's does.
  * It prints what it checks and a memory hash per level: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -38,6 +40,7 @@ int G64EnemyInfo(int i, float *x, float *y, float *z);
 int G64SoundListener(int p, float *pos, float *yaw, int *maxDist);
 void G64PushBall(int p, float x, float y, float z);
 int G64PlatformPosition(int tag, float *x, float *y, float *z);
+int G64BulletPositions(float *xyz, int max);
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
@@ -316,6 +319,71 @@ static void case_f(void) {
     printf("F: hash %08x\n", port_hash_ram());
 }
 
+/* The angle between two directions, 0 to pi. */
+static float turned(float a, float b) {
+    float d = fmodf(fabsf(a - b), 6.2831853f);
+    return d > 3.1415927f ? 6.2831853f - d : d;
+}
+
+/* G: 120 frames from the ready state of the last space boss's level. Player `fires` presses A every 20 frames and
+   player `turns` holds the stick to the right (-1: nobody). Returns the number of bullets that appear; yaw gets
+   where each player's camera looks at the end. */
+static int turret(int fires, int turns, float *yaw) {
+    float b[64 * 3], cam[3];
+    int max, shots = 0, before, now, p;
+    unsigned f;
+    engine_load(engine, ready);
+    before = G64BulletPositions(b, 64);
+    for (f = 0; f < 120; f++) {
+        EngineInput in;
+        G64SetPresent(0x3);
+        for (p = 0; p < 16; p++) {
+            g64Buttons[p] = p == fires && f % 20 == 5 ? 0x8000 : 0;
+            g64StickX[p] = p == turns ? 60 : 0;
+            g64StickY[p] = 0;
+        }
+        memset(&in, 0, sizeof in);
+        in.buttons = g64Buttons[0];
+        in.x = g64StickX[0];
+        engine_step(engine, &in);
+        now = G64BulletPositions(b, 64);
+        if (now > before)
+            shots += now - before;
+        before = now;
+    }
+    for (p = 0; p < 2; p++) {
+        yaw[p] = 0;
+        G64SoundListener(p, cam, &yaw[p], &max);
+    }
+    return shots;
+}
+
+static void case_g(void) {
+    float still[2], y0[2], y1[2], x, y, z;
+    int base, shots0, shots1;
+    char what[300];
+    unsigned f;
+    start(40);
+    /* The level's opening lasts longer than READY. */
+    for (f = READY; f < 1500; f++)
+        frame(f, 0x3);
+    engine_save(engine, ready);
+    check(G64PlayerPosition(1, &x, &y, &z), "G: the second player is in the last space boss's level");
+    base = turret(-1, -1, still);
+    shots0 = turret(0, -1, y0);
+    shots1 = turret(1, -1, y1);
+    snprintf(what, sizeof what, "G: with nobody firing %d bullets appear, with player 0 firing %d, with player 1 "
+             "firing %d", base, shots0, shots1);
+    check(shots0 > base && shots1 == shots0, what);
+    turret(-1, 0, y0);
+    turret(-1, 1, y1);
+    snprintf(what, sizeof what, "G: player 0's stick turns the cameras by %.2f and %.2f, player 1's by %.2f and %.2f",
+             turned(y0[0], still[0]), turned(y0[1], still[1]), turned(y1[0], still[0]), turned(y1[1], still[1]));
+    check(turned(y0[0], still[0]) > 1.0f && turned(y0[1], still[1]) < 0.05f && turned(y1[1], still[1]) > 1.0f &&
+          turned(y1[0], still[0]) < 0.05f, what);
+    printf("G: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -341,6 +409,7 @@ int main(int argc, char **argv) {
     case_d();
     case_e();
     case_f();
+    case_g();
     printf("%s the bosses see every player\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

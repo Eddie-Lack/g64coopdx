@@ -137,8 +137,8 @@ game data, only addresses and counts.
 
 ## What does not work yet
 
-- The Atlantis, Carnival, Pirates, Prehistoric and Fortress bosses and the first space boss see every player. The
-  last space boss reacts only to the first player.
+- Every boss sees every player. In the last space boss's level each player has a turret of their own. The
+  crosshair and the shield's glow on screen are the first player's.
 - In the Fortress, Prehistoric and Atlantis bonus levels you win or lose alone, and the others play on. When the
   clock runs out, the level ends for everyone. The Carnival and space bonus levels react only to the first player.
 - Any player takes a garib or a pick-up. The players of a level share one count of garibs. A power-up is its
