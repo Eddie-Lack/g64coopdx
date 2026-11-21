@@ -23,6 +23,7 @@ PORT_C_BEGIN
 #include "platform.h"
 #include "maths.h"
 #include "bullet.h"
+#include "puzzle.h"
 PORT_C_END
 
 #include <string.h>
@@ -39,6 +40,7 @@ extern s32 ballWithHand;
 extern s32 ballLeftBehind;
 extern f32 handInertia;
 extern Vec3 ballFrameVel;
+extern u8 disableZoom;
 
 void ReadController(s32 cntlr);
 void ProcessInput(void);
@@ -94,7 +96,10 @@ typedef struct G64Slot {
     Vec3 ballStart;
     G64Cave cave;
     u8 caveStage;
-    u8 caveStagePad[3];
+    u8 disableZoom;
+    u8 caveStagePad[2];
+    /* The state of this player's camera zones (puzzle.c, PuzzleSwapCameraState), made the first time they run. */
+    PTR32(u8) puzzleState;
 } G64Slot;
 
 /* Each extra player's slot, on the game's heap. Slot 0 is unused: player 0 lives in the globals. */
@@ -220,6 +225,7 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&tickCameraRequests, &s->tickCameraRequests, sizeof(CameraRequests));
     swap_bytes(&ballStart, &s->ballStart, sizeof(Vec3));
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
+    swap_bytes(&disableZoom, &s->disableZoom, 1);
     /* Online the globals' part of the cave exists before the first slot does (global_cave). */
     if (globalCave)
         swap_bytes((G64Cave *)globalCave, &s->cave, sizeof(G64Cave));
@@ -298,6 +304,8 @@ static void free_slot_blocks(G64Slot *s) {
 
 /* Puts slot s in place i, with proxies that show it. */
 static void add_slot(s32 i, G64Slot *s) {
+    /* A copied slot must not share its template's camera zones. */
+    s->puzzleState = NULL;
     slots[i] = s;
     proxyHand[i] = new_proxy(&s->hand);
     proxyBall[i] = new_proxy(&s->ball);
@@ -377,6 +385,8 @@ static void free_slot(s32 i, s32 blocks) {
     }
     if (!s)
         return;
+    if (s->puzzleState)
+        JallocFree(&s->puzzleState);
     if (!blocks) {
         JallocFree(&slots[i]);
         return;
@@ -977,6 +987,8 @@ void G64RemovePlayer(s32 player) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
            the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
         swap_slot(slots[1]);
+        /* Their camera zones come with them, and the leaving player's go into the slot that is freed. */
+        G64PuzzleCameraState(1);
         g64Member[0] = g64Member[1];
         i = 1;
         blocks = 0;
@@ -1304,5 +1316,165 @@ s32 G64BallHolder(s32 player) {
         if (e == &enemies[k].actor)
             return k;
     return -1;
+}
+/* Puzzles and platforms (phase 3). A puzzle's condition on the player is tested with each player swapped into the
+   globals in turn (puzzle.c, PuzzleEvaluateCondition); the conditions only read. Platforms that wait for a ball or a
+   glove, or that face one, look at every player. */
+
+s32 G64PuzzleSlots(void) {
+    if (slotCount < 2 || swapped || logicSlot)
+        return 1;
+    return slotCount;
+}
+
+s32 G64PuzzleSlotBegin(s32 i) {
+    if (i == 0)
+        return 1;
+    if (!slot_used(i) || logicSlot)
+        return 0;
+    swap_slot(slots[i]);
+    logicSlot = i;
+    return 1;
+}
+
+void G64PuzzleSlotEnd(s32 i) {
+    if (i > 0 && logicSlot == i) {
+        swap_slot(slots[i]);
+        logicSlot = 0;
+    }
+}
+
+s32 G64AnyBallOn(struct Platform *p) {
+    s32 i;
+    for (i = 1; i < slotCount; i++)
+        if (slot_used(i) && slot_ball(i)->obj && slot_ball(i)->obj->platform == p)
+            return 1;
+    return 0;
+}
+
+s32 G64AnyGloveOn(struct Platform *p) {
+    s32 i;
+    for (i = 1; i < slotCount; i++)
+        if (slot_used(i) && slot_glove(i)->obj && slot_glove(i)->obj->platform == p)
+            return 1;
+    return 0;
+}
+
+/* The glove or ball of the player nearest to a point (a tie goes to the lower slot); the globals' with one player. */
+static Actor *nearest(const Vec3 *p, s32 isBall) {
+    s32 i, best = 0;
+    f32 bestDist = 0.0f;
+    for (i = 0; i < slotCount; i++) {
+        Actor *a;
+        f32 d;
+        if (!slot_used(i))
+            continue;
+        a = isBall ? slot_ball(i) : slot_glove(i);
+        d = DistanceBetweenPointsSquared(&a->pos, (Vec3 *)p);
+        if (i == 0 || d < bestDist) {
+            best = i;
+            bestDist = d;
+        }
+    }
+    /* A slot's actor is a copy: the platform reads only its position, which the slot holds. */
+    return isBall ? slot_ball(best) : slot_glove(best);
+}
+
+Actor *G64NearestBall(const Vec3 *p) {
+    return slotCount < 2 ? &ball : nearest(p, 1);
+}
+
+Actor *G64NearestGlove(const Vec3 *p) {
+    return slotCount < 2 ? &hand : nearest(p, 0);
+}
+s32 G64PuzzleInfo(s32 k, s32 *timesLeft, s32 *active, s32 *count) {
+    Puzzle *pz;
+    s32 i = 0;
+    for (pz = puzzleList.head.prev; pz != &puzzleList.head; pz = pz->prev, i++) {
+        if (i == k) {
+            *timesLeft = pz->conds.timesLeft;
+            *active = pz->actions.active;
+            *count = pz->conds.count;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+s32 G64PuzzleCondition(s32 k, s32 j, s32 *type, s32 *tag, s32 *value) {
+    Puzzle *pz;
+    PuzzleCond *c;
+    s32 i = 0;
+    for (pz = puzzleList.head.prev; pz != &puzzleList.head; pz = pz->prev, i++) {
+        if (i != k)
+            continue;
+        i = 0;
+        for (c = pz->conds.head.next; c != &pz->conds.head; c = c->next, i++) {
+            if (i == j) {
+                *type = c->type;
+                *tag = c->tag;
+                *value = c->value;
+                return 1;
+            }
+        }
+        return 0;
+    }
+    return 0;
+}
+
+void G64PlaceBall(s32 player, f32 x, f32 y, f32 z) {
+    s32 i = slot_of(player);
+    Actor *b;
+    if (i < 0 || !slot_used(i))
+        return;
+    b = slot_ball(i);
+    b->pos.x = x;
+    b->pos.y = y;
+    b->pos.z = z;
+    ZERO_VECTOR(&b->vel);
+}
+s32 G64PuzzleInSlot(void) {
+    return logicSlot != 0;
+}
+
+void G64PuzzleCameraState(s32 i) {
+    G64Slot *s;
+    s32 size;
+    if (i < 1 || !slot_used(i))
+        return;
+    s = slots[i];
+    if (!s->puzzleState) {
+        size = PuzzleCameraStateSize();
+        if (size <= 0)
+            return;
+        s->puzzleState = (u8 *)JallocAlloc(size, 0, "G64Zones");
+        /* A player's zones start as the level's are now. */
+        PuzzleSwapCameraState((u8 *)s->puzzleState, 1);
+    }
+    PuzzleSwapCameraState((u8 *)s->puzzleState, 0);
+}
+s32 G64PuzzleZone(s32 k, f32 *box) {
+    Puzzle *pz;
+    PuzzleCond *c;
+    PuzzleAction *a;
+    s32 i = 0;
+    for (pz = puzzleList.head.prev; pz != &puzzleList.head; pz = pz->prev, i++) {
+        if (i != k)
+            continue;
+        c = pz->conds.head.next;
+        if (pz->conds.count != 1 || c->type != CONDITION_HAND_IN_BOX || !c->cam || pz->actions.count == 0)
+            return 0;
+        for (a = pz->actions.head.next; a != &pz->actions.head; a = a->next)
+            if (!IsCameraZoneAction(a->type))
+                return 0;
+        box[0] = c->cam->pos.x;
+        box[1] = c->cam->pos.y;
+        box[2] = c->cam->pos.z;
+        box[3] = c->cam->size.x;
+        box[4] = c->cam->size.y;
+        box[5] = c->cam->size.z;
+        return 1;
+    }
+    return 0;
 }
 PORT_C_END

@@ -25,6 +25,7 @@ PORT_C_BEGIN
 #include "enemy.h"
 #include "spell.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern f32 gravity;
 extern Debris debris[120];
@@ -499,14 +500,15 @@ void MovePlatform(Platform *platform, Vec3 *nextPoint) {
                 AddToOneScaledVector(&platform->actor.pos, &platform->actor.vel, -carry);
             }
             if (platform->path->moving >= -9 && platform->path->moving <= -4) {
-                if (ball.obj->platform == platform) {
+                /* g64coopdx: any player's ball holds the platform (g64players.c). */
+                if (ball.obj->platform == platform || G64AnyBallOn(platform)) {
                     platform->path->moving = -4;
                 } else if (--platform->path->moving == -10) {
                     platform->path->moving = 1;
                 }
             }
             if (platform->path->moving >= -15 && platform->path->moving <= -10) {
-                if (hand.obj->platform == platform) {
+                if (hand.obj->platform == platform || G64AnyGloveOn(platform)) {
                     platform->path->moving = -10;
                 } else if (--platform->path->moving == -16) {
                     platform->path->moving = 1;
@@ -1017,10 +1019,11 @@ void RotatePlatform(Platform *platform) {
         return;
     }
     lastVel = 0.0f;
+    /* g64coopdx: the nearest player's ball or glove (g64players.c). */
     if (platform->flags & 0x800) {
-        actor = &ball;
+        actor = G64NearestBall(&platform->actor.pos);
     } else if (platform->flags & 0x400) {
-        actor = &hand;
+        actor = G64NearestGlove(&platform->actor.pos);
     }
     if (actor != NULL) {
         platform->motion->targetRot[1] =

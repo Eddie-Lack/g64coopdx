@@ -25,6 +25,7 @@ PORT_C_BEGIN
 #include "enemy.h"
 #include "delta.h"
 #include "porthooks.h"
+#include "g64players.h"
 
 extern s8 disableZoom;
 
@@ -159,7 +160,8 @@ static s32 PuzzleWholeFrame(void) {
 /* TRUE when the actor came onto, or began to touch, platform in this original frame. prev and cur are the game's
    fields; edges holds the records. */
 static s32 JustArrived(PlatformEdges *edges, Platform *prev, Platform *cur, Platform *platform) {
-    if (PuzzleWholeFrame() || edges == NULL) {
+    /* g64coopdx: the records are the first player's; another player swapped in uses the fields. */
+    if (PuzzleWholeFrame() || edges == NULL || G64PuzzleInSlot()) {
         return cur == platform && prev != platform;
     }
     return HasEdgePlatform(edges->entered, platform);
@@ -167,7 +169,7 @@ static s32 JustArrived(PlatformEdges *edges, Platform *prev, Platform *cur, Plat
 
 /* TRUE when the actor left, or stopped touching, platform in this original frame. */
 static s32 JustLeft(PlatformEdges *edges, Platform *prev, Platform *cur, Platform *platform) {
-    if (PuzzleWholeFrame() || edges == NULL) {
+    if (PuzzleWholeFrame() || edges == NULL || G64PuzzleInSlot()) {
         return prev == platform && cur != platform;
     }
     return HasEdgePlatform(edges->left, platform);
@@ -324,8 +326,89 @@ void AddPuzzle(Puzzle *puzzle) {
     }
 }
 
+/* g64coopdx: 1 while a camera zone is tested for the player in the globals alone (PuzzleEvaluateCondition). */
+static s32 conditionsHereOnly;
+
+/* 1 for an action that only sets the player's camera (ACTION_CAM_HEIGHT to ACTION_CAM_CIRCLE). IsCameraAction also
+   counts the sound, backdrop and fog actions, which change the world. */
+s32 IsCameraZoneAction(s16 type) {
+    return type >= ACTION_CAM_HEIGHT && type <= ACTION_CAM_CIRCLE;
+}
+
+/* 1 for a camera zone: a puzzle whose every action only sets the camera. Each player has their own (CheckPuzzles). */
+static s32 IsCameraPuzzle(Puzzle *puzzle) {
+    PuzzleAction *action;
+
+    if (puzzle->actions.count == 0) {
+        return FALSE;
+    }
+    for (action = puzzle->actions.head.next; action != &puzzle->actions.head; action = action->next) {
+        if (!IsCameraZoneAction(action->type)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+static void RunPuzzle(Puzzle *puzzle) {
+    if (puzzle->conds.timesLeft && PuzzleEvaluateConditionList(&puzzle->conds)) {
+        puzzle->conds.timesLeft--;
+        PuzzleStartActionList(&puzzle->actions);
+    }
+    if (puzzle->actions.active) {
+        PuzzleCheckActionList(&puzzle->actions);
+    }
+}
+
+s32 PuzzleCameraStateSize(void) {
+    Puzzle *puzzle;
+    s32 size = 0;
+
+    for (puzzle = puzzleList.head.prev; puzzle != &puzzleList.head; puzzle = puzzle->prev) {
+        if (IsCameraPuzzle(puzzle)) {
+            size += sizeof(s16) + sizeof(s32) + puzzle->actions.count * sizeof(s16);
+        }
+    }
+    return size;
+}
+
+/* Exchanges the camera zones' state (the count, whether the actions run, each action's timer) with buf. copy: only
+   copy it into buf. */
+static void ExchangeBytes(u8 *a, u8 *b, s32 n, s32 copy) {
+    s32 i;
+
+    for (i = 0; i < n; i++) {
+        u8 t = a[i];
+        if (!copy) {
+            a[i] = b[i];
+        }
+        b[i] = t;
+    }
+}
+
+void PuzzleSwapCameraState(u8 *buf, s32 copy) {
+    Puzzle *puzzle;
+    PuzzleAction *action;
+
+    for (puzzle = puzzleList.head.prev; puzzle != &puzzleList.head; puzzle = puzzle->prev) {
+        if (!IsCameraPuzzle(puzzle)) {
+            continue;
+        }
+        ExchangeBytes((u8 *)&puzzle->conds.timesLeft, buf, sizeof(s16), copy);
+        buf += sizeof(s16);
+        ExchangeBytes((u8 *)&puzzle->actions.active, buf, sizeof(s32), copy);
+        buf += sizeof(s32);
+        for (action = puzzle->actions.head.next; action != &puzzle->actions.head; action = action->next) {
+            ExchangeBytes((u8 *)&action->timer, buf, sizeof(s16), copy);
+            buf += sizeof(s16);
+        }
+    }
+}
+
 void CheckPuzzles(void) {
     Puzzle *puzzle;
+    s32 i;
+    s32 n;
 
     RecordPuzzleEdges();
     /* The puzzles run once per original frame, in ticks: the conditions, the action timers and the actions.
@@ -335,14 +418,28 @@ void CheckPuzzles(void) {
         return;
     }
     disableZoom = FALSE;
+    n = G64PuzzleSlots();
     for (puzzle = puzzleList.head.prev; puzzle != &puzzleList.head; puzzle = puzzle->prev) {
-        if (puzzle->conds.timesLeft && PuzzleEvaluateConditionList(&puzzle->conds)) {
-            puzzle->conds.timesLeft--;
-            PuzzleStartActionList(&puzzle->actions);
+        /* g64coopdx: a camera zone moves the camera in the globals, so it looks at that player alone. */
+        conditionsHereOnly = n > 1 && IsCameraPuzzle(puzzle);
+        RunPuzzle(puzzle);
+        conditionsHereOnly = FALSE;
+    }
+    /* g64coopdx: each other player's camera zones, with that player and their zones' state swapped in. */
+    for (i = 1; i < n; i++) {
+        if (!G64PuzzleSlotBegin(i)) {
+            continue;
         }
-        if (puzzle->actions.active) {
-            PuzzleCheckActionList(&puzzle->actions);
+        G64PuzzleCameraState(i);
+        disableZoom = FALSE;
+        cameraInfo.unk1A0 = 1;
+        for (puzzle = puzzleList.head.prev; puzzle != &puzzleList.head; puzzle = puzzle->prev) {
+            if (IsCameraPuzzle(puzzle)) {
+                RunPuzzle(puzzle);
+            }
         }
+        G64PuzzleCameraState(i);
+        G64PuzzleSlotEnd(i);
     }
     ClearPuzzleEdges();
 }
@@ -854,7 +951,107 @@ s32 PuzzleEvaluateConditionList(PuzzleCondList *conditionList) {
     return FALSE;
 }
 
+/* g64coopdx: a condition on the player (their glove, ball or power-ups), for the player in the globals. */
+static s32 EvaluateConditionHere(PuzzleCond *condition);
+
+/* 1 for a condition that tests the player in the globals; it then holds for every player in the game. */
+static s32 IsPlayerCondition(s32 type) {
+    switch (type) {
+        case CONDITION_PICKUP_ON:
+        case CONDITION_HAND_ON:
+        case CONDITION_HAND_JUST_ON:
+        case CONDITION_BALL_ON:
+        case CONDITION_BALL_JUST_ON:
+        case CONDITION_HAND_TOUCHING:
+        case CONDITION_HAND_JUST_TOUCHED:
+        case CONDITION_BALL_TOUCHING:
+        case CONDITION_BALL_JUST_TOUCHED:
+        case CONDITION_HAND_IN_BOX:
+        case CONDITION_HAND_IN_RANGE:
+        case CONDITION_HAND_IN_CYLINDER:
+        case CONDITION_BALL_IN_BOX:
+        case CONDITION_BALL_IN_RANGE:
+            return TRUE;
+    }
+    return FALSE;
+}
+
+/* A condition for each player in the game (g64players.c), with that player in the globals: 1 when any of them gives
+   1. */
+static s32 AnyPlayer(PuzzleCond *condition) {
+    s32 i;
+    s32 n = G64PuzzleSlots();
+
+    for (i = 0; i < n; i++) {
+        if (G64PuzzleSlotBegin(i)) {
+            s32 met = EvaluateConditionHere(condition);
+            G64PuzzleSlotEnd(i);
+            if (met) {
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+/* The same, but 1 only when every player gives 1. */
+static s32 EveryPlayer(PuzzleCond *condition) {
+    s32 i;
+    s32 n = G64PuzzleSlots();
+
+    for (i = 0; i < n; i++) {
+        if (G64PuzzleSlotBegin(i)) {
+            s32 met = EvaluateConditionHere(condition);
+            G64PuzzleSlotEnd(i);
+            if (!met) {
+                return FALSE;
+            }
+        }
+    }
+    return TRUE;
+}
+
+/* g64coopdx: with more than one player, a condition on the player combines every player's answer. "On", "touching",
+   "in", "has" and "just arrived" hold when they hold for any player. "Not on", "not touching" and "has not" hold
+   when they hold for every player. "Just left" holds when some player just left and no player is still on. A camera
+   zone's conditions, and camera conditions, keep the player in the globals: their actions move that player's
+   camera, and each player runs their own zones (CheckPuzzles). */
 s32 PuzzleEvaluateCondition(PuzzleCond *condition) {
+    PuzzleCond still;
+
+    if (conditionsHereOnly || G64PuzzleSlots() < 2 || !IsPlayerCondition(condition->type)) {
+        return EvaluateConditionHere(condition);
+    }
+    if (condition->value) {
+        return AnyPlayer(condition);
+    }
+    switch (condition->type) {
+        case CONDITION_HAND_JUST_ON:
+        case CONDITION_BALL_JUST_ON:
+        case CONDITION_HAND_JUST_TOUCHED:
+        case CONDITION_BALL_JUST_TOUCHED:
+            if (!AnyPlayer(condition)) {
+                return FALSE;
+            }
+            still = *condition;
+            still.type = condition->type == CONDITION_HAND_JUST_ON      ? CONDITION_HAND_ON
+                         : condition->type == CONDITION_BALL_JUST_ON    ? CONDITION_BALL_ON
+                         : condition->type == CONDITION_HAND_JUST_TOUCHED ? CONDITION_HAND_TOUCHING
+                                                                          : CONDITION_BALL_TOUCHING;
+            still.value = 0;
+            return EveryPlayer(&still);
+        case CONDITION_HAND_IN_BOX:
+        case CONDITION_HAND_IN_RANGE:
+        case CONDITION_HAND_IN_CYLINDER:
+        case CONDITION_BALL_IN_BOX:
+        case CONDITION_BALL_IN_RANGE:
+            /* These ignore the value. */
+            return AnyPlayer(condition);
+    }
+    return EveryPlayer(condition);
+}
+
+static s32 EvaluateConditionHere(PuzzleCond *condition) {
     Collectable *collectable;
     GaribGroup *gGroup;
     Garib *garib;
