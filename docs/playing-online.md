@@ -138,7 +138,7 @@ game data, only addresses and counts.
 ## What does not work yet
 
 - Collectables and bosses react only to the first player in each level.
-- Any player's glove or ball works a puzzle's switch or zone. A camera zone moves only the first player's camera.
+- Any player's glove or ball works a puzzle's switch or zone. Each player has their own camera zones.
 - A checkpoint counts only for the first player.
 - An enemy goes for the nearest player, or the one it holds. A bullet that homes in on a glove keeps to that player.
   A bullet that flies straight can only hit the player nearest to it.

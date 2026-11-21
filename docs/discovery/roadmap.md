@@ -124,7 +124,8 @@ harness at N players and by the determinism tests:
    Done in part: a puzzle's condition on the player is tested for each player, and "on" or "in" holds for any player
    (weemitt/src/game/puzzle.c, PuzzleEvaluateCondition; tests/rom/puzzles.c). Platforms that wait for a ball or a
    glove, or face one, look at every player. Vents need no change: they fire on timers, and their bullets look for
-   players. Left: camera zones (their actions move the camera in the globals), and checkpoints (item 4).
+   players. A camera zone (a puzzle whose actions only move the camera) is each player's own: each player runs it
+   with their own copy of its state. Left: checkpoints (item 4).
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.

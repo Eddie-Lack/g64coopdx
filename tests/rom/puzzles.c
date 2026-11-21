@@ -5,10 +5,14 @@
  *   - when player 0 alone is put there;
  *   - when player 1 is put there and player 0 stays at the start;
  *   - not when nobody is put there.
+ * A camera zone (a puzzle with one "glove in a box" condition and camera actions only) is each player's own. Player 1
+ * stands in the zone for 100 frames, then outside it. Their camera ends where player 0's does alone, and player 0's
+ * camera does not move.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
  * Usage: puzzles ROM. Without a ROM file it prints that it was skipped and exits with 0. */
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +34,8 @@ void G64PlaceBall(int p, float x, float y, float z);
 int G64PlatformPosition(int tag, float *x, float *y, float *z);
 int G64PuzzleInfo(int k, int *timesLeft, int *active, int *count);
 int G64PuzzleCondition(int k, int j, int *type, int *tag, int *value);
+int G64PuzzleZone(int k, float *box);
+int G64SoundListener(int player, float *pos, float *yaw, int *maxDist);
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
@@ -82,12 +88,10 @@ static int run(int k, int tag, int who, int ball, unsigned present) {
     return -1;
 }
 
-static void puzzle_case(int level, int k, int wantType) {
+/* A level from the power-on state with players 0 and 1, run to READY and saved. */
+static void start(int level) {
     G64Save s;
     unsigned f;
-    int tl, active, count, type, tag, value, alone, nobody, second;
-    float x, y, z;
-    char what[240];
     engine_load(engine, boot);
     g64Online = 1;
     G64StartPlayers(0x3);
@@ -98,6 +102,55 @@ static void puzzle_case(int level, int k, int wantType) {
     for (f = 0; f < READY; f++)
         frame(f, 0x3);
     engine_save(engine, ready);
+}
+
+static float dist(const float *a, const float *b) {
+    float x = a[0] - b[0], y = a[1] - b[1], z = a[2] - b[2];
+    return sqrtf(x * x + y * y + z * z);
+}
+
+/* 100 frames from the READY state with who's glove held at q; mine gets who's camera, first player 0's. */
+static void zone_run(int who, const float *q, unsigned present, float *mine, float *first) {
+    float yaw;
+    int far, g;
+    engine_load(engine, ready);
+    for (g = 0; g < 100; g++) {
+        frame(READY + (unsigned)g, present);
+        G64PlacePlayer(who, q[0], q[1], q[2]);
+    }
+    G64SoundListener(who, mine, &yaw, &far);
+    G64SoundListener(0, first, &yaw, &far);
+}
+
+static void zone_case(int level, int k) {
+    float b[6], in[3], out[3], alone[3], unused[3], p1in[3], p0in[3], p1out[3], p0out[3];
+    char what[240];
+    start(level);
+    if (!G64PuzzleZone(k, b)) {
+        snprintf(what, sizeof what, "level %d has no camera zone %d", level, k);
+        check(0, what);
+        return;
+    }
+    in[0] = b[0] + b[3] / 2;
+    in[1] = b[1] + b[4] / 2;
+    in[2] = b[2] + b[5] / 2;
+    out[0] = b[0] + b[3] + 60.0f;
+    out[1] = in[1];
+    out[2] = in[2];
+    zone_run(0, in, 0x1, alone, unused);
+    zone_run(1, in, 0x3, p1in, p0in);
+    zone_run(1, out, 0x3, p1out, p0out);
+    snprintf(what, sizeof what, "level %d, camera zone %d: player 1's camera ends %.1f from player 0's alone in it; "
+             "player 0's camera moves %.1f when player 1 goes in", level, k, dist(p1in, alone), dist(p0in, p0out));
+    check(dist(p1in, alone) < 2.0f && dist(p0in, p0out) < 1.0f, what);
+    printf("hash %08x\n", port_hash_ram());
+}
+
+static void puzzle_case(int level, int k, int wantType) {
+    int tl, active, count, type, tag, value, alone, nobody, second;
+    float x, y, z;
+    char what[240];
+    start(level);
     if (!G64PuzzleInfo(k, &tl, &active, &count) || !G64PuzzleCondition(k, 0, &type, &tag, &value) ||
         !G64PlatformPosition(tag, &x, &y, &z)) {
         snprintf(what, sizeof what, "level %d has no puzzle %d with a platform", level, k);
@@ -138,7 +191,11 @@ int main(int argc, char **argv) {
     puzzle_case(16, 16, HAND_JUST_ON);
     puzzle_case(27, 12, BALL_JUST_ON);
     puzzle_case(36, 5, HAND_JUST_ON);
-    printf("%s any player's glove or ball works a puzzle\n", failed ? "FAIL" : "ok  ");
+    zone_case(15, 0);
+    zone_case(20, 3);
+    zone_case(27, 5);
+    zone_case(39, 2);
+    printf("%s any player's glove or ball works a puzzle, and each player has their own camera zones\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);
     engine_free(engine);

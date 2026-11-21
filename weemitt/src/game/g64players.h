@@ -183,5 +183,17 @@ struct Actor *G64NearestGlove(const Vec3 *p);
 s32 G64PuzzleInfo(s32 k, s32 *timesLeft, s32 *active, s32 *count);
 s32 G64PuzzleCondition(s32 k, s32 j, s32 *type, s32 *tag, s32 *value);
 void G64PlaceBall(s32 player, f32 x, f32 y, f32 z);
+/* For tests: when puzzle k is a camera zone (one "glove in a box" condition, camera actions only), its box: the
+   corner (x, y, z) and the size (x, y, z). 0 otherwise. */
+s32 G64PuzzleZone(s32 k, f32 *box);
+
+/* Camera zones (puzzle.c, CheckPuzzles): G64PuzzleInSlot is 1 while another player is swapped in for the logic.
+   G64PuzzleCameraState exchanges slot i's camera zones' state with the puzzles' (twice restores).
+   PuzzleCameraStateSize and PuzzleSwapCameraState are puzzle.c's: the bytes of that state, and the exchange with a
+   buffer (copy: only copy into it). */
+s32 G64PuzzleInSlot(void);
+void G64PuzzleCameraState(s32 i);
+s32 PuzzleCameraStateSize(void);
+void PuzzleSwapCameraState(u8 *buf, s32 copy);
 
 #endif
