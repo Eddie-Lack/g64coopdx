@@ -364,8 +364,9 @@ static void case_g(void) {
     char what[300];
     unsigned f;
     start(40);
-    /* The level's opening lasts longer than READY. */
-    for (f = READY; f < 1500; f++)
+    /* The level's opening lasts longer than READY. The case starts soon after it, before the boss's shots have
+       worn the players down. */
+    for (f = READY; f < 700; f++)
         frame(f, 0x3);
     engine_save(engine, ready);
     check(G64PlayerPosition(1, &x, &y, &z), "G: the second player is in the last space boss's level");

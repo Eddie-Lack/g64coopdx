@@ -1389,6 +1389,15 @@ static s32 choose_target(Actor *a, s32 preferred) {
                 return i;
     if (preferred >= 0)
         return preferred;
+    /* In the last space boss's level every glove is held at one place (boss.c), and the nearest would always be the
+       first player. The boss takes the living players in turn, 64 frames each. */
+    if (gameInfo.level == SPACEBOSS3) {
+        for (alive = 0; alive < slotCount; alive++) {
+            i = (frameCount / 64 + alive) % slotCount;
+            if (slot_used(i) && !slot_hand_control(i)->deathTimer)
+                return i;
+        }
+    }
     for (alive = 1; alive >= 0 && best < 0; alive--) {
         for (i = 0; i < slotCount; i++) {
             f32 d;
