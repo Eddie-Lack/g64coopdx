@@ -8,6 +8,7 @@ PORT_C_BEGIN
 #include "ball.h"
 #include "enemy.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s32 SPIKE_RADIUS;
 
@@ -20,6 +21,8 @@ void UpdateSpikes(void) {
     Spike *spike;
     Actor *actPtr;
     Vec3 spikePos;
+    s32 i;
+    s32 n;
 
     if (!deltaTick) {
         return;
@@ -38,6 +41,24 @@ void UpdateSpikes(void) {
                 }
             } else if (actPtr->type == BUGLE && DistanceBetweenPoints(&actPtr->pos, &spikePos) < actPtr->obj->spheres[0].radius + 4.0 + SPIKE_RADIUS) {
                 KillEnemy(&enemies[actPtr->state->index]);
+            }
+        }
+        /* g64coopdx: the other players' gloves and balls, tested where they are; a hit swaps that player into the
+           globals (g64players.c). */
+        n = G64SlotCount();
+        for (i = 1; i < n; i++) {
+            Actor *h = G64SlotGlove(i);
+            Actor *b = G64SlotBall(i);
+            if (h != NULL && (LENGTH_2D(&h->vel) > 1.6 || !h->obj->onGround)
+                && DistanceBetweenPoints(&h->pos, &spikePos) < h->obj->spheres[0].radius + 1.0 + SPIKE_RADIUS
+                && G64HazardBegin(i)) {
+                HurtHand(HURT_GO_BACKWARDS, 1);
+                G64HazardEnd(i);
+            }
+            if (b != NULL && !G64SlotBallBursting(i) && DistanceBetweenPoints(&b->pos, &spikePos) < b->radius + 1.0 + SPIKE_RADIUS
+                && G64HazardBegin(i)) {
+                BurstBall();
+                G64HazardEnd(i);
             }
         }
     }

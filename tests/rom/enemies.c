@@ -253,7 +253,7 @@ int main(int argc, char **argv) {
     engine_save(engine, boot);
     case_a(3, 5);
     case_a(3, 10);
-    case_a(10, 1);
+    case_a(4, 2);
     case_b();
     case_c();
     case_d();

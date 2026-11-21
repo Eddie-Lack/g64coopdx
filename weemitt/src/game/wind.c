@@ -8,6 +8,7 @@ PORT_C_BEGIN
 #include "debris.h"
 #include "platform.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s32 frameCount;
 
@@ -27,19 +28,49 @@ void AddWind(Wind *wind) {
     }
 }
 
-void UpdateFan(Platform *platform) {
+/* A fan's push on one actor (UpdateFan). */
+static void FanPushActor(Platform *platform, Fan *fan, Actor *actor) {
     Vec3 force;
     Vec3 angsep;
     Vec3 dir;
-    Fan *fan;
-    Actor *actor;
-    f32 ang2;
     f32 dot;
     f32 cosang;
     f32 distSq;
     f32 dist;
     f32 val;
     f32 mass;
+
+    SUB_VECTORS(&angsep, &actor->pos, &platform->actor.pos);
+    dot = DOT_PRODUCT(&angsep, &fan->dir);
+    if (!(dot <= 0.0f)) {
+        AddOneScaledVector(&dir, &angsep, &fan->dir, fan->length);
+        MakeUnit(&dir);
+        cosang = DOT_PRODUCT(&dir, &fan->dir);
+        if (fan->spread < cosang) {
+            distSq = DOT_PRODUCT(&angsep, &angsep);
+            dist = sqrtf(distSq);
+            dot /= dist;
+            if (!(dot <= 0.1) && !(distSq < actor->radius * actor->radius)) {
+                val = fan->strength * (cosang - fan->spread) / (distSq * dot * dot * (1.0f - fan->spread));
+                mass = actor->phys->mass > 0.1 ? actor->phys->mass : 0.1f;
+                val *= 10.0f / mass;
+                if (ABS(val * (fan->blend + 1.0f)) > 0.01) {
+                    AddScaledVector(&force, &fan->dir, 1.0f - fan->blend, &angsep, fan->blend / dist);
+                    /* The fan's push is an acceleration per original frame. */
+                    AddOneScaledVector(&actor->vel, &actor->vel, &force, val * deltaTime);
+                    actor->vel.y = actor->vel.y > 15.0 ? 15.0f : actor->vel.y;
+                    actor->flags |= 0x1000;
+                }
+            }
+        }
+    }
+}
+
+void UpdateFan(Platform *platform) {
+    Fan *fan;
+    Actor *actor;
+    f32 ang2;
+    s32 i;
 
     if (platform->fan == NULL) {
         return;
@@ -59,29 +90,63 @@ void UpdateFan(Platform *platform) {
     }
     for (actor = actorList.head.next; actor != &actorList.head; actor = actor->next) {
         if ((fan->strength > 0.0f && (actor->flags & 0x800)) || (fan->strength < 0.0f && (actor->flags & 0x400))) {
-            SUB_VECTORS(&angsep, &actor->pos, &platform->actor.pos);
-            dot = DOT_PRODUCT(&angsep, &fan->dir);
-            if (!(dot <= 0.0f)) {
-                AddOneScaledVector(&dir, &angsep, &fan->dir, fan->length);
-                MakeUnit(&dir);
-                cosang = DOT_PRODUCT(&dir, &fan->dir);
-                if (fan->spread < cosang) {
-                    distSq = DOT_PRODUCT(&angsep, &angsep);
-                    dist = sqrtf(distSq);
-                    dot /= dist;
-                    if (!(dot <= 0.1) && !(distSq < actor->radius * actor->radius)) {
-                        val = fan->strength * (cosang - fan->spread) / (distSq * dot * dot * (1.0f - fan->spread));
-                        mass = actor->phys->mass > 0.1 ? actor->phys->mass : 0.1f;
-                        val *= 10.0f / mass;
-                        if (ABS(val * (fan->blend + 1.0f)) > 0.01) {
-                            AddScaledVector(&force, &fan->dir, 1.0f - fan->blend, &angsep, fan->blend / dist);
-                            /* The fan's push is an acceleration per original frame. */
-                            AddOneScaledVector(&actor->vel, &actor->vel, &force, val * deltaTime);
-                            actor->vel.y = actor->vel.y > 15.0 ? 15.0f : actor->vel.y;
-                            actor->flags |= 0x1000;
-                        }
-                    }
-                }
+            FanPushActor(platform, fan, actor);
+        }
+    }
+    /* g64coopdx: the other players' gloves and balls, which are not in the actor list (g64players.c). */
+    for (i = 1; i < G64SlotCount(); i++) {
+        if ((actor = G64SlotGlove(i)) != NULL && fan->strength > 0.0f && (actor->flags & 0x800)) {
+            FanPushActor(platform, fan, actor);
+        }
+        if ((actor = G64SlotBall(i)) != NULL && fan->strength > 0.0f && (actor->flags & 0x800)) {
+            FanPushActor(platform, fan, actor);
+        }
+    }
+}
+
+/* A wind's push on one actor (UpdateWinds). */
+static void WindPushActor(Wind *wind, Actor *actPtr) {
+    s8 side[3];
+    f32 dist[3];
+    s32 i;
+    s32 num;
+    f32 vel;
+    f32 mass;
+
+    num = 3;
+    mass = actPtr->phys->mass > 0.1 ? actPtr->phys->mass : 0.1f;
+    for (i = 0; i < 3; i++) {
+        if ((&actPtr->pos.x)[i] < wind->pos[i]) {
+            side[i] = -1;
+            num--;
+        } else if (wind->pos[i] + wind->size[i] < (&actPtr->pos.x)[i]) {
+            side[i] = 1;
+            num--;
+        } else {
+            side[i] = 0;
+        }
+    }
+    /* The wind's push is an acceleration per original frame. */
+    if (num == 3) {
+        AddOneScaledVector(&actPtr->vel, &actPtr->vel, (Vec3 *)wind->dir,
+                           wind->strength * 10.0f / mass * deltaTime);
+        actPtr->flags |= 0x1000;
+    } else if (num != 0) {
+        for (i = 0; i < 3; i++) {
+            if (side[i] == 1) {
+                dist[i] = (&actPtr->pos.x)[i] - wind->pos[i] - wind->size[i];
+            } else if (side[i] == -1) {
+                dist[i] = wind->pos[i] - (&actPtr->pos.x)[i];
+            } else {
+                dist[i] = 0.0f;
+            }
+        }
+        vel = sqrtf(dist[0] * dist[0] + dist[1] * dist[1] + dist[2] * dist[2]);
+        if (vel < wind->radius) {
+            vel = wind->strength * (wind->radius - vel) * 10.0f / (wind->radius * mass);
+            if (vel > 0.01) {
+                AddOneScaledVector(&actPtr->vel, &actPtr->vel, (Vec3 *)wind->dir, vel * deltaTime);
+                actPtr->flags |= 0x1000;
             }
         }
     }
@@ -90,16 +155,11 @@ void UpdateFan(Platform *platform) {
 void UpdateWinds(void) {
     Wind *wind;
     Actor *actor;
-    Actor *actPtr;
-    s8 side[3];
-    f32 dist[3];
     f32 pos[3];
     s32 i;
     s32 x;
     s32 lifetime;
-    s32 num;
     f32 vel;
-    f32 mass;
     Debris *debris;
 
     for (wind = windList.head.next; wind != &windList.head; wind = wind->next) {
@@ -139,43 +199,15 @@ void UpdateWinds(void) {
             if (!(actor->flags & 0x800)) {
                 continue;
             }
-            actPtr = actor;
-            num = 3;
-            mass = actPtr->phys->mass > 0.1 ? actPtr->phys->mass : 0.1f;
-            for (i = 0; i < 3; i++) {
-                if ((&actPtr->pos.x)[i] < wind->pos[i]) {
-                    side[i] = -1;
-                    num--;
-                } else if (wind->pos[i] + wind->size[i] < (&actPtr->pos.x)[i]) {
-                    side[i] = 1;
-                    num--;
-                } else {
-                    side[i] = 0;
-                }
+            WindPushActor(wind, actor);
+        }
+        /* g64coopdx: the other players' gloves and balls, which are not in the actor list (g64players.c). */
+        for (i = 1; i < G64SlotCount(); i++) {
+            if ((actor = G64SlotGlove(i)) != NULL && (actor->flags & 0x800)) {
+                WindPushActor(wind, actor);
             }
-            /* The wind's push is an acceleration per original frame. */
-            if (num == 3) {
-                AddOneScaledVector(&actPtr->vel, &actPtr->vel, (Vec3 *)wind->dir,
-                                   wind->strength * 10.0f / mass * deltaTime);
-                actPtr->flags |= 0x1000;
-            } else if (num != 0) {
-                for (i = 0; i < 3; i++) {
-                    if (side[i] == 1) {
-                        dist[i] = (&actPtr->pos.x)[i] - wind->pos[i] - wind->size[i];
-                    } else if (side[i] == -1) {
-                        dist[i] = wind->pos[i] - (&actPtr->pos.x)[i];
-                    } else {
-                        dist[i] = 0.0f;
-                    }
-                }
-                vel = sqrtf(dist[0] * dist[0] + dist[1] * dist[1] + dist[2] * dist[2]);
-                if (vel < wind->radius) {
-                    vel = wind->strength * (wind->radius - vel) * 10.0f / (wind->radius * mass);
-                    if (vel > 0.01) {
-                        AddOneScaledVector(&actPtr->vel, &actPtr->vel, (Vec3 *)wind->dir, vel * deltaTime);
-                        actPtr->flags |= 0x1000;
-                    }
-                }
+            if ((actor = G64SlotBall(i)) != NULL && (actor->flags & 0x800)) {
+                WindPushActor(wind, actor);
             }
         }
     }
