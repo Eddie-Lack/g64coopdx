@@ -188,6 +188,10 @@ static PTR32(Actor) proxyOrbiter[G64_MAX_PLAYERS][G64_ORBITERS];
 static s32 orbitersUnlinked;
 /* The slot swapped into the globals for a view (G64SwapPlayer), or 0. */
 static s32 swapped;
+/* The pick-ups taken and not yet scored: the pick-up and the number, plus 1, of the player who took it. */
+#define G64_TAKEN 16
+static PTR32(Collectable) takenPickup[G64_TAKEN];
+static s32 takenBy[G64_TAKEN];
 static void sync_orbiters(void);
 static void free_orbiter_proxies(void);
 static Player *slot_player(s32 i);
@@ -453,6 +457,10 @@ static void free_slots(void) {
     s32 i;
     free_orbiter_proxies();
     orbitersUnlinked = 0;
+    for (i = 0; i < G64_TAKEN; i++) {
+        takenBy[i] = 0;
+        takenPickup[i] = NULL;
+    }
     for (i = 1; i < G64_MAX_PLAYERS; i++)
         free_slot(i, 1);
     slotCount = 0;
@@ -2108,9 +2116,49 @@ s32 G64PickupTaker(const Vec3 *pos, f32 radiusSq) {
     return -1;
 }
 
+void G64PickupTaken(const void *collectable) {
+    s32 n, spot = -1;
+    if (slotCount < 2)
+        return;
+    for (n = 0; n < G64_TAKEN; n++) {
+        if ((const void *)(Collectable *)takenPickup[n] == collectable) {
+            spot = n;
+            break;
+        }
+        if (spot < 0 && !takenBy[n])
+            spot = n;
+    }
+    if (spot < 0)
+        return;
+    takenPickup[spot] = (Collectable *)collectable;
+    takenBy[spot] = g64Member[logicSlot] + 1;
+}
+
+s32 G64PickupScorer(const void *collectable) {
+    s32 n, i;
+    for (n = 0; n < G64_TAKEN; n++) {
+        if (takenBy[n] && (const void *)(Collectable *)takenPickup[n] == collectable) {
+            i = slot_of(takenBy[n] - 1);
+            takenBy[n] = 0;
+            takenPickup[n] = NULL;
+            return i > 0 && !swapped && !logicSlot ? i : 0;
+        }
+    }
+    return 0;
+}
+
+s32 G64WorldOrbiterDone(void) {
+    return logicSlot && world_orbiter3();
+}
+
 s32 G64PlayerGaribs(s32 who) {
     s32 i = slot_of(who);
     return i < 0 || !slot_used(i) ? -1 : slot_player(i)->garibs;
+}
+
+s32 G64PlayerScore(s32 who) {
+    s32 i = slot_of(who);
+    return i < 0 || !slot_used(i) ? -1 : slot_player(i)->score;
 }
 
 s32 G64PlayerPowerup(s32 who, s32 type) {

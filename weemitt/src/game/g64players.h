@@ -257,6 +257,12 @@ s32 G64GaribGroupNear(const struct Vec3 *pos, f32 radius);
 s32 G64GaribTaker(const struct Vec3 *pos);
 void G64GaribGained(void);
 s32 G64PickupTaker(const struct Vec3 *pos, f32 radiusSq);
+/* G64PickupTaken notes that the player in the globals took this pick-up. G64PickupScorer gives the slot of the
+   player who took it, for its points ten frames later, and forgets the note; 0 for the first player or nobody. */
+void G64PickupTaken(const void *collectable);
+s32 G64PickupScorer(const void *collectable);
+/* 1 while a slot's player is in the globals for their part of the frame and handControl.orbiter3 is the world's. */
+s32 G64WorldOrbiterDone(void);
 /* 1 with more than one player: a power-up's orbiters then stay out of the actor list, and each player's are drawn
    as proxies (g64players.c). */
 s32 G64OrbitersByProxy(void);
@@ -264,6 +270,7 @@ s32 G64OrbitersByProxy(void);
    garibs left in the level and the place of the k-th of them, and the place and type of the k-th pick-up. */
 s32 G64PlayerGaribs(s32 player);
 s32 G64PlayerPowerup(s32 player, s32 type);
+s32 G64PlayerScore(s32 player);
 s32 G64GaribPlace(s32 k, f32 *x, f32 *y, f32 *z);
 s32 G64PickupPlace(s32 k, f32 *x, f32 *y, f32 *z);
 

@@ -389,7 +389,15 @@ void UpdatePickups(void) {
             collectable->actor.scale.z = collectable->actor.scale.y = collectable->actor.scale.x = scale;
             if (collectable->timer == 0) {
                 CreateStarCircle(&collectable->actor.pos, 6, 19);
+                /* g64coopdx: the points go to the player who took the pick-up. */
+                taker = G64PickupScorer(collectable);
+                if (taker && !G64HazardBegin(taker)) {
+                    taker = 0;
+                }
                 AddToScore(300);
+                if (taker) {
+                    G64HazardEnd(taker);
+                }
                 if (collectable->respawnTime == 0) {
                     SubCollectable(collectable);
                 } else {
@@ -460,6 +468,7 @@ void UpdatePickups(void) {
                 continue;
             }
             {
+                G64PickupTaken(collectable);
                 collectable->active = 0;
                 collectable->timer = 10;
                 collectable->actor.shadow->shadowTarget = 0;

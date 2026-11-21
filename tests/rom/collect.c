@@ -6,7 +6,7 @@
  *   B. Both players' gloves are put on one garib. It is counted once.
  *   C. The players take garibs in turn. Both counts equal the number of garibs that went.
  *   D. Player 1's glove is put on a pick-up. Player 1 gets the power-up for as long as player 0 gets it alone, player
- *      0 does not get it, and it runs out.
+ *      0 does not get it, and it runs out. The pick-up's points go to player 1.
  *   E. A power-up with orbiters, held by player 1 for 1,500 frames. The orbiters are actors inside the blocks that a
  *      swap exchanges, and the game once crashed on them.
  *   F. Player 0 takes a garib alone, and player 1 comes into the level afterwards. Player 1's count is the team's.
@@ -37,6 +37,7 @@ int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64PlacePlayer(int p, float x, float y, float z);
 int G64PlayerGaribs(int p);
 int G64PlayerPowerup(int p, int type);
+int G64PlayerScore(int p);
 int G64GaribPlace(int k, float *x, float *y, float *z);
 int G64PickupPlace(int k, float *x, float *y, float *z);
 void port_game_start_level(int level);
@@ -179,10 +180,14 @@ static void case_c(int level) {
 /* From the ready state, player `who` is put on pick-up k. Returns the frames for which they have its power-up, out
    of `frames`; *other counts the frames in which the other player has it. leave: the frame at which the glove is
    taken off the pick-up, which comes back after a time. */
+static int scoreGained[2];
+
 static int pickup(int k, int who, int frames, int leave, int *other, int *type) {
     float at[3];
     int f, held = 0;
     engine_load(engine, ready);
+    scoreGained[0] = -G64PlayerScore(0);
+    scoreGained[1] = -G64PlayerScore(1);
     *type = G64PickupPlace(k, &at[0], &at[1], &at[2]) - 100;
     *other = 0;
     frame(READY, 0x3);
@@ -194,20 +199,23 @@ static int pickup(int k, int who, int frames, int leave, int *other, int *type) 
         held += G64PlayerPowerup(who, *type) > 0;
         *other += G64PlayerPowerup(!who, *type) > 0;
     }
+    scoreGained[0] += G64PlayerScore(0);
+    scoreGained[1] += G64PlayerScore(1);
     return held;
 }
 
 static void case_d(int level, int k, int frames, int leave) {
     int alone, second, other0, other1, type, end;
-    char what[240];
+    char what[300];
     start(level);
     alone = pickup(k, 0, frames, leave, &other0, &type);
     second = pickup(k, 1, frames, leave, &other1, &type);
     end = G64PlayerPowerup(1, type);
     snprintf(what, sizeof what, "D: level %d, pick-up %d (type %d): player 0 alone has it for %d frames; player 1 has "
-             "it for %d frames, player 0 for %d then, and player 1 has %d left at the end", level, k, type, alone,
-             second, other1, end);
-    check(type >= 0 && alone > 100 && second == alone && other0 == 0 && other1 == 0 && end == 0, what);
+             "it for %d frames, player 0 for %d then, and player 1 has %d left at the end; points: %d and %d", level,
+             k, type, alone, second, other1, end, scoreGained[0], scoreGained[1]);
+    check(type >= 0 && alone > 100 && second == alone && other0 == 0 && other1 == 0 && end == 0 &&
+          scoreGained[0] == 0 && scoreGained[1] >= 300, what);
     printf("D: hash %08x\n", port_hash_ram());
 }
 

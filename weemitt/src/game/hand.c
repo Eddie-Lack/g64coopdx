@@ -3948,7 +3948,9 @@ void HandleSpellOrbiters(void) {
             AddSpellDebris(6, &handControl.orbiter2.pos, &tempVect, handControl.orbiter2.type - 1000);
         }
     }
-    if (handControl.orbiter3.inst) {
+    /* g64coopdx: an orbiter of the world's (the first space boss's rotor) turns in the first player's part of the
+       frame only (g64players.c). */
+    if (handControl.orbiter3.inst && !G64WorldOrbiterDone()) {
         actor = handControl.orbiter3.link;
         tempVect.x = 0.0f;
         if (actor == &hand) {
