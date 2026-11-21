@@ -92,7 +92,8 @@ same hashes on Linux and Windows (Wine), every frame.
   engine), full copies first.
 - Direct UDP with ENet; the host confirms inputs.
 - Game change 12, the sound split: the logical sound state apart from its output, so a rollback does not replay
-  sounds ([netcode.md](netcode.md#sound-and-rollback)).
+  sounds ([netcode.md](netcode.md#sound-and-rollback)). Done: the sound table, the reader and the real sound player
+  in a second copy of the library.
 - Desync checks, with game change 5 (a cheaper state hash): hashes of confirmed frames on a worker thread; on a
   mismatch, a rebuild from the level's start and a report.
 - Instances: one per occupied level; the host's reference copy of each in a worker process; entering a level that

@@ -278,11 +278,23 @@ done, or the hub's stage after a crystal goes in the fountain.
   sound player agreed in 49 runs here, but the logic reads some sound handles: a Samtex enemy keeps updating while its
   sound plays (`weemitt/docs/library.md`, "Sound"; `src/game/enemy.c:1302`). So the sound's logical state must be
   identical on every machine and in the savestate.
-- Plan (INFERRED): split the sound into its logical part (handles, which sound plays, its timers), run in every
-  frame and saved, and its output (the synthesizer and the samples), driven only by the frames the player sees.
-  Sounds started in a resimulated frame that the display already played are not started again. This is game change 12
-  ([weemitt.md](weemitt.md#changes-to-the-game-code)). UNKNOWN: how much of libmus's state the logic can see. Settle it by listing the logic's reads of sound
-  state.
+- What the logic sees of the sound player: the handles that start functions return (only zero or not zero matters),
+  four loops that wait for a song to start or stop, and the song number it keeps itself. The stand-in sound player
+  (`weemitt/src/port/audio_stub.c`) answers all of them the same on every machine and after every rollback, so the
+  online game keeps it.
+- Done (game change 12). The stand-in records what the game asks for in a sound table
+  (`weemitt/src/port/soundtable.h`), which savestates hold and a rollback restores, outside the hashed memory. The
+  game's sound wrappers record sounds with a place before the distance cut, with their position and volume, and
+  continuous sounds as sources by the address of their structure. A player's own update marks the sounds it makes as
+  theirs.
+- The reader (`src/client/sound.c`) compares the local game's table with what plays, once per window frame, and tells
+  the real sound player what to start, change and stop: each sound once, also when a rollback runs its frame again; a
+  sound that a wrong prediction started stops when the corrected frames no longer have it; a sound that a correction
+  adds at most 10 steps late still plays. It mixes sounds with a place for the local player's camera.
+- The real sound player runs in a second copy of weemitt's library, built with it and without a renderer
+  (`make lib64-sound`, `lib-windows64-sound`), which the online program loads as `g64coopdx-sound.so` or `.dll`
+  (`src/client/soundout.c`). Its game never runs; its memory is apart from the online game's. `make sound` checks the
+  reader against an offline run with rollbacks, on Linux and under Wine.
 
 ### Settings that change the logic
 

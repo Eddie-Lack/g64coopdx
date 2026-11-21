@@ -33,6 +33,8 @@ glover_place
 glover_set_option
 glover_set_respawn
 glover_set_view
+glover_sound
+glover_sound_advance
 glover_status
 glover_trace
 glover_update

@@ -63,6 +63,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make savestates    # the brute forcer's engine and savestates at 64 bits, for Linux and Windows
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
+    make sound         # the online game's sound through rollbacks, on Linux and under Wine (needs the ROM)
     make twoplayers    # four gloves in one game; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
@@ -93,4 +94,5 @@ run locally: set `GLOVER_ROM`.
 | The direct-mode session (hello, welcome, start, game messages) | src/session (`session.h`) |
 | The online mode of the window program | src/client (`netplay.h`), built into weemitt's studio (`make client`) |
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
+| The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
 | How players host and join | docs/playing-online.md |

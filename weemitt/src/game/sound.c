@@ -10,6 +10,7 @@ PORT_C_BEGIN
 #include "platform.h"
 #include "delta.h"
 #include "porthooks.h"
+#include "soundtable.h"
 
 extern s32 MAX_SFX_DIST;
 extern s32 reverbOn;
@@ -129,6 +130,7 @@ void PrepareSong(u8 song) {
         return;
     }
     audioCtrl.current = song;
+    soundtable_song(song);
     MusHandleStop(audioCtrl.handle, 1);
     while (MusHandleAsk(audioCtrl.handle)) {}
     if (song == 0) {
@@ -397,6 +399,8 @@ s32 PlaySample(s16 num, Vec3 *pos, s16 vol, s16 pitch) {
     Vec3 d;
     s32 handle;
 
+    /* g64coopdx: the sound table gets it before the distance cut (soundtable.h). */
+    soundtable_oneshot(num, &pos->x, vol, pitch, 0.0f, reverbOn || camera.state->waterState);
     angle = DistanceBetweenPointsSquared(&camera.pos, pos) * (port_camera_dist_scale * port_camera_dist_scale);
     if (angle > MAX_SFX_DIST * MAX_SFX_DIST) {
         return 0;
@@ -408,6 +412,7 @@ s32 PlaySample(s16 num, Vec3 *pos, s16 vol, s16 pitch) {
     SubVector2D(&d, pos, &camera.pos);
     angle = Aabs(atan2(d.x, d.z));
     pan = FindShortestAngle(Aabs(camera.rot.y + 1.570796327), angle) * 81.16902096626815;
+    soundtable_wrap(1);
     if (num) {
         scale *= 1.8;
         if (scale > 255.0f) {
@@ -422,6 +427,7 @@ s32 PlaySample(s16 num, Vec3 *pos, s16 vol, s16 pitch) {
     if (reverbOn || camera.state->waterState) {
         MusHandleSetReverb(handle, 30);
     }
+    soundtable_wrap(0);
     return handle;
 }
 
@@ -433,6 +439,7 @@ s32 PlaySampleRadius(s16 num, Vec3 *pos, s16 vol, s16 pitch, f32 radius) {
     f32 dist;
     f32 camDist = DistanceBetweenPoints(&camera.pos, pos);
 
+    soundtable_oneshot(num, &pos->x, vol, pitch, radius, reverbOn || camera.state->waterState);
     if (camDist - radius < 0.0f) {
         dist = 0.0f;
     } else {
@@ -447,6 +454,7 @@ s32 PlaySampleRadius(s16 num, Vec3 *pos, s16 vol, s16 pitch, f32 radius) {
     SubVector2D(&d, pos, &camera.pos);
     dist = Aabs(atan2(d.x, d.z));
     pan = FindShortestAngle(Aabs(camera.rot.y + 1.570796327), dist) * 81.16902096626815;
+    soundtable_wrap(1);
     if (num) {
         scale *= 1.8;
         if (scale > 255.0f) {
@@ -461,6 +469,7 @@ s32 PlaySampleRadius(s16 num, Vec3 *pos, s16 vol, s16 pitch, f32 radius) {
     if (reverbOn || camera.state->waterState) {
         MusHandleSetReverb(handle, 30);
     }
+    soundtable_wrap(0);
     return handle;
 }
 
@@ -469,7 +478,10 @@ void PlayContinuousSample(ContinuousSample *sfx, s16 num, s16 volume, Vec3 *pos,
         if (sfx->handle) {
             StopContinuousSample(sfx);
         }
+        /* g64coopdx: a continuous sound is a source in the sound table, not a one-shot. */
+        soundtable_wrap(1);
         sfx->handle = PlaySampleRadius(num, pos, volume, radius, sfx->range);
+        soundtable_wrap(0);
         volume = (f32)volume * 1.8;
         if (volume > 255) {
             volume = 255;
@@ -481,16 +493,29 @@ void PlayContinuousSample(ContinuousSample *sfx, s16 num, s16 volume, Vec3 *pos,
         if (sfx->handle) {
             numContinuousSamples++;
         }
+        soundtable_source(sfx, num, sfx->handle, &pos->x, sfx->volume, sfx->pitch, sfx->range,
+                          reverbOn || camera.state->waterState, 1);
     }
 }
 
 void StopContinuousSample(ContinuousSample *sfx) {
+    soundtable_wrap(1);
     if (sfx->handle) {
         MusHandleStop(sfx->handle, 0);
         numContinuousSamples--;
     }
+    soundtable_wrap(0);
+    soundtable_source_stop(sfx);
     sfx->outVolume = sfx->volume;
     sfx->handle = sfx->volume = 0;
+}
+
+/* g64coopdx: a continuous sound's state after the game updated it, for the sound table, whether or not the distance
+   cut it. */
+static void RecordContinuousSample(ContinuousSample *sfx) {
+    soundtable_wrap(0);
+    soundtable_source(sfx, sfx->id, sfx->handle, &sfx->pos->x, sfx->volume, sfx->pitch, sfx->range,
+                      reverbOn || camera.state->waterState, 1);
 }
 
 void UpdateContinuousSample(ContinuousSample *sfx) {
@@ -502,6 +527,7 @@ void UpdateContinuousSample(ContinuousSample *sfx) {
     if (sfx->id == 0 || (sfx->handle == 0 && sfx->volume == 0)) {
         return;
     }
+    soundtable_wrap(1);
     dist = 0.0f;
     if (sfx->range != 0.0f) {
         f32 camDist = DistanceBetweenPoints(&camera.pos, sfx->pos);
@@ -515,6 +541,7 @@ void UpdateContinuousSample(ContinuousSample *sfx) {
                 sfx->handle = 0;
                 numContinuousSamples--;
             }
+            RecordContinuousSample(sfx);
             return;
         }
     } else {
@@ -525,6 +552,7 @@ void UpdateContinuousSample(ContinuousSample *sfx) {
                 sfx->handle = 0;
                 numContinuousSamples--;
             }
+            RecordContinuousSample(sfx);
             return;
         }
         dist = sqrtf(dist);
@@ -547,6 +575,7 @@ void UpdateContinuousSample(ContinuousSample *sfx) {
     MusHandleSetPan(sfx->handle, pan);
     MusHandleSetFreqOffset(sfx->handle, (f32)(sfx->pitch - 128) / 10.0);
     MusHandleSetTempo(sfx->handle, sfx->pitch);
+    RecordContinuousSample(sfx);
 }
 
 void SetMaxSfxDist(s32 dist) {
@@ -625,6 +654,7 @@ void ClearAmbientSfx(void) {
             ambientSound->sample.outVolume = ambientSound->sample.volume;
             ambientSound->sample.handle = ambientSound->sample.volume = 0;
         }
+        soundtable_source_stop(&ambientSound->sample);
         ambientSound->sample.pos = &zero;
     }
 }

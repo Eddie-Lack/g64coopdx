@@ -53,7 +53,7 @@ PORT_CXX_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/po
                  src/port/libultra.c src/port/devview.c src/port/debugpad.c src/port/gu.c src/port/portmath.c \
                  src/port/hostworld.c src/port/drawmark.c
 PORT_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/port/os.c src/port/inputlatch.c src/port/gu.c src/port/sprite.c \
-             src/port/libultra.c src/port/devview.c src/port/debugpad.c src/port/portmath.c gen/ramtab.c gen/romsyms.c \
+             src/port/libultra.c src/port/devview.c src/port/debugpad.c src/port/portmath.c src/port/soundtable.c gen/ramtab.c gen/romsyms.c \
              gen/layouts.c
 # The host world (docs/host-world.md): in weemitt's programs and the library. The brute forcer reads PORT_SRCS and
 # leaves it out.
@@ -192,7 +192,7 @@ HOST_CXXFLAGS := $(ARCH_FLAGS) -std=gnu++14 -O2 -g $(PIC_FLAGS) -fno-exceptions 
 
 # The library's objects: the game, the sound player, the ROM checks, the memory hash and src/lib. With the renderer,
 # src/gfx too. Not the platform layer, the menu or SDL.
-LIB_SRCS := src/lib/glover.c src/lib/host.c src/lib/audio.c src/lib/coll.c src/lib/view.c \
+LIB_SRCS := src/lib/glover.c src/lib/host.c src/lib/audio.c src/lib/coll.c src/lib/view.c src/lib/sound.c \
             $(if $(filter gl,$(RENDERER)),src/lib/gl.c,src/lib/gl_null.c) \
             $(if $(filter null,$(RENDERER)),src/lib/hostgfx_null.c,src/lib/hostgfx.c)
 LIB_OBJS := $(GAME_OBJS) $(BUILD)/src/port/rom.o $(BUILD)/src/port/statehash.o $(patsubst %.c,$(BUILD)/%.o,$(LIB_SRCS)) \
@@ -248,6 +248,14 @@ lib64-stub:
 
 lib-windows64:
 	$(MAKE) LIB=1 BITS=64 TARGET=windows BUILD=build/lib-windows64 RENDERER=gl AUDIO=mus
+
+# g64coopdx: the library with the real sound player and no renderer, which the online program loads for its sound
+# (src/lib/sound.c).
+lib64-sound:
+	$(MAKE) LIB=1 BITS=64 BUILD=build/lib64-sound RENDERER=null AUDIO=mus
+
+lib-windows64-sound:
+	$(MAKE) LIB=1 BITS=64 TARGET=windows BUILD=build/lib-windows64-sound RENDERER=null AUDIO=mus
 
 lib-windows64-stub:
 	$(MAKE) LIB=1 BITS=64 TARGET=windows BUILD=build/lib-windows64-stub RENDERER=null AUDIO=stub

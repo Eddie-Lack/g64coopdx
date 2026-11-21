@@ -54,7 +54,7 @@ STUDIO_OBJS := $(BUILD)/src/port/studio.o
 # g64coopdx: the online mode (src/client/netplay.c of the repository around this copy) and what it needs.
 G64_ROOT := ..
 G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c client/instances.c client/imsg.c session/session.c \
-            net/udp.c rollback/rollback.c rollback/engine_game.c)
+            net/udp.c rollback/rollback.c rollback/engine_game.c client/sound.c client/soundout.c)
 G64_OBJS := $(patsubst $(G64_ROOT)/src/%.c,$(BUILD)/g64/%.o,$(G64_SRCS))
 STUDIO_OBJS += $(G64_OBJS) $(BUILD)/src/port/g64launcher.o
 
@@ -65,6 +65,11 @@ $(BUILD)/src/port/g64launcher.o: src/port/g64launcher.cpp src/port/g64launcher.h
 $(BUILD)/g64/%.o: $(G64_ROOT)/src/%.c $(wildcard $(G64_ROOT)/src/*/*.h)
 	@mkdir -p $(dir $@)
 	$(CC) $(BF_CFLAGS) -c $< -o $@
+
+# The sound output talks to SDL.
+$(BUILD)/g64/client/soundout.o: $(G64_ROOT)/src/client/soundout.c $(wildcard $(G64_ROOT)/src/*/*.h) src/lib/glover.h
+	@mkdir -p $(dir $@)
+	$(CC) $(HOST_CFLAGS) -c $< -o $@
 
 $(BUILD)/game.o: $(STUDIO_GAME_OBJS) $(BF)/engine/hooks.def
 	$(STUDIO_LD) -r -d $(addprefix --wrap=,$(STUDIO_HOOKS)) -o $@.tmp $(STUDIO_GAME_OBJS)

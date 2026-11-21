@@ -100,6 +100,9 @@ void G64SetCaveArrival(s32 frame, s32 due);
 void G64CavePlayers(void);
 void G64CavePlayer(void);
 void G64Arrive(void);
+/* Where a player hears from (the online game's sound, g64coopdx's src/client/sound.c): their camera's position and
+   turn, and the level's sound distance (MAX_SFX_DIST). 0 when the player is not in this game. */
+s32 G64SoundListener(s32 player, f32 *pos, f32 *yaw, s32 *maxDist);
 /* For tests: the position of the level's first platform with a tag; 0 when there is none. */
 s32 G64PlatformPosition(s32 tag, f32 *x, f32 *y, f32 *z);
 /* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a

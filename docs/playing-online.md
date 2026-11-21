@@ -9,9 +9,10 @@ are in, with the other players who are in it. It is a test build: see "What does
 - Your own Glover (USA) ROM. Every player needs the same ROM: the host refuses a different one.
 - The online program:
   - Windows: `g64coopdx-windows` from the repository's Actions page (the "Online program" workflow) or from a
-    release. Unzip it; `g64coopdx.exe` and `SDL2.dll` stay together.
+    release. Unzip it; `g64coopdx.exe`, `g64coopdx-sound.dll` and `SDL2.dll` stay together.
   - Linux: `g64coopdx-linux.tar.gz` from the same places, or `make client`, which builds
-    `weemitt/build/studio64/weemitt-studio`.
+    `weemitt/build/studio64/weemitt-studio` and its sound player `g64coopdx-sound.so` next to it.
+  - Without the sound player file the game plays without sound.
 
 ## Start
 
@@ -120,6 +121,11 @@ the instance of the level the exit leads to, or starts a new one. To join an ins
 machine builds the level from its start and runs the inputs played in it so far; that takes a moment, and the picture
 stops meanwhile. The window's title shows the level number you are in.
 
+You hear your own game: the music of your level, and the sounds near your own glove's camera, wherever the other
+players are. Another player's own clicks (their camera, their pause) are theirs alone. The master, music and effects
+volumes in Settings work as in weemitt. When the network corrects a wrong guess about another player, a sound it had
+started stops, and a sound it had missed plays, up to half a second late.
+
 g64coopdx keeps its own folder for your settings, saves and logs: `%APPDATA%\g64coopdx\Glover` on Windows. On its
 first start it copies weemitt's settings, so your keys and picture settings carry over. In an online game, the
 settings that change the game (cheats, the easy ball controls, the camera) are always off: every machine must run the
@@ -131,7 +137,6 @@ game data, only addresses and counts.
 
 ## What does not work yet
 
-- There is no sound.
 - Enemies, collectables and puzzles react only to one player in each level.
 - An exit takes you at once: there is no spin, fade or end-of-level screen.
 - Progress made by another player reaches your level at once, but only some things show it before the level starts

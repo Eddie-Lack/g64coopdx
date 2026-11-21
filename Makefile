@@ -5,12 +5,17 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
+PHONY_SOUND := sound sound-build
+.PHONY: $(PHONY_SOUND)
 .PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
-# with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md).
+# with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
+# from weemitt's library with the real sound player, next to it as g64coopdx-sound.so (src/client/soundout.h).
 client:
 	$(WEEMITT) studio64
+	$(WEEMITT) lib64-sound
+	cp weemitt/build/lib64-sound/libglover.so weemitt/build/studio64/g64coopdx-sound.so
 
 # The game's window program for Linux: weemitt/build/linux64/weemitt (needs SDL2).
 game:
@@ -51,6 +56,24 @@ rollback-game-build: savestates
 	    $(ENGINE_LINUX) -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/rollback_game.exe $(ROLLBACK_GAME_SRC) $(ENGINE_WINDOWS) -lm
+
+# The online game's sound with rollbacks (tests/rom/sound.c), on Linux and under Wine; the outputs must be equal (needs
+# the ROM in GLOVER_ROM).
+SOUND_SRC := tests/rom/sound.c src/client/sound.c src/rollback/engine_game.c src/rollback/rollback.c \
+             weemitt/src/port/statehash.c
+sound-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -g -Wall -Wextra -Werror -no-pie -o build/tests/sound $(SOUND_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/sound.exe $(SOUND_SRC) $(ENGINE_WINDOWS) -lm
+
+sound: sound-build
+	build/tests/sound "$$GLOVER_ROM" > build/tests/sound.out
+	tail -1 build/tests/sound.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/sound.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/sound-windows.out
+	cmp build/tests/sound.out build/tests/sound-windows.out
 
 # One host and three clients play level 13 over a lossy simulated network, on Linux and under Wine (needs the ROM in
 # GLOVER_ROM).
@@ -195,6 +218,13 @@ build/tests/loopback: tests/net/loopback.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
 
+# The sound reader against the sound table, without the game (tests/net/sound_test.c).
+build/tests/sound_test: tests/net/sound_test.c src/client/sound.c src/client/sound.h weemitt/src/port/soundtable.c \
+                        weemitt/src/port/soundtable.h
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/sound_test.c src/client/sound.c \
+	    weemitt/src/port/soundtable.c -lm
+
 NET_SRC := src/net/udp.c
 SESSION_SRC := src/session/session.c
 build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
@@ -246,7 +276,9 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
-test-c: build/tests/loopback build/tests/udp_test build/tests/session_test
+test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test
+	build/tests/sound_test > build/tests/sound_test.out || { cat build/tests/sound_test.out; exit 1; }
+	tail -1 build/tests/sound_test.out
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
 	tail -2 build/tests/loopback.out
 	build/tests/udp_test > build/tests/udp_test.out || { cat build/tests/udp_test.out; exit 1; }
