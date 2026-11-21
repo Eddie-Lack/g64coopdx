@@ -643,16 +643,6 @@ static void take_start(void) {
 /* One extra player's part of the frame, in the order MainGameLoop runs the first player's (main.c). */
 static void player_frame(s32 p) {
     Vec3 tempVect;
-    /* In the look-around mode the camera looks 100 ahead of itself. The game does this for the first player in
-       ProcessPersonalLoop (personal.c), before their part of the frame. */
-    if (!cameraInfo.mode && !gamePaused) {
-        tempVect.x = 0.0f;
-        tempVect.y = 0.0f;
-        tempVect.z = 100.0f;
-        RotateVector2DXYZ(&tempVect, &tempVect, -camera.rot.x, 0);
-        RotateVector2D(&tempVect, &tempVect, camera.rot.y);
-        ADD_VECTORS(&cameraInfo.actor.pos, &camera.pos, &tempVect);
-    }
     if (deltaNewFrame) {
         OSContPad saved = controllerdata[ActiveController];
         controllerdata[ActiveController].button = g64Buttons[g64Member[p]];
@@ -686,6 +676,16 @@ static void player_frame(s32 p) {
     if (deltaTick) {
         MoveCam();
         PlayerSpinCamera();
+    }
+    /* In the look-around mode the camera looks 100 ahead of itself. The game does this for the first player in
+       ProcessPersonalLoop (personal.c), after their part of the frame. */
+    if (!cameraInfo.mode && !gamePaused) {
+        tempVect.x = 0.0f;
+        tempVect.y = 0.0f;
+        tempVect.z = 100.0f;
+        RotateVector2DXYZ(&tempVect, &tempVect, -camera.rot.x, 0);
+        RotateVector2D(&tempVect, &tempVect, camera.rot.y);
+        ADD_VECTORS(&cameraInfo.actor.pos, &camera.pos, &tempVect);
     }
 }
 
