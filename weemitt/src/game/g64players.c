@@ -659,8 +659,16 @@ void G64UpdateProxies(void) {
 
 static void forget_tips(void);
 
+static void forget_cameo(void);
+/* Cameos (below): cameoStarter is the number plus 1 of the player who set the cameo off, or 0 for the first player.
+   cameoMet is the player, plus 1, who last met a puzzle's condition on a player in the puzzle that is being run.
+   cameoPending is that player for a puzzle whose conditions are met, until its cameo starts. cameoUsed: a cameo
+   that a puzzle started plays. cameoHolding: the cameo held its player in this frame. */
+static s32 cameoStarter, cameoMet, cameoUsed, cameoPending, cameoHolding;
+
 void G64ExtraPlayersFree(void) {
     forget_tips();
+    forget_cameo();
     free_slots();
     if (startSlot) {
         free_slot_blocks((G64Slot *)startSlot);
@@ -1265,6 +1273,8 @@ void G64StartPlayers(u32 present) {
 void G64RemovePlayer(s32 player) {
     s32 i = slot_of(player), j, blocks = 1;
     forget_tip(player);
+    if (cameoStarter == player + 1)
+        cameoStarter = 0;
     if (i < 0 || g64Players < 2)
         return;
     if (i == 0 && slotCount <= 1) {
@@ -2169,13 +2179,80 @@ void G64HazardEnd(s32 i) {
 
 void DisableControl(s16 time);
 
-/* Cameos (cameo.c). A cameo is a scene that moves the camera and holds the glove: it plays for the first player.
-   The other players are held too (G64DisableControlAll), and G64CameoView gives them the cameo's camera: where it
-   stands, how it is turned, what it looks at and its roll. Their own cameras go on from there when it ends. */
+/* Cameos (cameo.c). A cameo is a scene that moves the camera and holds the glove. It plays for one player: the one
+   who set it off, when a puzzle's condition on a player started it, and the first player otherwise (a level's
+   opening scene). That player is in the globals while the cameo starts and steps (G64CameoSwapIn). The other
+   players are held (G64CameoAfter), nothing hurts them (G64CameoHeld), and G64CameoView gives them the cameo's
+   camera: where it stands, how it is turned, what it looks at and its roll. Their own cameras go on from there
+   when it ends. */
+static void forget_cameo(void) {
+    cameoStarter = cameoMet = cameoUsed = cameoPending = cameoHolding = 0;
+}
+
+/* The slot of the cameo's player. */
+static s32 cameo_slot(void) {
+    s32 i = cameoStarter ? slot_of(cameoStarter - 1) : 0;
+    return i > 0 && slot_used(i) ? i : 0;
+}
+
+/* puzzle.c: a puzzle's conditions are about to be tested; slot i's player met one; the puzzle, which starts a cameo,
+   has its conditions met. */
+void G64PuzzleMetReset(void) {
+    cameoMet = 0;
+}
+
+void G64PuzzleMet(s32 i) {
+    if (i >= 0 && i < G64_MAX_PLAYERS)
+        cameoMet = g64Member[i] + 1;
+}
+
+void G64CameoStarter(void) {
+    cameoPending = cameoMet;
+}
+
+/* cameo.c: the cameo held its player in this frame. */
+void G64CameoHolding(void) {
+    cameoHolding = 1;
+}
+
+/* Puts the cameo's player in the globals and returns their slot, or 0 when they are there already. */
+s32 G64CameoSwapIn(void) {
+    s32 i = cameo_slot();
+    if (i == 0)
+        return 0;
+    if (swapped || logicSlot) {
+        /* Another player is in the globals for their own part of the frame: the cameo is the first player's. */
+        cameoStarter = 0;
+        return 0;
+    }
+    swap_slot(slots[i]);
+    logicSlot = i;
+    return i;
+}
+
+void G64CameoSwapOut(s32 i) {
+    if (i > 0 && logicSlot == i) {
+        swap_slot(slots[i]);
+        logicSlot = 0;
+    }
+}
+
+/* A puzzle starts a cameo: for its player. */
+s32 G64CameoStartBegin(void) {
+    /* A cameo that starts while another plays joins it: the one that plays keeps its player. */
+    if (!gameInfo.cameoActive && !cameoUsed) {
+        cameoStarter = cameoPending;
+        cameoUsed = 1;
+    }
+    cameoPending = 0;
+    return G64CameoSwapIn();
+}
+
 void G64CameoView(void) {
     s32 i;
-    if (swapped || logicSlot)
+    if (swapped)
         return;
+    /* With the cameo's player swapped in, their slot holds the first player. */
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (!s)
@@ -2186,6 +2263,38 @@ void G64CameoView(void) {
         ZERO_VECTOR(&s->camera.vel);
         s->cameraInfo.actor.pos = cameraInfo.actor.pos;
         s->cameraUpVect = cameraUpVect;
+    }
+}
+
+/* For tests: the number of the player a cameo plays for, or -1 when none plays. */
+s32 G64CameoPlayer(void) {
+    if (!gameInfo.cameoActive)
+        return -1;
+    return g64Member[cameo_slot()];
+}
+
+/* After the frame's cameo step, with the first player back in the globals: every player but the cameo's is held. A
+   cameo that has ended forgets its player. */
+void G64CameoAfter(void) {
+    s32 i, own = cameo_slot();
+    if (swapped || logicSlot)
+        return;
+    if (!gameInfo.cameoActive) {
+        if (cameoUsed)
+            forget_cameo();
+        return;
+    }
+    /* In its last frame a cameo no longer holds its player, and the others go free with them. */
+    if (!cameoHolding)
+        return;
+    cameoHolding = 0;
+    if (own != 0)
+        DisableControl(2);
+    for (i = 1; i < slotCount; i++) {
+        if (i != own && G64HazardBegin(i)) {
+            DisableControl(2);
+            G64HazardEnd(i);
+        }
     }
 }
 
@@ -2315,9 +2424,10 @@ s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
     return n < max ? n : max;
 }
 
-/* 1 for a player other than the first while a cameo plays: they are held, and nothing hurts them. */
+/* 1 while a cameo plays for a player other than the one in the globals: they are held, and nothing hurts them. */
 s32 G64CameoHeld(void) {
-    return logicSlot && !swapped && gameInfo.cameoActive;
+    s32 own = cameo_slot();
+    return !swapped && gameInfo.cameoActive && logicSlot != own;
 }
 
 /* For a thing that every player works at once (the Carnival bonus level's cannon): the stick value, x (axis 0) or y
