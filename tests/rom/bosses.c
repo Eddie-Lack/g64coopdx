@@ -122,7 +122,14 @@ static float outside(int who, float *b) {
 static void case_a(void) {
     float g0, b0, g1, b1;
     char what[200];
+    float x, y, z;
+    unsigned f;
     start(23);
+    /* The level's opening lasts longer than READY. */
+    for (f = READY; f < READY + 200; f++)
+        frame(f, 0x3);
+    engine_save(engine, ready);
+    check(G64PlayerPosition(1, &x, &y, &z), "A: the second player is in the Pirates boss's level");
     g0 = outside(0, &b0);
     g1 = outside(1, &b1);
     snprintf(what, sizeof what, "A: the Pirates boss's wall: put outside it, player 0's glove and ball end %.0f and "
@@ -201,8 +208,8 @@ static void case_bc(void) {
 }
 
 /* D: from the ready state of the Carnival boss's level, player `who`'s ball is thrown onto the platform with tag 1,
-   and their glove is then held beside it. Returns how far the platform with tag 4 rises in 30 frames; cam gets the
-   player's camera place 150 frames on. */
+   and returns how far the platform with tag 4 rises in 30 frames. Then, from the ready state again, their glove is
+   held beside the platform for 150 frames, and cam gets their camera's place. */
 static float trap(int who, float *cam) {
     float p1[3] = {0, 0, 0}, p4[3] = {0, 0, 0}, yaw, low, high = -1e9f;
     int max;
@@ -211,17 +218,22 @@ static float trap(int who, float *cam) {
     G64PlatformPosition(1, &p1[0], &p1[1], &p1[2]);
     G64PlatformPosition(4, &p4[0], &p4[1], &p4[2]);
     low = p4[1];
-    for (f = 0; f < 150; f++) {
+    for (f = 0; f < 30; f++) {
         frame(READY + f, 0x3);
         if (f == 0) {
             G64PlaceBall(who, p1[0] * 0.8f, p1[1] + 40.0f, p1[2] * 0.8f);
             G64PushBall(who, p1[0] > 0 ? 6.0f : -6.0f, -2.0f, p1[2] > 0 ? 6.0f : -6.0f);
         }
-        if (f >= 60)
-            G64PlacePlayer(who, p1[0] * 1.2f, p1[1] + 80.0f, p1[2] * 1.2f);
         G64PlatformPosition(4, &p4[0], &p4[1], &p4[2]);
-        if (f < 30 && p4[1] > high)
+        if (p4[1] > high)
             high = p4[1];
+    }
+    /* The camera is read in a run of its own, without the trap: the trap's scene is a cameo, and a cameo's camera
+       is the first player's. */
+    engine_load(engine, ready);
+    for (f = 0; f < 150; f++) {
+        frame(READY + f, 0x3);
+        G64PlacePlayer(who, p1[0] * 1.2f, p1[1] + 80.0f, p1[2] * 1.2f);
     }
     cam[0] = cam[1] = cam[2] = 0;
     G64SoundListener(who, cam, &yaw, &max);

@@ -738,6 +738,10 @@ void G64ExtraPlayersStep(void) {
     soundtable_set_owner(-1);
     if ((g64Players < 2 && !g64Online) || gamePaused || !GameBeingPlayed())
         return;
+    /* The control room's scene plays from a recording of the first player (game.c, autoPlayback). The other players
+       have no glove of their own there: they watch through the first player's camera. */
+    if (gameInfo.level == SPACEBOSS_TWEEN)
+        return;
     if (g64Online && !startPosSet) {
         startPos = hand.pos;
         startPosSet = 1;
@@ -756,7 +760,7 @@ void G64ExtraPlayersStep(void) {
                 return;
         } else if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos
                     && cameraInfo.focus != &bossFocalPoint)
-                   || cameraInfo.overrideTimer || cameraInfo.mode != 1)
+                   || cameraInfo.overrideTimer || cameraInfo.mode != 1 || gameInfo.cameoActive)
             return;
         ready = 1;
         if (g64Online)
@@ -2155,6 +2159,31 @@ void G64HazardEnd(s32 i) {
 }
 
 void DisableControl(s16 time);
+
+/* Cameos (cameo.c). A cameo is a scene that moves the camera and holds the glove: it plays for the first player.
+   The other players are held too (G64DisableControlAll), and G64CameoView gives them the cameo's camera: where it
+   stands, how it is turned, what it looks at and its roll. Their own cameras go on from there when it ends. */
+void G64CameoView(void) {
+    s32 i;
+    if (swapped || logicSlot)
+        return;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (!s)
+            continue;
+        s->camera.pos = camera.pos;
+        s->camera.rot = camera.rot;
+        s->camera.rotQuat = camera.rotQuat;
+        ZERO_VECTOR(&s->camera.vel);
+        s->cameraInfo.actor.pos = cameraInfo.actor.pos;
+        s->cameraUpVect = cameraUpVect;
+    }
+}
+
+/* 1 for a player other than the first while a cameo plays: they are held, and nothing hurts them. */
+s32 G64CameoHeld(void) {
+    return logicSlot && !swapped && gameInfo.cameoActive;
+}
 
 /* For a thing that every player works at once (the Carnival bonus level's cannon): the stick value, x (axis 0) or y
    (axis 1), of the player who pushes it the farthest, and whether any player has just pressed a button. With one

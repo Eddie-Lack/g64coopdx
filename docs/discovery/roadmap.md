@@ -167,9 +167,15 @@ harness at N players and by the determinism tests:
    the crosshair's fade, which follow the first player on every screen; a cameo during the fight, which moves the
    first player's camera only. In the Carnival bonus level every player sits on the one cannon with its camera:
    the stick pushed the farthest turns it and any player's A fires it (bonus.c; tests/rom/bonus.c). The space bonus
-   level has no code of its own for the player: the changes above cover it. Left: the control room. The Carnival
+   level has no code of its own for the player: the changes above cover it. The Carnival
    boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
 7. Cameos: which glove they move.
+   Done in part: a cameo plays for the first player. The other players are held and cannot be hurt while it plays,
+   and they see its camera (cameo.c, g64players.c, "Cameos"). The other players are made only when no cameo plays.
+   In the control room, whose scene plays from a recording of the first player, the other players have no glove
+   and watch through the first player's camera. These have no test of their own: with no input, no level plays a
+   cameo that the test can tell apart. Left: the design's rule that a cameo moves the glove of the player who set
+   it off; hiding the other gloves during a cameo.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).

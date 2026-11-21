@@ -3718,6 +3718,11 @@ void HurtHand(s32 type, s16 damage) {
     Vec3 tempVect;
     f32 speed = 13.0f;
 
+    /* g64coopdx: a player who is held for another player's cameo is not hurt (g64players.c). */
+    if (G64CameoHeld()) {
+        return;
+    }
+
     DeactivateCollectable(ROTORBLADES);
     BallworldHandHurt();
     if (controlMethod == CONTROL_BALL || handControl.deathTimer || player.hurtTimer) {

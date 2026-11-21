@@ -15,6 +15,7 @@ PORT_C_BEGIN
 #include "libc.h"
 #include "controller.h"
 #include "delta.h"
+#include "g64players.h"
 
 void DisableControl(s16 time);
 
@@ -229,6 +230,8 @@ void UpdateCameos(void) {
     }
     if (num) {
         gameInfo.cameoActive = TRUE;
+        /* g64coopdx: the other players watch the cameo through its camera (g64players.c). */
+        G64CameoView();
     } else {
         gameInfo.cameoActive = FALSE;
     }
@@ -268,6 +271,8 @@ void UpdateCameo(Cameo *cameo) {
     } else {
         cameo->active++;
         DisableControl(2);
+        /* g64coopdx: every player waits for the cameo. */
+        G64DisableControlAll(2);
     }
 }
 
