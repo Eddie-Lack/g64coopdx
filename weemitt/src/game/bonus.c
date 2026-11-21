@@ -91,11 +91,13 @@ static void EachOtherPlayer(void (*part)(void)) {
 static Platform *carnivalPlat;
 
 /* The Carnival bonus level's part for a player other than the first: their glove is held on the cannon as the first
-   player's is, and their camera stands behind the cannon. The camera's place and aim are the ones the level has
-   worked out for the first player in this update: every glove is at the same place. */
+   player's is, and their camera stands behind the cannon. The camera's aim is the one the level has worked out for
+   the first player in this update: every glove is at the same place. The camera's place is worked out here, because
+   a shot's sparks use the level's variable for it. */
 static void CarnivalBonusPlayer(void) {
     Platform *plat = carnivalPlat;
     Vec3 up;
+    Vec3 spot;
     f32 keep;
 
     camera.flags &= ~0x10;
@@ -117,8 +119,10 @@ static void CarnivalBonusPlayer(void) {
     RotateVectorByQuaternion(&up, &up, &hand.rotQuat);
     ADD_VECTORS(&hand.pos, &up, &plat->actor.pos);
     if (!cameoList.head.next->active) {
+        RotateVectorByQuaternion(&spot, &carnivalCamOffVect, &hand.rotQuat);
+        ADD_TO_VECTOR(&spot, &hand.pos);
         keep = DeltaPow(ckbcamfrac);
-        AddScaledVector(&camera.pos, &camera.pos, keep, &carnivalCamVect, DeltaTake(ckbcamfrac, 1.0f - ckbcamfrac));
+        AddScaledVector(&camera.pos, &camera.pos, keep, &spot, DeltaTake(ckbcamfrac, 1.0f - ckbcamfrac));
         SetCameraOverride(camera.pos.x, camera.pos.y, camera.pos.z, &carnivalTempVect2, &zero, 10, 0);
     }
 }

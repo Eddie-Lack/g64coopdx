@@ -203,7 +203,8 @@ static void case_d(void) {
     snprintf(what, sizeof what, "D: the gloves are %.0f apart on the cannon; player 0's stick turns the cameras %.2f "
              "and %.2f, player 1's %.2f and %.2f", apart(still[0], still[1]), turned(y0[0], y[0]),
              turned(y0[1], y[1]), turned(y1[0], y[0]), turned(y1[1], y[1]));
-    check(apart(still[0], still[1]) < 1.0f && turned(y0[0], y[0]) > 0.3f && turned(y0[1], y[1]) > 0.3f &&
+    check(apart(still[0], still[1]) < 1.0f && apart(g0[0], g0[1]) < 1.0f && apart(g1[0], g1[1]) < 1.0f &&
+          turned(y0[0], y[0]) > 0.3f && turned(y0[1], y[1]) > 0.3f &&
           fabsf(turned(y1[0], y[0]) - turned(y0[0], y[0])) < 0.05f &&
           fabsf(turned(y1[1], y[1]) - turned(y0[1], y[1])) < 0.05f, what);
     snprintf(what, sizeof what, "D: with nobody firing %d bullets appear, with player 0 firing %d, with player 1 "
