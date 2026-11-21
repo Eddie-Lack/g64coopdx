@@ -33,6 +33,7 @@ PORT_C_BEGIN
 #include "spike.h"
 #include "buzzer.h"
 #include "collect.h"
+#include "footprint.h"
 
 PORT_C_END
 
@@ -399,6 +400,8 @@ static G64Slot *copy_globals(void) {
     memcpy(&s->camera, &camera, sizeof(Actor));
     memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
     memcpy(s->handBlock, &handControl, hand_block_size());
+    /* The first player's slam ring is not the new player's. */
+    ((HandControl *)s->handBlock)->footprint = NULL;
     if (world_orbiter3())
         slot_orbiter3(s)->inst = NULL;
     memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
@@ -677,6 +680,10 @@ static void player_frame(s32 p) {
         MoveCam();
         PlayerSpinCamera();
     }
+    /* A quake rolls the camera, and the roll goes back to its aim. The game does this for the first player in
+       CheckCameraForWater (water.c). */
+    AddScaledVector(&cameraUpVect, &cameraUpVect, DeltaPow(0.49f), &cameraUpVectAim, DeltaTake(0.49f, 0.51f));
+    MakeUnit(&cameraUpVect);
     /* In the look-around mode the camera looks 100 ahead of itself. The game does this for the first player in
        ProcessPersonalLoop (personal.c), after their part of the frame. */
     if (!cameraInfo.mode && !gamePaused) {
@@ -1223,6 +1230,9 @@ void G64RemovePlayer(s32 player) {
         blocks = 0;
     }
     if (slotCount > i) {
+        /* The leaving player's slam ring would be nobody's and hurt the others: it ends now. */
+        if (slots[i] && ((HandControl *)((G64Slot *)slots[i])->handBlock)->footprint)
+            KillFootprint(((HandControl *)((G64Slot *)slots[i])->handBlock)->footprint);
         free_slot(i, blocks);
         for (j = i; j + 1 < slotCount; j++) {
             slots[j] = slots[j + 1];
@@ -2024,6 +2034,61 @@ void G64HazardEnd(s32 i) {
 }
 
 void DisableControl(s16 time);
+
+void G64FootprintGone(const void *footprint) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        if (slot_used(i) && (const void *)(Footprint *)slot_hand_control(i)->footprint == footprint)
+            slot_hand_control(i)->footprint = NULL;
+    }
+}
+
+/* The running quake's place, the two ranges its strength comes from (StartEarthquakeAtPoint), and the number, plus
+   1, of the player whose distance set its strength. quakePlaced is 0 for a quake without a place. */
+static Vec3 quakePos;
+static f32 quakeMax, quakeMin;
+static s32 quakePlaced, quakeBy;
+
+void G64QuakeAt(const Vec3 *pos, f32 maxStrength, f32 minStrength) {
+    quakePlaced = pos != NULL;
+    if (pos != NULL)
+        quakePos = *pos;
+    quakeMax = maxStrength;
+    quakeMin = minStrength;
+    quakeBy = g64Member[logicSlot] + 1;
+}
+
+/* The strengths are the game's own (StartEarthquakeAtPoint), from this player's distance. */
+s32 G64QuakeStrength(f32 blend, f32 *str) {
+    f32 dist, start, end;
+    if (slotCount < 2 || !quakePlaced || quakeBy == g64Member[logicSlot] + 1)
+        return 1;
+    dist = DistanceBetweenPoints((Vec3 *)cameraInfo.focus, &quakePos);
+    if (dist >= quakeMax && gameInfo.level != SPACEBOSS1)
+        return 0;
+    start = (quakeMax - dist) * 0.2;
+    start = MIN(start, 1000.0f);
+    end = (quakeMin - dist) * 0.2;
+    end = MIN(end, 1000.0f);
+    if (gameInfo.level == SPACEBOSS1) {
+        start *= 5.0f;
+        end *= 5.0f;
+        start = MIN(start < 50.0f ? 50.0f : start, 800.0f);
+        end = MIN(end < 25.0f ? 25.0f : end, 400.0f);
+    }
+    /* StartEarthquake keeps the strengths as whole numbers. */
+    *str = blend * (s16)start + (1.0f - blend) * (s16)end;
+    return 1;
+}
+
+s32 G64IsPlayerFootprint(const void *footprint) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        if (slot_used(i) && (const void *)(Footprint *)slot_hand_control(i)->footprint == footprint)
+            return 1;
+    }
+    return 0;
+}
 
 void G64DisableControlAll(s32 time) {
     s32 i;

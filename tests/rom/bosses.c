@@ -8,6 +8,7 @@
  *      Each player's camera circles the arena from where their glove is.
  *   E. The Fortress boss walks to the platform of the glove nearest to it, whoever's glove that is. Each player's
  *      camera stands over the arena's middle.
+ *   F. The robot's steps in the first space boss's level shake every player's camera.
  * It prints what it checks and a memory hash per level: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -285,6 +286,36 @@ static void case_e(void) {
     printf("E: hash %08x\n", port_hash_ram());
 }
 
+/* F: both players stand still for `frames` frames of a level. path gets how far each player's camera moves in
+   all. */
+static void stand(int level, unsigned frames, float *path) {
+    float prev[2][3], cam[3], yaw;
+    int max, p;
+    unsigned f;
+    start(level);
+    path[0] = path[1] = 0;
+    for (f = 0; f < frames; f++) {
+        frame(READY + f, 0x3);
+        for (p = 0; p < 2; p++) {
+            cam[0] = cam[1] = cam[2] = 0;
+            G64SoundListener(p, cam, &yaw, &max);
+            if (f > 0)
+                path[p] += dist(cam, prev[p]);
+            memcpy(prev[p], cam, sizeof cam);
+        }
+    }
+}
+
+static void case_f(void) {
+    float path[2];
+    char what[260];
+    stand(38, 1500, path);
+    snprintf(what, sizeof what, "F: the robot's steps move player 0's camera %.0f and player 1's %.0f", path[0],
+             path[1]);
+    check(path[0] > 300.0f && path[1] > path[0] * 0.5f, what);
+    printf("F: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -309,6 +340,7 @@ int main(int argc, char **argv) {
     case_bc();
     case_d();
     case_e();
+    case_f();
     printf("%s the bosses see every player\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

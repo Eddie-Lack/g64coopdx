@@ -11,6 +11,7 @@ PORT_C_BEGIN
 #include "nmeprocess2.h"
 #include "shadow.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s32 frameCount;
 extern u16 footprintTexFmt;
@@ -110,6 +111,8 @@ void RemoveFootprint(Footprint *ptr) {
     if (ptr == handControl.footprint) {
         handControl.footprint = NULL;
     }
+    /* g64coopdx: the other players forget this ring too (g64players.c). */
+    G64FootprintGone(ptr);
     JallocFree(&ptr);
 }
 
@@ -182,8 +185,19 @@ void DrawFootprints(void) {
         } else {
             ptr->width -= MIN(MAX(-ptr->scaleSpeed, (ptr->length - ptr->width) / 2.0f), ptr->scaleSpeed);
         }
-        if (gameInfo.level != SPACEBOSS3 && ptr->texture == blastTex && ptr != handControl.footprint && ptr->normal.y == 1.0f) {
+        /* g64coopdx: a slam ring that is any player's own hurts nobody, and an enemy's ring reaches every player. */
+        if (gameInfo.level != SPACEBOSS3 && ptr->texture == blastTex && ptr != handControl.footprint
+            && !G64IsPlayerFootprint(ptr) && ptr->normal.y == 1.0f) {
+            s32 players = G64SlotCount();
+            s32 p;
+
             UpdateEnemyBlastring(ptr);
+            for (p = 1; p < players; p++) {
+                if (G64HazardBegin(p)) {
+                    UpdateEnemyBlastring(ptr);
+                    G64HazardEnd(p);
+                }
+            }
         }
     }
 }
