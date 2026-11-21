@@ -4,6 +4,8 @@
  *   B. In the Prehistoric boss's entry area the camera stands at a fixed place, for each player.
  *   C. The Prehistoric boss answers a ball that hits it: that ball comes back above its own glove. The other
  *      player's ball stays where it is.
+ *   D. In the Carnival boss's level a ball that hits a trap's platform sets the trap off: another platform rises.
+ *      Each player's camera circles the arena from where their glove is.
  * It prints what it checks and a memory hash per level: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -31,6 +33,8 @@ int G64BallPosition(int p, float *x, float *y, float *z);
 void G64PlaceBall(int p, float x, float y, float z);
 int G64EnemyInfo(int i, float *x, float *y, float *z);
 int G64SoundListener(int p, float *pos, float *yaw, int *maxDist);
+void G64PushBall(int p, float x, float y, float z);
+int G64PlatformPosition(int tag, float *x, float *y, float *z);
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
@@ -190,6 +194,50 @@ static void case_bc(void) {
     printf("B: hash %08x\n", port_hash_ram());
 }
 
+/* D: from the ready state of the Carnival boss's level, player `who`'s ball is thrown onto the platform with tag 1,
+   and their glove is then held beside it. Returns how far the platform with tag 4 rises in 30 frames; cam gets the
+   player's camera place 150 frames on. */
+static float trap(int who, float *cam) {
+    float p1[3] = {0, 0, 0}, p4[3] = {0, 0, 0}, yaw, low, high = -1e9f;
+    int max;
+    unsigned f;
+    engine_load(engine, ready);
+    G64PlatformPosition(1, &p1[0], &p1[1], &p1[2]);
+    G64PlatformPosition(4, &p4[0], &p4[1], &p4[2]);
+    low = p4[1];
+    for (f = 0; f < 150; f++) {
+        frame(READY + f, 0x3);
+        if (f == 0) {
+            G64PlaceBall(who, p1[0] * 0.8f, p1[1] + 40.0f, p1[2] * 0.8f);
+            G64PushBall(who, p1[0] > 0 ? 6.0f : -6.0f, -2.0f, p1[2] > 0 ? 6.0f : -6.0f);
+        }
+        if (f >= 60)
+            G64PlacePlayer(who, p1[0] * 1.2f, p1[1] + 80.0f, p1[2] * 1.2f);
+        G64PlatformPosition(4, &p4[0], &p4[1], &p4[2]);
+        if (f < 30 && p4[1] > high)
+            high = p4[1];
+    }
+    cam[0] = cam[1] = cam[2] = 0;
+    G64SoundListener(who, cam, &yaw, &max);
+    return high - low;
+}
+
+static void case_d(void) {
+    float rise0, rise1, cam0[3], cam1[3];
+    char what[260];
+    unsigned f;
+    start(18);
+    for (f = READY; f < READY + 300; f++)
+        frame(f, 0x3);
+    engine_save(engine, ready);
+    rise0 = trap(0, cam0);
+    rise1 = trap(1, cam1);
+    snprintf(what, sizeof what, "D: the Carnival boss's trap: player 0's ball makes the platform rise %.0f, player 1's "
+             "%.0f; their cameras end %.0f apart", rise0, rise1, dist(cam0, cam1));
+    check(rise0 > 50.0f && rise1 > 50.0f && dist(cam0, cam1) < 15.0f, what);
+    printf("D: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -212,6 +260,7 @@ int main(int argc, char **argv) {
     engine_save(engine, boot);
     case_a();
     case_bc();
+    case_d();
     printf("%s the bosses see every player\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

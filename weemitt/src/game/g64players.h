@@ -183,6 +183,8 @@ struct Actor *G64NearestGlove(const Vec3 *p);
 s32 G64PuzzleInfo(s32 k, s32 *timesLeft, s32 *active, s32 *count);
 s32 G64PuzzleCondition(s32 k, s32 j, s32 *type, s32 *tag, s32 *value);
 void G64PlaceBall(s32 player, f32 x, f32 y, f32 z);
+/* For tests: gives a player's ball a velocity. */
+void G64PushBall(s32 player, f32 x, f32 y, f32 z);
 /* For tests: when puzzle k is a camera zone (one "glove in a box" condition, camera actions only), its box: the
    corner (x, y, z) and the size (x, y, z). 0 otherwise. */
 s32 G64PuzzleZone(s32 k, f32 *box);
