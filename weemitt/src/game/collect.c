@@ -520,7 +520,10 @@ void CreateOrbiter(Actor *orbiter, s32 type, f32 scale) {
         } else if (orbiter == &ballControl.orbiter && handControl.orbiter.inst) {
             orbiter->rot.y = Aabs(handControl.orbiter.rot.y + 3.141592654);
         }
-        AddActor(orbiter);
+        /* g64coopdx: with more than one player the orbiters are drawn as proxies (g64players.c). */
+        if (!G64OrbitersByProxy()) {
+            AddActor(orbiter);
+        }
     }
 }
 

@@ -257,6 +257,9 @@ s32 G64GaribGroupNear(const struct Vec3 *pos, f32 radius);
 s32 G64GaribTaker(const struct Vec3 *pos);
 void G64GaribGained(void);
 s32 G64PickupTaker(const struct Vec3 *pos, f32 radiusSq);
+/* 1 with more than one player: a power-up's orbiters then stay out of the actor list, and each player's are drawn
+   as proxies (g64players.c). */
+s32 G64OrbitersByProxy(void);
 /* For tests: a player's count of garibs and their time left on a power-up (-1 when not in this game), the number of
    garibs left in the level and the place of the k-th of them, and the place and type of the k-th pick-up. */
 s32 G64PlayerGaribs(s32 player);

@@ -179,6 +179,16 @@ static Actor *new_proxy(const Actor *from) {
     return a;
 }
 
+/* A power-up's orbiters (collect.c, CreateOrbiter) are actors inside handControl and ballControl, which a swap
+   exchanges. With more than one player the game's own orbiters stay out of the actor list, and each player's
+   orbiters are drawn as proxies: proxyOrbiter[i][k] exists while the player of slot i has orbiter k. */
+#define G64_ORBITERS 4
+static PTR32(Actor) proxyOrbiter[G64_MAX_PLAYERS][G64_ORBITERS];
+/* sync_orbiters took one of the game's own orbiters out of the actor list. */
+static s32 orbitersUnlinked;
+static void sync_orbiters(void);
+static void free_orbiter_proxies(void);
+
 static void swap_bytes(void *a, void *b, size_t n) {
     u8 tmp[256];
     u8 *pa = (u8 *)a, *pb = (u8 *)b;
@@ -419,6 +429,8 @@ static void free_slot(s32 i, s32 blocks) {
 
 static void free_slots(void) {
     s32 i;
+    free_orbiter_proxies();
+    orbitersUnlinked = 0;
     for (i = 1; i < G64_MAX_PLAYERS; i++)
         free_slot(i, 1);
     slotCount = 0;
@@ -439,13 +451,98 @@ void G64ExtraPlayersStart(void) {
     }
 }
 
+/* Orbiter k of the player whose state is in the globals (store 0) or in slot `store`. */
+static Actor *orbiter_in(s32 store, s32 k) {
+    Actor *live[G64_ORBITERS];
+    G64Slot *s = slots[store];
+    live[0] = &handControl.orbiter;
+    live[1] = &handControl.orbiter2;
+    live[2] = &handControl.orbiter3;
+    live[3] = &ballControl.orbiter;
+    if (store == 0)
+        return live[k];
+    if (k == 3)
+        return &s->ballControl.orbiter;
+    return (Actor *)(s->handBlock + ((u8 *)live[k] - (u8 *)&handControl));
+}
+
+static void free_orbiter_proxy(s32 i, s32 k) {
+    if (proxyOrbiter[i][k]) {
+        SubActor(proxyOrbiter[i][k]);
+        JallocFree(&proxyOrbiter[i][k]);
+    }
+}
+
+static void free_orbiter_proxies(void) {
+    s32 i, k;
+    for (i = 0; i < G64_MAX_PLAYERS; i++)
+        for (k = 0; k < G64_ORBITERS; k++)
+            free_orbiter_proxy(i, k);
+}
+
+/* Makes and frees the orbiters' proxies. It runs in the logic with no slot swapped in, so the actor list is the
+   same on every machine. */
+static void sync_orbiters(void) {
+    s32 i, k;
+    if (swapped || logicSlot)
+        return;
+    if (slotCount < 2) {
+        /* One player again: the game's own orbiters go back into the actor list. */
+        if (orbitersUnlinked) {
+            free_orbiter_proxies();
+            for (k = 0; k < G64_ORBITERS; k++) {
+                Actor *a = orbiter_in(0, k);
+                if (a->inst && !a->next)
+                    AddActor(a);
+            }
+            orbitersUnlinked = 0;
+        }
+        return;
+    }
+    for (k = 0; k < G64_ORBITERS; k++) {
+        Actor *a = orbiter_in(0, k);
+        if (a->next) {
+            SubActor(a);
+            orbitersUnlinked = 1;
+        }
+    }
+    for (i = 0; i < G64_MAX_PLAYERS; i++) {
+        for (k = 0; k < G64_ORBITERS; k++) {
+            Actor *a = i < slotCount && (i == 0 || slots[i]) ? orbiter_in(i, k) : NULL;
+            Actor *p = proxyOrbiter[i][k];
+            if (p && (!a || !a->inst || (ObjectInstance *)p->inst != (ObjectInstance *)a->inst)) {
+                free_orbiter_proxy(i, k);
+                p = NULL;
+            }
+            if (!p && a && a->inst) {
+                proxyOrbiter[i][k] = new_proxy(a);
+                orbitersUnlinked = 1;
+            }
+        }
+    }
+}
+
+s32 G64OrbitersByProxy(void) {
+    return slotCount >= 2;
+}
+
 void G64UpdateProxies(void) {
-    s32 i;
+    s32 i, k;
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (s && proxyHand[i] && proxyBall[i]) {
             copy_to_proxy(proxyHand[i], &s->hand);
             copy_to_proxy(proxyBall[i], &s->ball);
+        }
+    }
+    sync_orbiters();
+    for (i = 0; i < slotCount; i++) {
+        /* With slot `swapped` in the globals for a view, its player is there and the first player is in that slot. */
+        s32 store = !swapped ? i : i == 0 ? swapped : i == swapped ? 0 : i;
+        for (k = 0; k < G64_ORBITERS; k++) {
+            Actor *p = proxyOrbiter[i][k];
+            if (p && (store == 0 || slots[store]) && orbiter_in(store, k)->inst)
+                copy_to_proxy(p, orbiter_in(store, k));
         }
     }
 }
@@ -1012,6 +1109,8 @@ void G64RemovePlayer(s32 player) {
         move_restart(g64Member[1], player);
     }
     forget_restart(player);
+    /* The players' slots move: the orbiters' proxies are made again (sync_orbiters). */
+    free_orbiter_proxies();
     if (i == 0 && slotCount > 1) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
            the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
