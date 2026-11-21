@@ -14,6 +14,14 @@ typedef struct Dynamic {
     /* 0x2B220 */ Hilite hilite;
 } Dynamic;
 
+/* The object matrices of a frame past the 256 in Dynamic, for each draw buffer. Many players need them: a glove
+   takes up to 14 matrices and its shadows more. They are outside the N64's layout, in port_win (gen/ram.S). */
+#define OBJECT_MTX_MORE 768
+extern Mtx objectMtxMore[2][OBJECT_MTX_MORE];
+
+/* The place of the frame's next object matrix. It takes the next number. */
+Mtx *NextObjectMtx(void);
+
 extern PTR32(Gfx) glistp;
 extern PTR32(Dynamic) dynamicp;
 extern s32 objectMatrix;

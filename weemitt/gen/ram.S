@@ -10118,6 +10118,10 @@ SYM(musDropBuffer):
 SYM(musDmaZeros):
 	.skip	4096
 	.p2align	4
+	.globl	SYM(objectMtxMore)
+SYM(objectMtxMore):
+	.skip	98304
+	.p2align	4
 	.globl	SYM(port_win_end)
 SYM(port_win_end):
 #if defined(__ELF__)

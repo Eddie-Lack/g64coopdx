@@ -8,4 +8,5 @@
 #define PORT_WIN_SIZE_musBuffer 0x2000
 #define PORT_WIN_SIZE_musDropBuffer 0x2000
 #define PORT_WIN_SIZE_musDmaZeros 0x1000
+#define PORT_WIN_SIZE_objectMtxMore 0x18000
 #endif

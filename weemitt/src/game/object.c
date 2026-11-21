@@ -4,6 +4,7 @@ PORT_C_BEGIN
 #include "actor.h"
 #include "jalloc.h"
 #include "display.h"
+#include "port_win.h"
 #include "camera.h"
 #include "ball.h"
 #include "bullet.h"
@@ -700,16 +701,18 @@ void TransformAndDrawObject(Object *obj, f32 time, s16 doKeys, s16 arg3) {
         gDPSetPrimColor(glistp++, 0, 0, 255, 255, 255, obj->alpha[0]);
     }
     if (calcMtx == 1 || !staticObj) {
+        Mtx *m = NextObjectMtx();
         ComputeResultMatrix();
-        guMtxF2L(D_80284D74, &dynamicp->objectMtx[objectMatrix]);
+        guMtxF2L(D_80284D74, m);
         if (calcMtx == 1 && staticObjectMtx != NULL) {
             guMtxF2L(D_80284D74, staticObjectMtx);
         }
-        gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(&dynamicp->objectMtx[objectMatrix++]), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+        gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(m), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
         matrixStackCount++;
     } else {
-        dynamicp->objectMtx[objectMatrix] = *staticObjectMtx;
-        gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(&dynamicp->objectMtx[objectMatrix++]), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+        Mtx *m = NextObjectMtx();
+        *m = *staticObjectMtx;
+        gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(m), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
         matrixStackCount++;
     }
     if (obj->displayList != NULL) {
@@ -998,5 +1001,24 @@ void HandSwish(Object *obj, f32 time, s16 animStart, s16 animEnd, f32 speed) {
 
 INCLUDE_ASM("asm/nonmatchings/object", pad_80145674);
 
+
+/* The frame's next object matrix. The first 256 are in Dynamic, as on the N64. The ones after them are in
+   objectMtxMore. Past the end of both, every caller gets the last place: those objects are drawn wrong, and no
+   memory after the table is written. */
+typedef char ObjectMtxMoreFits[sizeof(objectMtxMore) <= PORT_WIN_SIZE_objectMtxMore ? 1 : -1];
+
+Mtx *NextObjectMtx(void) {
+    s32 n = objectMatrix;
+
+    if (n < OBJECT_MTX_MORE + 256) {
+        objectMatrix++;
+    } else {
+        n = OBJECT_MTX_MORE + 255;
+    }
+    if (n < 256) {
+        return &dynamicp->objectMtx[n];
+    }
+    return &objectMtxMore[draw_buffer][n - 256];
+}
 
 PORT_C_END
