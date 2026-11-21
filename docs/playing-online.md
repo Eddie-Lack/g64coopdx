@@ -140,7 +140,8 @@ game data, only addresses and counts.
 - Every boss sees every player. In the last space boss's level each player has a turret of their own, and the
   boss goes for the players in turn. The shield's glow and the crosshair's fade on screen are the first player's.
 - In the Fortress, Prehistoric and Atlantis bonus levels you win or lose alone, and the others play on. When the
-  clock runs out, the level ends for everyone. The Carnival and space bonus levels react only to the first player.
+  clock runs out, the level ends for everyone. In the Carnival bonus level every player works the one cannon.
+  The space bonus level reacts only to the first player.
 - Any player takes a garib or a pick-up. The players of a level share one count of garibs. A power-up is its
   taker's own. A power-up that changes the look of the glove or the ball changes it for every player.
 - Any player's glove or ball works a puzzle's switch or zone. Each player has their own camera zones.
