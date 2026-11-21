@@ -1275,6 +1275,8 @@ void SetPlatPoint(Platform *plat, s32 point) {
 void DoPiratesBonus(void) {
     Platform *p2;
     Platform *plat;
+    s32 players;
+    s32 p;
 
     if (frameCount == 0 && DeltaFirst(&piratesBonusSetUpFrame)) {
         for (p2 = platformList.head.next; p2 != &platformList.head; p2 = p2->next) {
@@ -1283,6 +1285,14 @@ void DoPiratesBonus(void) {
         }
     }
     cameraInfo.targetHeight = 200.0f;
+    /* g64coopdx: every player's camera has that height. */
+    players = G64SlotCount();
+    for (p = 1; p < players; p++) {
+        if (G64HazardBegin(p)) {
+            cameraInfo.targetHeight = 200.0f;
+            G64HazardEnd(p);
+        }
+    }
     windList.head.next->size[1] = FindTaggedWater(159)->height - windList.head.next->pos[1];
 }
 
@@ -1533,65 +1543,16 @@ void DoPrehistBoss(void) {
     }
 }
 
-void DoSpaceBoss3(void) {
-    s32 i;
-    MeshColour *c;
-    f32 time;
+/* The part of the last space boss's level that each player has, their own turret: the glove is held at its
+   checkpoint, the stick turns it, the camera looks along it, Z raises the shield and A fires. */
+static void SpaceBoss3Player(void) {
     f32 keep;
 
-    if (frameCount == 0 && DeltaFirst(&spaceBossSetUpFrame)) {
-        spaceBossCamOffVect.x = 0.0f;
-        spaceBossPanelOn = 0;
-        spaceBossReload = 0;
-        camera.flags &= ~0x10;
-        spaceBossCamOffVect.y = 150.0f;
-        spaceBossCamOffVect.z = -50.0f;
-        spaceBossRot.x = spaceBossRot.y = spaceBossRot.z = spaceBossCamOffVect.x;
-        spaceBossRot.x = initrotval;
-        spaceBossRot.y = 6.2831855f;
-        memclear(&spbCrosshair, sizeof(GameSprite));
-        spbCrosshairAlpha = 0;
-        for (i = 1; i < 6; i++) {
-            if (i != 3) {
-                TagToFirstPlatform(i)->actor.flags |= 0x4000;
-            }
-        }
-        initFGObject("panelback.ndo", 0, 0, 300.0f, 0, 3.1415927f, 0, 1.0f, 1.0f, 1.0f, 0);
-    }
-    if (frameCount == 300) {
-        hand.alpha = 0;
-    }
-    if (foregroundObjects[1] != NULL && spaceBossPanelOn == 0) {
-        foregroundObjects[1]->pos.z = MIN((hand.pos.z - camera.pos.z) * panelfactor, 300.0f);
-        if (foregroundObjects[1]->pos.z >= 299.0f) {
-            spaceBossPanelOn = 1;
-        }
-    }
     hand.anim->speed = 0;
     hand.anim->time = 0;
-    for (i = 0; i < numForegroundObjects; i++) {
-        GetQuaternionFromXYZRot(&foregroundObjects[i]->rotQuat, &foregroundObjects[i]->rot);
-    }
     ZERO_VECTOR(&hand.vel);
     hand.pos = handControl.checkpoint->actor.pos;
-    TagToFirstPlatform(4)->actor.rotQuat = TagToFirstPlatform(1)->actor.rotQuat;
-    TagToFirstPlatform(5)->actor.rotQuat = TagToFirstPlatform(2)->actor.rotQuat;
     if (gameInfo.cameoActive == 0 && frameCount > 10) {
-        if (spbCrosshair.next == NULL) {
-            InitSpriteAnimation(&spbCrosshair, &bulletAnimation[10], 0);
-            spbCrosshair.r = 255;
-            spbCrosshair.g = 255;
-            spbCrosshair.b = 255;
-            spbCrosshair.alpha = 0;
-            spbCrosshair.offsetX = -spbCrosshair.tex->width / 2;
-            spbCrosshair.offsetY = -spbCrosshair.tex->height / 2;
-            spbCrosshairAlpha = spbalpha;
-            AddSprite(&spbCrosshair, NULL);
-        }
-        /* The alphas are integers: they step once per original frame, as does the reload count. */
-        if (deltaTick) {
-            spbCrosshair.alpha += MIN(MAX(-20.0, (((f32)spbCrosshairAlpha - (f32)spbCrosshair.alpha) / 4.0)), 20.0);
-        }
         if (deltaTick && spaceBossReload != 0) {
             spaceBossReload--;
         }
@@ -1628,6 +1589,86 @@ void DoSpaceBoss3(void) {
             spaceBossShield = 0;
             spbCrosshairAlpha = spbalpha;
         }
+        if (!spaceBossShield && numBubbles < 8 && spaceBossReload == 0 && pad[ActiveController].pressed[BUTTON_A]) {
+            spaceBossReload = spbReloadCounter;
+            FireBulletFromActor(&hand, SPACEBALL_BULLET, 0);
+        }
+    } else {
+        player.hurtTimer = 3;
+    }
+}
+
+void DoSpaceBoss3(void) {
+    s32 i;
+    MeshColour *c;
+    f32 time;
+    s32 players;
+    s32 p;
+
+    if (frameCount == 0 && DeltaFirst(&spaceBossSetUpFrame)) {
+        spaceBossCamOffVect.x = 0.0f;
+        spaceBossPanelOn = 0;
+        spaceBossReload = 0;
+        camera.flags &= ~0x10;
+        spaceBossCamOffVect.y = 150.0f;
+        spaceBossCamOffVect.z = -50.0f;
+        spaceBossRot.x = spaceBossRot.y = spaceBossRot.z = spaceBossCamOffVect.x;
+        spaceBossRot.x = initrotval;
+        spaceBossRot.y = 6.2831855f;
+        memclear(&spbCrosshair, sizeof(GameSprite));
+        spbCrosshairAlpha = 0;
+        for (i = 1; i < 6; i++) {
+            if (i != 3) {
+                TagToFirstPlatform(i)->actor.flags |= 0x4000;
+            }
+        }
+        initFGObject("panelback.ndo", 0, 0, 300.0f, 0, 3.1415927f, 0, 1.0f, 1.0f, 1.0f, 0);
+    }
+    if (frameCount == 300) {
+        hand.alpha = 0;
+    }
+    if (foregroundObjects[1] != NULL && spaceBossPanelOn == 0) {
+        foregroundObjects[1]->pos.z = MIN((hand.pos.z - camera.pos.z) * panelfactor, 300.0f);
+        if (foregroundObjects[1]->pos.z >= 299.0f) {
+            spaceBossPanelOn = 1;
+        }
+    }
+    for (i = 0; i < numForegroundObjects; i++) {
+        GetQuaternionFromXYZRot(&foregroundObjects[i]->rotQuat, &foregroundObjects[i]->rot);
+    }
+    TagToFirstPlatform(4)->actor.rotQuat = TagToFirstPlatform(1)->actor.rotQuat;
+    TagToFirstPlatform(5)->actor.rotQuat = TagToFirstPlatform(2)->actor.rotQuat;
+    if (gameInfo.cameoActive == 0 && frameCount > 10) {
+        if (spbCrosshair.next == NULL) {
+            InitSpriteAnimation(&spbCrosshair, &bulletAnimation[10], 0);
+            spbCrosshair.r = 255;
+            spbCrosshair.g = 255;
+            spbCrosshair.b = 255;
+            spbCrosshair.alpha = 0;
+            spbCrosshair.offsetX = -spbCrosshair.tex->width / 2;
+            spbCrosshair.offsetY = -spbCrosshair.tex->height / 2;
+            spbCrosshairAlpha = spbalpha;
+            AddSprite(&spbCrosshair, NULL);
+        }
+        /* The alphas are integers: they step once per original frame, as does the reload count. */
+        if (deltaTick) {
+            spbCrosshair.alpha += MIN(MAX(-20.0, (((f32)spbCrosshairAlpha - (f32)spbCrosshair.alpha) / 4.0)), 20.0);
+        }
+    }
+    SpaceBoss3Player();
+    /* g64coopdx: every other player has a turret of their own, with them in the globals. Their gloves are hidden as
+       the first player's is. */
+    players = G64SlotCount();
+    for (p = 1; p < players; p++) {
+        if (G64HazardBegin(p)) {
+            if (frameCount >= 300) {
+                hand.alpha = 0;
+            }
+            SpaceBoss3Player();
+            G64HazardEnd(p);
+        }
+    }
+    if (gameInfo.cameoActive == 0 && frameCount > 10) {
         if (foregroundObjects[0] != NULL) {
             if (spaceBossShield) {
                 if (deltaTick) {
@@ -1666,12 +1707,6 @@ void DoSpaceBoss3(void) {
                 foregroundObjects[0]->alpha = foregroundObjects[0]->alpha * 5 / 6;
             }
         }
-        if (!spaceBossShield && numBubbles < 8 && spaceBossReload == 0 && pad[ActiveController].pressed[BUTTON_A]) {
-            spaceBossReload = spbReloadCounter;
-            FireBulletFromActor(&hand, SPACEBALL_BULLET, 0);
-        }
-    } else {
-        player.hurtTimer = 3;
     }
 }
 

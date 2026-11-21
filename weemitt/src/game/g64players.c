@@ -120,6 +120,17 @@ typedef struct G64Slot {
     f32 camOrigRotY;
     /* The height this player's camera keeps above its target (camera.c). */
     s32 levelCamHeight;
+    /* This player's turret in the last space boss's level (boss.c): where it points, its shield and reload count,
+       the crosshair's aim and place, and the camera's points. */
+    Vec3 spaceBossRot;
+    Vec3 spaceBossCamVect;
+    Vec3 spaceBossCamVect2;
+    Vec3 spaceBossTempVect2;
+    Vec3 crosshairPos;
+    s32 spaceBossShield;
+    s32 spaceBossReload;
+    u8 spbCrosshairAlpha;
+    u8 turretPad[3];
     G64Cave cave;
     u8 caveStage;
     u8 disableZoom;
@@ -168,6 +179,10 @@ extern s32 controlMethod;
 extern s32 atlantisInWater;
 extern f32 camOrigRotY;
 extern s32 levelCamHeight;
+extern Vec3 spaceBossRot, spaceBossCamVect, spaceBossCamVect2, spaceBossTempVect2;
+extern s32 spaceBossShield, spaceBossReload;
+extern u8 spbCrosshairAlpha;
+extern GameSprite spbCrosshair;
 extern u8 handPain;
 extern u8 ballPain;
 extern s32 frameCount;
@@ -300,6 +315,14 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&atlantisInWater, &s->atlantisInWater, sizeof(s32));
     swap_bytes(&camOrigRotY, &s->camOrigRotY, sizeof(f32));
     swap_bytes(&levelCamHeight, &s->levelCamHeight, sizeof(s32));
+    swap_bytes(&spaceBossRot, &s->spaceBossRot, sizeof(Vec3));
+    swap_bytes(&spaceBossCamVect, &s->spaceBossCamVect, sizeof(Vec3));
+    swap_bytes(&spaceBossCamVect2, &s->spaceBossCamVect2, sizeof(Vec3));
+    swap_bytes(&spaceBossTempVect2, &s->spaceBossTempVect2, sizeof(Vec3));
+    swap_bytes(&spbCrosshair.pos, &s->crosshairPos, sizeof(Vec3));
+    swap_bytes(&spaceBossShield, &s->spaceBossShield, sizeof(s32));
+    swap_bytes(&spaceBossReload, &s->spaceBossReload, sizeof(s32));
+    swap_bytes(&spbCrosshairAlpha, &s->spbCrosshairAlpha, 1);
     swap_bytes(&ballPain, &s->ballPain, 1);
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
@@ -428,6 +451,14 @@ static G64Slot *copy_globals(void) {
     s->atlantisInWater = 0;
     s->camOrigRotY = camOrigRotY;
     s->levelCamHeight = levelCamHeight;
+    s->spaceBossRot = spaceBossRot;
+    s->spaceBossCamVect = spaceBossCamVect;
+    s->spaceBossCamVect2 = spaceBossCamVect2;
+    s->spaceBossTempVect2 = spaceBossTempVect2;
+    s->crosshairPos = spbCrosshair.pos;
+    s->spaceBossShield = spaceBossShield;
+    s->spaceBossReload = spaceBossReload;
+    s->spbCrosshairAlpha = spbCrosshairAlpha;
     s->ballPain = ballPain;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
@@ -718,8 +749,14 @@ void G64ExtraPlayersStep(void) {
     if (!ready) {
         /* A boss level's camera looks at its own point (boss.c). During a cameo the camera's mode is not 1: a copy
            taken then would keep the cameo's camera for good. */
-        if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos && cameraInfo.focus != &bossFocalPoint)
-            || cameraInfo.overrideTimer || cameraInfo.mode != 1)
+        if (gameInfo.level == SPACEBOSS3) {
+            /* The last space boss's level holds the camera with an override in every frame (boss.c): the level is
+               ready when its opening cameo has ended. */
+            if (gameInfo.cameoActive || frameCount <= 10 || cameraInfo.mode != 1)
+                return;
+        } else if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos
+                    && cameraInfo.focus != &bossFocalPoint)
+                   || cameraInfo.overrideTimer || cameraInfo.mode != 1)
             return;
         ready = 1;
         if (g64Online)
@@ -1352,6 +1389,15 @@ static s32 choose_target(Actor *a, s32 preferred) {
                 return i;
     if (preferred >= 0)
         return preferred;
+    /* In the last space boss's level every glove is held at one place (boss.c), and the nearest would always be the
+       first player. The boss takes the living players in turn, 64 frames each. */
+    if (gameInfo.level == SPACEBOSS3) {
+        for (alive = 0; alive < slotCount; alive++) {
+            i = (frameCount / 64 + alive) % slotCount;
+            if (slot_used(i) && !slot_hand_control(i)->deathTimer)
+                return i;
+        }
+    }
     for (alive = 1; alive >= 0 && best < 0; alive--) {
         for (i = 0; i < slotCount; i++) {
             f32 d;
