@@ -190,6 +190,18 @@ static s32 orbitersUnlinked;
 static s32 swapped;
 static void sync_orbiters(void);
 static void free_orbiter_proxies(void);
+static Player *slot_player(s32 i);
+
+/* handControl.orbiter3 is not always a player's: the first space boss makes its rotor in it, and a cameo can link it
+   to an enemy. Then it belongs to the world: it stays in the globals through every swap and in the actor list, and
+   no slot has a copy of it. A player's own orbiter3 is linked to the glove (collect.c, ActivateCollectable). */
+static s32 world_orbiter3(void) {
+    return handControl.orbiter3.inst && (Actor *)handControl.orbiter3.link != &hand;
+}
+
+static Actor *slot_orbiter3(G64Slot *s) {
+    return (Actor *)(s->handBlock + ((u8 *)&handControl.orbiter3 - (u8 *)&handControl));
+}
 
 static void swap_bytes(void *a, void *b, size_t n) {
     u8 tmp[256];
@@ -227,6 +239,7 @@ static void swap_slot(G64Slot *s) {
     Actor *handActors[5];
     Actor *ballActors[1];
     Actor *camActors[1];
+    s32 world3;
     handActors[0] = &handControl.edgeProbe;
     handActors[1] = &handControl.frontProbe;
     handActors[2] = &handControl.orbiter;
@@ -238,7 +251,10 @@ static void swap_slot(G64Slot *s) {
     swap_actor(&ball, &s->ball);
     swap_actor(&camera, &s->camera);
     swap_with_actors(&cameraInfo, &s->cameraInfo, sizeof(CameraInfo), camActors, 1);
+    world3 = world_orbiter3();
     swap_with_actors(&handControl, s->handBlock, hand_block_size(), handActors, 5);
+    if (world3)
+        swap_bytes((u8 *)&handControl.orbiter3 + LINKS, (u8 *)slot_orbiter3(s) + LINKS, sizeof(Actor) - LINKS);
     swap_with_actors(&ballControl, &s->ballControl, sizeof(BallControl), ballActors, 1);
     swap_bytes(&pad[ActiveController], &s->pad, sizeof(Pad));
     swap_bytes(&oldHandPos, &s->oldHandPos, sizeof(Vec3));
@@ -355,6 +371,8 @@ static G64Slot *copy_globals(void) {
     memcpy(&s->camera, &camera, sizeof(Actor));
     memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
     memcpy(s->handBlock, &handControl, hand_block_size());
+    if (world_orbiter3())
+        slot_orbiter3(s)->inst = NULL;
     memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
     memcpy(&s->pad, &pad[ActiveController], sizeof(Pad));
     s->oldHandPos = oldHandPos;
@@ -398,6 +416,8 @@ static void new_late_slot(s32 i) {
         add_slot(i, copy_slot(startSlot));
         copy_restart(i, -1);
         arrive(i, startPosSet ? &startPos : NULL);
+        /* The count of garibs is the team's (G64GaribGained). */
+        slot_player(i)->garibs = player.garibs;
     } else {
         add_slot(i, copy_globals());
         copy_restart(i, 0);
@@ -485,7 +505,7 @@ static void free_orbiter_proxies(void) {
 /* Makes and frees the orbiters' proxies. It runs in the logic with no slot swapped in, so the actor list is the
    same on every machine. */
 static void sync_orbiters(void) {
-    s32 i, k;
+    s32 i, k, world3;
     if (swapped || logicSlot)
         return;
     if (slotCount < 2) {
@@ -501,16 +521,21 @@ static void sync_orbiters(void) {
         }
         return;
     }
+    world3 = world_orbiter3();
     for (k = 0; k < G64_ORBITERS; k++) {
         Actor *a = orbiter_in(0, k);
-        if (a->next) {
+        if (k == 2 && world3) {
+            /* The world's orbiter is drawn as itself. */
+            if (!a->next)
+                AddActor(a);
+        } else if (a->next) {
             SubActor(a);
             orbitersUnlinked = 1;
         }
     }
     for (i = 0; i < G64_MAX_PLAYERS; i++) {
         for (k = 0; k < G64_ORBITERS; k++) {
-            Actor *a = i < slotCount && (i == 0 || slots[i]) ? orbiter_in(i, k) : NULL;
+            Actor *a = i < slotCount && (i == 0 || slots[i]) && !(k == 2 && world3) ? orbiter_in(i, k) : NULL;
             Actor *p = proxyOrbiter[i][k];
             if (p && (!a || !a->inst || (ObjectInstance *)p->inst != (ObjectInstance *)a->inst)) {
                 free_orbiter_proxy(i, k);
@@ -525,7 +550,11 @@ static void sync_orbiters(void) {
 }
 
 s32 G64OrbitersByProxy(void) {
-    return slotCount >= 2;
+    if (slotCount < 2)
+        return 0;
+    /* An orbiter made now is not in the actor list: with one player again, sync_orbiters puts it there. */
+    orbitersUnlinked = 1;
+    return 1;
 }
 
 void G64UpdateProxies(void) {
@@ -543,7 +572,7 @@ void G64UpdateProxies(void) {
         s32 store = !swapped ? i : i == 0 ? swapped : i == swapped ? 0 : i;
         for (k = 0; k < G64_ORBITERS; k++) {
             Actor *p = proxyOrbiter[i][k];
-            if (p && (store == 0 || slots[store]) && orbiter_in(store, k)->inst)
+            if (p && !(k == 2 && world_orbiter3()) && (store == 0 || slots[store]) && orbiter_in(store, k)->inst)
                 copy_to_proxy(p, orbiter_in(store, k));
         }
     }

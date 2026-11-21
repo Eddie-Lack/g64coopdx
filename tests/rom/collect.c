@@ -9,6 +9,9 @@
  *      0 does not get it, and it runs out.
  *   E. A power-up with orbiters, held by player 1 for 1,500 frames. The orbiters are actors inside the blocks that a
  *      swap exchanges, and the game once crashed on them.
+ *   F. Player 0 takes a garib alone, and player 1 comes into the level afterwards. Player 1's count is the team's.
+ *   G. Two players in the first space boss's level (level 38) for 900 frames. The boss keeps its rotor in one of
+ *      the glove's orbiters.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -226,6 +229,44 @@ static void case_e(int level, int k) {
     printf("E: hash %08x\n", port_hash_ram());
 }
 
+static void case_f(int level) {
+    float at[3];
+    G64Save s;
+    unsigned f;
+    int before, c0, c1;
+    char what[200];
+    engine_load(engine, boot);
+    g64Online = 1;
+    G64StartPlayers(0x1);
+    memset(&s, 0, sizeof s);
+    s.levels = 1;
+    G64SetStartRecord(0, &s);
+    port_game_start_level(level);
+    for (f = 0; f < READY; f++)
+        frame(f, 0x1);
+    G64GaribPlace(0, &at[0], &at[1], &at[2]);
+    G64PlacePlayer(0, at[0], at[1], at[2]);
+    for (; f < READY + 30; f++)
+        frame(f, 0x1);
+    before = G64PlayerGaribs(0);
+    for (; f < READY + 130; f++)
+        frame(f, 0x3);
+    c0 = G64PlayerGaribs(0), c1 = G64PlayerGaribs(1);
+    snprintf(what, sizeof what, "F: level %d: player 0 alone has %d, then player 1 comes: counts %d and %d", level,
+             before, c0, c1);
+    check(before >= 1 && c0 == before && c1 == c0, what);
+    printf("F: hash %08x\n", port_hash_ram());
+}
+
+static void case_g(void) {
+    unsigned f;
+    start(38);
+    for (f = READY; f < READY + 900; f++)
+        frame(f, 0x3);
+    check(G64PlayerGaribs(1) >= 0, "G: two players in the first space boss's level for 900 frames");
+    printf("G: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -254,6 +295,8 @@ int main(int argc, char **argv) {
     case_d(36, 0, 1200, 80);
     case_d(27, 1, 1200, 80);
     case_e(11, 0);
+    case_f(10);
+    case_g();
     printf("%s every player takes garibs and pick-ups\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);
