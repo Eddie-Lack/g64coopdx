@@ -186,6 +186,8 @@ static Actor *new_proxy(const Actor *from) {
 static PTR32(Actor) proxyOrbiter[G64_MAX_PLAYERS][G64_ORBITERS];
 /* sync_orbiters took one of the game's own orbiters out of the actor list. */
 static s32 orbitersUnlinked;
+/* The slot swapped into the globals for a view (G64SwapPlayer), or 0. */
+static s32 swapped;
 static void sync_orbiters(void);
 static void free_orbiter_proxies(void);
 
@@ -651,9 +653,6 @@ void G64ExtraPlayersStep(void) {
         swap_slot(s);
     }
 }
-
-/* The slot swapped into the globals for a view (G64SwapPlayer), or 0. */
-static s32 swapped;
 
 /* The slot of the player with this number, or -1. */
 static s32 slot_of(s32 player) {
