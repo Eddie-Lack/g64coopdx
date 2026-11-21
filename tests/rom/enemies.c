@@ -10,6 +10,8 @@
  *      broke the 64-bit builds with one player too.
  *   D. An enemy that shoots (level 25, enemy 0) aims at player 1 next to it: its bullets come as close to player 1 as
  *      to player 0 alone next to it, and stay far from that spot when nobody is there.
+ *   E. Spank's two babies (level 23) pass one ball between them. Two players walk about for 6,000 frames; the babies
+ *      take a ball, but never hold both players' balls at once.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -35,6 +37,7 @@ int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64PlacePlayer(int p, float x, float y, float z);
 int G64EnemyInfo(int i, float *x, float *y, float *z);
 int G64BulletPositions(float *xyz, int max);
+int G64BallHolder(int p);
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
@@ -200,6 +203,34 @@ static void case_d(void) {
     printf("D: hash %08x\n", port_hash_ram());
 }
 
+static void case_e(void) {
+    static const signed char dirs[4][2] = {{0, 60}, {60, 0}, {0, -60}, {-60, 0}};
+    unsigned f, held = 0, both = 0;
+    char what[160];
+    start(23);
+    for (f = READY; f < READY + 6000; f++) {
+        EngineInput in;
+        int p, h0, h1;
+        G64SetPresent(0x3);
+        for (p = 0; p < 16; p++) {
+            g64Buttons[p] = 0;
+            g64StickX[p] = dirs[(f / (40 + 13 * (unsigned)p) + (unsigned)p) % 4][0];
+            g64StickY[p] = dirs[(f / (40 + 13 * (unsigned)p) + (unsigned)p) % 4][1];
+        }
+        memset(&in, 0, sizeof in);
+        in.x = g64StickX[0];
+        in.y = g64StickY[0];
+        engine_step(engine, &in);
+        h0 = G64BallHolder(0);
+        h1 = G64BallHolder(1);
+        held += h0 >= 0 || h1 >= 0;
+        both += h0 >= 0 && h1 >= 0;
+    }
+    snprintf(what, sizeof what, "E: level 23: a baby holds a ball in %u frames, both balls are held in %u", held, both);
+    check(held > 1000 && both == 0, what);
+    printf("E: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -226,6 +257,7 @@ int main(int argc, char **argv) {
     case_b();
     case_c();
     case_d();
+    case_e();
     printf("%s enemies go for the nearest player\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

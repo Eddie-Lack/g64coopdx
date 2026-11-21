@@ -158,5 +158,7 @@ s32 G64EnemyNear(struct Actor *a, f32 rangeSq);
 s32 G64EnemyInfo(s32 i, f32 *x, f32 *y, f32 *z);
 /* For tests: the number of bullets, and the positions (x, y, z) of the first max of them. */
 s32 G64BulletPositions(f32 *xyz, s32 max);
+/* For tests: the enemy that holds a player's ball, by number; -1 for none. */
+s32 G64BallHolder(s32 player);
 
 #endif
