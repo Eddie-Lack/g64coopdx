@@ -20,6 +20,7 @@ PORT_C_BEGIN
 #include "nmeprocess2.h"
 #include "delta.h"
 #include "ballworld.h"
+#include "g64players.h"
 
 extern f32 levelHandScale;
 extern u8 ActiveController;
@@ -484,11 +485,11 @@ void MoveBall(void) {
         if (cheatActivated & 0x80) {
             ball.scale.x = ball.scale.y = ball.scale.z = ball.obj->spheres[0].radius * enemyStats[ballEnemyType].scale
                                                         / defaultBehaviour[ballEnemyType].radius;
-            if (handControl.checkpoint->restartGate->restartTimer <= 0) {
+            if (*G64RestartTimer(handControl.checkpoint) <= 0) {
                 ball.obj->spheres[0].targetRadius = defaultBehaviour[ballEnemyType].radius;
             }
         } else {
-            if ((cheatActivated & 0x200) && handControl.checkpoint->restartGate->restartTimer <= 0 && !player.powerups[VANISHBALL]) {
+            if ((cheatActivated & 0x200) && *G64RestartTimer(handControl.checkpoint) <= 0 && !player.powerups[VANISHBALL]) {
                 ball.obj->spheres[0].targetRadius = 20.0f;
             }
             ball.scale.x = ball.scale.y = ball.scale.z = ball.obj->spheres[0].radius * 0.05 / 9.0;

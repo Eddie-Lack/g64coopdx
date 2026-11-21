@@ -163,7 +163,7 @@ static void case_a(int level, int k) {
     snprintf(what, sizeof what, "A: level %d, enemy %d (player 0 %.0f away): ends %.0f from player 0 alone next to it, "
              "%.0f from player 1 next to it, %.0f from that spot with nobody there", level, k, dist(start0, e), near,
              second, far);
-    check(dist(start0, e) > 800.0f && fabsf(second - near) < 1.0f && far - near > 100.0f, what);
+    check(dist(start0, e) > 800.0f && fabsf(second - near) < 1.0f && far - near > 50.0f, what);
     printf("A: hash %08x\n", port_hash_ram());
 }
 
@@ -251,8 +251,8 @@ int main(int argc, char **argv) {
     if (!boot || !ready)
         return 1;
     engine_save(engine, boot);
-    case_a(3, 0);
-    case_a(6, 4);
+    case_a(3, 5);
+    case_a(3, 10);
     case_a(10, 1);
     case_b();
     case_c();

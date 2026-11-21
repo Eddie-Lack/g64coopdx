@@ -425,7 +425,7 @@ void CrumblePlatform(Platform *platform) {
         return;
     }
     if (platform->crumble->timer > platform->crumble->shakeTime + 400 ||
-        handControl.checkpoint->restartGate->restartTimer) {
+        *G64RestartTimer(handControl.checkpoint)) {
         platform->actor.pos = platform->crumble->origPos;
         platform->actor.alpha = 100;
         ZERO_VECTOR(&platform->actor.vel);
@@ -1521,6 +1521,11 @@ void CheckRestartGate(Platform *platform) {
     if (restartGate) {
         platform->actor.scale.x = platform->actor.scale.y = platform->actor.scale.z =
             platform->actor.scale.x - (platform->actor.scale.x - restartGate->targetScale) * DeltaLerp(0.125f);
+        /* g64coopdx: each player's own checkpoint (g64players.c). */
+        if (G64PerPlayerRestart()) {
+            G64CheckRestartGate(platform);
+            return;
+        }
         if (restartGate->untouched && DistanceBetweenPoints2D(&ball.pos, &platform->actor.pos) < platform->actor.radius &&
             ball.pos.y <= platform->actor.pos.y && platform->actor.pos.y < ball.prevPos.y) {
             tempVect.x = 8.0f;
@@ -1553,6 +1558,7 @@ u32 portRestarts;
 void RestartPlayer(void) {
     Vec3 tempVect;
     PlatformRestartGate *restartGate;
+    s16 *timer;
     DeltaSaved saved;
     s32 step;
     s32 j;
@@ -1562,9 +1568,11 @@ void RestartPlayer(void) {
 
     if (gameInfo.mode != 1 && handControl.checkpoint != NULL) {
         restartGate = handControl.checkpoint->restartGate;
+        /* g64coopdx: the countdown of the player in the globals (g64players.c). */
+        timer = G64RestartTimer(handControl.checkpoint);
         /* restartTimer counts original frames. Each step that a value of it starts runs once, in the first update
            that sees the value. */
-        if (restartGate->restartTimer == 65 && DeltaFirst(&restartSetUpFrame)) {
+        if (*timer == 65 && DeltaFirst(G64RestartStamp(0, &restartSetUpFrame))) {
             portRestarts++;
             if (gameInfo.world != HUB && gameInfo.level != WAYROOM) {
                 player.hurtTimer = 70;
@@ -1589,7 +1597,8 @@ void RestartPlayer(void) {
             hand.link = NULL;
             if (gameInfo.level != PREHISTORICBOSS && gameInfo.level != FEARBOSS && gameInfo.level != SPACEBOSS1 &&
                 gameInfo.level != SPACEBOSS3 && gameInfo.level != ATLANTISBOSS && gameInfo.level != PIRATESBOSS &&
-                gameInfo.level != CARNIVALBOSS) {
+                gameInfo.level != CARNIVALBOSS && !G64RestartIsDeath()) {
+                /* g64coopdx: one player's respawn after a death restarts no enemies; the level's opening does. */
                 for (j = 0; j < numberOfEnemies; j++) {
                     RestartEnemy(&enemies[j], enemies[j].brain.startPos.x, enemies[j].brain.startPos.y,
                                  enemies[j].brain.startPos.z, enemies[j].brain.tag, enemies[j].brain.startRot,
@@ -1601,7 +1610,7 @@ void RestartPlayer(void) {
             cameraInfo.fallTime = 0;
             if (gameInfo.level == SPACEBOSS3) {
                 hand.pos = handControl.checkpoint->actor.pos;
-                restartGate->restartTimer = 0;
+                *timer = 0;
                 hand.rot.y = hand.rotAim.y = Aabs(handControl.checkpoint->restartGate->yaw + 3.141592654);
                 hand.scale.x = 0.5f;
                 hand.scale.y = 0.5f;
@@ -1652,7 +1661,7 @@ void RestartPlayer(void) {
             handControl.releaseTimer = 0;
             hand.pos.y -= levelHandScale * 12.0 / 0.05;
             DisableControl(65);
-            camera.pos = restartGate->cameraPos;
+            camera.pos = *G64RestartCamera(handControl.checkpoint);
             cameraInfo.actor.pos = hand.pos;
             ZERO_VECTOR(&camera.vel);
             cameraInfo.sideOffsetVel = 0.0f;
@@ -1673,19 +1682,19 @@ void RestartPlayer(void) {
         } else if (gameInfo.level == SPACEBOSS3) {
             return;
         }
-        if (restartGate->restartTimer > 0) {
+        if (*timer > 0) {
             /* restartTimer steps in ticks. Its last step ends the restart and resets the glove's sphere. On the N64
                that step comes before the frame's physics: it runs in the first update of the frame window. */
-            step = restartGate->restartTimer == 1 ? DeltaFirst(&restartEndFrame) : deltaTick;
+            step = *timer == 1 ? DeltaFirst(G64RestartStamp(3, &restartEndFrame)) : deltaTick;
             ballControl.releaseTimer = 0;
             handControl.releaseTimer = 0;
             tempVect.x = 8.0f;
             tempVect.y = 0.0f;
             tempVect.z = 0.0f;
             RotateVector2D(&tempVect, &tempVect, handControl.checkpoint->motion->rot.y);
-            if (restartGate->restartTimer == 35 || (restartGate->restartTimer == 10 && ballWithHand)) {
+            if (*timer == 35 || (*timer == 10 && ballWithHand)) {
                 size = 2.0f;
-            } else if (restartGate->restartTimer == 36 || (restartGate->restartTimer == 11 && ballWithHand)) {
+            } else if (*timer == 36 || (*timer == 11 && ballWithHand)) {
                 size = 1.0f;
             } else {
                 size = 0.5f;
@@ -1696,7 +1705,7 @@ void RestartPlayer(void) {
                     AddPuff(&handControl.checkpoint->actor.pos, &tempVect, size);
                 }
             }
-            if (restartGate->restartTimer == 35 && DeltaFirst(&restartJumpFrame)) {
+            if (*timer == 35 && DeltaFirst(G64RestartStamp(1, &restartJumpFrame))) {
                 if (!ballWithHand && (gameInfo.cameoActive == 0 || gameInfo.level == ATLANTISBONUS)) {
                     cameraInfo.focus = &hand.pos;
                     cameraInfo.focusVel = &hand.vel;
@@ -1707,7 +1716,7 @@ void RestartPlayer(void) {
                 hand.rotVel.z = 1.257f;
                 hand.rot.z = hand.rotAim.z = 0.0f;
             }
-            if (restartGate->restartTimer < 36) {
+            if (*timer < 36) {
                 for (j = 0; j < 15; j++) {
                     DeactivateCollectable(j);
                 }
@@ -1718,7 +1727,7 @@ void RestartPlayer(void) {
                 size = 9.0f;
                 SCALE_VECTOR(&hand.scale, scale);
                 if (ballWithHand) {
-                    if (restartGate->restartTimer == 10 && DeltaFirst(&restartLaunchFrame)) {
+                    if (*timer == 10 && DeltaFirst(G64RestartStamp(2, &restartLaunchFrame))) {
                         ResetBall();
                         ball.pos = handControl.checkpoint->actor.pos;
                         GiveActorRandomQRotVel(&ball);
@@ -1731,7 +1740,7 @@ void RestartPlayer(void) {
                             cameraInfo.followSpeed = 5.0f;
                         }
                     }
-                    if (restartGate->restartTimer < 11) {
+                    if (*timer < 11) {
                         ball.obj->spheres[0].radius = ball.obj->spheres[0].targetRadius = size * levelHandScale / 0.05;
                     } else {
                         ball.pos = handControl.checkpoint->actor.pos;
@@ -1754,7 +1763,7 @@ void RestartPlayer(void) {
                 hand.pos.y = handControl.checkpoint->actor.pos.y - levelHandScale * 12.0 / 0.05;
                 hand.vel = zero;
             }
-            if (step && --restartGate->restartTimer == 0) {
+            if (step && --*timer == 0) {
                 if (gameInfo.cameoActive == 0) {
                     cameraInfo.focus = &hand.pos;
                 }
@@ -1769,7 +1778,7 @@ void RestartPlayer(void) {
                 hand.shadow->shadowSize = hand.obj->spheres[0].radius * D_8010894C;
                 ResetHand(0);
             }
-            if (restartGate->restartTimer == 10) {
+            if (*timer == 10) {
                 restartGate->targetScale = 0.0f;
             }
         }

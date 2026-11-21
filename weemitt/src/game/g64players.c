@@ -24,6 +24,9 @@ PORT_C_BEGIN
 #include "maths.h"
 #include "bullet.h"
 #include "puzzle.h"
+#include "sound.h"
+#include "collision.h"
+#include "debris.h"
 PORT_C_END
 
 #include <string.h>
@@ -126,6 +129,10 @@ static s32 startPosSet;
 /* The slot whose player is in the globals during the logic: 0, or the slot of G64ExtraPlayersStep's player or of
    G64EnemyBegin's or G64BulletBegin's target. */
 static s32 logicSlot;
+static void note_enemy_hits(void);
+static void forget_restart(s32 player);
+static void forget_restarts(void);
+static void copy_restart(s32 to, s32 from);
 /* The game has room for 30 enemies (puzzle.c). */
 #define G64_ENEMIES 30
 /* Each enemy's hitter: the number plus 1 of the first player whose glove or ball hit it since its hit flags were last
@@ -354,6 +361,9 @@ static void new_slot(s32 i) {
     s->hand.pos.x += 40.0f * i;
     s->ball.pos.x += 40.0f * i;
     add_slot(i, s);
+    /* A copy taken during the level's opening respawn goes on with it (the level may start the glove below the
+       floor). */
+    copy_restart(i, 0);
 }
 
 static void arrive(s32 i, const Vec3 *to);
@@ -365,9 +375,11 @@ extern Vec3 handStart;
 static void new_late_slot(s32 i) {
     if (startSlot) {
         add_slot(i, copy_slot(startSlot));
+        copy_restart(i, -1);
         arrive(i, startPosSet ? &startPos : NULL);
     } else {
         add_slot(i, copy_globals());
+        copy_restart(i, 0);
         arrive(i, &handStart);
     }
 }
@@ -395,7 +407,6 @@ static void free_slot(s32 i, s32 blocks) {
     JallocFree(&slots[i]);
 }
 
-static void note_enemy_hits(void);
 
 static void free_slots(void) {
     s32 i;
@@ -441,13 +452,16 @@ void G64ExtraPlayersFree(void) {
     ready = 0;
     cameLate = 0;
     startPosSet = 0;
+    forget_restarts();
 }
 
 /* Online: the start copy, once the level has set the first player up. */
 static void take_start(void) {
     global_cave();
-    if (!startSlot && hand_block_size() <= HAND_BLOCK_MAX)
+    if (!startSlot && hand_block_size() <= HAND_BLOCK_MAX) {
         startSlot = copy_globals();
+        copy_restart(-1, 0);
+    }
 }
 
 /* One extra player's part of the frame, in the order MainGameLoop runs the first player's (main.c). */
@@ -962,6 +976,7 @@ void G64SetPresent(u32 present) {
 
 void G64StartPlayers(u32 present) {
     s32 p;
+    forget_restarts();
     cameLate = 0;
     g64Players = 0;
     for (p = 0; p < G64_MAX_PLAYERS; p++)
@@ -983,6 +998,7 @@ void G64RemovePlayer(s32 player) {
     s32 i = slot_of(player), j, blocks = 1;
     if (i < 0 || g64Players < 2)
         return;
+    forget_restart(player);
     if (i == 0 && slotCount > 1) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
            the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
@@ -1476,5 +1492,242 @@ s32 G64PuzzleZone(s32 k, f32 *box) {
         return 1;
     }
     return 0;
+}
+/* Respawns (phase 3, the owner's rules). Online, or with more than one player, each player respawns at their own
+   checkpoint: the gate their own ball last crossed first. A gate's countdown (restartTimer), the camera's place for
+   the respawn (cameraPos) and RestartPlayer's frame stamps are each player's own, here, by player number. The game
+   reaches them through G64RestartTimer, G64RestartCamera and G64RestartStamp, for the player in the globals. A
+   respawn after a death restarts no enemies (the level's opening does), and a death takes no life. Offline with one
+   player the gate's own fields are used, as before. */
+#define G64_GATES 16
+typedef struct G64Restart {
+    s32 valid;
+    PTR32(Platform) gate;
+    s16 timer;
+    /* 1 while the countdown is the level's opening respawn (parse.c), not a death's. */
+    s16 opening;
+    Vec3 cameraPos;
+    u32 stamps[4];
+    PTR32(Platform) touched[G64_GATES];
+    s32 touchedCount;
+} G64Restart;
+static G64Restart restarts[G64_MAX_PLAYERS];
+
+s32 G64PerPlayerRestart(void) {
+    return g64Online || g64Players > 1;
+}
+
+/* The slot of the player in the globals: one swapped in for the logic or for a view, or 0. */
+static s32 globals_slot(void) {
+    return logicSlot ? logicSlot : swapped;
+}
+
+static G64Restart *restart_of(s32 slot) {
+    return &restarts[g64Member[slot] & (G64_MAX_PLAYERS - 1)];
+}
+
+/* A player's record, made from their checkpoint the first time. The first record takes the gate's countdown (the
+   level's opening respawn, parse.c), and the gate's own field is then 0: no later player inherits it. */
+static G64Restart *restart_init(s32 slot) {
+    G64Restart *r = restart_of(slot);
+    Platform *gate = slot_hand_control(slot)->checkpoint;
+    if (r->valid)
+        return r;
+    memset(r, 0, sizeof *r);
+    r->valid = 1;
+    r->gate = gate;
+    if (gate && gate->restartGate) {
+        r->timer = gate->restartGate->restartTimer;
+        r->opening = r->timer > 0;
+        gate->restartGate->restartTimer = 0;
+        r->cameraPos = gate->restartGate->cameraPos;
+        r->touched[r->touchedCount++] = gate;
+    }
+    return r;
+}
+
+/* The record of the player in the globals for this gate. A new checkpoint starts with no countdown. */
+static G64Restart *restart_for(Platform *gate) {
+    G64Restart *r = restart_init(globals_slot());
+    if (r->gate != gate) {
+        r->gate = gate;
+        r->timer = 0;
+        if (gate && gate->restartGate)
+            r->cameraPos = gate->restartGate->cameraPos;
+    }
+    return r;
+}
+
+s16 *G64RestartTimer(Platform *gate) {
+    if (!G64PerPlayerRestart())
+        return &gate->restartGate->restartTimer;
+    return &restart_for(gate)->timer;
+}
+
+Vec3 *G64RestartCamera(Platform *gate) {
+    if (!G64PerPlayerRestart())
+        return &gate->restartGate->cameraPos;
+    return &restart_for(gate)->cameraPos;
+}
+
+s32 G64RestartIsDeath(void) {
+    G64Restart *r;
+    if (!G64PerPlayerRestart())
+        return 0;
+    r = restart_init(globals_slot());
+    if (r->opening) {
+        r->opening = 0;
+        return 0;
+    }
+    return 1;
+}
+
+u32 *G64RestartStamp(s32 k, u32 *own) {
+    if (!G64PerPlayerRestart() || k < 0 || k >= 4)
+        return own;
+    return &restart_init(globals_slot())->stamps[k];
+}
+
+void AddPuff(Vec3 *pos, Vec3 *vel, f32 size);
+
+void G64CheckRestartGate(Platform *platform) {
+    PlatformRestartGate *gate = platform->restartGate;
+    s32 i, k, n = slotCount > 0 ? slotCount : 1;
+    for (i = 0; i < n; i++) {
+        Actor *b;
+        G64Restart *r;
+        Vec3 v;
+        s32 seen = 0;
+        if (!slot_used(i))
+            continue;
+        b = slot_ball(i);
+        if (!(DistanceBetweenPoints2D(&b->pos, &platform->actor.pos) < platform->actor.radius &&
+              b->pos.y <= platform->actor.pos.y && platform->actor.pos.y < b->prevPos.y))
+            continue;
+        r = restart_init(i);
+        for (k = 0; k < r->touchedCount; k++)
+            seen |= r->touched[k] == platform;
+        if (seen)
+            continue;
+        if (r->touchedCount < G64_GATES)
+            r->touched[r->touchedCount++] = platform;
+        /* The puffs and the sound of the game's own touch (CheckRestartGate), once per player. */
+        v.x = 8.0f;
+        v.y = 0.0f;
+        v.z = 0.0f;
+        RotateVector2D(&v, &v, platform->motion->rot.y);
+        for (k = 0; k < 6; k++) {
+            RotateVector2D(&v, &v, 1.0f);
+            AddPuff(&platform->actor.pos, &v, 2.0f);
+        }
+        gate->untouched = 0;
+        gate->targetScale = 0.0f;
+        slot_hand_control(i)->checkpoint = platform;
+        if (r->gate != platform)
+            r->timer = 0;
+        r->gate = platform;
+        r->cameraPos = i == 0 ? camera.pos : ((G64Slot *)slots[i])->camera.pos;
+        soundtable_set_owner(g64Member[i]);
+        PlaySample(280, &b->pos, 100, 128);
+        soundtable_set_owner(-1);
+    }
+}
+
+static void forget_restart(s32 player) {
+    memset(&restarts[player & (G64_MAX_PLAYERS - 1)], 0, sizeof(G64Restart));
+}
+
+/* The start copy's record (take_start). */
+static G64Restart startRestart;
+
+static void forget_restarts(void) {
+    memset(restarts, 0, sizeof restarts);
+    memset(&startRestart, 0, sizeof startRestart);
+}
+
+/* Slot to's player gets the record of slot from's player; -1 is the start copy on either side. */
+static void copy_restart(s32 to, s32 from) {
+    G64Restart *src, *dst;
+    if (!G64PerPlayerRestart())
+        return;
+    src = from < 0 ? &startRestart : restart_init(from);
+    dst = to < 0 ? &startRestart : restart_of(to);
+    *dst = *src;
+}
+s32 G64RestartCountdown(s32 player) {
+    s32 i = slot_of(player);
+    if (i < 0 || !slot_used(i))
+        return -1;
+    if (!G64PerPlayerRestart()) {
+        Platform *gate = slot_hand_control(i)->checkpoint;
+        return gate && gate->restartGate ? gate->restartGate->restartTimer : 0;
+    }
+    return restart_init(i)->timer;
+}
+/* The k-th platform with a restart gate, in the platform list's order, or NULL. */
+static Platform *gate_at(s32 k) {
+    Platform *p;
+    s32 i = 0;
+    for (p = platformList.head.next; p != &platformList.head; p = p->next)
+        if (p->restartGate && i++ == k)
+            return p;
+    return NULL;
+}
+
+s32 G64GatePosition(s32 k, f32 *x, f32 *y, f32 *z) {
+    Platform *p = gate_at(k);
+    if (!p)
+        return 0;
+    *x = p->actor.pos.x;
+    *y = p->actor.pos.y;
+    *z = p->actor.pos.z;
+    return 1;
+}
+
+s32 G64PlayerCheckpoint(s32 player) {
+    s32 i = slot_of(player), k;
+    Platform *cp;
+    if (i < 0 || !slot_used(i))
+        return -2;
+    cp = slot_hand_control(i)->checkpoint;
+    for (k = 0; gate_at(k); k++)
+        if (gate_at(k) == cp)
+            return k;
+    return -1;
+}
+
+s32 G64PlayerLives(s32 who) {
+    s32 i = slot_of(who);
+    Player *pl;
+    if (i < 0 || !slot_used(i))
+        return -100;
+    pl = i == 0 ? &player : (Player *)(((G64Slot *)slots[i])->handBlock + ((u8 *)&player - (u8 *)&handControl));
+    return pl->lives;
+}
+void ShadowAltitude(Actor *actor);
+
+void G64SlotShadows(void) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        HandControl *hc;
+        Platform *platform;
+        Debris *fb;
+        if (!slot_used(i))
+            continue;
+        if ((slot_glove(i)->flags & 0x100) && slot_glove(i)->shadow)
+            ShadowAltitude(slot_glove(i));
+        if ((slot_ball(i)->flags & 0x100) && slot_ball(i)->shadow)
+            ShadowAltitude(slot_ball(i));
+        hc = slot_hand_control(i);
+        fb = hc->fakeball;
+        if (fb != NULL && fb->shadow)
+            fb->shadow->altitude = Altitude(&fb->pos, PORT_OUT(Vec3, &fb->shadow->floor), &platform, 0);
+    }
+}
+f32 G64PlayerAltitude(s32 who) {
+    s32 i = slot_of(who);
+    if (i < 0 || !slot_used(i) || !slot_glove(i)->shadow)
+        return -2.0f;
+    return slot_glove(i)->shadow->altitude;
 }
 PORT_C_END

@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
     zone_case(15, 0);
     zone_case(20, 3);
     zone_case(27, 5);
-    zone_case(39, 2);
+    zone_case(4, 0);
     printf("%s any player's glove or ball works a puzzle, and each player has their own camera zones\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

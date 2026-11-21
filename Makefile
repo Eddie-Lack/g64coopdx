@@ -92,7 +92,8 @@ rollback-game: rollback-game-build
 
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
-# exits in the online game (tests/rom/exits.c) enemies and puzzles with more than one player (tests/rom/enemies.c, tests/rom/puzzles.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# exits in the online game (tests/rom/exits.c) enemies, puzzles and respawns with more than one player (tests/rom/enemies.c, tests/rom/puzzles.c,
+# tests/rom/respawn.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -100,6 +101,7 @@ CAVE_SRC := tests/rom/cave.c weemitt/src/port/statehash.c
 EXITS_SRC := tests/rom/exits.c weemitt/src/port/statehash.c
 ENEMIES_SRC := tests/rom/enemies.c weemitt/src/port/statehash.c
 PUZZLES_SRC := tests/rom/puzzles.c weemitt/src/port/statehash.c
+RESPAWN_SRC := tests/rom/respawn.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -130,6 +132,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/puzzles.exe $(PUZZLES_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/respawn $(RESPAWN_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/respawn.exe $(RESPAWN_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -167,6 +173,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/puzzles.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/puzzles-windows.out
 	cmp build/tests/puzzles.out build/tests/puzzles-windows.out
+	build/tests/respawn "$$GLOVER_ROM" > build/tests/respawn.out
+	tail -1 build/tests/respawn.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/respawn.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/respawn-windows.out
+	cmp build/tests/respawn.out build/tests/respawn-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).

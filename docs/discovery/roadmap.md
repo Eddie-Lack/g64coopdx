@@ -125,10 +125,14 @@ harness at N players and by the determinism tests:
    (weemitt/src/game/puzzle.c, PuzzleEvaluateCondition; tests/rom/puzzles.c). Platforms that wait for a ball or a
    glove, or face one, look at every player. Vents need no change: they fire on timers, and their bullets look for
    players. A camera zone (a puzzle whose actions only move the camera) is each player's own: each player runs it
-   with their own copy of its state. Left: checkpoints (item 4).
+   with their own copy of its state. Left: winds, fans, water, spikes and buzzers act on the first player only.
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
+   Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with
+   their own countdown; a respawn after a death restarts no enemies; a death takes no life
+   (weemitt/src/game/g64players.c, "Respawns"; tests/rom/respawn.c). Each player's shadow altitude is measured where
+   they are, so a fall into nothing kills every player. Left: the ball's real owner and the pickup rule.
 5. Exits and the hub: each player exits alone, the ball left behind, world doors. Done in part: each player exits
    alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c).
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).

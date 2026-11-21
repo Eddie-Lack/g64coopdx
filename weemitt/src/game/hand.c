@@ -29,6 +29,7 @@ PORT_C_BEGIN
 #include "spell.h"
 #include "delta.h"
 #include "ballworld.h"
+#include "g64players.h"
 void FlashScreen(u8 r, u8 g, u8 b, s16 fadeVal, s16 fadeStep);
 
 void StartEarthquakeAtPoint(Vec3 *pos, s16 duration, f32 maxStrength, f32 minStrength, s16 numCycles, s32 flags);
@@ -1431,7 +1432,7 @@ void MaintainAction(void) {
             }
         }
     } else if ((player.powerups[SPEEDUP] == 1 || frameCount == 1
-                || (handControl.checkpoint != NULL && handControl.checkpoint->restartGate->restartTimer != 0))
+                || (handControl.checkpoint != NULL && *G64RestartTimer(handControl.checkpoint) != 0))
                && blur1 != NULL) {
         SubBlur(blur1);
         JallocFree(&blur1);
@@ -1561,7 +1562,7 @@ void MaintainAction(void) {
             ball.phys->moveSpeed = BallJoinedMaxSpeed();
             hand.obj->spheres[0].targetRadius = ball.obj->spheres[0].targetRadius + 0.05;
             if (ballControl.transformState == 0 && handControl.actionTime >= 11 && player.powerups[VANISHBALL] == 0
-                && (handControl.checkpoint == NULL || handControl.checkpoint->restartGate->restartTimer == 0)) {
+                && (handControl.checkpoint == NULL || *G64RestartTimer(handControl.checkpoint) == 0)) {
                 val = ball.obj->spheres[0].radius - 9.0;
                 if (val > 0.0f) {
                     val += MIN((ball.obj->spheres[0].radius - 9.0) / 2.0, 0.5);
@@ -3042,7 +3043,7 @@ void MoveHand(void) {
         hand.phys->rotAim[2] = 1;
         ActorHandleRotaim(&hand, 2);
         hand.phys->rotAim[2] = 0;
-    } else if (handControl.checkpoint->restartGate->restartTimer < 11) {
+    } else if (*G64RestartTimer(handControl.checkpoint) < 11) {
         /* x * 0.5f equals x / 2.0f. */
         hand.rotVel.z *= DeltaDamp(0.5f);
         hand.rotAim.z = 0.0f;
@@ -3801,7 +3802,8 @@ void LoseLife(void) {
         ExitLevel(BONUS_DONE_EXIT, 1, 0);
         return;
     }
-    if (!(cheatActivated & 8)) {
+    /* g64coopdx: in co-op a death takes no life (the owner's rules, g64players.c). */
+    if (!(cheatActivated & 8) && !G64PerPlayerRestart()) {
         AddScreenDebris(numLivesOL.x, numLivesOL.y, -4.0f, 12.0f, SDT_LIFE, 1);
         player.lives--;
         if (player.lives == -1) {
@@ -3812,8 +3814,8 @@ void LoseLife(void) {
     if (player.lives != -1) {
         player.health = 3;
     }
-    if (gameInfo.level != SPACEBOSS3 && handControl.checkpoint && handControl.checkpoint->restartGate->restartTimer == 0) {
-        handControl.checkpoint->restartGate->restartTimer = 65;
+    if (gameInfo.level != SPACEBOSS3 && handControl.checkpoint && *G64RestartTimer(handControl.checkpoint) == 0) {
+        *G64RestartTimer(handControl.checkpoint) = 65;
     }
     if (!controlMethod) {
         DeactivateCameraControlMode();
