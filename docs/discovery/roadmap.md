@@ -166,8 +166,9 @@ harness at N players and by the determinism tests:
    players in turn, 64 frames each. Left: that level's game over, which is one player's; the shield's glow and
    the crosshair's fade, which follow the first player on every screen; a cameo during the fight, which moves the
    first player's camera only. In the Carnival bonus level every player sits on the one cannon with its camera:
-   the stick pushed the farthest turns it and any player's A fires it (bonus.c; tests/rom/bonus.c). Left: the
-   space bonus levels and the control room. The Carnival boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
+   the stick pushed the farthest turns it and any player's A fires it (bonus.c; tests/rom/bonus.c). The space bonus
+   level has no code of its own for the player: the changes above cover it. Left: the control room. The Carnival
+   boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
