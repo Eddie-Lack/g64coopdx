@@ -160,7 +160,8 @@ harness at N players and by the determinism tests:
    clock's end still takes everyone. Left: the Atlantis and space bosses, the Carnival and space bonus levels and
    the control room. The Carnival boss's pie and bomb and the Fortress boss's slam, pain and stomp have no test.
 7. Cameos: which glove they move.
-8. Pause and tips as local overlays. Pause is done: each player has their own menu.
+8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
+   player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).
 
 Playable: the whole game, start to end, with 8 players. Test: a scripted run of each level by N bots in the harness;

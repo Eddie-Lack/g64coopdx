@@ -93,7 +93,7 @@ rollback-game: rollback-game-build
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), enemies, puzzles, respawns, world hazards, garibs, pick-ups, bosses and bonus levels with more than one player
-# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), and the look-around mode (tests/rom/lookaround.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -106,6 +106,7 @@ HAZARDS_SRC := tests/rom/hazards.c weemitt/src/port/statehash.c
 COLLECT_SRC := tests/rom/collect.c weemitt/src/port/statehash.c
 BOSSES_SRC := tests/rom/bosses.c weemitt/src/port/statehash.c
 BONUS_SRC := tests/rom/bonus.c weemitt/src/port/statehash.c
+LOOKAROUND_SRC := tests/rom/lookaround.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -156,6 +157,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/bonus.exe $(BONUS_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/lookaround $(LOOKAROUND_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/lookaround.exe $(LOOKAROUND_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -218,6 +223,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bonus.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/bonus-windows.out
 	cmp build/tests/bonus.out build/tests/bonus-windows.out
+	build/tests/lookaround "$$GLOVER_ROM" > build/tests/lookaround.out
+	tail -1 build/tests/lookaround.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/lookaround.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/lookaround-windows.out
+	cmp build/tests/lookaround.out build/tests/lookaround-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).
