@@ -27,6 +27,7 @@ PORT_C_BEGIN
 #include "sound.h"
 #include "collision.h"
 #include "debris.h"
+#include "save.h"
 PORT_C_END
 
 #include <string.h>
@@ -44,6 +45,7 @@ extern s32 ballLeftBehind;
 extern f32 handInertia;
 extern Vec3 ballFrameVel;
 extern u8 disableZoom;
+extern s16 currentSaveSlot;
 
 void ReadController(s32 cntlr);
 void ProcessInput(void);
@@ -133,6 +135,7 @@ static void note_enemy_hits(void);
 static void forget_restart(s32 player);
 static void forget_restarts(void);
 static void copy_restart(s32 to, s32 from);
+static void move_restart(s32 toPlayer, s32 fromPlayer);
 /* The game has room for 30 enemies (puzzle.c). */
 #define G64_ENEMIES 30
 /* Each enemy's hitter: the number plus 1 of the first player whose glove or ball hit it since its hit flags were last
@@ -998,6 +1001,10 @@ void G64RemovePlayer(s32 player) {
     s32 i = slot_of(player), j, blocks = 1;
     if (i < 0 || g64Players < 2)
         return;
+    if (i == 0 && slotCount <= 1) {
+        /* The globals, and a respawn running in them, stay with the next player. */
+        move_restart(g64Member[1], player);
+    }
     forget_restart(player);
     if (i == 0 && slotCount > 1) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
@@ -1509,6 +1516,8 @@ typedef struct G64Restart {
     Vec3 cameraPos;
     u32 stamps[4];
     PTR32(Platform) touched[G64_GATES];
+    /* The camera's place at each touch, for a respawn there (the pause menu can pick an earlier gate). */
+    Vec3 touchedCamera[G64_GATES];
     s32 touchedCount;
 } G64Restart;
 static G64Restart restarts[G64_MAX_PLAYERS];
@@ -1541,6 +1550,7 @@ static G64Restart *restart_init(s32 slot) {
         r->opening = r->timer > 0;
         gate->restartGate->restartTimer = 0;
         r->cameraPos = gate->restartGate->cameraPos;
+        r->touchedCamera[r->touchedCount] = r->cameraPos;
         r->touched[r->touchedCount++] = gate;
     }
     return r;
@@ -1549,11 +1559,23 @@ static G64Restart *restart_init(s32 slot) {
 /* The record of the player in the globals for this gate. A new checkpoint starts with no countdown. */
 static G64Restart *restart_for(Platform *gate) {
     G64Restart *r = restart_init(globals_slot());
+    s32 k;
     if (r->gate != gate) {
         r->gate = gate;
         r->timer = 0;
         if (gate && gate->restartGate)
             r->cameraPos = gate->restartGate->cameraPos;
+        /* A gate this player touched keeps the camera's place from their touch. A gate that becomes their
+           checkpoint in another way (the pause menu) counts as touched from now on. */
+        for (k = 0; k < r->touchedCount; k++)
+            if (r->touched[k] == gate)
+                break;
+        if (k < r->touchedCount) {
+            r->cameraPos = r->touchedCamera[k];
+        } else if (gate && r->touchedCount < G64_GATES) {
+            r->touchedCamera[r->touchedCount] = r->cameraPos;
+            r->touched[r->touchedCount++] = gate;
+        }
     }
     return r;
 }
@@ -1568,6 +1590,16 @@ Vec3 *G64RestartCamera(Platform *gate) {
     if (!G64PerPlayerRestart())
         return &gate->restartGate->cameraPos;
     return &restart_for(gate)->cameraPos;
+}
+
+s32 G64AnyRestarting(void) {
+    s32 i, n = slotCount > 0 ? slotCount : 1;
+    if (!G64PerPlayerRestart())
+        return handControl.checkpoint->restartGate->restartTimer != 0;
+    for (i = 0; i < n; i++)
+        if (slot_used(i) && slot_hand_control(i)->checkpoint && restart_init(i)->timer != 0)
+            return 1;
+    return 0;
 }
 
 s32 G64RestartIsDeath(void) {
@@ -1593,6 +1625,9 @@ void AddPuff(Vec3 *pos, Vec3 *vel, f32 size);
 void G64CheckRestartGate(Platform *platform) {
     PlatformRestartGate *gate = platform->restartGate;
     s32 i, k, n = slotCount > 0 ? slotCount : 1;
+    /* On Hard only the level's start is a checkpoint (parse.c leaves the other gates touched). */
+    if (saveSlot[currentSaveSlot].difficultyLevel == DIFFICULTY_HARD)
+        return;
     for (i = 0; i < n; i++) {
         Actor *b;
         G64Restart *r;
@@ -1609,8 +1644,10 @@ void G64CheckRestartGate(Platform *platform) {
             seen |= r->touched[k] == platform;
         if (seen)
             continue;
-        if (r->touchedCount < G64_GATES)
+        if (r->touchedCount < G64_GATES) {
+            r->touchedCamera[r->touchedCount] = i == 0 ? camera.pos : ((G64Slot *)slots[i])->camera.pos;
             r->touched[r->touchedCount++] = platform;
+        }
         /* The puffs and the sound of the game's own touch (CheckRestartGate), once per player. */
         v.x = 8.0f;
         v.y = 0.0f;
@@ -1639,6 +1676,11 @@ static void forget_restart(s32 player) {
 
 /* The start copy's record (take_start). */
 static G64Restart startRestart;
+
+/* Player toPlayer's record becomes fromPlayer's, by number. */
+static void move_restart(s32 toPlayer, s32 fromPlayer) {
+    restarts[toPlayer & (G64_MAX_PLAYERS - 1)] = restarts[fromPlayer & (G64_MAX_PLAYERS - 1)];
+}
 
 static void forget_restarts(void) {
     memset(restarts, 0, sizeof restarts);

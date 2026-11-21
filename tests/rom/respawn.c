@@ -10,6 +10,8 @@
  *      the enemies: some enemy jumps.
  *   D. Player 1 stands over the ground at the second gate, far from player 0's camera, and then over nothing. Their
  *      glove's altitude follows them: small over the ground, -1 over nothing. A fall over nothing kills.
+ *   E. Player 0 leaves at frame 5, during the level's opening respawn and before the other players' slots exist.
+ *      Player 1 takes the globals and finishes the opening: their countdown goes on to 0.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -219,6 +221,38 @@ int main(int argc, char **argv) {
                  "under the level", dist2d(g1, quiet.end0), over, under);
         check(over >= 0.0f && over < 60.0f && under == -1.0f, what);
         printf("D: hash %08x\n", port_hash_ram());
+    }
+
+    {
+        G64Save sv;
+        unsigned f;
+        int at5 = -1, after = -1, steps = 0, last = 0;
+        engine_load(engine, boot);
+        g64Online = 1;
+        present = 0x3;
+        G64StartPlayers(0x3);
+        memset(&sv, 0, sizeof sv);
+        sv.levels = 1;
+        G64SetStartRecord(0, &sv);
+        port_game_start_level(LEVEL);
+        for (f = 0; f < 200; f++) {
+            int t;
+            if (f == 5)
+                present = 0x2;
+            frame(f);
+            t = G64RestartCountdown(f < 5 ? 0 : 1);
+            if (f == 5)
+                at5 = t;
+            if (f > 5 && t > 0 && t == last - 1)
+                steps++;
+            last = t;
+            if (f == 199)
+                after = t;
+        }
+        snprintf(what, sizeof what, "E: player 0 leaves during the opening: player 1's countdown is %d then, runs %d "
+                 "more steps, and is %d at frame 200", at5, steps, after);
+        check(at5 > 30 && steps >= at5 - 2 && after == 0, what);
+        printf("E: hash %08x\n", port_hash_ram());
     }
 
     start(0x1, 0);

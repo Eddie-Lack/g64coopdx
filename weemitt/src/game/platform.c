@@ -425,7 +425,8 @@ void CrumblePlatform(Platform *platform) {
         return;
     }
     if (platform->crumble->timer > platform->crumble->shakeTime + 400 ||
-        *G64RestartTimer(handControl.checkpoint)) {
+        G64AnyRestarting()) {
+        /* g64coopdx: any player's respawn brings the platform back, as one shared countdown did. */
         platform->actor.pos = platform->crumble->origPos;
         platform->actor.alpha = 100;
         ZERO_VECTOR(&platform->actor.vel);

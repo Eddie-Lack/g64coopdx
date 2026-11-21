@@ -209,6 +209,8 @@ u32 *G64RestartStamp(s32 k, u32 *own);
 /* For RestartPlayer's set-up: 1 when the respawn of the player in the globals follows a death, so it restarts no
    enemies; 0 offline with one player, and for the level's opening respawn (which it then marks as done). */
 s32 G64RestartIsDeath(void);
+/* 1 while any player's respawn runs (a crumbling platform comes back then, CrumblePlatform). */
+s32 G64AnyRestarting(void);
 void G64CheckRestartGate(struct Platform *platform);
 /* For tests: a player's respawn countdown (65 at a death, 0 when none runs), by number; -1 when not in this game. */
 s32 G64RestartCountdown(s32 player);
