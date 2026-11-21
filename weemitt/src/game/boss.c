@@ -37,6 +37,7 @@ PORT_C_BEGIN
 #include "present.h"
 #include "nmeprocess2.h"
 #include "delta.h"
+#include "g64players.h"
 
 Platform *TagToFirstPlatform(s32 tag);
 void SetFont(u8 type);
@@ -304,6 +305,8 @@ void DoBoss(void) {
             NEW_TEXT(160, 50, 255, 255, 255, 255, 0.8f, 0.8f, 1, buf, 1);
         } else {
             DisableControl(2);
+            /* g64coopdx: every player waits for the count-in. */
+            G64DisableControlAll(2);
             if (bonusTimer == 1) {
                 sprintf(buf, goString[gameInfo.language]);
             } else {
@@ -333,16 +336,26 @@ void DoBoss(void) {
     }
 }
 
+/* The arena's wall: a circle of radius 1100 around the origin. */
+static void PiratesArenaWall(Vec3 *pos) {
+    if (LENGTH_2D(pos) > 1100.0f) {
+        MakeUnit2D(pos);
+        SCALE_VECTOR_2D(pos, 1100.0f);
+    }
+}
+
 void DoPiratesBoss(void) {
     Platform *platform;
+    s32 i;
 
-    if (LENGTH_2D(&hand.pos) > 1100.0f) {
-        MakeUnit2D(&hand.pos);
-        SCALE_VECTOR_2D(&hand.pos, 1100.0f);
-    }
-    if (LENGTH_2D(&ball.pos) > 1100.0f) {
-        MakeUnit2D(&ball.pos);
-        SCALE_VECTOR_2D(&ball.pos, 1100.0f);
+    PiratesArenaWall(&hand.pos);
+    PiratesArenaWall(&ball.pos);
+    /* g64coopdx: the wall holds every player's glove and ball. */
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (G64SlotGlove(i) != NULL) {
+            PiratesArenaWall(&G64SlotGlove(i)->pos);
+            PiratesArenaWall(&G64SlotBall(i)->pos);
+        }
     }
     if (enemies[0].actor.active != 1) {
         platform = TagToFirstPlatform(1);
@@ -1182,17 +1195,11 @@ void DoWayRoom(void) {
     }
 }
 
-void DoPrehistBoss(void) {
-    Enemy *e = enemies;
+/* The part of the Prehistoric boss's level that each player has: the camera's stand, the camera's place in the entry
+   area, and the strip in front of the boss where the glove lets go of the ball. */
+static void PrehistBossPlayer(void) {
     Box box;
-    Vec3 d;
-    Bullet *bullet;
-    Platform *plat;
-    s32 i;
 
-    if (cameoList.head.next->active) {
-        return;
-    }
     cameraInfo.destActive = 1;
     cameraInfo.destPos.x = hand.pos.x;
     cameraInfo.destPos.y = 250.0f;
@@ -1219,10 +1226,41 @@ void DoPrehistBoss(void) {
         && (IsHandHoldingBall() == 1 || hand.state->mode == HAND_BALLWALK)) {
         ApplyAction(HAND_RELEASE);
     }
+}
+
+/* After the boss is beaten, a ball that lies behind it comes back while its glove is on the near side. */
+static void PrehistBossBallBack(Actor *h, Actor *b) {
+    if (b->pos.z > 480.0f && h->pos.z <= 0.0f && b->vel.z > -2.0f) {
+        b->vel.z -= 0.5 * deltaTime;
+    }
+}
+
+void DoPrehistBoss(void) {
+    Enemy *e = enemies;
+    Vec3 d;
+    Bullet *bullet;
+    Platform *plat;
+    s32 i;
+    s32 target;
+
+    if (cameoList.head.next->active) {
+        return;
+    }
+    PrehistBossPlayer();
+    /* g64coopdx: each other player has that part too, with them in the globals. */
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (G64HazardBegin(i)) {
+            PrehistBossPlayer();
+            G64HazardEnd(i);
+        }
+    }
     if (deltaTick && e->actor.state->hitFadeTimer) {
         e->actor.state->hitFadeTimer--;
     }
     if (e->actor.state->hits) {
+        /* g64coopdx: the boss deals with the player its own update looked at: the one whose ball hit it, or the
+           nearest (G64EnemyBegin). */
+        target = G64EnemyBegin(0);
         if (deltaTick && hand.pos.z < 55.0f && e->brain.attackTime == 0) {
             if (handControl.deathTimer == 0 && e->brain.cooldownTimer == 0) {
                 NMEActionStartAttack(e);
@@ -1280,9 +1318,13 @@ void DoPrehistBoss(void) {
                 bullet->actor.scale.z = 0.5f;
             }
         }
+        G64EnemyEnd(0, target);
     } else {
-        if (ball.pos.z > 480.0f && hand.pos.z <= 0.0f && ball.vel.z > -2.0f) {
-            ball.vel.z -= 0.5 * deltaTime;
+        PrehistBossBallBack(&hand, &ball);
+        for (i = 1; i < G64SlotCount(); i++) {
+            if (G64SlotGlove(i) != NULL) {
+                PrehistBossBallBack(G64SlotGlove(i), G64SlotBall(i));
+            }
         }
         if (e->actor.state->hits == 0 && e->actor.anim->finishedAnim != 0) {
             e->brain.delayTimer = 200;
