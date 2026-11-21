@@ -119,8 +119,13 @@ static u32 cameLate;
 static Vec3 startPos;
 static s32 startPosSet;
 /* The slot whose player is in the globals during the logic: 0, or the slot of G64ExtraPlayersStep's player or of
-   G64TargetBegin's target. */
+   G64EnemyBegin's or G64BulletBegin's target. */
 static s32 logicSlot;
+/* The game has room for 30 enemies (puzzle.c). */
+#define G64_ENEMIES 30
+/* Each enemy's hitter: the number plus 1 of the first player whose glove or ball hit it since its hit flags were last
+   cleared (UpdateEnemies), or 0. */
+static s32 enemyHitBy[G64_ENEMIES];
 extern Vec3 ballStart;
 extern s32 frameCount;
 void AddActor(Actor *actor);
@@ -380,11 +385,14 @@ static void free_slot(s32 i, s32 blocks) {
     JallocFree(&slots[i]);
 }
 
+static void note_enemy_hits(void);
+
 static void free_slots(void) {
     s32 i;
     for (i = 1; i < G64_MAX_PLAYERS; i++)
         free_slot(i, 1);
     slotCount = 0;
+    memset(enemyHitBy, 0, sizeof enemyHitBy);
 }
 
 void G64ExtraPlayersStart(void) {
@@ -496,6 +504,8 @@ void G64ExtraPlayersStep(void) {
         return;
     if (slotCount == 0)
         G64ExtraPlayersStart();
+    /* The first player's part of the frame has run. */
+    note_enemy_hits();
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (!s)
@@ -505,6 +515,7 @@ void G64ExtraPlayersStep(void) {
         soundtable_set_owner(g64Member[i]);
         logicSlot = i;
         player_frame(i);
+        note_enemy_hits();
         logicSlot = 0;
         soundtable_set_owner(-1);
         swap_slot(s);
@@ -992,8 +1003,8 @@ void G64RemovePlayer(s32 player) {
    swapped out after it. That player is, in order:
    - the player the enemy or bullet holds, or who holds it (a glove in a bubble, a ball in a mouth). For a Baby Spank
      this also counts the ball its partner holds: the two pass one ball between them;
-   - for a bullet that a glove or a ball hit in its last update, that player (the hit's effect comes in the bullet's
-     next update);
+   - for an enemy or a bullet that a glove or a ball hit, that player (the hit's effect comes in its next update).
+     An enemy is hit in the players' parts of the frame; a bullet only in its own update;
    - for a bullet that homes in on a glove or a ball, the player whose glove or ball it is. A bullet aimed before
      there was a second player has no record, and keeps the player in the globals;
    - the nearest player, by the nearer of their glove and their ball. A player who is dying counts only when every
@@ -1035,6 +1046,15 @@ static BallControl *slot_ball_control(s32 i) {
 
 static s32 slot_used(s32 i) {
     return i == 0 || (i < slotCount && slots[i]);
+}
+
+/* The slot of a recorded player, or -1 when they are not in this game. */
+static s32 recorded_slot(s32 player) {
+    s32 i;
+    if (player < 0)
+        return -1;
+    i = slot_of(player);
+    return i >= 0 && slot_used(i) ? i : -1;
 }
 
 /* 1 when the player in slot i holds the actor or is held by it. */
@@ -1103,15 +1123,46 @@ static s32 target_begin(Actor *a, s32 preferred) {
     return i;
 }
 
-s32 G64TargetBegin(Actor *a) {
-    return target_begin(a, -1);
-}
-
 void G64TargetEnd(s32 i) {
     if (i > 0) {
         swap_slot(slots[i]);
         logicSlot = 0;
     }
+}
+
+/* 1 while an enemy's hit flags are set (collision.c sets them; UpdateEnemies clears them in each tick). */
+static s32 enemy_hit(s32 x) {
+    return (enemies[x].brain.flags & 8) || (enemies[x].actor.flags & 0x4000000);
+}
+
+static void note_enemy_hits(void) {
+    s32 x;
+    if (slotCount < 2)
+        return;
+    for (x = 0; x < numberOfEnemies && x < G64_ENEMIES; x++)
+        if (enemy_hit(x) && !enemyHitBy[x])
+            enemyHitBy[x] = g64Member[logicSlot] + 1;
+}
+
+s32 G64EnemyBegin(s32 x) {
+    s32 preferred = -1;
+    if (slotCount < 2 || x < 0 || x >= G64_ENEMIES)
+        return 0;
+    if (enemy_hit(x) && enemyHitBy[x])
+        preferred = recorded_slot(enemyHitBy[x] - 1);
+    return target_begin(&enemies[x].actor, preferred);
+}
+
+void G64EnemyEnd(s32 x, s32 i) {
+    /* A hit in the enemy's own update is the swapped-in player's. */
+    if (slotCount >= 2 && x >= 0 && x < G64_ENEMIES && enemy_hit(x) && !enemyHitBy[x])
+        enemyHitBy[x] = g64Member[i] + 1;
+    G64TargetEnd(i);
+}
+
+void G64EnemyHitsCleared(s32 x) {
+    if (x >= 0 && x < G64_ENEMIES && !enemy_hit(x))
+        enemyHitBy[x] = 0;
 }
 
 s32 G64EnemyNear(Actor *a, f32 rangeSq) {
@@ -1146,15 +1197,6 @@ static G64BulletOwner *bullet_entry(struct Bullet *b) {
         }
     }
     return o;
-}
-
-/* The slot of a recorded player, or -1 when they are not in this game. */
-static s32 recorded_slot(s32 player) {
-    s32 i;
-    if (player < 0)
-        return -1;
-    i = slot_of(player);
-    return i >= 0 && slot_used(i) ? i : -1;
 }
 
 void G64BulletMade(struct Bullet *b) {
@@ -1216,6 +1258,18 @@ void G64BulletEnd(struct Bullet *b, s32 i) {
     }
     bulletGone = NULL;
     G64TargetEnd(i);
+}
+
+s32 G64BulletMine(struct Bullet *b) {
+    G64BulletOwner *o;
+    s32 i;
+    if (slotCount < 2)
+        return 1;
+    o = find_bullet(b);
+    if (!o)
+        return 1;
+    i = recorded_slot(o->player);
+    return i < 0 || i == logicSlot;
 }
 s32 G64EnemyInfo(s32 i, f32 *x, f32 *y, f32 *z) {
     Enemy *e;

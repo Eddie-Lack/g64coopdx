@@ -142,13 +142,18 @@ s32 G64FindExit(s32 type, f32 *x, f32 *y, f32 *z);
 void G64PlacePlayer(s32 player, f32 x, f32 y, f32 z);
 void G64SetPresent(u32 present);
 
-/* Enemies and bullets look at one player each (g64players.c, "Enemies and bullets"). G64TargetBegin swaps that player
-   into the globals before an enemy's update and returns their slot; G64TargetEnd swaps them back. G64BulletBegin and
+/* Enemies and bullets look at one player each (g64players.c, "Enemies and bullets"). G64EnemyBegin swaps that player
+   into the globals before enemy x's update and returns their slot; G64EnemyEnd swaps them back. G64BulletBegin and
    G64BulletEnd do the same for a bullet. G64BulletMade and G64BulletGone keep the record of whom each bullet homes in
    on. G64EnemyNear: 1 when a player who is not in the globals holds the actor's ball, or their camera is within the
    range (squared) of it. */
-s32 G64TargetBegin(struct Actor *a);
-void G64TargetEnd(s32 slot);
+s32 G64EnemyBegin(s32 enemy);
+void G64EnemyEnd(s32 enemy, s32 slot);
+/* After UpdateEnemies clears an enemy's hit flags: its record of who hit it goes. */
+void G64EnemyHitsCleared(s32 enemy);
+/* 1 when a bullet homes in on the player in the globals, or has no record (RemoveHandAndBallBullets: a player's
+   respawn removes only the bullets aimed at them). */
+s32 G64BulletMine(struct Bullet *b);
 s32 G64BulletBegin(struct Bullet *b);
 void G64BulletEnd(struct Bullet *b, s32 slot);
 void G64BulletMade(struct Bullet *b);
