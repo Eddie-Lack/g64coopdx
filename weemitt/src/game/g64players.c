@@ -1948,6 +1948,18 @@ void G64HazardEnd(s32 i) {
     }
 }
 
+void DisableControl(s16 time);
+
+void G64DisableControlAll(s32 time) {
+    s32 i;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (G64HazardBegin(i)) {
+            DisableControl(time);
+            G64HazardEnd(i);
+        }
+    }
+}
+
 s32 G64SlotBallBursting(s32 i) {
     return i >= 1 && slot_used(i) && slot_ball_control(i)->state == BALL_BURST;
 }

@@ -139,10 +139,17 @@ harness at N players and by the determinism tests:
    Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with
    their own countdown; a respawn after a death restarts no enemies; a death takes no life
    (weemitt/src/game/g64players.c, "Respawns"; tests/rom/respawn.c). Each player's shadow altitude is measured where
-   they are, so a fall into nothing kills every player. Left: the ball's real owner and the pickup rule.
+   they are, so a fall into nothing kills every player. The pickup rule "own ball only" holds as the game is built:
+   a glove touches only its own ball, so a lost ball kills its owner. Left: the host's other choice, "any ball",
+   which needs a glove to hold another player's ball.
 5. Exits and the hub: each player exits alone, the ball left behind, world doors. Done in part: each player exits
    alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c).
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
+   Done in part: the count-in of a timed level holds every player. The Pirates boss's wall holds every glove and
+   ball. In the Prehistoric boss's level each player has the camera's stand, the entry area's camera and the strip
+   where the glove lets go of the ball, and the boss deals with the player whose ball hit it or the nearest
+   (weemitt/src/game/boss.c; tests/rom/bosses.c). Left: the Carnival, Fortress, Atlantis and space bosses, and the
+   bonus levels.
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).

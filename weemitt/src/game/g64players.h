@@ -235,6 +235,8 @@ struct Actor *G64SlotBall(s32 i);
 s32 G64HazardBegin(s32 i);
 void G64HazardEnd(s32 i);
 s32 G64SlotBallBursting(s32 i);
+/* DisableControl(time) for every player who is not in the globals. */
+void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are
    keyed by the slot's own actors, not by the globals' addresses. G64SlotWaterReset clears the other players'
    water state at the start of a frame. */
