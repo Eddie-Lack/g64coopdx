@@ -65,7 +65,10 @@ static void call_sound(void *arg) {
             MusSetMasterVolume(c->a, c->b);
             break;
         case GLOVER_SOUND_GAIN:
+            /* Only the real sound player has the groups' gain; the stand-in plays nothing anyway. */
+#ifdef PORT_AUDIO_MUS
             musSetGroupGain(c->a < 0 ? 0 : c->a > 100 ? 100 : c->a, c->b < 0 ? 0 : c->b > 100 ? 100 : c->b);
+#endif
             break;
         default:
             break;
