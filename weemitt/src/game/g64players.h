@@ -279,6 +279,7 @@ s32 G64AnyPressed(s32 button);
 void G64PuzzleMetReset(void);
 void G64PuzzleMet(s32 i);
 void G64CameoStarter(void);
+void G64CameoHolding(void);
 s32 G64CameoStartBegin(void);
 s32 G64CameoSwapIn(void);
 void G64CameoSwapOut(s32 i);

@@ -272,6 +272,7 @@ void UpdateCameo(Cameo *cameo) {
         cameo->active++;
         /* g64coopdx: this holds the cameo's player. G64CameoAfter holds the others (g64players.c). */
         DisableControl(2);
+        G64CameoHolding();
     }
 }
 

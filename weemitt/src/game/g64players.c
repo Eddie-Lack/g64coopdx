@@ -662,8 +662,9 @@ static void forget_tips(void);
 static void forget_cameo(void);
 /* Cameos (below): cameoStarter is the number plus 1 of the player who set the cameo off, or 0 for the first player.
    cameoMet is the player, plus 1, who last met a puzzle's condition on a player in the puzzle that is being run.
-   cameoUsed: a cameo has started for cameoStarter. */
-static s32 cameoStarter, cameoMet, cameoUsed;
+   cameoPending is that player for a puzzle whose conditions are met, until its cameo starts. cameoUsed: a cameo
+   that a puzzle started plays. cameoHolding: the cameo held its player in this frame. */
+static s32 cameoStarter, cameoMet, cameoUsed, cameoPending, cameoHolding;
 
 void G64ExtraPlayersFree(void) {
     forget_tips();
@@ -2185,7 +2186,7 @@ void DisableControl(s16 time);
    camera: where it stands, how it is turned, what it looks at and its roll. Their own cameras go on from there
    when it ends. */
 static void forget_cameo(void) {
-    cameoStarter = cameoMet = cameoUsed = 0;
+    cameoStarter = cameoMet = cameoUsed = cameoPending = cameoHolding = 0;
 }
 
 /* The slot of the cameo's player. */
@@ -2206,8 +2207,12 @@ void G64PuzzleMet(s32 i) {
 }
 
 void G64CameoStarter(void) {
-    if (!gameInfo.cameoActive && !cameoUsed)
-        cameoStarter = cameoMet;
+    cameoPending = cameoMet;
+}
+
+/* cameo.c: the cameo held its player in this frame. */
+void G64CameoHolding(void) {
+    cameoHolding = 1;
 }
 
 /* Puts the cameo's player in the globals and returns their slot, or 0 when they are there already. */
@@ -2234,7 +2239,12 @@ void G64CameoSwapOut(s32 i) {
 
 /* A puzzle starts a cameo: for its player. */
 s32 G64CameoStartBegin(void) {
-    cameoUsed = cameoStarter != 0;
+    /* A cameo that starts while another plays joins it: the one that plays keeps its player. */
+    if (!gameInfo.cameoActive && !cameoUsed) {
+        cameoStarter = cameoPending;
+        cameoUsed = 1;
+    }
+    cameoPending = 0;
     return G64CameoSwapIn();
 }
 
@@ -2274,6 +2284,10 @@ void G64CameoAfter(void) {
             forget_cameo();
         return;
     }
+    /* In its last frame a cameo no longer holds its player, and the others go free with them. */
+    if (!cameoHolding)
+        return;
+    cameoHolding = 0;
     if (own != 0)
         DisableControl(2);
     for (i = 1; i < slotCount; i++) {

@@ -191,7 +191,10 @@ void DrawFootprints(void) {
             s32 players = G64SlotCount();
             s32 p;
 
-            UpdateEnemyBlastring(ptr);
+            /* The first player too can be held for a cameo: one that another player set off. */
+            if (!G64CameoHeld()) {
+                UpdateEnemyBlastring(ptr);
+            }
             for (p = 1; p < players; p++) {
                 if (G64HazardBegin(p)) {
                     /* A player who is held for a cameo is not hurt, and the ring does not throw them. */
