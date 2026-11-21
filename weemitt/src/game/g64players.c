@@ -749,9 +749,9 @@ void G64ExtraPlayersStep(void) {
     if (!ready) {
         /* A boss level's camera looks at its own point (boss.c). During a cameo the camera's mode is not 1: a copy
            taken then would keep the cameo's camera for good. */
-        if (gameInfo.level == SPACEBOSS3) {
-            /* The last space boss's level holds the camera with an override in every frame (boss.c): the level is
-               ready when its opening cameo has ended. */
+        if (gameInfo.level == SPACEBOSS3 || gameInfo.level == CARNIVALBONUS) {
+            /* The last space boss's level and the Carnival bonus level hold the camera with an override in every
+               frame (boss.c, bonus.c): the level is ready when its opening cameo has ended. */
             if (gameInfo.cameoActive || frameCount <= 10 || cameraInfo.mode != 1)
                 return;
         } else if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos
@@ -2155,6 +2155,34 @@ void G64HazardEnd(s32 i) {
 }
 
 void DisableControl(s16 time);
+
+/* For a thing that every player works at once (the Carnival bonus level's cannon): the stick value, x (axis 0) or y
+   (axis 1), of the player who pushes it the farthest, and whether any player has just pressed a button. With one
+   player these are the first player's pad. */
+f32 G64AnyStick(s32 axis) {
+    s32 i;
+    s16 best = axis ? pad[ActiveController].stickY : pad[ActiveController].stickX;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (slot_used(i)) {
+            const Pad *q = &((G64Slot *)slots[i])->pad;
+            s16 v = axis ? q->stickY : q->stickX;
+            if (abs(v) > abs(best))
+                best = v;
+        }
+    }
+    return best;
+}
+
+s32 G64AnyPressed(s32 button) {
+    s32 i;
+    if (pad[ActiveController].pressed[button])
+        return 1;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (slot_used(i) && ((G64Slot *)slots[i])->pad.pressed[button])
+            return 1;
+    }
+    return 0;
+}
 
 void G64FootprintGone(const void *footprint) {
     s32 i;

@@ -73,6 +73,56 @@ static u32 carnivalBonusSetUpFrame;
 static u32 atlantisBonusSetUpFrame;
 static u32 controlRoomSnapFrame;
 
+/* g64coopdx: runs a bonus level's per-player part for each player who is not in the globals, with them in the
+   globals. */
+static void EachOtherPlayer(void (*part)(void)) {
+    s32 p;
+    s32 players = G64SlotCount();
+
+    for (p = 1; p < players; p++) {
+        if (G64HazardBegin(p)) {
+            part();
+            G64HazardEnd(p);
+        }
+    }
+}
+
+/* The cannon's platform, for CarnivalBonusPlayer. */
+static Platform *carnivalPlat;
+
+/* The Carnival bonus level's part for a player other than the first: their glove is held on the cannon as the first
+   player's is, and their camera stands behind the cannon. The camera's place and aim are the ones the level has
+   worked out for the first player in this update: every glove is at the same place. */
+static void CarnivalBonusPlayer(void) {
+    Platform *plat = carnivalPlat;
+    Vec3 up;
+    f32 keep;
+
+    camera.flags &= ~0x10;
+    if (hand.link != &ball) {
+        hand.link = &ball;
+        AnimateActor(&hand, HANDANIM_DENIS, 0, 0, 0);
+    }
+    ZERO_VECTOR(&hand.vel);
+    if (gameInfo.cameoActive != 0) {
+        cameraInfo.followSpeed = 0;
+        cameraInfo.followTimer = 5;
+    }
+    hand.flags = 0;
+    hand.state->mode = HAND_NOTHING;
+    hand.rotQuat = plat->actor.rotQuat;
+    up.x = 0.0f;
+    up.y = 13.0f;
+    up.z = 0.0f;
+    RotateVectorByQuaternion(&up, &up, &hand.rotQuat);
+    ADD_VECTORS(&hand.pos, &up, &plat->actor.pos);
+    if (!cameoList.head.next->active) {
+        keep = DeltaPow(ckbcamfrac);
+        AddScaledVector(&camera.pos, &camera.pos, keep, &carnivalCamVect, DeltaTake(ckbcamfrac, 1.0f - ckbcamfrac));
+        SetCameraOverride(camera.pos.x, camera.pos.y, camera.pos.z, &carnivalTempVect2, &zero, 10, 0);
+    }
+}
+
 void DoCarnivalBonus(void) {
     Platform *plat;
     Platform *platform;
@@ -147,9 +197,10 @@ void DoCarnivalBonus(void) {
     plat->motion->oldRot.y = plat->motion->rot.y;
     plat->motion->oldRot.x = plat->motion->rot.x;
     if (!gamePaused && (cameoList.head.next == NULL || !cameoList.head.next->active)) {
-        plat->motion->rot.y = Aabs(plat->motion->rot.y - pad[ActiveController].stickX / cannonxspeed * deltaTime);
+        /* g64coopdx: there is one cannon. The stick that is pushed the farthest turns it (g64players.c). */
+        plat->motion->rot.y = Aabs(plat->motion->rot.y - G64AnyStick(0) / cannonxspeed * deltaTime);
         plat->motion->rot.x = MIN(MAX(5.4977871445,
-                                      plat->motion->rot.x + pad[ActiveController].stickY / cannonyspeed * deltaTime),
+                                      plat->motion->rot.x + G64AnyStick(1) / cannonyspeed * deltaTime),
                                   6.282185308);
     }
     ang = FindShortestAngle(plat->motion->oldRot.y, plat->motion->rot.y);
@@ -212,7 +263,8 @@ void DoCarnivalBonus(void) {
             /* The recoil dies away. */
             keep = DeltaPow(cannonrecoilfac);
             SCALE_VECTOR(&plat->actor.pos, keep);
-            if (bulletList.count < 8 && carnivalReload == 0 && pad[ActiveController].pressed[BUTTON_A]) {
+            /* g64coopdx: any player's A fires it. */
+            if (bulletList.count < 8 && carnivalReload == 0 && G64AnyPressed(BUTTON_A)) {
                 carnivalTempVect.x = carnivalTempVect.y = 0.0f;
                 carnivalTempVect.z = cannonrecoil;
                 RotateVectorByQuaternion(&carnivalTempVect, &carnivalTempVect, &hand.rotQuat);
@@ -294,20 +346,9 @@ void DoCarnivalBonus(void) {
             ADD_VECTORS(&hand.pos, &carnivalTempVect, &plat->actor.pos);
         }
     }
-}
-
-/* g64coopdx: runs a bonus level's per-player part for each player who is not in the globals, with them in the
-   globals. */
-static void EachOtherPlayer(void (*part)(void)) {
-    s32 p;
-    s32 players = G64SlotCount();
-
-    for (p = 1; p < players; p++) {
-        if (G64HazardBegin(p)) {
-            part();
-            G64HazardEnd(p);
-        }
-    }
+    /* g64coopdx: every other player sits on the cannon too and has its camera. */
+    carnivalPlat = plat;
+    EachOtherPlayer(CarnivalBonusPlayer);
 }
 
 static void FortressBonusPlayer(void) {

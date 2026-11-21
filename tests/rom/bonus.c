@@ -5,6 +5,8 @@
  *   B. The same level: a player whose ball falls out of the level loses, alone.
  *   C. The Atlantis bonus level: a player whose glove leaves the level's range loses, alone.
  * Each case runs once for player 0 and once for player 1, and both give the same record but for the player.
+ *   D. The Carnival bonus level has one cannon. Every player sits on it, either player's stick turns it and either
+ *      player's A button fires it.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -31,6 +33,8 @@ void G64PlacePlayer(int p, float x, float y, float z);
 int G64BallPosition(int p, float *x, float *y, float *z);
 void G64PlaceBall(int p, float x, float y, float z);
 int G64HasPlayer(int p);
+int G64BulletPositions(float *xyz, int max);
+int G64SoundListener(int p, float *pos, float *yaw, int *maxDist);
 typedef struct {
     int player, type, complete, level, world;
     G64Save save;
@@ -141,6 +145,73 @@ static void pair(const char *name, int level, unsigned from, int kind, int compl
     printf("%s: hash %08x\n", name, port_hash_ram());
 }
 
+/* D: 90 frames from the ready state of the Carnival bonus level. Player `turns` holds the stick to the right for
+   the first 60, and player `fires` then presses A (-1: nobody). Returns the number of bullets that appear. glove
+   gets where each player's glove ends, and yaw where each player's camera looks. */
+static int cannon(int turns, int fires, float glove[2][3], float *yaw) {
+    float b[64 * 3], cam[3];
+    int max, shots = 0, before, now, p;
+    unsigned f;
+    engine_load(engine, ready);
+    before = G64BulletPositions(b, 64);
+    for (f = 0; f < 90; f++) {
+        EngineInput in;
+        G64SetPresent(0x3);
+        for (p = 0; p < 16; p++) {
+            g64Buttons[p] = p == fires && f == 70 ? 0x8000 : 0;
+            g64StickX[p] = p == turns && f < 60 ? 60 : 0;
+            g64StickY[p] = 0;
+        }
+        memset(&in, 0, sizeof in);
+        in.buttons = g64Buttons[0];
+        in.x = g64StickX[0];
+        engine_step(engine, &in);
+        now = G64BulletPositions(b, 64);
+        if (now > before)
+            shots += now - before;
+        before = now;
+    }
+    for (p = 0; p < 2; p++) {
+        glove[p][0] = glove[p][1] = glove[p][2] = 0;
+        G64PlayerPosition(p, &glove[p][0], &glove[p][1], &glove[p][2]);
+        yaw[p] = 0;
+        G64SoundListener(p, cam, &yaw[p], &max);
+    }
+    return shots;
+}
+
+static float apart(const float *a, const float *b) {
+    float x = a[0] - b[0], y = a[1] - b[1], z = a[2] - b[2];
+    return sqrtf(x * x + y * y + z * z);
+}
+
+static float turned(float a, float b) {
+    float d = fmodf(fabsf(a - b), 6.2831853f);
+    return d > 3.1415927f ? 6.2831853f - d : d;
+}
+
+static void case_d(void) {
+    float still[2][3], g0[2][3], g1[2][3], y[2], y0[2], y1[2];
+    int none, shots0, shots1;
+    char what[300];
+    READY = 400;
+    start(19);
+    check(G64HasPlayer(0) && G64HasPlayer(1), "D: both players are in the Carnival bonus level");
+    none = cannon(-1, -1, still, y);
+    shots0 = cannon(0, 0, g0, y0);
+    shots1 = cannon(1, 1, g1, y1);
+    snprintf(what, sizeof what, "D: the gloves are %.0f apart on the cannon; player 0's stick turns the cameras %.2f "
+             "and %.2f, player 1's %.2f and %.2f", apart(still[0], still[1]), turned(y0[0], y[0]),
+             turned(y0[1], y[1]), turned(y1[0], y[0]), turned(y1[1], y[1]));
+    check(apart(still[0], still[1]) < 1.0f && turned(y0[0], y[0]) > 0.3f && turned(y0[1], y[1]) > 0.3f &&
+          fabsf(turned(y1[0], y[0]) - turned(y0[0], y[0])) < 0.05f &&
+          fabsf(turned(y1[1], y[1]) - turned(y0[1], y[1])) < 0.05f, what);
+    snprintf(what, sizeof what, "D: with nobody firing %d bullets appear, with player 0 firing %d, with player 1 "
+             "firing %d", none, shots0, shots1);
+    check(shots0 == none + 1 && shots1 == none + 1, what);
+    printf("D: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -164,6 +235,7 @@ int main(int argc, char **argv) {
     pair("A", 29, 100, 0, 1);
     pair("B", 29, 100, 1, 0);
     pair("C", 14, 60, 2, 0);
+    case_d();
     printf("%s each player wins or loses a bonus level alone\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

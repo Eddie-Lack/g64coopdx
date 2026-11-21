@@ -267,6 +267,10 @@ void G64FootprintGone(const void *footprint);
    from that player's own distance. It returns 0 when the quake does not reach them. */
 void G64QuakeAt(const struct Vec3 *pos, f32 maxStrength, f32 minStrength);
 s32 G64QuakeStrength(f32 blend, f32 *str);
+/* For a thing that every player works at once (g64players.c): the farthest-pushed stick value, x (axis 0) or y
+   (axis 1), and whether any player has just pressed a button. */
+f32 G64AnyStick(s32 axis);
+s32 G64AnyPressed(s32 button);
 /* DisableControl(time) for every player who is not in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are
