@@ -647,7 +647,7 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             }
             return;
         case ACTION_SET_CAMERA_POS:
-            if (hand.state->teleport == NULL && controlMethod && !handControl.checkpoint->restartGate->restartTimer) {
+            if (hand.state->teleport == NULL && controlMethod && !*G64RestartTimer(handControl.checkpoint)) {
                 puzzleCamVect = *(Vec3 *)action->data;
                 disableZoom = 1;
                 puzzleFrameNum = frameCount;
@@ -655,7 +655,7 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             return;
         case ACTION_LOOK_AT_POINT:
             if (!cameraInfo.overrideTimer && hand.state->teleport == NULL && controlMethod
-                && !handControl.checkpoint->restartGate->restartTimer) {
+                && !*G64RestartTimer(handControl.checkpoint)) {
                 if (frameCount == puzzleFrameNum) {
                     SetCameraOverride(puzzleCamVect.x, puzzleCamVect.y, puzzleCamVect.z, (Vec3 *)action->data, &zero,
                                       action->value, action->flags);

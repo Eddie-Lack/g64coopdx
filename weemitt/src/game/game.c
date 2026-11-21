@@ -3380,10 +3380,10 @@ void UpdatePause(void) {
                     break;
                 }
                 handControl.checkpoint = pauseRestart;
-                handControl.checkpoint->restartGate->restartTimer = 65;
+                *G64RestartTimer(handControl.checkpoint) = 65;
                 if (pauseRestart->restartGate->untouched) {
-                    pauseRestart->restartGate->cameraPos = pauseRestart->actor.pos;
-                    pauseRestart->restartGate->cameraPos.z += 100.0f;
+                    *G64RestartCamera(pauseRestart) = pauseRestart->actor.pos;
+                    G64RestartCamera(pauseRestart)->z += 100.0f;
                 }
             case 0:
                 pauseCount = 1000;

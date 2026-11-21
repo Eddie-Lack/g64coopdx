@@ -198,4 +198,30 @@ void PuzzleSwapCameraState(u8 *buf, s32 copy);
 /* puzzle.c: 1 for an action that only sets the camera (a camera zone's). */
 s32 IsCameraZoneAction(s16 type);
 
+/* Respawns (g64players.c, "Respawns"): 1 when each player respawns at their own checkpoint (online, or more than one
+   player). The countdown, the camera's place and RestartPlayer's frame stamp k of the player in the globals for their
+   checkpoint gate; offline with one player, the gate's own fields and own. G64CheckRestartGate: the gate's touch test
+   for every player's ball. */
+s32 G64PerPlayerRestart(void);
+s16 *G64RestartTimer(struct Platform *gate);
+Vec3 *G64RestartCamera(struct Platform *gate);
+u32 *G64RestartStamp(s32 k, u32 *own);
+/* For RestartPlayer's set-up: 1 when the respawn of the player in the globals follows a death, so it restarts no
+   enemies; 0 offline with one player, and for the level's opening respawn (which it then marks as done). */
+s32 G64RestartIsDeath(void);
+/* 1 while any player's respawn runs (a crumbling platform comes back then, CrumblePlatform). */
+s32 G64AnyRestarting(void);
+void G64CheckRestartGate(struct Platform *platform);
+/* For tests: a player's respawn countdown (65 at a death, 0 when none runs), by number; -1 when not in this game. */
+s32 G64RestartCountdown(s32 player);
+/* After CalculateShadows' own actors: the shadow altitude of every other player's glove, ball and fake ball. */
+void G64SlotShadows(void);
+/* For tests: the position of the k-th platform with a restart gate (0 when there is none); a player's checkpoint as
+   that k (-1 for none, -2 when the player is not in this game); a player's lives. */
+s32 G64GatePosition(s32 k, f32 *x, f32 *y, f32 *z);
+s32 G64PlayerCheckpoint(s32 player);
+s32 G64PlayerLives(s32 player);
+/* For tests: the altitude of a player's glove above the ground under it (-1 for none, -2 when not in this game). */
+f32 G64PlayerAltitude(s32 player);
+
 #endif

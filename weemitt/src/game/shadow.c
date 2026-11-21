@@ -18,6 +18,7 @@ PORT_C_BEGIN
 #include "shadow.h"
 #include "delta.h"
 #include "porthooks.h"
+#include "g64players.h"
 
 /* A squared distance from the camera, scaled by the host's camera scale (porthooks.h). */
 #define SHADOW_DIST_SQ(distSq) ((distSq) * (port_camera_dist_scale * port_camera_dist_scale))
@@ -327,6 +328,17 @@ void ProcessShadows(void) {
     }
 }
 
+/* The altitude of an actor's shadow (CalculateShadows): under its position, or under its shadow's sphere. */
+void ShadowAltitude(Actor *actor) {
+    Platform *platform;
+
+    if (actor->shadow->sphere == 0) {
+        actor->shadow->altitude = Altitude(&actor->pos, PORT_OUT(Vec3, &actor->shadow->floor), &platform, actor->obj);
+    } else {
+        actor->shadow->altitude = Altitude(&actor->obj->spheres[actor->shadow->sphere - 1].pos, PORT_OUT(Vec3, &actor->shadow->floor), &platform, actor->obj);
+    }
+}
+
 void CalculateShadows(void) {
     Bullet *bullet;
     Actor *actor;
@@ -341,13 +353,10 @@ void CalculateShadows(void) {
             }
         }
         for (actor = actorList.head.next; actor != &actorList.head; actor = actor->next) {
+            /* g64coopdx: a proxy shares its slot's shadow block; the slot's own actors get theirs below. */
             if (actor->type != COLLECTABLE_ACTOR && (actor->flags & 0x100)
-                && (SHADOW_DIST_SQ(actor->distSq) < 360000.0f || actor == &hand || actor == &ball)) {
-                if (actor->shadow->sphere == 0) {
-                    actor->shadow->altitude = Altitude(&actor->pos, PORT_OUT(Vec3, &actor->shadow->floor), &platform, actor->obj);
-                } else {
-                    actor->shadow->altitude = Altitude(&actor->obj->spheres[actor->shadow->sphere - 1].pos, PORT_OUT(Vec3, &actor->shadow->floor), &platform, actor->obj);
-                }
+                && (SHADOW_DIST_SQ(actor->distSq) < 360000.0f || actor == &hand || actor == &ball) && !G64IsProxy(actor)) {
+                ShadowAltitude(actor);
             }
         }
         for (garibGroup = garibGroupList.head.prev; garibGroup != &garibGroupList.head; garibGroup = garibGroup->prev) {
@@ -360,6 +369,9 @@ void CalculateShadows(void) {
         if (handControl.fakeball != NULL) {
             handControl.fakeball->shadow->altitude = Altitude(&handControl.fakeball->pos, PORT_OUT(Vec3, &handControl.fakeball->shadow->floor), &platform, 0);
         }
+        /* g64coopdx: the other players' gloves and balls, wherever they are (g64players.c). A fall into nothing
+           (altitude -1) is a death. */
+        G64SlotShadows();
     }
 }
 
