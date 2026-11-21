@@ -668,7 +668,10 @@ void G64ExtraPlayersStep(void) {
        ball. A copy taken earlier would keep the opening camera's fixed target. Online the start copy is taken then,
        even by a player alone, for the players who come later. */
     if (!ready) {
-        if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos) || cameraInfo.overrideTimer)
+        /* A boss level's camera looks at its own point (boss.c). During a cameo the camera's mode is not 1: a copy
+           taken then would keep the cameo's camera for good. */
+        if ((cameraInfo.focus != &hand.pos && cameraInfo.focus != &ball.pos && cameraInfo.focus != &bossFocalPoint)
+            || cameraInfo.overrideTimer || cameraInfo.mode != 1)
             return;
         ready = 1;
         if (g64Online)
@@ -1602,6 +1605,16 @@ void G64PlaceBall(s32 player, f32 x, f32 y, f32 z) {
     b->pos.z = z;
     ZERO_VECTOR(&b->vel);
 }
+
+void G64PushBall(s32 player, f32 x, f32 y, f32 z) {
+    s32 i = slot_of(player);
+    if (i < 0 || !slot_used(i))
+        return;
+    slot_ball(i)->vel.x = x;
+    slot_ball(i)->vel.y = y;
+    slot_ball(i)->vel.z = z;
+}
+
 s32 G64PuzzleInSlot(void) {
     return logicSlot != 0;
 }
