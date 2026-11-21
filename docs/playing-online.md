@@ -137,8 +137,10 @@ game data, only addresses and counts.
 
 ## What does not work yet
 
-- The Pirates, Prehistoric, Carnival and Fortress bosses see every player. The Atlantis and space bosses and the
-  bonus levels react only to the first player in each level.
+- The Pirates, Prehistoric, Carnival and Fortress bosses see every player. The Atlantis and space bosses react
+  only to the first player in each level.
+- In the Fortress, Prehistoric and Atlantis bonus levels you win or lose alone, and the others play on. When the
+  clock runs out, the level ends for everyone. The Carnival and space bonus levels react only to the first player.
 - Any player takes a garib or a pick-up. The players of a level share one count of garibs. A power-up is its
   taker's own. A power-up that changes the look of the glove or the ball changes it for every player.
 - Any player's glove or ball works a puzzle's switch or zone. Each player has their own camera zones.

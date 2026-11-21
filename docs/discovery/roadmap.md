@@ -154,8 +154,11 @@ harness at N players and by the determinism tests:
    has ended: a copy taken during a cameo kept the cameo's camera. In the Fortress boss's level each player has the
    camera over the arena's middle and can stun the boss with a slam; the boss goes for the platform of the glove
    nearest to it; every glove hurts on a charged platform's edge and near the charged boss, and the stomp throws
-   every glove and ball. Left: the Atlantis and space bosses, and the bonus levels. The Carnival boss's pie and
-   bomb and the Fortress boss's slam, pain and stomp have no test.
+   every glove and ball. Who has the controls (the camera, the glove or the ball) is each player's own. In the
+   Fortress, Prehistoric and Atlantis bonus levels each player has the level's per-player part, and online a player
+   wins or loses a bonus level alone: the others play on (weemitt/src/game/bonus.c; tests/rom/bonus.c). The bonus
+   clock's end still takes everyone. Left: the Atlantis and space bosses, the Carnival and space bonus levels and
+   the control room. The Carnival boss's pie and bomb and the Fortress boss's slam, pain and stomp have no test.
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).

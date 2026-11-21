@@ -19,6 +19,7 @@ PORT_C_BEGIN
 #include "object.h"
 #include "parse.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s32 controlMethod;
 extern Vec3 zero;
@@ -295,7 +296,21 @@ void DoCarnivalBonus(void) {
     }
 }
 
-void DoFortressBonus(void) {
+/* g64coopdx: runs a bonus level's per-player part for each player who is not in the globals, with them in the
+   globals. */
+static void EachOtherPlayer(void (*part)(void)) {
+    s32 p;
+    s32 players = G64SlotCount();
+
+    for (p = 1; p < players; p++) {
+        if (G64HazardBegin(p)) {
+            part();
+            G64HazardEnd(p);
+        }
+    }
+}
+
+static void FortressBonusPlayer(void) {
     cameraInfo.sideOffsetEnabled = 0;
     SetControlToBall();
     /* The camera's requests and overrideTimer change in ticks. */
@@ -304,7 +319,12 @@ void DoFortressBonus(void) {
     }
 }
 
-void DoPrehistoricBonus(void) {
+void DoFortressBonus(void) {
+    FortressBonusPlayer();
+    EachOtherPlayer(FortressBonusPlayer);
+}
+
+static void PrehistoricBonusPlayer(void) {
     if (deltaTick && ballControl.loseTimer && !cameraInfo.destActive && !cameraInfo.overrideTimer) {
         SetCameraOverride(camera.pos.x, camera.pos.y, camera.pos.z, &cameraInfo.actor.pos, &zero, 60, 0);
     }
@@ -312,9 +332,15 @@ void DoPrehistoricBonus(void) {
         camera.pos.z += 5.8 * deltaTime;
     }
     SetControlToBall();
-    if (deltaTick && ball.pos.z > 3750.0f) {
+    /* g64coopdx: online each player wins when their own ball arrives. */
+    if (deltaTick && ball.pos.z > 3750.0f && !G64PlayerExits(BONUS_DONE_EXIT, 1)) {
         ExitLevel(BONUS_DONE_EXIT, 1, 1);
     }
+}
+
+void DoPrehistoricBonus(void) {
+    PrehistoricBonusPlayer();
+    EachOtherPlayer(PrehistoricBonusPlayer);
 }
 
 void SetControlToBall(void) {
@@ -341,16 +367,17 @@ void SetControlToHand(void) {
     controlMethod = CONTROL_HAND;
 }
 
-void DoAtlantisBonus(void) {
-    Vec3 tempVect;
-    Platform *plat;
-    Platform *platform;
+/* The first part of the Atlantis bonus level that each player has: the fail in the water or out of the level's range,
+   the camera's range, the frog spell's hold and the glove's damping on a surface. */
+static void AtlantisBonusPlayer(void) {
     f64 damp;
 
     /* The time in the water and the frog spell's hold count original frames. The exits happen in ticks. */
     if (deltaTick && hand.state->waterState == INWATER_SWIMMING && !(gameInfo.exitFlags & 1)) {
         if (++atlantisInWater > 20) {
-            ExitLevel(BONUS_DONE_EXIT, 0, 0);
+            if (!G64PlayerExits(BONUS_DONE_EXIT, 0)) {
+                ExitLevel(BONUS_DONE_EXIT, 0, 0);
+            }
         }
     }
     if (camera.pos.z >= maxCamZ) {
@@ -368,7 +395,7 @@ void DoAtlantisBonus(void) {
         cameraInfo.followSpeed = 0;
         cameraInfo.followTimer = 2;
     }
-    if (deltaTick && (hand.pos.z > maxHandZ || hand.pos.z < minHandZ)) {
+    if (deltaTick && (hand.pos.z > maxHandZ || hand.pos.z < minHandZ) && !G64PlayerExits(BONUS_DONE_EXIT, 0)) {
         ExitLevel(BONUS_DONE_EXIT, 0, 0);
     }
     if (deltaTick && handControl.frog) {
@@ -379,6 +406,22 @@ void DoAtlantisBonus(void) {
         damp = DeltaDampD(0.6);
         SCALE_VECTOR_2D(&hand.vel, damp);
     }
+}
+
+/* The second part: a pad sinks under the glove that stands on it. */
+static void AtlantisBonusPad(void) {
+    if (deltaTick && hand.obj->platform != NULL && hand.obj->platform->parent != NULL
+        && hand.obj->platform->parent->tag == 3 && hand.obj->platform->path->moving < -99) {
+        hand.obj->platform->path->moving = 25;
+    }
+}
+
+void DoAtlantisBonus(void) {
+    Vec3 tempVect;
+    Platform *plat;
+    Platform *platform;
+
+    AtlantisBonusPlayer();
     if (frameCount == 0 && DeltaFirst(&atlantisBonusSetUpFrame)) {
         atlantisInWater = 0;
         StopDrawing("atbonus");
@@ -416,10 +459,10 @@ void DoAtlantisBonus(void) {
         }
         StartDrawing("atbonus");
     }
-    if (deltaTick && hand.obj->platform != NULL && hand.obj->platform->parent != NULL
-        && hand.obj->platform->parent->tag == 3 && hand.obj->platform->path->moving < -99) {
-        hand.obj->platform->path->moving = 25;
-    }
+    AtlantisBonusPad();
+    /* g64coopdx: each other player has both parts too. */
+    EachOtherPlayer(AtlantisBonusPlayer);
+    EachOtherPlayer(AtlantisBonusPad);
     for (plat = platformList.head.next; plat != &platformList.head; plat = plat->next) {
         if (plat->tag == 1) {
             /* MovePlatform damps the velocity by DeltaDamp(friction) before the step. The log moves 1 per original
