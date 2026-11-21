@@ -108,6 +108,12 @@ Start or Esc opens your own pause menu. It does not stop the game: the others pl
 
 Up and down choose, A picks, and B, Start or Esc closes it. The choices act for you alone.
 
+## Tips
+
+Press B at a tip to read it. Reading does not stop the game: the others play on, and your glove waits. Nothing
+hurts you while you read. A turns the page, and on the last page it closes the tip. The tips that the game opens by
+itself open for every player in the level, and each player closes their own.
+
 ## How it works
 
 The host confirms every player's input for each frame, a quarter of a second behind its own clock. Every machine

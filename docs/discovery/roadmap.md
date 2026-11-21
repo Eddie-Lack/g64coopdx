@@ -178,6 +178,13 @@ harness at N players and by the determinism tests:
    it off; hiding the other gloves during a cameo.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
+   Tips are done: online a tip does not stop the level. Any player opens one with B at the tip, and the two tips
+   that the game opens by itself open for every player. The reader's glove gets no input and nothing hurts them;
+   their A turns the page or closes the tip. What each player reads is part of the game's state, by player number,
+   so a rollback keeps it. The window draws the reader's box from the local game's memory: the text never crosses
+   the network (weemitt/src/game/g64players.c, "Tips"; tip.c; src/client/netplay.c; tests/rom/tips.c). The game's
+   own box, with its font, is not drawn online: the window's box has the text in the window's font. Left: a look
+   at the box in the window program.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).
    Done: with 16 players every level runs 1500 frames. The peaks then are 596 object matrices (the Atlantis hub;
    one player needs up to 212), 1489 heap blocks (one player: 1146) and a display list task of 31320 bytes (one

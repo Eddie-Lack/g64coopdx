@@ -673,6 +673,34 @@ static void pause_menu(uint16_t buttons, int8_t stickY) {
     netplay_pause_toggle();
 }
 
+/* The tip that the local player reads (weemitt's g64players.c, "Tips"): the page's lines, copied from the local
+ * game's memory while the engine holds it. The game holds the reader's glove and takes their A; the window only
+ * draws the box. The text never leaves this machine. */
+#define TIP_LINES 8
+#define TIP_CHARS 96
+int G64TipPage(int player, const char **lines, int max, int *more);
+static char tipText[TIP_LINES][TIP_CHARS];
+static int tipLines, tipMore;
+
+static void read_tip(void) {
+    const char *lines[TIP_LINES];
+    int i, k;
+    tipMore = 0;
+    tipLines = G64TipPage(me, lines, TIP_LINES, &tipMore);
+    for (i = 0; i < tipLines; i++) {
+        for (k = 0; k < TIP_CHARS - 1 && lines[i] && lines[i][k]; k++) {
+            /* The game's font has its own signs above the ASCII range: the window's font does not. */
+            unsigned char c = (unsigned char)lines[i][k];
+            tipText[i][k] = c >= 0x20 && c < 0x7F ? (char)c : ' ';
+        }
+        tipText[i][k] = 0;
+    }
+}
+
+int netplay_tip_lines(void) { return tipLines; }
+const char *netplay_tip_line(int i) { return i >= 0 && i < tipLines ? tipText[i] : ""; }
+int netplay_tip_more(void) { return tipMore; }
+
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
     rb_input in;
     rb_engine_game *game;
@@ -746,6 +774,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     game = g64_iclient_game(iclient);
     if (!game) {
         soundMoved = 1;
+        tipLines = 0;
         return 0;
     }
     /* The engine may hold another game (the host's instances): the local game's newest frame goes back in, and is
@@ -753,6 +782,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     rb_engine_game_enter(game);
     engine_save(engine, viewState);
     viewPending = 1;
+    read_tip();
     /* The sound of the local game's newest frame, before this player is swapped into the globals. A new game (after a
        move) starts the reader afresh. */
     if (sound) {

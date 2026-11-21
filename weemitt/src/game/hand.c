@@ -3719,8 +3719,9 @@ void HurtHand(s32 type, s16 damage) {
     Vec3 tempVect;
     f32 speed = 13.0f;
 
-    /* g64coopdx: a player who is held for another player's cameo is not hurt (g64players.c). */
-    if (G64CameoHeld()) {
+    /* g64coopdx: a player who is held for another player's cameo, or who reads a tip online, is not hurt
+       (g64players.c). */
+    if (G64CameoHeld() || G64TipHeld()) {
         return;
     }
 

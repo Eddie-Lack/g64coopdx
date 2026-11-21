@@ -41,6 +41,7 @@ PORT_C_END
 
 PORT_C_BEGIN
 #include "g64players.h"
+#include "tip.h"
 #include "soundtable.h"
 
 extern u8 ActiveController;
@@ -1234,9 +1235,13 @@ void G64SetPresent(u32 present) {
     lastPresent = present;
 }
 
+static void forget_tips(void);
+static void forget_tip(s32 player);
+
 void G64StartPlayers(u32 present) {
     s32 p;
     forget_restarts();
+    forget_tips();
     cameLate = 0;
     g64Players = 0;
     for (p = 0; p < G64_MAX_PLAYERS; p++)
@@ -1256,6 +1261,7 @@ void G64StartPlayers(u32 present) {
 
 void G64RemovePlayer(s32 player) {
     s32 i = slot_of(player), j, blocks = 1;
+    forget_tip(player);
     if (i < 0 || g64Players < 2)
         return;
     if (i == 0 && slotCount <= 1) {
@@ -2180,6 +2186,129 @@ void G64CameoView(void) {
     }
 }
 
+/* Tips (tip.c). Offline a tip stops the game while the player reads it. Online the level goes on, and each player
+   reads a tip on their own: the reader's glove gets no input and nothing hurts them, and their A turns the page or
+   closes the tip. What a player reads is part of the game's state, kept by player number: the client only draws
+   it (G64TipPage). */
+s32 TipFirstLine(s32 tag);
+s32 TipPageEnd(s32 line);
+s32 TipLineType(s32 line);
+const char *TipLineText(s32 line);
+
+/* The N64 game takes A from the 13th frame of an open tip, when its box has grown. */
+#define TIP_OPENING 13
+/* tipLine: the number plus 1 of the first line of the page that the player reads, or 0. tipTime: frames since the
+   tip opened. tipButtons: the player's buttons of the frame before. */
+static s16 tipLine[G64_MAX_PLAYERS];
+static s16 tipTime[G64_MAX_PLAYERS];
+static u16 tipButtons[G64_MAX_PLAYERS];
+
+s32 G64TipsOwn(void) {
+    return g64Online;
+}
+
+static void forget_tip(s32 player) {
+    tipLine[player & (G64_MAX_PLAYERS - 1)] = 0;
+}
+
+static void forget_tips(void) {
+    memset(tipLine, 0, sizeof tipLine);
+    memset(tipTime, 0, sizeof tipTime);
+    memset(tipButtons, 0, sizeof tipButtons);
+}
+
+/* A tip's sound for one player: theirs alone (the sound table, soundtable.h). */
+static void tip_sound(s32 player, s32 sample, Vec3 *pos, s32 vol, s32 pitch) {
+    s32 other = slot_of(player) > 0;
+    if (other)
+        soundtable_set_owner(player);
+    PlaySample(sample, pos, vol, pitch);
+    if (other)
+        soundtable_set_owner(-1);
+}
+
+u32 G64TipEveryone(void) {
+    return lastPresent;
+}
+
+u32 G64TipReaders(const Vec3 *pos) {
+    u32 readers = 0;
+    s32 i;
+    if (swapped || logicSlot)
+        return 0;
+    if (DistanceBetweenPoints(&hand.pos, (Vec3 *)pos) < 20.0f && pad[ActiveController].pressed[BUTTON_B])
+        readers |= 1u << g64Member[0];
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (s && DistanceBetweenPoints(&s->hand.pos, (Vec3 *)pos) < 20.0f && s->pad.pressed[BUTTON_B])
+            readers |= 1u << g64Member[i];
+    }
+    return readers;
+}
+
+s32 G64TipOpen(u32 players, s32 tag, const Vec3 *pos) {
+    s32 p, opened = 0;
+    for (p = 0; p < G64_MAX_PLAYERS; p++) {
+        if (!(players & lastPresent & (1u << p)) || tipLine[p])
+            continue;
+        tipLine[p] = (s16)(TipFirstLine(tag) + 1);
+        tipTime[p] = 0;
+        tip_sound(p, 59, (Vec3 *)pos, 100, 190);
+        opened = 1;
+    }
+    return opened;
+}
+
+void G64TipsStep(void) {
+    s32 p;
+    if (!g64Online || swapped || logicSlot)
+        return;
+    for (p = 0; p < G64_MAX_PLAYERS; p++) {
+        u16 pressed = (u16)(g64Buttons[p] & ~tipButtons[p]);
+        s32 i = slot_of(p);
+        tipButtons[p] = g64Buttons[p];
+        if (!(lastPresent & (1u << p))) {
+            tipLine[p] = 0;
+            continue;
+        }
+        if (!tipLine[p])
+            continue;
+        /* The reader's glove gets no input. A player whose glove is not made yet has none to hold. */
+        if (i == 0) {
+            DisableControl(2);
+        } else if (G64HazardBegin(i)) {
+            DisableControl(2);
+            G64HazardEnd(i);
+        }
+        if (tipTime[p] < TIP_OPENING) {
+            tipTime[p]++;
+        } else if (pressed & 0x8000) {
+            s32 end = TipPageEnd(tipLine[p] - 1);
+            Vec3 *at = i > 0 && slot_used(i) ? &((G64Slot *)slots[i])->hand.pos : &hand.pos;
+            tip_sound(p, 180, at, 120, 120);
+            tipLine[p] = TipLineType(end) == 2 ? 0 : (s16)(end + 2);
+        }
+    }
+}
+
+s32 G64TipHeld(void) {
+    return g64Online && !swapped && tipLine[g64Member[logicSlot] & (G64_MAX_PLAYERS - 1)] != 0;
+}
+
+s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
+    s32 line, end, n = 0;
+    if (player < 0 || player >= G64_MAX_PLAYERS || !tipLine[player])
+        return 0;
+    line = tipLine[player] - 1;
+    end = TipPageEnd(line);
+    for (; line <= end; line++, n++)
+        if (n < max)
+            lines[n] = TipLineText(line);
+    if (more)
+        *more = TipLineType(end) != 2;
+    return n < max ? n : max;
+}
+
 /* 1 for a player other than the first while a cameo plays: they are held, and nothing hurts them. */
 s32 G64CameoHeld(void) {
     return logicSlot && !swapped && gameInfo.cameoActive;
@@ -2510,6 +2639,21 @@ s32 G64GaribPlace(s32 k, f32 *x, f32 *y, f32 *z) {
                 *z = garib->sprite.pos.z;
                 return 1;
             }
+        }
+    }
+    return 0;
+}
+
+/* For tests: where the level's tip number k is. It returns the tip's tag plus 1, or 0 when there is none. */
+s32 G64TipPlace(s32 k, f32 *x, f32 *y, f32 *z) {
+    Tip *tip;
+    s32 n = 0;
+    for (tip = tipList.head.next; tip != &tipList.head; tip = tip->next) {
+        if (n++ == k) {
+            *x = tip->pos.x;
+            *y = tip->pos.y;
+            *z = tip->pos.z;
+            return tip->tag + 1;
         }
     }
     return 0;
