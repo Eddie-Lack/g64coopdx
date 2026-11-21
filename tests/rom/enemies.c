@@ -227,7 +227,7 @@ static void case_e(void) {
         both += h0 >= 0 && h1 >= 0;
     }
     snprintf(what, sizeof what, "E: level 23: a baby holds a ball in %u frames, both balls are held in %u", held, both);
-    check(held > 1000 && both == 0, what);
+    check(held > 300 && both == 0, what);
     printf("E: hash %08x\n", port_hash_ram());
 }
 

@@ -1240,7 +1240,10 @@ void DoPrehistBoss(void) {
     Vec3 d;
     Bullet *bullet;
     Platform *plat;
-    s32 i;
+    /* The death flames read i on a path where no loop sets it. The original builds use 2 there, the value the smoke
+       loop leaves. g64coopdx's own loops use p. */
+    s32 i = 2;
+    s32 p;
     s32 target;
 
     if (cameoList.head.next->active) {
@@ -1248,10 +1251,10 @@ void DoPrehistBoss(void) {
     }
     PrehistBossPlayer();
     /* g64coopdx: each other player has that part too, with them in the globals. */
-    for (i = 1; i < G64SlotCount(); i++) {
-        if (G64HazardBegin(i)) {
+    for (p = 1; p < G64SlotCount(); p++) {
+        if (G64HazardBegin(p)) {
             PrehistBossPlayer();
-            G64HazardEnd(i);
+            G64HazardEnd(p);
         }
     }
     if (deltaTick && e->actor.state->hitFadeTimer) {
@@ -1321,9 +1324,9 @@ void DoPrehistBoss(void) {
         G64EnemyEnd(0, target);
     } else {
         PrehistBossBallBack(&hand, &ball);
-        for (i = 1; i < G64SlotCount(); i++) {
-            if (G64SlotGlove(i) != NULL) {
-                PrehistBossBallBack(G64SlotGlove(i), G64SlotBall(i));
+        for (p = 1; p < G64SlotCount(); p++) {
+            if (G64SlotGlove(p) != NULL) {
+                PrehistBossBallBack(G64SlotGlove(p), G64SlotBall(p));
             }
         }
         if (e->actor.state->hits == 0 && e->actor.anim->finishedAnim != 0) {
