@@ -1455,6 +1455,9 @@ void G64SetLevelCamHeight(s32 height) {
         if (slots[i])
             ((G64Slot *)slots[i])->levelCamHeight = height;
     }
+    /* A player who comes later starts from the start copy. */
+    if (startSlot)
+        ((G64Slot *)startSlot)->levelCamHeight = height;
 }
 
 /* The first space boss's level ends when a player brings their ball to the robot's platform. From then until the
@@ -1469,7 +1472,8 @@ void G64CarrierSet(s32 on) {
 
 s32 G64CarrierBegin(void) {
     s32 k;
-    if (slotCount < 2 || swapped || !carrier)
+    /* With one player offline that player is the carrier. */
+    if (swapped || !carrier || (g64Players < 2 && !g64Online))
         return 0;
     k = slot_of(carrier - 1);
     if (k < 0)

@@ -1820,9 +1820,14 @@ void NMEProcessRobot(Enemy *enemy) {
     if (waitForFootDown) {
         p = G64CarrierBegin();
         if (p < 0) {
-            /* The carrier has left the game. The robot stays as it stands, and another player can carry. */
+            /* The carrier has left the game. The robot goes on as before it stopped, and another player can
+               carry. */
             waitForFootDown = 0;
             G64CarrierSet(0);
+            enemy->brain.delayTimer = 0;
+            enemy->brain.cooldownTimer = 0;
+            enemy->brain.scratch = 0;
+            enemy->actor.anim->speed = enemy->actor.anim->anims[15].speed;
         } else {
             waiting = RobotExit(enemy);
             G64CarrierEnd(p);
