@@ -115,6 +115,8 @@ typedef struct G64Slot {
     s32 controlMethod;
     /* The frames this player's glove has swum in the Atlantis bonus level (bonus.c). */
     s32 atlantisInWater;
+    /* Where this player's camera looked when they took up the look-around mode (controller.c). */
+    f32 camOrigRotY;
     G64Cave cave;
     u8 caveStage;
     u8 disableZoom;
@@ -161,6 +163,7 @@ extern Vec3 ballStart;
 extern Vec3 bossFocalPoint;
 extern s32 controlMethod;
 extern s32 atlantisInWater;
+extern f32 camOrigRotY;
 extern u8 handPain;
 extern u8 ballPain;
 extern s32 frameCount;
@@ -291,6 +294,7 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&handPain, &s->handPain, 1);
     swap_bytes(&controlMethod, &s->controlMethod, sizeof(s32));
     swap_bytes(&atlantisInWater, &s->atlantisInWater, sizeof(s32));
+    swap_bytes(&camOrigRotY, &s->camOrigRotY, sizeof(f32));
     swap_bytes(&ballPain, &s->ballPain, 1);
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
@@ -415,6 +419,7 @@ static G64Slot *copy_globals(void) {
     s->controlMethod = controlMethod;
     /* A new player has not swum yet. The level sets the first player's count to 0 only after this copy. */
     s->atlantisInWater = 0;
+    s->camOrigRotY = camOrigRotY;
     s->ballPain = ballPain;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
@@ -638,6 +643,16 @@ static void take_start(void) {
 /* One extra player's part of the frame, in the order MainGameLoop runs the first player's (main.c). */
 static void player_frame(s32 p) {
     Vec3 tempVect;
+    /* In the look-around mode the camera looks 100 ahead of itself. The game does this for the first player in
+       ProcessPersonalLoop (personal.c), before their part of the frame. */
+    if (!cameraInfo.mode && !gamePaused) {
+        tempVect.x = 0.0f;
+        tempVect.y = 0.0f;
+        tempVect.z = 100.0f;
+        RotateVector2DXYZ(&tempVect, &tempVect, -camera.rot.x, 0);
+        RotateVector2D(&tempVect, &tempVect, camera.rot.y);
+        ADD_VECTORS(&cameraInfo.actor.pos, &camera.pos, &tempVect);
+    }
     if (deltaNewFrame) {
         OSContPad saved = controllerdata[ActiveController];
         controllerdata[ActiveController].button = g64Buttons[g64Member[p]];
@@ -904,6 +919,18 @@ s32 G64SoundListener(s32 player, f32 *pos, f32 *yaw, s32 *maxDist) {
     pos[2] = c->pos.z;
     *yaw = c->rot.y;
     *maxDist = MAX_SFX_DIST;
+    return 1;
+}
+
+s32 G64CameraTarget(s32 player, f32 *x, f32 *y, f32 *z) {
+    s32 i = slot_of(player);
+    const Actor *a;
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return 0;
+    a = i == 0 ? &cameraInfo.actor : &((G64Slot *)slots[i])->cameraInfo.actor;
+    *x = a->pos.x;
+    *y = a->pos.y;
+    *z = a->pos.z;
     return 1;
 }
 
