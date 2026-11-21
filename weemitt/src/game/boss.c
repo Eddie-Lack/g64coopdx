@@ -798,9 +798,9 @@ void DoCarnivalBoss(void) {
 }
 
 /* The part of the Fortress boss's level that each player has: the camera round the arena's middle, and the slam on a
-   platform that stuns the boss. landed: whether the glove has landed since the latest tick. Returns 1 when a slam
-   sent its bolt. */
-static s32 FortressBossPlayer(Actor *e, s32 *landed) {
+   platform that stuns the boss. landed: whether the glove has landed since the latest tick. slam: 0 when another
+   player's slam has sent its bolt in this frame. Returns 1 when a slam sent its bolt. */
+static s32 FortressBossPlayer(Actor *e, s32 *landed, s32 slam) {
     Platform *plat = hand.obj->platform;
     s32 fired = 0;
 
@@ -824,7 +824,7 @@ static s32 FortressBossPlayer(Actor *e, s32 *landed) {
     if (hand.obj->wasOnGround == 0) {
         *landed = TRUE;
     }
-    if (deltaTick && plat != NULL && *landed && hand.state->mode == HAND_SLAM2ST && handControl.actionTime == 1 &&
+    if (slam && deltaTick && plat != NULL && *landed && hand.state->mode == HAND_SLAM2ST && handControl.actionTime == 1 &&
         plat->path->current < 4 && plat->tag > 0) {
         if (plat->tag < 5) {
             plat->path->moving = 1;
@@ -942,17 +942,17 @@ void DoFortressBoss(void) {
         NMEActionStartAttack(&enemies[0]);
         enemies[0].brain.instrIndex = 2;
     }
-    FortressBossPlayer(e, &slamLanded);
-    /* g64coopdx: each other player has that part too, with them in the globals. One slam a frame sends a bolt. */
+    fired = FortressBossPlayer(e, &slamLanded, TRUE);
+    /* g64coopdx: each other player has that part too, with them in the globals. One slam a frame sends a bolt: the
+       first player's, or else the first slot's. */
     players = G64SlotCount();
     for (p = 1; p < players; p++) {
         s32 landed = FALSE;
         if (G64HazardBegin(p)) {
-            fired = FortressBossPlayer(e, &landed);
-            G64HazardEnd(p);
-            if (fired) {
-                break;
+            if (FortressBossPlayer(e, &landed, !fired)) {
+                fired = 1;
             }
+            G64HazardEnd(p);
         }
     }
     if (deltaTick) {
