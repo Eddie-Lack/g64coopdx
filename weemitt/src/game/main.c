@@ -6,6 +6,7 @@ PORT_C_BEGIN
 #include "nnsched.h"
 #include "game.h"
 #include "g64players.h"
+#include "soundtable.h"
 #include "camera.h"
 #include "maths.h"
 #include "save.h"
@@ -1065,6 +1066,9 @@ void MainGameLoop(void) {
     }
     EndTimer(0);
     StartTimer(0, "Main");
+    /* g64coopdx: the sounds of this player's own update are theirs (the sound table, soundtable.h), up to the other
+       players' parts. */
+    soundtable_set_owner(g64Member[0]);
     if (!gamePaused) {
         if (GameBeingPlayed()) {
             if (gameInfo.mode != 5) {

@@ -3,11 +3,13 @@
  * table on (weemitt's src/port/soundtable.h).
  *
  * The test: a reader follows clients 0 and 1 after every window frame, and another reader follows an offline run of
- * the host's confirmed inputs, which has no wrong prediction. With every sound audible (g64_sound_test_all_audible),
- * the sounds a client's reader played and did not stop as wrong must all be sounds of the offline run, each played
- * once; the offline run's sounds that a client's reader missed can only be ones a correction brought more than a few
- * steps late. Readers with the real mix start the song and some effects. The Linux and Windows programs must print
- * the same.
+ * the host's confirmed inputs, which has no wrong prediction. With every sound audible (g64_sound_test_all_audible):
+ *   - the one-shots a client's reader played and did not stop must all be one-shots of the offline run, each played
+ *     once, and the ones it stopped as wrong must not be (a correct sound is never cut);
+ *   - the offline run's one-shots that a client's reader missed can only be ones a correction brought late;
+ *   - at the end, a client's reader plays the same voices without a place and continuous sounds as the offline one.
+ * A reader with the real mix starts the song and some effects. A reader that starts on a level after it loaded (as
+ * after a move) starts the level's looping ambience. The Linux and Windows programs must print the same.
  *
  * Usage: sound ROM [frames]. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -127,48 +129,55 @@ static void deliver(void) {
 /* What a reader played: event keys (step, seq, kind, id), with what 1 added and what 2 removed. */
 #define MAX_KEYS 20000
 typedef struct {
-    unsigned step, seq;
-    int kind, id;
+    unsigned step, nth;
+    int owner, id;
     int live;
 } key;
 
 typedef struct {
     key keys[MAX_KEYS];
     int count;
+    key wrong[MAX_KEYS];
+    int nwrong;
     int starts, wrongs, voices, songs, lastSong;
+    int ids[64]; /* the effects the backend was asked to start first */
 } trace;
 
-static int find_key(const trace *t, unsigned step, unsigned seq, int kind, int id) {
+static int find_key(const trace *t, unsigned step, unsigned nth, int owner, int id) {
     int i;
     for (i = t->count - 1; i >= 0; i--)
-        if (t->keys[i].live && t->keys[i].step == step && t->keys[i].seq == seq && t->keys[i].kind == kind &&
+        if (t->keys[i].live && t->keys[i].step == step && t->keys[i].nth == nth && t->keys[i].owner == owner &&
             t->keys[i].id == id)
             return i;
     return -1;
 }
 
-static void tr_trace(void *user, int what, unsigned step, unsigned seq, int kind, int id) {
+static void tr_trace(void *user, int what, unsigned step, unsigned nth, int owner, int id) {
     trace *t = user;
-    int i = find_key(t, step, seq, kind, id);
+    int i = find_key(t, step, nth, owner, id);
     if (what == 1) {
         t->starts++;
         if (i >= 0) {
-            /* The same event played twice: counted as a key of its own, which the check finds. */
+            /* The same one-shot played twice: counted on its key, which the check finds. */
             t->keys[i].live++;
             return;
         }
         if (t->count < MAX_KEYS)
-            t->keys[t->count++] = (key){step, seq, kind, id, 1};
+            t->keys[t->count++] = (key){step, nth, owner, id, 1};
     } else if (what == 2) {
         t->wrongs++;
         if (i >= 0)
             t->keys[i].live = 0;
+        if (t->nwrong < MAX_KEYS)
+            t->wrong[t->nwrong++] = (key){step, nth, owner, id, 1};
     }
 }
 
 static int tr_start(void *user, int id, int vol, int pan, int pitch, int reverb) {
     trace *t = user;
-    (void)id, (void)vol, (void)pan, (void)pitch, (void)reverb;
+    (void)vol, (void)pan, (void)pitch, (void)reverb;
+    if (t->voices < 64)
+        t->ids[t->voices] = id;
     return ++t->voices;
 }
 static void tr_set(void *user, int h, int vol, int pan, int pitch, int reverb) {
@@ -182,8 +191,9 @@ static void tr_song(void *user, int song) {
 }
 static void tr_master(void *user, int music, int effects) { (void)user, (void)music, (void)effects; }
 
-static trace traces[5]; /* clients 0 and 1, the offline run for players 0 and 1, client 0 with the real mix */
-static g64_sound *readers[5];
+static trace traces[6]; /* clients 0 and 1, the offline run for players 0 and 1, client 0 with the real mix, and a
+                           reader that starts on another level after it loaded */
+static g64_sound *readers[6];
 
 static void new_reader(int n, int audible) {
     g64_sound_backend b = {&traces[n], tr_start, tr_set, tr_stop, tr_song, tr_master, tr_trace};
@@ -260,18 +270,18 @@ int main(int argc, char **argv) {
     }
     for (p = 0; p < 2; p++) {
         const trace *c = &traces[p], *o = &traces[2 + p];
-        int extra = 0, twice = 0, missed = 0, played = 0, k;
+        int extra = 0, twice = 0, missed = 0, played = 0, cut = 0, k, cv, cs, ov, os;
         for (k = 0; k < c->count; k++) {
             if (!c->keys[k].live)
                 continue;
             played++;
             if (c->keys[k].live > 1)
                 twice++;
-            if (find_key(o, c->keys[k].step, c->keys[k].seq, c->keys[k].kind, c->keys[k].id) < 0)
+            if (find_key(o, c->keys[k].step, c->keys[k].nth, c->keys[k].owner, c->keys[k].id) < 0)
                 extra++;
         }
         for (k = 0; k < o->count; k++)
-            if (find_key(c, o->keys[k].step, o->keys[k].seq, o->keys[k].kind, o->keys[k].id) < 0)
+            if (find_key(c, o->keys[k].step, o->keys[k].nth, o->keys[k].owner, o->keys[k].id) < 0)
                 missed++;
         printf("%s client %d: %d sounds played and kept, %d stopped as wrong; none played twice (%d), none that the "
                "offline run does not have (%d)\n", !twice && !extra ? "ok  " : "FAIL", p, played, c->wrongs, twice,
@@ -280,6 +290,16 @@ int main(int argc, char **argv) {
         printf("%s client %d: the offline run played %d; %d of them came too late for the client (at most a tenth)\n",
                o->count > 20 && missed * 10 <= o->count ? "ok  " : "FAIL", p, o->count, missed);
         failed |= !(o->count > 20 && missed * 10 <= o->count);
+        for (k = 0; k < c->nwrong; k++)
+            cut += find_key(o, c->wrong[k].step, c->wrong[k].nth, c->wrong[k].owner, c->wrong[k].id) >= 0;
+        printf("%s client %d: of the %d sounds stopped as wrong, %d were sounds of the offline run (a correct sound cut)\n",
+               cut == 0 ? "ok  " : "FAIL", p, c->nwrong, cut);
+        failed |= cut != 0;
+        g64_sound_active(readers[p], &cv, &cs);
+        g64_sound_active(readers[2 + p], &ov, &os);
+        printf("%s client %d: at the end it plays %d voices without a place and %d continuous sounds; the offline run "
+               "%d and %d\n", cv == ov && cs == os ? "ok  " : "FAIL", p, cv, cs, ov, os);
+        failed |= cv != ov || cs != os;
     }
     printf("%s some wrong predictions took sounds back: %d\n", traces[0].wrongs + traces[1].wrongs > 0 ? "ok  " : "FAIL",
            traces[0].wrongs + traces[1].wrongs);
@@ -287,8 +307,32 @@ int main(int argc, char **argv) {
     printf("%s with the real mix, client 0 started the song (%d) and %d effects\n",
            traces[4].lastSong > 0 && traces[4].voices > 0 ? "ok  " : "FAIL", traces[4].lastSong, traces[4].voices);
     failed |= !(traces[4].lastSong > 0 && traces[4].voices > 0);
+    {
+        /* A reader that starts on a level after it loaded, as after a move: the level's looping ambience (effect 223
+           on the second hub section) started as it loaded, and still plays. */
+        rb_engine_game *lv;
+        rb_input none[RB_MAX_PLAYERS];
+        int found = 0;
+        memset(none, 0, sizeof none);
+        none[0].present = 1;
+        rb_engine_release();
+        port_game_start_level(1);
+        lv = rb_engine_game_new();
+        new_reader(5, 0);
+        for (f = 0; f < 40; f++) {
+            ops->step(lv, none, 1);
+            rb_engine_game_enter(lv);
+            g64_sound_update(readers[5], 0);
+        }
+        for (i = 0; i < traces[5].voices && i < 64; i++)
+            found |= traces[5].ids[i] == 223;
+        printf("%s a reader that starts after the level loaded plays its ambience (effect 223): %s\n",
+               found ? "ok  " : "FAIL", found ? "yes" : "no");
+        failed |= !found;
+        rb_engine_game_free(lv);
+    }
     printf("%s the reader follows rollbacks: each sound once, wrong ones stopped\n", failed ? "FAIL" : "ok  ");
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < 6; i++)
         g64_sound_free(readers[i]);
     return failed;
 }

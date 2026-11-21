@@ -218,6 +218,13 @@ build/tests/loopback: tests/net/loopback.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
 
+# The sound reader against the sound table, without the game (tests/net/sound_test.c).
+build/tests/sound_test: tests/net/sound_test.c src/client/sound.c src/client/sound.h weemitt/src/port/soundtable.c \
+                        weemitt/src/port/soundtable.h
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/sound_test.c src/client/sound.c \
+	    weemitt/src/port/soundtable.c -lm
+
 NET_SRC := src/net/udp.c
 SESSION_SRC := src/session/session.c
 build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
@@ -269,7 +276,9 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
-test-c: build/tests/loopback build/tests/udp_test build/tests/session_test
+test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test
+	build/tests/sound_test > build/tests/sound_test.out || { cat build/tests/sound_test.out; exit 1; }
+	tail -1 build/tests/sound_test.out
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
 	tail -2 build/tests/loopback.out
 	build/tests/udp_test > build/tests/udp_test.out || { cat build/tests/udp_test.out; exit 1; }

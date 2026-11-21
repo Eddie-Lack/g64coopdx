@@ -485,7 +485,7 @@ int netplay_host_normal_ball(void) { return (hostFlags & G64_FLAG_NORMAL_BALL) !
 
 /* The sound (sound.h, soundout.h): the reader of the local game's sound table, and the game it last read. */
 static g64_sound *sound;
-static rb_engine_game *soundGame;
+static int soundInstance = -1, soundMoved;
 static int soundVolumes[3] = {-1, -1, -1};
 
 void netplay_set_volumes(int master, int music, int effects) {
@@ -744,8 +744,10 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     }
     /* While the player moves to another level, nothing is drawn. */
     game = g64_iclient_game(iclient);
-    if (!game)
+    if (!game) {
+        soundMoved = 1;
         return 0;
+    }
     /* The engine may hold another game (the host's instances): the local game's newest frame goes back in, and is
        drawn with this player swapped into the globals. */
     rb_engine_game_enter(game);
@@ -754,9 +756,10 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     /* The sound of the local game's newest frame, before this player is swapped into the globals. A new game (after a
        move) starts the reader afresh. */
     if (sound) {
-        if (game != soundGame) {
+        if (soundMoved || g64_iclient_instance(iclient) != soundInstance) {
             g64_sound_reset(sound);
-            soundGame = game;
+            soundInstance = g64_iclient_instance(iclient);
+            soundMoved = 0;
         }
         g64_sound_update(sound, me);
         soundout_tick();

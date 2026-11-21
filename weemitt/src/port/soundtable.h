@@ -5,6 +5,13 @@
    savestates hold it and a rollback restores it, but the memory hash does not cover it. A reader outside the game
    (g64coopdx's src/client/sound.c) compares it with what plays and drives a real sound player.
 
+   It holds three things:
+   - one-shots with a place (PlaySample), as events by step: they play once, wherever the listener is;
+   - continuous sounds (the game's ContinuousSample), as sources by the address of their structure and the player
+     whose update they belong to;
+   - sounds without a place (the other starts: ambience, scripts, clicks), as voices by the game's handle, from their
+     start to their stop, with their volume and pitch.
+
    The game calls the record functions from its sound wrappers (src/game/sound.c) and the stand-in (audio_stub.c).
    They do nothing until soundtable_enable(1): weemitt's own programs and tests never record. */
 #ifndef SOUNDTABLE_H
@@ -14,33 +21,23 @@
 extern "C" {
 #endif
 
-/* Continuous sources (the game's ContinuousSample): by the address of their structure. */
 #define SOUNDTABLE_SOURCES 256
-/* Events: one-shots, other starts, stops, settings, songs. A ring that the reader reads by step. */
+#define SOUNDTABLE_VOICES 128
+/* One-shots with a place, a ring that the reader reads by step. */
 #define SOUNDTABLE_EVENTS 1024
-
-enum {
-    SOUND_EV_ONESHOT = 1, /* a sound at a place: id, x y z, vol (0 to 255 before the distance), pitch, radius */
-    SOUND_EV_START,       /* a sound without a place: handle, id, vol, pan, pitch (128 normal), reverb */
-    SOUND_EV_STOP,        /* handle */
-    SOUND_EV_STOP_ALL,    /* flags (1 effects, 2 songs) */
-    SOUND_EV_VOLUME,      /* handle, vol */
-    SOUND_EV_PITCH        /* handle, pitch */
-};
 
 typedef struct {
     unsigned int step;  /* the game update it happened in (soundtable_step) */
-    unsigned int seq;   /* its number among all events */
-    int kind;
+    unsigned int seq;   /* its number among all one-shots */
     int owner;          /* the player whose own update made it (g64Member number), or -1 */
-    int handle;         /* the game's handle, or 0 */
     int id;
-    int vol, pan, pitch, reverb;
+    int vol, pitch, reverb; /* vol 0 to 255, before the distance; pitch 128 is normal */
     float x, y, z, radius;
 } SoundEvent;
 
 typedef struct {
     unsigned int key;    /* the address of the game's structure, 0 for a free entry */
+    int owner;           /* the player whose update it belongs to, or -1 */
     int id;
     int handle;          /* the game's handle, 0 while the game has it off (also when it cut it by distance) */
     int vol, pitch;      /* vol 0 to 255, before the distance */
@@ -51,20 +48,30 @@ typedef struct {
 } SoundSource;
 
 typedef struct {
+    int handle;          /* the game's handle, 0 for a free entry */
+    int owner;
+    int id;
+    int vol, pan, pitch, reverb;
+    unsigned int step;   /* the update it started in */
+    unsigned int touched; /* the last update that changed it */
+} SoundVoice;
+
+typedef struct {
     unsigned int step;                     /* game updates counted */
-    unsigned int seq;                      /* events recorded */
+    unsigned int seq;                      /* one-shots recorded */
     int song;                              /* the song number (PrepareSong), -1 for none */
     unsigned int songStep;                 /* the update the song started in */
     int masterMusic, masterEffects;        /* MusSetMasterVolume, -1 until the game sets it */
     SoundSource sources[SOUNDTABLE_SOURCES];
-    SoundEvent events[SOUNDTABLE_EVENTS];  /* event number n is events[n % SOUNDTABLE_EVENTS] */
+    SoundVoice voices[SOUNDTABLE_VOICES];
+    SoundEvent events[SOUNDTABLE_EVENTS];  /* one-shot number n is events[n % SOUNDTABLE_EVENTS] */
 } SoundTable;
 
 void soundtable_enable(int on);
 int soundtable_enabled(void);
 /* The table, for the reader; NULL when it is off. */
 const SoundTable *soundtable_get(void);
-/* The player whose update runs now (g64players.c), or -1. */
+/* The player whose own update runs now (main.c and g64players.c), or -1. Each update starts with -1. */
 void soundtable_set_owner(int player);
 
 /* Called once per game update, before it (the stand-in's musAudioAdvance). */

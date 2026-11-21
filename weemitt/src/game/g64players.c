@@ -458,6 +458,8 @@ static void player_frame(s32 p) {
 
 void G64ExtraPlayersStep(void) {
     s32 i;
+    /* The first player's own part of the frame ends here (main.c). */
+    soundtable_set_owner(-1);
     if ((g64Players < 2 && !g64Online) || gamePaused || !GameBeingPlayed())
         return;
     if (g64Online && !startPosSet) {

@@ -23,7 +23,8 @@ static Glover *game;
 static SDL_AudioDeviceID device;
 static int rate;
 static double advanced;         /* retraces given to the player */
-static SDL_atomic_t consumed;   /* samples the device has taken */
+static Uint64 taken;            /* samples the device has taken from the player (not the silence it played when the
+                                   player was behind), under the device's lock */
 static SDL_atomic_t volume;     /* the master volume, percent */
 static g64_sound_backend backend;
 
@@ -46,12 +47,13 @@ static void SDLCALL callback(void *user, Uint8 *stream, int len) {
             break;
         got += n;
     }
-    /* The player has fallen behind: silence, not old samples. */
+    /* The player has fallen behind: silence, not old samples. Only what it gave counts, so the lead stays the same
+       after a stall. */
     memset(out + got * 2, 0, (size_t)(frames - got) * 4);
     if (v < 100)
         for (i = 0; i < frames * 2; i++)
             out[i] = (int16_t)(out[i] * v / 100);
-    SDL_AtomicAdd(&consumed, frames);
+    taken += (Uint64)got;
 }
 
 static void run(GloverSoundCmd *c, int32_t *handle) {
@@ -181,7 +183,7 @@ int soundout_open(const unsigned char *rom, unsigned long romSize) {
     want.samples = 1024;
     want.callback = callback;
     SDL_AtomicSet(&volume, 100);
-    SDL_AtomicSet(&consumed, 0);
+    taken = 0;
     advanced = 0;
     device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (device == 0) {
@@ -216,11 +218,15 @@ const g64_sound_backend *soundout_backend(void) { return game && device ? &backe
 
 void soundout_tick(void) {
     double made, want;
-    if (!game)
+    Uint64 t;
+    if (!game || !device)
         return;
-    /* The player makes rate / 60 samples per retrace. It stays LEAD_SAMPLES ahead of the device. */
+    SDL_LockAudioDevice(device);
+    t = taken;
+    SDL_UnlockAudioDevice(device);
+    /* The player makes rate / 60 samples per retrace. It stays LEAD_SAMPLES ahead of what the device took. */
     made = advanced * rate / 60.0;
-    want = (double)SDL_AtomicGet(&consumed) + LEAD_SAMPLES;
+    want = (double)t + LEAD_SAMPLES;
     if (made < want) {
         double r = (want - made) * 60.0 / rate;
         if (r > 60.0)
