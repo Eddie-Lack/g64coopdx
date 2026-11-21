@@ -400,6 +400,8 @@ static G64Slot *copy_globals(void) {
     memcpy(&s->camera, &camera, sizeof(Actor));
     memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
     memcpy(s->handBlock, &handControl, hand_block_size());
+    /* The first player's slam ring is not the new player's. */
+    ((HandControl *)s->handBlock)->footprint = NULL;
     if (world_orbiter3())
         slot_orbiter3(s)->inst = NULL;
     memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
@@ -1228,6 +1230,9 @@ void G64RemovePlayer(s32 player) {
         blocks = 0;
     }
     if (slotCount > i) {
+        /* The leaving player's slam ring would be nobody's and hurt the others: it ends now. */
+        if (slots[i] && slot_hand_control(i)->footprint)
+            KillFootprint(slot_hand_control(i)->footprint);
         free_slot(i, blocks);
         for (j = i; j + 1 < slotCount; j++) {
             slots[j] = slots[j + 1];
