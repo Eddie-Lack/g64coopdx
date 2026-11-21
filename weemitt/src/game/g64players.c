@@ -118,6 +118,8 @@ typedef struct G64Slot {
     s32 atlantisInWater;
     /* Where this player's camera looked when they took up the look-around mode (controller.c). */
     f32 camOrigRotY;
+    /* The height this player's camera keeps above its target (camera.c). */
+    s32 levelCamHeight;
     G64Cave cave;
     u8 caveStage;
     u8 disableZoom;
@@ -165,6 +167,7 @@ extern Vec3 bossFocalPoint;
 extern s32 controlMethod;
 extern s32 atlantisInWater;
 extern f32 camOrigRotY;
+extern s32 levelCamHeight;
 extern u8 handPain;
 extern u8 ballPain;
 extern s32 frameCount;
@@ -296,6 +299,7 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&controlMethod, &s->controlMethod, sizeof(s32));
     swap_bytes(&atlantisInWater, &s->atlantisInWater, sizeof(s32));
     swap_bytes(&camOrigRotY, &s->camOrigRotY, sizeof(f32));
+    swap_bytes(&levelCamHeight, &s->levelCamHeight, sizeof(s32));
     swap_bytes(&ballPain, &s->ballPain, 1);
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
@@ -423,6 +427,7 @@ static G64Slot *copy_globals(void) {
     /* A new player has not swum yet. The level sets the first player's count to 0 only after this copy. */
     s->atlantisInWater = 0;
     s->camOrigRotY = camOrigRotY;
+    s->levelCamHeight = levelCamHeight;
     s->ballPain = ballPain;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
@@ -1409,6 +1414,72 @@ void G64EnemyEnd(s32 x, s32 i) {
     if (slotCount >= 2 && x >= 0 && x < G64_ENEMIES && enemy_hit(x) && !enemyHitBy[x])
         enemyHitBy[x] = g64Member[i] + 1;
     G64TargetEnd(i);
+}
+
+/* Inside an enemy's update the enemy's target is in the globals (G64EnemyBegin). Some of an enemy's code is for
+   every player: a boss's camera, a foot that squashes whoever is under it. G64OtherPlayers gives the number of
+   players to go through (0 with one player). G64OtherBegin(k) puts player k in the globals in place of the target
+   and returns 1; it returns 0 for the target, whose turn the enemy's own code is. G64OtherEnd(k) puts the target
+   back. */
+static s32 otherTarget;
+
+s32 G64OtherPlayers(void) {
+    return slotCount >= 2 && !swapped ? slotCount : 0;
+}
+
+s32 G64OtherBegin(s32 k) {
+    if (slotCount < 2 || swapped || k < 0 || k >= slotCount || k == logicSlot || !slot_used(k))
+        return 0;
+    otherTarget = logicSlot;
+    if (otherTarget)
+        swap_slot(slots[otherTarget]);
+    if (k)
+        swap_slot(slots[k]);
+    logicSlot = k;
+    return 1;
+}
+
+void G64OtherEnd(s32 k) {
+    if (k)
+        swap_slot(slots[k]);
+    if (otherTarget)
+        swap_slot(slots[otherTarget]);
+    logicSlot = otherTarget;
+}
+
+/* The same height for every player's camera: a level-wide change (the Atlantis boss's end). */
+void G64SetLevelCamHeight(s32 height) {
+    s32 i;
+    levelCamHeight = height;
+    for (i = 1; i < slotCount; i++) {
+        if (slots[i])
+            ((G64Slot *)slots[i])->levelCamHeight = height;
+    }
+}
+
+/* The first space boss's level ends when a player brings their ball to the robot's platform. From then until the
+   exit the robot's code deals with that player, the carrier: the number, plus 1, is kept here. G64CarrierSet(1) notes
+   the player in the globals, and G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the globals when another player is there, and
+   returns their slot (0 when nothing was swapped, -1 when the carrier has left the game); G64CarrierEnd undoes it. */
+static s32 carrier;
+
+void G64CarrierSet(s32 on) {
+    carrier = on ? g64Member[logicSlot] + 1 : 0;
+}
+
+s32 G64CarrierBegin(void) {
+    s32 k;
+    if (slotCount < 2 || swapped || !carrier)
+        return 0;
+    k = slot_of(carrier - 1);
+    if (k < 0)
+        return -1;
+    return G64OtherBegin(k) ? k + 1 : 0;
+}
+
+void G64CarrierEnd(s32 k) {
+    if (k > 0)
+        G64OtherEnd(k - 1);
 }
 
 void G64EnemyHitsCleared(s32 x) {

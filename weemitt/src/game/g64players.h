@@ -150,6 +150,20 @@ void G64SetPresent(u32 present);
    on. G64EnemyNear: 1 when a player who is not in the globals holds the actor's ball, or their camera is within the
    range (squared) of it. */
 s32 G64EnemyBegin(s32 enemy);
+/* Inside an enemy's update, for code that is for every player (g64players.c): the number of players to go through
+   (0 with one player), and a pair that puts player k in the globals in place of the enemy's target and back.
+   G64OtherBegin returns 0 for the target and for an empty slot. */
+s32 G64OtherPlayers(void);
+s32 G64OtherBegin(s32 k);
+void G64OtherEnd(s32 k);
+/* Sets the camera's height above its target for every player. */
+void G64SetLevelCamHeight(s32 height);
+/* The first space boss's carrier, the player who brought their ball to the robot's platform. G64CarrierSet(1) notes
+   the player in the globals, G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the globals: it returns a value for G64CarrierEnd, 0
+   when nothing was swapped, or -1 when the carrier has left the game. */
+void G64CarrierSet(s32 on);
+s32 G64CarrierBegin(void);
+void G64CarrierEnd(s32 k);
 void G64EnemyEnd(s32 enemy, s32 slot);
 /* After UpdateEnemies clears an enemy's hit flags: its record of who hit it goes. */
 void G64EnemyHitsCleared(s32 enemy);
