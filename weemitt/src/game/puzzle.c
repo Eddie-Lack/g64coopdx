@@ -25,6 +25,7 @@ PORT_C_BEGIN
 #include "enemy.h"
 #include "delta.h"
 #include "porthooks.h"
+#include "g64players.h"
 
 extern s8 disableZoom;
 
@@ -854,7 +855,106 @@ s32 PuzzleEvaluateConditionList(PuzzleCondList *conditionList) {
     return FALSE;
 }
 
+/* g64coopdx: a condition on the player (their glove, ball or power-ups), for the player in the globals. */
+static s32 EvaluateConditionHere(PuzzleCond *condition);
+
+/* 1 for a condition that tests the player in the globals; it then holds for every player in the game. */
+static s32 IsPlayerCondition(s32 type) {
+    switch (type) {
+        case CONDITION_PICKUP_ON:
+        case CONDITION_HAND_ON:
+        case CONDITION_HAND_JUST_ON:
+        case CONDITION_BALL_ON:
+        case CONDITION_BALL_JUST_ON:
+        case CONDITION_HAND_TOUCHING:
+        case CONDITION_HAND_JUST_TOUCHED:
+        case CONDITION_BALL_TOUCHING:
+        case CONDITION_BALL_JUST_TOUCHED:
+        case CONDITION_HAND_IN_BOX:
+        case CONDITION_HAND_IN_RANGE:
+        case CONDITION_HAND_IN_CYLINDER:
+        case CONDITION_BALL_IN_BOX:
+        case CONDITION_BALL_IN_RANGE:
+            return TRUE;
+    }
+    return FALSE;
+}
+
+/* A condition for each player in the game (g64players.c), with that player in the globals: 1 when any of them gives
+   1. */
+static s32 AnyPlayer(PuzzleCond *condition) {
+    s32 i;
+    s32 n = G64PuzzleSlots();
+
+    for (i = 0; i < n; i++) {
+        if (G64PuzzleSlotBegin(i)) {
+            s32 met = EvaluateConditionHere(condition);
+            G64PuzzleSlotEnd(i);
+            if (met) {
+                return TRUE;
+            }
+        }
+    }
+    return FALSE;
+}
+
+/* The same, but 1 only when every player gives 1. */
+static s32 EveryPlayer(PuzzleCond *condition) {
+    s32 i;
+    s32 n = G64PuzzleSlots();
+
+    for (i = 0; i < n; i++) {
+        if (G64PuzzleSlotBegin(i)) {
+            s32 met = EvaluateConditionHere(condition);
+            G64PuzzleSlotEnd(i);
+            if (!met) {
+                return FALSE;
+            }
+        }
+    }
+    return TRUE;
+}
+
+/* g64coopdx: with more than one player, a condition on the player combines every player's answer. "On", "touching",
+   "in", "has" and "just arrived" hold when they hold for any player. "Not on", "not touching" and "has not" hold
+   when they hold for every player. "Just left" holds when some player just left and no player is still on. Camera
+   conditions keep the player in the globals: their actions move that player's camera. */
 s32 PuzzleEvaluateCondition(PuzzleCond *condition) {
+    PuzzleCond still;
+
+    if (G64PuzzleSlots() < 2 || !IsPlayerCondition(condition->type)) {
+        return EvaluateConditionHere(condition);
+    }
+    if (condition->value) {
+        return AnyPlayer(condition);
+    }
+    switch (condition->type) {
+        case CONDITION_HAND_JUST_ON:
+        case CONDITION_BALL_JUST_ON:
+        case CONDITION_HAND_JUST_TOUCHED:
+        case CONDITION_BALL_JUST_TOUCHED:
+            if (!AnyPlayer(condition)) {
+                return FALSE;
+            }
+            still = *condition;
+            still.type = condition->type == CONDITION_HAND_JUST_ON      ? CONDITION_HAND_ON
+                         : condition->type == CONDITION_BALL_JUST_ON    ? CONDITION_BALL_ON
+                         : condition->type == CONDITION_HAND_JUST_TOUCHED ? CONDITION_HAND_TOUCHING
+                                                                          : CONDITION_BALL_TOUCHING;
+            still.value = 0;
+            return EveryPlayer(&still);
+        case CONDITION_HAND_IN_BOX:
+        case CONDITION_HAND_IN_RANGE:
+        case CONDITION_HAND_IN_CYLINDER:
+        case CONDITION_BALL_IN_BOX:
+        case CONDITION_BALL_IN_RANGE:
+            /* These ignore the value. */
+            return AnyPlayer(condition);
+    }
+    return EveryPlayer(condition);
+}
+
+static s32 EvaluateConditionHere(PuzzleCond *condition) {
     Collectable *collectable;
     GaribGroup *gGroup;
     Garib *garib;

@@ -23,6 +23,7 @@ PORT_C_BEGIN
 #include "platform.h"
 #include "maths.h"
 #include "bullet.h"
+#include "puzzle.h"
 PORT_C_END
 
 #include <string.h>
@@ -1304,5 +1305,121 @@ s32 G64BallHolder(s32 player) {
         if (e == &enemies[k].actor)
             return k;
     return -1;
+}
+/* Puzzles and platforms (phase 3). A puzzle's condition on the player is tested with each player swapped into the
+   globals in turn (puzzle.c, PuzzleEvaluateCondition); the conditions only read. Platforms that wait for a ball or a
+   glove, or that face one, look at every player. */
+
+s32 G64PuzzleSlots(void) {
+    if (slotCount < 2 || swapped || logicSlot)
+        return 1;
+    return slotCount;
+}
+
+s32 G64PuzzleSlotBegin(s32 i) {
+    if (i == 0)
+        return 1;
+    if (!slot_used(i) || logicSlot)
+        return 0;
+    swap_slot(slots[i]);
+    logicSlot = i;
+    return 1;
+}
+
+void G64PuzzleSlotEnd(s32 i) {
+    if (i > 0 && logicSlot == i) {
+        swap_slot(slots[i]);
+        logicSlot = 0;
+    }
+}
+
+s32 G64AnyBallOn(struct Platform *p) {
+    s32 i;
+    for (i = 1; i < slotCount; i++)
+        if (slot_used(i) && slot_ball(i)->obj && slot_ball(i)->obj->platform == p)
+            return 1;
+    return 0;
+}
+
+s32 G64AnyGloveOn(struct Platform *p) {
+    s32 i;
+    for (i = 1; i < slotCount; i++)
+        if (slot_used(i) && slot_glove(i)->obj && slot_glove(i)->obj->platform == p)
+            return 1;
+    return 0;
+}
+
+/* The glove or ball of the player nearest to a point (a tie goes to the lower slot); the globals' with one player. */
+static Actor *nearest(const Vec3 *p, s32 isBall) {
+    s32 i, best = 0;
+    f32 bestDist = 0.0f;
+    for (i = 0; i < slotCount; i++) {
+        Actor *a;
+        f32 d;
+        if (!slot_used(i))
+            continue;
+        a = isBall ? slot_ball(i) : slot_glove(i);
+        d = DistanceBetweenPointsSquared(&a->pos, (Vec3 *)p);
+        if (i == 0 || d < bestDist) {
+            best = i;
+            bestDist = d;
+        }
+    }
+    /* A slot's actor is a copy: the platform reads only its position, which the slot holds. */
+    return isBall ? slot_ball(best) : slot_glove(best);
+}
+
+Actor *G64NearestBall(const Vec3 *p) {
+    return slotCount < 2 ? &ball : nearest(p, 1);
+}
+
+Actor *G64NearestGlove(const Vec3 *p) {
+    return slotCount < 2 ? &hand : nearest(p, 0);
+}
+s32 G64PuzzleInfo(s32 k, s32 *timesLeft, s32 *active, s32 *count) {
+    Puzzle *pz;
+    s32 i = 0;
+    for (pz = puzzleList.head.prev; pz != &puzzleList.head; pz = pz->prev, i++) {
+        if (i == k) {
+            *timesLeft = pz->conds.timesLeft;
+            *active = pz->actions.active;
+            *count = pz->conds.count;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+s32 G64PuzzleCondition(s32 k, s32 j, s32 *type, s32 *tag, s32 *value) {
+    Puzzle *pz;
+    PuzzleCond *c;
+    s32 i = 0;
+    for (pz = puzzleList.head.prev; pz != &puzzleList.head; pz = pz->prev, i++) {
+        if (i != k)
+            continue;
+        i = 0;
+        for (c = pz->conds.head.next; c != &pz->conds.head; c = c->next, i++) {
+            if (i == j) {
+                *type = c->type;
+                *tag = c->tag;
+                *value = c->value;
+                return 1;
+            }
+        }
+        return 0;
+    }
+    return 0;
+}
+
+void G64PlaceBall(s32 player, f32 x, f32 y, f32 z) {
+    s32 i = slot_of(player);
+    Actor *b;
+    if (i < 0 || !slot_used(i))
+        return;
+    b = slot_ball(i);
+    b->pos.x = x;
+    b->pos.y = y;
+    b->pos.z = z;
+    ZERO_VECTOR(&b->vel);
 }
 PORT_C_END

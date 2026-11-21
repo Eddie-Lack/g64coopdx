@@ -118,9 +118,13 @@ harness at N players and by the determinism tests:
 
 1. Enemies' targets: the nearest glove or ball; bullets; enemies holding a glove or a ball. Done: before an enemy's
    or a bullet's update, the player it looks at is swapped into the globals (weemitt/src/game/g64players.c,
-   tests/rom/enemies.c). An enemy updates when any player's camera is near it. Left: vents, and bosses (item 6).
+   tests/rom/enemies.c). An enemy updates when any player's camera is near it. Left: bosses (item 6).
 2. Puzzles: "any glove", "any ball", "any camera"; the records of which glove or ball just touched a puzzle's
    object, per player.
+   Done in part: a puzzle's condition on the player is tested for each player, and "on" or "in" holds for any player
+   (weemitt/src/game/puzzle.c, PuzzleEvaluateCondition; tests/rom/puzzles.c). Platforms that wait for a ball or a
+   glove, or face one, look at every player. Vents need no change: they fire on timers, and their bullets look for
+   players. Left: camera zones (their actions move the camera in the globals), and checkpoints (item 4).
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
