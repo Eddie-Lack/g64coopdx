@@ -413,7 +413,8 @@ static G64Slot *copy_globals(void) {
     s->bossFocalPoint = bossFocalPoint;
     s->handPain = handPain;
     s->controlMethod = controlMethod;
-    s->atlantisInWater = atlantisInWater;
+    /* A new player has not swum yet. The level sets the first player's count to 0 only after this copy. */
+    s->atlantisInWater = 0;
     s->ballPain = ballPain;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
