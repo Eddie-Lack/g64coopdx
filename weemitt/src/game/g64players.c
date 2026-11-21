@@ -1565,17 +1565,12 @@ static G64Restart *restart_for(Platform *gate) {
         r->timer = 0;
         if (gate && gate->restartGate)
             r->cameraPos = gate->restartGate->cameraPos;
-        /* A gate this player touched keeps the camera's place from their touch. A gate that becomes their
-           checkpoint in another way (the pause menu) counts as touched from now on. */
+        /* A gate this player touched keeps the camera's place from their touch. Another gate (one the pause menu
+           picked) has the place from its first touch by anyone, as in the game. Crossing it later still makes it
+           this player's checkpoint. */
         for (k = 0; k < r->touchedCount; k++)
             if (r->touched[k] == gate)
-                break;
-        if (k < r->touchedCount) {
-            r->cameraPos = r->touchedCamera[k];
-        } else if (gate && r->touchedCount < G64_GATES) {
-            r->touchedCamera[r->touchedCount] = r->cameraPos;
-            r->touched[r->touchedCount++] = gate;
-        }
+                r->cameraPos = r->touchedCamera[k];
     }
     return r;
 }
@@ -1656,6 +1651,10 @@ void G64CheckRestartGate(Platform *platform) {
         for (k = 0; k < 6; k++) {
             RotateVector2D(&v, &v, 1.0f);
             AddPuff(&platform->actor.pos, &v, 2.0f);
+        }
+        if (gate->untouched) {
+            /* The gate's own place for the camera, from its first touch (CheckRestartGate). */
+            gate->cameraPos = i == 0 ? camera.pos : ((G64Slot *)slots[i])->camera.pos;
         }
         gate->untouched = 0;
         gate->targetScale = 0.0f;
