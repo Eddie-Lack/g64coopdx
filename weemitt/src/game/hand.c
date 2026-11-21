@@ -696,7 +696,8 @@ void ApplyAction(s32 action) {
         cameraInfo.focus = &hand.pos;
         cameraInfo.focusVel = &hand.vel;
     }
-    if (handControl.actionLock && gameInfo.cameoActive) {
+    /* g64coopdx: the lock is the cameo's for the first player only (g64players.c). */
+    if (handControl.actionLock && gameInfo.cameoActive && !G64CameoHeld()) {
         return;
     }
     if (action == 28 && IsHandHoldingBall()) {
@@ -3717,6 +3718,11 @@ void KillHand(s16 type) {
 void HurtHand(s32 type, s16 damage) {
     Vec3 tempVect;
     f32 speed = 13.0f;
+
+    /* g64coopdx: a player who is held for another player's cameo is not hurt (g64players.c). */
+    if (G64CameoHeld()) {
+        return;
+    }
 
     DeactivateCollectable(ROTORBLADES);
     BallworldHandHurt();

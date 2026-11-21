@@ -141,12 +141,13 @@ game data, only addresses and counts.
   boss goes for the players in turn. The shield's glow and the crosshair's fade on screen are the first player's.
 - In the Fortress, Prehistoric and Atlantis bonus levels you win or lose alone, and the others play on. When the
   clock runs out, the level ends for everyone. In the Carnival bonus level every player works the one cannon.
-  The space bonus level reacts only to the first player.
 - Any player takes a garib or a pick-up. The players of a level share one count of garibs. A power-up is its
   taker's own. A power-up that changes the look of the glove or the ball changes it for every player.
 - Any player's glove or ball works a puzzle's switch or zone. Each player has their own camera zones.
 - An enemy goes for the nearest player, or the one it holds. A bullet that homes in on a glove keeps to that player.
   A bullet that flies straight can only hit the player nearest to it.
+- A cutscene plays for the first player in the level. The other players are held while it plays and see its
+  camera. In the control room before the last boss, the other players watch the first player's scene.
 - An exit takes you at once: there is no spin, fade or end-of-level screen.
 - Progress made by another player reaches your level at once, but only some things show it before the level starts
   again. A way room door opens at once. The pedestals in a way room move only at its next start.

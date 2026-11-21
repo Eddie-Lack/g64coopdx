@@ -271,6 +271,10 @@ s32 G64QuakeStrength(f32 blend, f32 *str);
    (axis 1), and whether any player has just pressed a button. */
 f32 G64AnyStick(s32 axis);
 s32 G64AnyPressed(s32 button);
+/* Cameos (g64players.c): G64CameoView gives the other players the cameo's camera, and G64CameoHeld is 1 for a
+   player other than the first while a cameo plays. */
+void G64CameoView(void);
+s32 G64CameoHeld(void);
 /* DisableControl(time) for every player who is not in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are

@@ -235,7 +235,7 @@ int main(int argc, char **argv) {
     engine_save(engine, boot);
     pair("A", 29, 100, 0, 1);
     pair("B", 29, 100, 1, 0);
-    pair("C", 14, 60, 2, 0);
+    pair("C", 14, 130, 2, 0);
     case_d();
     printf("%s each player wins or loses a bonus level alone\n", failed ? "FAIL" : "ok  ");
     free(ready);

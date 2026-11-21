@@ -194,7 +194,10 @@ void DrawFootprints(void) {
             UpdateEnemyBlastring(ptr);
             for (p = 1; p < players; p++) {
                 if (G64HazardBegin(p)) {
-                    UpdateEnemyBlastring(ptr);
+                    /* A player who is held for a cameo is not hurt, and the ring does not throw them. */
+                    if (!G64CameoHeld()) {
+                        UpdateEnemyBlastring(ptr);
+                    }
                     G64HazardEnd(p);
                 }
             }
