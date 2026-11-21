@@ -396,6 +396,35 @@ void SetKlosetSpeed(Actor *actor, s32 level) {
     actor->anim->anims[15].speed = animSpeed;
 }
 
+/* The part of the Carnival boss's level that each player has: the turntable carries their ball round, and the
+   camera circles the arena from where their glove is. */
+static void CarnivalBossPlayer(void) {
+    Vec3 tempVect;
+    Vec3 tempVect2;
+    Platform *plat;
+
+    if (!ball.obj->wasOnGround && ball.obj->contactPlatform != NULL && ball.obj->contactPlatform->tag == 10) {
+        plat = FindTaggedPlatform(&platformList.head, 10);
+        tempVect2.y = 0.0f;
+        SetVector2D(&tempVect, &ball.pos);
+        RotateVector2D(&tempVect, &tempVect, plat->motion->rotVel[1]);
+        SubVector2D(&tempVect2, &tempVect, &ball.pos);
+        SCALE_VECTOR_2D(&tempVect2, LENGTH_2D(&ball.pos) / 300.0f);
+        AddConveyorSpeedToVel(&ball.vel, &tempVect2);
+    }
+    if (!cameoList.head.next->active) {
+        bossFocalPoint = hand.pos;
+        SCALE_VECTOR(&bossFocalPoint, 0.5);
+        bossFocalPoint.y += LENGTH_2D(&hand.pos) / 6.0f;
+        cameraInfo.focus = &bossFocalPoint;
+        cameraInfo.targetHeight = 100.0f - LENGTH_2D(&hand.pos) / 3.0f;
+        cameraInfo.targetDistance = LENGTH_2D(&hand.pos) * 0.9 + 100.0;
+        cameraInfo.orbiting = 1;
+        cameraInfo.orbitAngle = atan2(hand.pos.x, hand.pos.z);
+        cameraInfo.orbitSpeed = 1.3f;
+    }
+}
+
 void DoCarnivalBoss(void) {
     Vec3 tempVect;
     Vec3 tempVect2;
@@ -406,6 +435,9 @@ void DoCarnivalBoss(void) {
     Actor *tempObj;
     NMEBrain *brain;
     s32 firstNoseHit;
+    s32 players;
+    s32 p;
+    s32 target;
 
     doIt = FALSE;
     e = &enemies[0];
@@ -440,25 +472,14 @@ void DoCarnivalBoss(void) {
     if (TriggerAtFrame(228.0f, &e->actor)) {
         PlaySample(219, &e->actor.pos, 100, 128);
     }
-    if (!ball.obj->wasOnGround && ball.obj->contactPlatform != NULL && ball.obj->contactPlatform->tag == 10) {
-        plat = FindTaggedPlatform(&platformList.head, 10);
-        tempVect2.y = 0.0f;
-        SetVector2D(&tempVect, &ball.pos);
-        RotateVector2D(&tempVect, &tempVect, plat->motion->rotVel[1]);
-        SubVector2D(&tempVect2, &tempVect, &ball.pos);
-        SCALE_VECTOR_2D(&tempVect2, LENGTH_2D(&ball.pos) / 300.0f);
-        AddConveyorSpeedToVel(&ball.vel, &tempVect2);
-    }
-    if (!cameoList.head.next->active) {
-        bossFocalPoint = hand.pos;
-        SCALE_VECTOR(&bossFocalPoint, 0.5);
-        bossFocalPoint.y += LENGTH_2D(&hand.pos) / 6.0f;
-        cameraInfo.focus = &bossFocalPoint;
-        cameraInfo.targetHeight = 100.0f - LENGTH_2D(&hand.pos) / 3.0f;
-        cameraInfo.targetDistance = LENGTH_2D(&hand.pos) * 0.9 + 100.0;
-        cameraInfo.orbiting = 1;
-        cameraInfo.orbitAngle = atan2(hand.pos.x, hand.pos.z);
-        cameraInfo.orbitSpeed = 1.3f;
+    CarnivalBossPlayer();
+    /* g64coopdx: each other player has that part too, with them in the globals. */
+    players = G64SlotCount();
+    for (p = 1; p < players; p++) {
+        if (G64HazardBegin(p)) {
+            CarnivalBossPlayer();
+            G64HazardEnd(p);
+        }
     }
     if (e->brain.instr.type == NME_SPECIAL && e->brain.instr.arg.i == 0
         && tempObj->anim->current == 15) {
@@ -473,6 +494,8 @@ void DoCarnivalBoss(void) {
         /* QueryAnimTime's window: the animation steps in ticks, and the throw happens in the tick that reaches it. */
         if (deltaTick && tempObj->anim->time >= 51.0f
             && tempObj->anim->time < tempObj->anim->speed + 51.0f) {
+            /* g64coopdx: the pie goes for the player the boss looks at (G64EnemyBegin). */
+            target = G64EnemyBegin(0);
             pie = FireBulletFromActor(&e->actor, PIE_BULLET, 0);
             pie->actor.spinAxis.y = 0.0f;
             pie->actor.spinAxis.z = 0.0f;
@@ -494,7 +517,14 @@ void DoCarnivalBoss(void) {
             SCALE_VECTOR(&tempVect2, 1.5);
             ADD_TO_VECTOR(&pie->actor.vel, &tempVect2);
             PlaySample(167, &pie->actor.pos, 100, 100);
+            G64EnemyEnd(0, target);
         }
+    }
+    /* g64coopdx: any player's ball sets the boss's traps off. The first ball that does ends the search: the traps
+       take the place of that ball's platform. */
+    for (p = 0; (p == 0 || p < players) && !doIt; p++) {
+    if (p && !G64HazardBegin(p)) {
+        continue;
     }
     if (ball.obj->contactPlatform != NULL && (!IsHandHoldingBall() || hand.state->mode == HAND_AIRBOURNEWHACK)
         && LENGTH_2D(&ball.vel) > 3.0f) {
@@ -578,6 +608,10 @@ void DoCarnivalBoss(void) {
                     break;
             }
         }
+    }
+    if (p) {
+        G64HazardEnd(p);
+    }
     }
     if (e->actor.state->hits == 2) {
         if (QueryAnimTime(&ckWeapon, 10.0f)) {
@@ -714,6 +748,20 @@ void DoCarnivalBoss(void) {
             }
             if (DistanceBetweenPoints2D(&ball.pos, &ckWeapon.pos) < 100.0f) {
                 BurstBall();
+            }
+            /* g64coopdx: the blast reaches the other players' gloves and balls too. */
+            for (p = 1; p < players; p++) {
+                Actor *h = G64SlotGlove(p);
+                Actor *b = G64SlotBall(p);
+                if (h != NULL && DistanceBetweenPoints2D(&h->pos, &ckWeapon.pos) < 100.0f && G64HazardBegin(p)) {
+                    HurtHand(HURT_GO_BACKWARDS, 1);
+                    G64HazardEnd(p);
+                }
+                if (b != NULL && !G64SlotBallBursting(p) && DistanceBetweenPoints2D(&b->pos, &ckWeapon.pos) < 100.0f
+                    && G64HazardBegin(p)) {
+                    BurstBall();
+                    G64HazardEnd(p);
+                }
             }
             PlaySample(34, &tempObj->pos, 150, 128);
         }

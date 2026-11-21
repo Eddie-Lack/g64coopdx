@@ -105,6 +105,8 @@ typedef struct G64Slot {
     Vec3 ballFrameVel;
     CameraRequests tickCameraRequests;
     Vec3 ballStart;
+    /* The point a boss level's camera looks at (boss.c). */
+    Vec3 bossFocalPoint;
     G64Cave cave;
     u8 caveStage;
     u8 disableZoom;
@@ -148,6 +150,7 @@ static void move_restart(s32 toPlayer, s32 fromPlayer);
    cleared (UpdateEnemies), or 0. */
 static s32 enemyHitBy[G64_ENEMIES];
 extern Vec3 ballStart;
+extern Vec3 bossFocalPoint;
 extern s32 frameCount;
 void AddActor(Actor *actor);
 void SubActor(Actor *actor);
@@ -272,6 +275,7 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&ballFrameVel, &s->ballFrameVel, sizeof(Vec3));
     swap_bytes(&tickCameraRequests, &s->tickCameraRequests, sizeof(CameraRequests));
     swap_bytes(&ballStart, &s->ballStart, sizeof(Vec3));
+    swap_bytes(&bossFocalPoint, &s->bossFocalPoint, sizeof(Vec3));
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
     /* Online the globals' part of the cave exists before the first slot does (global_cave). */
@@ -390,6 +394,7 @@ static G64Slot *copy_globals(void) {
     s->ballFrameVel = ballFrameVel;
     s->tickCameraRequests = tickCameraRequests;
     s->ballStart = ballStart;
+    s->bossFocalPoint = bossFocalPoint;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
         s->cave = *(G64Cave *)globalCave;
