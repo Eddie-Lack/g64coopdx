@@ -25,6 +25,7 @@ PORT_C_BEGIN
 #include "spell.h"
 #include "delta.h"
 #include "ballworld.h"
+#include "g64players.h"
 
 extern PTR32(void) icicleBit;
 extern PTR32(void) boulderBit;
@@ -182,6 +183,7 @@ void SubBullet(Bullet *bullet) {
         bullet->next->prev = bullet->prev;
         bulletList.count--;
         DropBulletTrack(bullet);
+        G64BulletGone(bullet);
         for (i = 0; i < standardBullets[bullet->type].numSprites; i++) {
             SubSprite(&bullet->sprites[i]);
         }
@@ -556,6 +558,7 @@ Bullet *CreateNewBullet(s16 type) {
     bullet->actor.type = BULLET;
     bullet->actor.flags = info->flags;
     bullet->targetFlags = info->targetFlags;
+    G64BulletMade(bullet);
     bullet->actor.phys->maxSpeed = info->maxSpeed;
     if (bullet->actor.obj) {
         bullet->actor.obj->spheres[0].radius = bullet->actor.obj->spheres[0].targetRadius = bullet->actor.radius = info->radius;
@@ -1203,9 +1206,8 @@ s32 MaintainBulletBovva(Bullet *bullet) {
     return FALSE;
 }
 
-void UpdateBullets(void) {
-    Bullet *bullet;
-    Bullet *bullet2;
+/* One bullet's update (UpdateBullets). It may free the bullet. */
+static void UpdateBullet(Bullet *bullet) {
     Water *ptr;
     Debris *debris;
     Actor *owner;
@@ -1222,188 +1224,199 @@ void UpdateBullets(void) {
     s32 kill;
     s32 countDown;
 
+    /* A new bullet's entry records its lifeTimer before this update changes it. */
+    FindBulletTrack(bullet);
+    if (bullet->sample.volume) {
+        UpdateContinuousSample(&bullet->sample);
+    }
+    kill = FALSE;
+    if (standardBullets[bullet->type].maintainFunc != NULL && standardBullets[bullet->type].maintainFunc(bullet)) {
+        bullet->actor.lifeTimer = 1;
+        kill = TRUE;
+    }
+    if (bullet->actor.flags & 0x200000) {
+        bullet->actor.state->waterState = 0;
+        for (ptr = waterList.head.next; ptr != &waterList.head; ptr = ptr->next) {
+            if (IsPointWithinBox(&ptr->box, &bullet->actor.pos)) {
+                CheckActorForWater(&bullet->actor, ptr, 1);
+            }
+        }
+    }
+    /* The countdown runs in ticks. A bullet that its maintain function ends, or whose lifeTimer other code set to
+       1, goes in this update. */
+    track = FindBulletTrack(bullet);
+    countDown = deltaTick || kill || (bullet->actor.lifeTimer == 1 && track != NULL && track->counted != 1);
+    if (bullet->actor.lifeTimer > 0 && countDown && --bullet->actor.lifeTimer <= 0) {
+        if (standardBullets[bullet->type].hitFunc != NULL) {
+            standardBullets[bullet->type].hitFunc(&bullet->actor);
+        }
+        if (standardBullets[bullet->type].deathDebris != 24) {
+            AddDebris(standardBullets[bullet->type].deathDebris, &bullet->actor.pos, &zero, NULL, NULL);
+        }
+        SubBullet(bullet);
+        return;
+    }
+    if (deltaTick && track != NULL) {
+        track->counted = bullet->actor.lifeTimer;
+    }
+    if (bullet->actor.inst == NULL && bullet->sprites[0].tex == NULL) {
+        if (standardBullets[bullet->type].hitFunc != NULL) {
+            standardBullets[bullet->type].hitFunc(&bullet->actor);
+        }
+        SubBullet(bullet);
+        return;
+    }
+    owner = bullet->actor.link;
+    bullet->actor.flags &= ~0x44000000;
+    /* A bullet fired in a tick moves a whole frame in that update, as the frame's decisions come before the
+       motion. */
+    step = (track != NULL && track->firstUpdate) ? 1.0f : deltaTime;
+    if (track != NULL) {
+        track->firstUpdate = FALSE;
+    }
+    savedTime = deltaTime;
+    deltaTime = step;
+    UpdateActor(&bullet->actor);
+    deltaTime = savedTime;
+    if (owner != bullet->actor.link) {
+        BulletHitTarget(bullet, bullet->actor.link);
+        return;
+    }
+    if (gameInfo.level != SPACEBOSS3 && !(bullet->actor.flags & 8)) {
+        if (bullet->actor.flags & 0x20000) {
+            if (DistanceBetweenPointsSquared(&hand.pos, &bullet->actor.pos)
+                <= (hand.radius + bullet->actor.radius) * (hand.radius + bullet->actor.radius)) {
+                if (bullet->targetFlags & 0x10) {
+                    handControl.smokeTimer = 40;
+                }
+                HurtHand(HURT_GO_BACKWARDS, 1);
+                if (bullet->type == MISSILE_BULLET) {
+                    bullet->actor.lifeTimer = 1;
+                }
+            }
+        }
+        if (bullet->actor.flags & 0x140000) {
+            /* HurtBall breaks off snow in each call. The ball takes a bullet's hit once per original frame. */
+            if (DistanceBetweenPointsSquared(&ball.pos, &bullet->actor.pos)
+                <= (hand.radius + bullet->actor.radius) * (ball.radius + bullet->actor.radius)
+                && BulletFirstInFrame(bullet, BULLET_BALL_HIT)) {
+                if (bullet->actor.flags & 0x100000) {
+                    BurstBall();
+                } else {
+                    HurtBall();
+                }
+            }
+        }
+    }
+    for (i = 0; i < standardBullets[bullet->type].numSprites; i++) {
+        bullet->sprites[i].pos = bullet->actor.pos;
+    }
+    if (bullet->actor.active == 0) {
+        SubBullet(bullet);
+        return;
+    }
+    /* age counts original frames. The trail, the new aim and the spell's sparks come once per original frame. */
+    if (deltaTick) {
+        bullet->age++;
+    }
+    if (deltaTick && standardBullets[bullet->type].trailDebris != 24) {
+        debris = AddDebris(standardBullets[bullet->type].trailDebris, &bullet->actor.prevPos, &zero, NULL, NULL);
+        if (debris != NULL) {
+            debris->sprite.r = spellColour[bullet->spell + 1][1][0];
+            debris->sprite.g = spellColour[bullet->spell + 1][1][1];
+            debris->sprite.b = spellColour[bullet->spell + 1][1][2];
+            if (bullet->type == MISSILE_BULLET) {
+                debris->sprite.scaleX *= 5;
+                debris->sprite.scaleY *= 5;
+                debris->sprite.anim.def.startScale *= 5;
+                debris->sprite.anim.def.endScale *= 5;
+            }
+        }
+    }
+    if (deltaTick && (bullet->targetFlags & 8)) {
+        BulletAcquireTarget(bullet, &bullet->actor.pos);
+    }
+    if (deltaTick && bullet->type == NME_SPELL_BULLET) {
+        sep.z = 0.0f;
+        sep.y = 0.0f;
+        sep.x = 4.0f;
+        RotateVector2D(&sep, &sep, Random(7));
+        AddSpellDebris(10, &bullet->actor.prevPos, &sep, bullet->spellType);
+    }
+    if (bullet->target == NULL) {
+        return;
+    }
+    if (bullet->type == TONGUE_BULLET) {
+        SUB_VECTORS(&sep, (Vec3 *)bullet->target, &bullet->actor.pos);
+    } else {
+        SUB_VECTORS(&sep, &bullet->target->pos, &bullet->actor.pos);
+    }
+    // two tests: GCC folds `type == 26 || type == 27` into a range check
+    if (bullet->type == MISSILE_BULLET) {
+        sep.y += 150.0f;
+    } else if (bullet->type == LASERBOLT_BULLET) {
+        sep.y += 150.0f;
+    }
+    if (!(bullet->actor.flags & 8) && bullet->age > standardBullets[bullet->type].targetDelay) {
+        if (DOT_PRODUCT(&sep, &sep) <= (bullet->target->radius + bullet->actor.radius) * (bullet->target->radius + bullet->actor.radius)) {
+            BulletHitTarget(bullet, bullet->target);
+            return;
+        }
+    }
+    if (bullet->age < -standardBullets[bullet->type].targetDelay) {
+        return;
+    }
+    if (standardBullets[bullet->type].flags2 & 0x20) {
+        MakeUnit(&sep);
+        AddToOneScaledVector(&bullet->actor.vel, &sep, standardBullets[bullet->type].accel * step);
+        return;
+    }
+    /* The homing turns and accelerates by per-frame amounts, scaled to this update. */
+    if (standardBullets[bullet->type].flags2 & 0x10) {
+        turnSpeed = standardBullets[bullet->type].turn * bullet->age * step;
+    } else {
+        turnSpeed = standardBullets[bullet->type].turn * step;
+    }
+    speed = LENGTH_2D(&bullet->actor.vel);
+    aim = Aabs(atan2(sep.x, sep.z));
+    if (speed != 0.0f) {
+        SCALE_VECTOR_2D(&bullet->actor.vel, 1.0f / speed);
+        theta = Aabs(atan2(bullet->actor.vel.x, bullet->actor.vel.z));
+    } else {
+        theta = aim;
+    }
+    diff = FindShortestAngleSigned(theta, aim);
+    if (diff > 0.0f) {
+        theta = Aabs(theta - MIN(turnSpeed, diff));
+    } else if (diff < 0.0f) {
+        theta = Aabs(turnSpeed < -diff ? theta + turnSpeed : theta - diff);
+    }
+    bullet->actor.vel.x = __sinf(theta);
+    bullet->actor.vel.z = __cosf(theta);
+    diff = (standardBullets[bullet->type].accel + ABS(bullet->actor.vel.y)) * bullet->actor.vel.y;
+    diff /= 2.0f * standardBullets[bullet->type].accel;
+    if (diff < sep.y) {
+        turnSpeed = standardBullets[bullet->type].accel;
+    } else {
+        turnSpeed = -standardBullets[bullet->type].accel;
+    }
+    if (bullet->age >= 0) {
+        bullet->actor.vel.y += turnSpeed * step;
+        SCALE_VECTOR_2D(&bullet->actor.vel, speed + standardBullets[bullet->type].accel * step);
+    }
+}
+
+void UpdateBullets(void) {
+    Bullet *bullet;
+    Bullet *bullet2;
+    s32 slot;
+
     for (bullet = bulletList.head.next; bullet != &bulletList.head; bullet = bullet2) {
         bullet2 = bullet->next;
-        /* A new bullet's entry records its lifeTimer before this update changes it. */
-        FindBulletTrack(bullet);
-        if (bullet->sample.volume) {
-            UpdateContinuousSample(&bullet->sample);
-        }
-        kill = FALSE;
-        if (standardBullets[bullet->type].maintainFunc != NULL && standardBullets[bullet->type].maintainFunc(bullet)) {
-            bullet->actor.lifeTimer = 1;
-            kill = TRUE;
-        }
-        if (bullet->actor.flags & 0x200000) {
-            bullet->actor.state->waterState = 0;
-            for (ptr = waterList.head.next; ptr != &waterList.head; ptr = ptr->next) {
-                if (IsPointWithinBox(&ptr->box, &bullet->actor.pos)) {
-                    CheckActorForWater(&bullet->actor, ptr, 1);
-                }
-            }
-        }
-        /* The countdown runs in ticks. A bullet that its maintain function ends, or whose lifeTimer other code set to
-           1, goes in this update. */
-        track = FindBulletTrack(bullet);
-        countDown = deltaTick || kill || (bullet->actor.lifeTimer == 1 && track != NULL && track->counted != 1);
-        if (bullet->actor.lifeTimer > 0 && countDown && --bullet->actor.lifeTimer <= 0) {
-            if (standardBullets[bullet->type].hitFunc != NULL) {
-                standardBullets[bullet->type].hitFunc(&bullet->actor);
-            }
-            if (standardBullets[bullet->type].deathDebris != 24) {
-                AddDebris(standardBullets[bullet->type].deathDebris, &bullet->actor.pos, &zero, NULL, NULL);
-            }
-            SubBullet(bullet);
-            continue;
-        }
-        if (deltaTick && track != NULL) {
-            track->counted = bullet->actor.lifeTimer;
-        }
-        if (bullet->actor.inst == NULL && bullet->sprites[0].tex == NULL) {
-            if (standardBullets[bullet->type].hitFunc != NULL) {
-                standardBullets[bullet->type].hitFunc(&bullet->actor);
-            }
-            SubBullet(bullet);
-            continue;
-        }
-        owner = bullet->actor.link;
-        bullet->actor.flags &= ~0x44000000;
-        /* A bullet fired in a tick moves a whole frame in that update, as the frame's decisions come before the
-           motion. */
-        step = (track != NULL && track->firstUpdate) ? 1.0f : deltaTime;
-        if (track != NULL) {
-            track->firstUpdate = FALSE;
-        }
-        savedTime = deltaTime;
-        deltaTime = step;
-        UpdateActor(&bullet->actor);
-        deltaTime = savedTime;
-        if (owner != bullet->actor.link) {
-            BulletHitTarget(bullet, bullet->actor.link);
-            continue;
-        }
-        if (gameInfo.level != SPACEBOSS3 && !(bullet->actor.flags & 8)) {
-            if (bullet->actor.flags & 0x20000) {
-                if (DistanceBetweenPointsSquared(&hand.pos, &bullet->actor.pos)
-                    <= (hand.radius + bullet->actor.radius) * (hand.radius + bullet->actor.radius)) {
-                    if (bullet->targetFlags & 0x10) {
-                        handControl.smokeTimer = 40;
-                    }
-                    HurtHand(HURT_GO_BACKWARDS, 1);
-                    if (bullet->type == MISSILE_BULLET) {
-                        bullet->actor.lifeTimer = 1;
-                    }
-                }
-            }
-            if (bullet->actor.flags & 0x140000) {
-                /* HurtBall breaks off snow in each call. The ball takes a bullet's hit once per original frame. */
-                if (DistanceBetweenPointsSquared(&ball.pos, &bullet->actor.pos)
-                    <= (hand.radius + bullet->actor.radius) * (ball.radius + bullet->actor.radius)
-                    && BulletFirstInFrame(bullet, BULLET_BALL_HIT)) {
-                    if (bullet->actor.flags & 0x100000) {
-                        BurstBall();
-                    } else {
-                        HurtBall();
-                    }
-                }
-            }
-        }
-        for (i = 0; i < standardBullets[bullet->type].numSprites; i++) {
-            bullet->sprites[i].pos = bullet->actor.pos;
-        }
-        if (bullet->actor.active == 0) {
-            SubBullet(bullet);
-            continue;
-        }
-        /* age counts original frames. The trail, the new aim and the spell's sparks come once per original frame. */
-        if (deltaTick) {
-            bullet->age++;
-        }
-        if (deltaTick && standardBullets[bullet->type].trailDebris != 24) {
-            debris = AddDebris(standardBullets[bullet->type].trailDebris, &bullet->actor.prevPos, &zero, NULL, NULL);
-            if (debris != NULL) {
-                debris->sprite.r = spellColour[bullet->spell + 1][1][0];
-                debris->sprite.g = spellColour[bullet->spell + 1][1][1];
-                debris->sprite.b = spellColour[bullet->spell + 1][1][2];
-                if (bullet->type == MISSILE_BULLET) {
-                    debris->sprite.scaleX *= 5;
-                    debris->sprite.scaleY *= 5;
-                    debris->sprite.anim.def.startScale *= 5;
-                    debris->sprite.anim.def.endScale *= 5;
-                }
-            }
-        }
-        if (deltaTick && (bullet->targetFlags & 8)) {
-            BulletAcquireTarget(bullet, &bullet->actor.pos);
-        }
-        if (deltaTick && bullet->type == NME_SPELL_BULLET) {
-            sep.z = 0.0f;
-            sep.y = 0.0f;
-            sep.x = 4.0f;
-            RotateVector2D(&sep, &sep, Random(7));
-            AddSpellDebris(10, &bullet->actor.prevPos, &sep, bullet->spellType);
-        }
-        if (bullet->target == NULL) {
-            continue;
-        }
-        if (bullet->type == TONGUE_BULLET) {
-            SUB_VECTORS(&sep, (Vec3 *)bullet->target, &bullet->actor.pos);
-        } else {
-            SUB_VECTORS(&sep, &bullet->target->pos, &bullet->actor.pos);
-        }
-        // two tests: GCC folds `type == 26 || type == 27` into a range check
-        if (bullet->type == MISSILE_BULLET) {
-            sep.y += 150.0f;
-        } else if (bullet->type == LASERBOLT_BULLET) {
-            sep.y += 150.0f;
-        }
-        if (!(bullet->actor.flags & 8) && bullet->age > standardBullets[bullet->type].targetDelay) {
-            if (DOT_PRODUCT(&sep, &sep) <= (bullet->target->radius + bullet->actor.radius) * (bullet->target->radius + bullet->actor.radius)) {
-                BulletHitTarget(bullet, bullet->target);
-                continue;
-            }
-        }
-        if (bullet->age < -standardBullets[bullet->type].targetDelay) {
-            continue;
-        }
-        if (standardBullets[bullet->type].flags2 & 0x20) {
-            MakeUnit(&sep);
-            AddToOneScaledVector(&bullet->actor.vel, &sep, standardBullets[bullet->type].accel * step);
-            continue;
-        }
-        /* The homing turns and accelerates by per-frame amounts, scaled to this update. */
-        if (standardBullets[bullet->type].flags2 & 0x10) {
-            turnSpeed = standardBullets[bullet->type].turn * bullet->age * step;
-        } else {
-            turnSpeed = standardBullets[bullet->type].turn * step;
-        }
-        speed = LENGTH_2D(&bullet->actor.vel);
-        aim = Aabs(atan2(sep.x, sep.z));
-        if (speed != 0.0f) {
-            SCALE_VECTOR_2D(&bullet->actor.vel, 1.0f / speed);
-            theta = Aabs(atan2(bullet->actor.vel.x, bullet->actor.vel.z));
-        } else {
-            theta = aim;
-        }
-        diff = FindShortestAngleSigned(theta, aim);
-        if (diff > 0.0f) {
-            theta = Aabs(theta - MIN(turnSpeed, diff));
-        } else if (diff < 0.0f) {
-            theta = Aabs(turnSpeed < -diff ? theta + turnSpeed : theta - diff);
-        }
-        bullet->actor.vel.x = __sinf(theta);
-        bullet->actor.vel.z = __cosf(theta);
-        diff = (standardBullets[bullet->type].accel + ABS(bullet->actor.vel.y)) * bullet->actor.vel.y;
-        diff /= 2.0f * standardBullets[bullet->type].accel;
-        if (diff < sep.y) {
-            turnSpeed = standardBullets[bullet->type].accel;
-        } else {
-            turnSpeed = -standardBullets[bullet->type].accel;
-        }
-        if (bullet->age >= 0) {
-            bullet->actor.vel.y += turnSpeed * step;
-            SCALE_VECTOR_2D(&bullet->actor.vel, speed + standardBullets[bullet->type].accel * step);
-        }
+        /* g64coopdx: the bullet looks at the player it homes in on, or the nearest (g64players.c). */
+        slot = G64BulletBegin(bullet);
+        UpdateBullet(bullet);
+        G64BulletEnd(bullet, slot);
     }
 }
 

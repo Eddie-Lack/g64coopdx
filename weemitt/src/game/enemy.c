@@ -26,6 +26,7 @@ PORT_C_BEGIN
 #include "spell.h"
 #include "nmeprocess2.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s16 farPlaneDist;
 f32 NMEThrustTime(void);
@@ -1299,8 +1300,12 @@ void UpdateEnemies(void) {
             ballControl.enemy == &enemies[x].actor ||
             DistanceBetweenPointsSquared(&enemies[x].actor.pos, &camera.pos) <=
                 farPlaneDist * farPlaneDist + 40000 ||
-            (enemies[x].actor.type == SAMTEX && enemies[x].samples[0].handle)) {
+            (enemies[x].actor.type == SAMTEX && enemies[x].samples[0].handle) ||
+            G64EnemyNear(&enemies[x].actor, farPlaneDist * farPlaneDist + 40000)) {
+            /* g64coopdx: the enemy looks at the player it holds, who hit it, or the nearest (g64players.c). */
+            j = G64EnemyBegin(x);
             UpdateEnemy(x);
+            G64EnemyEnd(x, j);
         } else if (enemies[x].actor.inst->obj->numSprites > 0) {
             for (j = 0; j < enemies[x].actor.inst->obj->numSprites; j++) {
                 if (enemies[x].actor.inst->obj->sprites[j].sprite) {
@@ -1314,6 +1319,7 @@ void UpdateEnemies(void) {
             enemies[x].brain.flags &= ~8;
             enemies[x].actor.flags &= ~0x4000000;
             bowlingHit[x] = FALSE;
+            G64EnemyHitsCleared(x);
         }
     }
 }

@@ -9,6 +9,7 @@ PORT_C_BEGIN
 #include "collect.h"
 #include "spell.h"
 #include "enemy.h"
+#include "g64players.h"
 
 extern Vec3 zero;
 
@@ -110,7 +111,9 @@ void RemoveHandAndBallBullets(void) {
 
     for (bullet = bulletList.head.next; bullet != &bulletList.head; bullet = bullet2) {
         bullet2 = bullet->next;
-        if (bullet->target == &hand || bullet->target == &ball || gameInfo.level == PREHISTORICBOSS) {
+        /* g64coopdx: with more players, only the bullets aimed at the player who restarts (g64players.c). */
+        if (((bullet->target == &hand || bullet->target == &ball) && G64BulletMine(bullet))
+            || gameInfo.level == PREHISTORICBOSS) {
             SubBullet(bullet);
         }
     }

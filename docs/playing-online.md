@@ -137,7 +137,9 @@ game data, only addresses and counts.
 
 ## What does not work yet
 
-- Enemies, collectables and puzzles react only to one player in each level.
+- Collectables, puzzles, vents (the cannons and boulder traps) and bosses react only to one player in each level.
+- An enemy goes for the nearest player, or the one it holds. A bullet that homes in on a glove keeps to that player.
+  A bullet that flies straight can only hit the player nearest to it.
 - An exit takes you at once: there is no spin, fade or end-of-level screen.
 - Progress made by another player reaches your level at once, but only some things show it before the level starts
   again. A way room door opens at once. The pedestals in a way room move only at its next start.

@@ -5,6 +5,8 @@
 #define G64_MAX_PLAYERS 16
 
 struct Platform;
+struct Actor;
+struct Bullet;
 
 /* 1 in the online game (src/client/netplay.c). Each player then takes an exit alone, and leaves the game (the session
    moves them to the level the exit leads to); a level-wide exit takes every player. Set it before power-on. */
@@ -139,5 +141,29 @@ void G64ApplyStartRecord(void);
 s32 G64FindExit(s32 type, f32 *x, f32 *y, f32 *z);
 void G64PlacePlayer(s32 player, f32 x, f32 y, f32 z);
 void G64SetPresent(u32 present);
+
+/* Enemies and bullets look at one player each (g64players.c, "Enemies and bullets"). G64EnemyBegin swaps that player
+   into the globals before enemy x's update and returns their slot; G64EnemyEnd swaps them back. G64BulletBegin and
+   G64BulletEnd do the same for a bullet. G64BulletMade and G64BulletGone keep the record of whom each bullet homes in
+   on. G64EnemyNear: 1 when a player who is not in the globals holds the actor's ball, or their camera is within the
+   range (squared) of it. */
+s32 G64EnemyBegin(s32 enemy);
+void G64EnemyEnd(s32 enemy, s32 slot);
+/* After UpdateEnemies clears an enemy's hit flags: its record of who hit it goes. */
+void G64EnemyHitsCleared(s32 enemy);
+/* 1 when a bullet homes in on the player in the globals, or has no record (RemoveHandAndBallBullets: a player's
+   respawn removes only the bullets aimed at them). */
+s32 G64BulletMine(struct Bullet *b);
+s32 G64BulletBegin(struct Bullet *b);
+void G64BulletEnd(struct Bullet *b, s32 slot);
+void G64BulletMade(struct Bullet *b);
+void G64BulletGone(struct Bullet *b);
+s32 G64EnemyNear(struct Actor *a, f32 rangeSq);
+/* For tests: enemy i's position, and its type plus 1 while it is active; 0 when it is not, or there is none. */
+s32 G64EnemyInfo(s32 i, f32 *x, f32 *y, f32 *z);
+/* For tests: the number of bullets, and the positions (x, y, z) of the first max of them. */
+s32 G64BulletPositions(f32 *xyz, s32 max);
+/* For tests: the enemy that holds a player's ball, by number; -1 for none. */
+s32 G64BallHolder(s32 player);
 
 #endif

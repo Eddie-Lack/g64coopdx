@@ -100,7 +100,7 @@ session's player number. "Shared" means one copy for the session, or for the ins
 | --- | --- | --- |
 | How | Keep `hand`, `ball` and the others where they are. Before each player's part of the frame, copy that player's state into them; after, copy it back out | Turn `hand` into `players[i].hand` (or a pointer) at every use; the first player keeps the N64 addresses |
 | Speed of a first prototype | Fast: a few hundred lines around `MoveHand`, `MoveBall`, `MoveCam` | Slow: about 225 functions |
-| Problems | Pointers stored elsewhere (`ball.link`, `cameraInfo.focus`, `bullet->target`, the actor and collision lists) point at the one global, which holds a different player at different times. Enemies and puzzles still see only the player swapped in | None of these; the work is large |
+| Problems | Pointers stored elsewhere (`ball.link`, `cameraInfo.focus`, `bullet->target`, the actor and collision lists) point at the one global, which holds a different player at different times. Puzzles still see only the player swapped in; enemies and bullets swap in the player they look at (roadmap, phase 3) | None of these; the work is large |
 | One player | The swap is a no-op | Each rewrite can change the game; g64coopdx's own baseline shows where it did |
 | Use | A spike in phase 1 to find the problems early; not a design to keep | The real design |
 
