@@ -198,7 +198,8 @@ sound player.
 `gen/ram.S` ends the game's memory with `port_hw_end` and then a block, `port_win` to `port_win_end`, that holds the
 host objects that the sound player's memory points to: `musGlobals`, `musPlayer`, `musHeap`, `musDmaState`, the
 output buffers and `musDmaZeros`. `WINDOW_OBJECTS` in `tools/gen/gen_ram.py` lists them with the bytes reserved for
-each, and `gen/port_win.h` gives the sizes to the C code. `mus_internal.h` checks with `static_assert` that each
+each, and `gen/port_win.h` gives the sizes to the C code. g64coopdx adds `objectMtxMore` there: a frame's object
+matrices past the 256 in `Dynamic`, which a display list points to. `mus_internal.h` checks with `static_assert` that each
 object fits. Both memory hashes stop at `port_hw_end`.
 
 ### What changed

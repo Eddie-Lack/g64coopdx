@@ -58,9 +58,7 @@ s32 JallocFreeBlocks(void) {
     s32 statics = JALLOC_NUM_BLOCKS - 1 - jc->lastStatic;
     s32 dynamics = jc->firstDynamic - JALLOC_DYNAMIC_MIN;
 
-    if (!jallocMoved) {
-        return jc->firstDynamic - jc->lastStatic - 1;
-    }
+    /* Before the move this counts the room there is after it: the next block that does not fit moves them. */
     return statics < dynamics ? statics : dynamics;
 }
 
@@ -104,6 +102,9 @@ void *JallocAllocStatic(s32 size, s32 clear, char *name) {
 
     jc = &jallocControl;
     if (jc->lastStatic == -1) {
+        if (jc->firstDynamic <= 0 && !jallocMoved) {
+            JallocMoveDynamic();
+        }
         ptr = jc->heapStart + jc->heapSize - size;
         jc->blocks[0].used = TRUE;
         jc->blocks[0].size = size;
