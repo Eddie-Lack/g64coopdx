@@ -1635,8 +1635,9 @@ void G64CheckRestartGate(Platform *platform) {
               b->pos.y <= platform->actor.pos.y && platform->actor.pos.y < b->prevPos.y))
             continue;
         r = restart_init(i);
-        /* A respawn drops the ball through its own gate: that is no touch. */
-        if (r->timer != 0 && r->gate == platform)
+        /* Crossing the player's own checkpoint changes nothing, and is no touch: a respawn drops and launches the
+           ball through it. */
+        if (slot_hand_control(i)->checkpoint == platform)
             continue;
         for (k = 0; k < r->touchedCount; k++)
             seen |= r->touched[k] == platform;
