@@ -104,6 +104,7 @@ PUZZLES_SRC := tests/rom/puzzles.c weemitt/src/port/statehash.c
 RESPAWN_SRC := tests/rom/respawn.c weemitt/src/port/statehash.c
 HAZARDS_SRC := tests/rom/hazards.c weemitt/src/port/statehash.c
 COLLECT_SRC := tests/rom/collect.c weemitt/src/port/statehash.c
+BOSSES_SRC := tests/rom/bosses.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -146,6 +147,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/collect.exe $(COLLECT_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/bosses $(BOSSES_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/bosses.exe $(BOSSES_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -198,6 +203,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/collect.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/collect-windows.out
 	cmp build/tests/collect.out build/tests/collect-windows.out
+	build/tests/bosses "$$GLOVER_ROM" > build/tests/bosses.out
+	tail -1 build/tests/bosses.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bosses.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/bosses-windows.out
+	cmp build/tests/bosses.out build/tests/bosses-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).
