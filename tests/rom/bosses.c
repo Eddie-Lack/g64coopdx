@@ -6,6 +6,8 @@
  *      player's ball stays where it is.
  *   D. In the Carnival boss's level a ball that hits a trap's platform sets the trap off: another platform rises.
  *      Each player's camera circles the arena from where their glove is.
+ *   E. The Fortress boss walks to the platform of the glove nearest to it, whoever's glove that is. Each player's
+ *      camera stands over the arena's middle.
  * It prints what it checks and a memory hash per level: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -238,6 +240,51 @@ static void case_d(void) {
     printf("D: hash %08x\n", port_hash_ram());
 }
 
+/* E: from the ready state of the Fortress boss's level, player `who`'s glove is held halfway to the platform with
+   tag 7 and the other player's on the platform with tag 3, across the arena. Returns how far the boss moves toward
+   platform 7 at most in 300 frames; cam gets the player's camera place at the end. */
+static float boss_walk(int who, float *cam) {
+    float p7[3] = {0, 0, 0}, p3[3] = {0, 0, 0}, e0[3] = {0, 0, 0}, e[3] = {0, 0, 0}, yaw, len, best = -1e9f;
+    int max;
+    unsigned f;
+    engine_load(engine, ready);
+    G64PlatformPosition(7, &p7[0], &p7[1], &p7[2]);
+    G64PlatformPosition(3, &p3[0], &p3[1], &p3[2]);
+    G64EnemyInfo(0, &e0[0], &e0[1], &e0[2]);
+    len = sqrtf((p7[0] - e0[0]) * (p7[0] - e0[0]) + (p7[2] - e0[2]) * (p7[2] - e0[2]));
+    for (f = 0; f < 300; f++) {
+        float d;
+        frame(READY + f, 0x3);
+        G64PlacePlayer(who, p7[0] * 0.5f, -395.0f, p7[2] * 0.5f);
+        G64PlacePlayer(!who, p3[0], p3[1] + 30.0f, p3[2]);
+        G64EnemyInfo(0, &e[0], &e[1], &e[2]);
+        d = ((e[0] - e0[0]) * (p7[0] - e0[0]) + (e[2] - e0[2]) * (p7[2] - e0[2])) / len;
+        if (d > best)
+            best = d;
+    }
+    cam[0] = cam[1] = cam[2] = 0;
+    G64SoundListener(who, cam, &yaw, &max);
+    return best;
+}
+
+static void case_e(void) {
+    float walk0, walk1, cam0[3], cam1[3];
+    char what[260];
+    unsigned f;
+    start(33);
+    /* The level's opening lasts longer than READY. */
+    for (f = READY; f < READY + 500; f++)
+        frame(f, 0x3);
+    engine_save(engine, ready);
+    walk0 = boss_walk(0, cam0);
+    walk1 = boss_walk(1, cam1);
+    snprintf(what, sizeof what, "E: the Fortress boss walks %.0f toward player 0's platform when player 0 is the "
+             "nearest, and %.0f toward player 1's when player 1 is; their cameras end %.0f apart", walk0, walk1,
+             dist(cam0, cam1));
+    check(walk0 > 30.0f && walk1 > 30.0f && dist(cam0, cam1) < 15.0f, what);
+    printf("E: hash %08x\n", port_hash_ram());
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     char err[256];
@@ -261,6 +308,7 @@ int main(int argc, char **argv) {
     case_a();
     case_bc();
     case_d();
+    case_e();
     printf("%s the bosses see every player\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

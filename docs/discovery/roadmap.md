@@ -151,8 +151,11 @@ harness at N players and by the determinism tests:
    (weemitt/src/game/boss.c; tests/rom/bosses.c). In the Carnival boss's level each player has the turntable's
    push and the circling camera, the pie goes for the player the boss looks at, any player's ball sets the traps
    off, and the bomb's blast reaches every glove and ball. The other players are made once a level's opening cameo
-   has ended: a copy taken during a cameo kept the cameo's camera. Left: the Fortress, Atlantis and space bosses,
-   and the bonus levels; the pie and the bomb's blast have no test.
+   has ended: a copy taken during a cameo kept the cameo's camera. In the Fortress boss's level each player has the
+   camera over the arena's middle and can stun the boss with a slam; the boss goes for the platform of the glove
+   nearest to it; every glove hurts on a charged platform's edge and near the charged boss, and the stomp throws
+   every glove and ball. Left: the Atlantis and space bosses, and the bonus levels. The Carnival boss's pie and
+   bomb and the Fortress boss's slam, pain and stomp have no test.
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).

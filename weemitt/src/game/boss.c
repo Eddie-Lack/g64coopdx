@@ -797,6 +797,105 @@ void DoCarnivalBoss(void) {
     }
 }
 
+/* The part of the Fortress boss's level that each player has: the camera round the arena's middle, and the slam on a
+   platform that stuns the boss. landed: whether the glove has landed since the latest tick. slam: 0 when another
+   player's slam has sent its bolt in this frame. Returns 1 when a slam sent its bolt. */
+static s32 FortressBossPlayer(Actor *e, s32 *landed, s32 slam) {
+    Platform *plat = hand.obj->platform;
+    s32 fired = 0;
+
+    if (cameoList.head.next->active == 0) {
+        cameraInfo.focus = &bossFocalPoint;
+        bossFocalPoint.y = hand.pos.y;
+        bossFocalPoint.x = hand.pos.x / 5.0f;
+        bossFocalPoint.z = hand.pos.z / 5.0f;
+    }
+    cameraInfo.targetHeight = 400.0f;
+    cameraInfo.targetDistance = 100.0f;
+    /* During a cameo the focal point is not set again above, and this adds up once per original frame. */
+    if (hand.pos.y > -100.0f && (deltaTick || cameoList.head.next->active == 0)) {
+        bossFocalPoint.y += 2.0f * (hand.pos.y - -100.0f);
+    }
+    cameraInfo.orbiting = 1;
+    cameraInfo.orbitAngle = atan2(hand.pos.x, hand.pos.z);
+    cameraInfo.orbitSpeed = 0.7f;
+    /* A slam that lands on a platform stuns the boss. The test runs in the tick in which the glove takes up
+       HAND_SLAM2ST, and counts a landing in any update since the latest tick. */
+    if (hand.obj->wasOnGround == 0) {
+        *landed = TRUE;
+    }
+    if (slam && deltaTick && plat != NULL && *landed && hand.state->mode == HAND_SLAM2ST && handControl.actionTime == 1 &&
+        plat->path->current < 4 && plat->tag > 0) {
+        if (plat->tag < 5) {
+            plat->path->moving = 1;
+            plat->path->dir = 1;
+            frStunPos1 = plat->actor.pos;
+            frStunPos1.y = -365.0f;
+            plat = FindTaggedPlatform(&platformList.head, plat->tag + 4);
+            plat->path->dir = -1;
+            plat->path->moving = 1;
+            frStunPos2 = plat->actor.pos;
+            frStunPos2.y = -365.0f;
+            AddLightning(&frStunPos2, &frStunPos1, 205, 205, 255, 10, 5, 6, 1.0f, 2.0f);
+            PlaySample(62, &e->pos, 130, 128);
+            frStunCount = 5;
+            fired = 1;
+        } else if (plat->tag < 9) {
+            plat->path->moving = 1;
+            plat->path->dir = 1;
+            frStunPos1 = plat->actor.pos;
+            frStunPos1.y = -365.0f;
+            plat = FindTaggedPlatform(&platformList.head, plat->tag - 4);
+            plat->path->dir = -1;
+            plat->path->moving = 1;
+            frStunPos2 = plat->actor.pos;
+            frStunPos2.y = -365.0f;
+            AddLightning(&frStunPos2, &frStunPos1, 205, 205, 255, 10, 5, 6, 1.0f, 2.0f);
+            PlaySample(62, &e->pos, 130, 128);
+            frStunCount = 5;
+            fired = 1;
+        }
+    }
+    return fired;
+}
+
+/* The glove hurts while it hangs on the edge of a charged platform. */
+static void FortressBossEdge(void) {
+    if (handControl.edgePlatform != NULL && (handControl.edgePlatform->flags & 0x4000)) {
+        HurtHand(HURT_GO_TO_SAFE, 1);
+    }
+}
+
+/* A glove or a ball that stays near the charged boss is hurt. handPain and ballPain count original frames near it. */
+static void FortressBossPain(Actor *e) {
+    f32 dist;
+
+    if (deltaTick && ball.obj->platform == NULL) {
+        dist = 35.0f;
+        if (DistanceBetweenPoints2D(&e->pos, &hand.pos) < dist) {
+            handPain++;
+            AddLightning(&frankieSprite[Random(10) % 2]->pos, &hand.pos, 180, 180, 250, 6, 1, 6, 1.0f, 1.0f);
+            if (handPain == 8) {
+                HurtHand(HURT_GO_BACKWARDS, 1);
+                handPain = 0;
+            }
+        } else {
+            handPain = 0;
+        }
+        dist = goForPlatform ? 70.0f : 111.0f;
+        if (DistanceBetweenPoints2D(&e->pos, &ball.pos) < dist) {
+            ballPain++;
+            AddLightning(&frankieSprite[Random(10) % 2]->pos, &ball.pos, 180, 180, 250, 6, 1, 6, 1.0f, 1.0f);
+            if (ballPain == 8) {
+                BurstBall();
+                ballPain = 0;
+            }
+        } else {
+            ballPain = 0;
+        }
+    }
+}
+
 void DoFortressBoss(void) {
     Vec3 tempVect;
     Vec3 tempVect2;
@@ -812,6 +911,10 @@ void DoFortressBoss(void) {
     s32 r;
     s32 whichOne;
     u8 x;
+    s32 players;
+    s32 p;
+    s32 fired;
+    Vec3 *nearGlove;
 
     plat = hand.obj->platform;
     if (frameCount == 0 && DeltaFirst(&fortressSetUpFrame)) {
@@ -839,54 +942,17 @@ void DoFortressBoss(void) {
         NMEActionStartAttack(&enemies[0]);
         enemies[0].brain.instrIndex = 2;
     }
-    if (cameoList.head.next->active == 0) {
-        cameraInfo.focus = &bossFocalPoint;
-        bossFocalPoint.y = hand.pos.y;
-        bossFocalPoint.x = hand.pos.x / 5.0f;
-        bossFocalPoint.z = hand.pos.z / 5.0f;
-    }
-    cameraInfo.targetHeight = 400.0f;
-    cameraInfo.targetDistance = 100.0f;
-    /* During a cameo the focal point is not set again above, and this adds up once per original frame. */
-    if (hand.pos.y > -100.0f && (deltaTick || cameoList.head.next->active == 0)) {
-        bossFocalPoint.y += 2.0f * (hand.pos.y - -100.0f);
-    }
-    cameraInfo.orbiting = 1;
-    cameraInfo.orbitAngle = atan2(hand.pos.x, hand.pos.z);
-    cameraInfo.orbitSpeed = 0.7f;
-    /* A slam that lands on a platform stuns the boss. The test runs in the tick in which the glove takes up
-       HAND_SLAM2ST, and counts a landing in any update since the latest tick. */
-    if (hand.obj->wasOnGround == 0) {
-        slamLanded = TRUE;
-    }
-    if (deltaTick && plat != NULL && slamLanded && hand.state->mode == HAND_SLAM2ST && handControl.actionTime == 1 &&
-        plat->path->current < 4 && plat->tag > 0) {
-        if (plat->tag < 5) {
-            plat->path->moving = 1;
-            plat->path->dir = 1;
-            frStunPos1 = plat->actor.pos;
-            frStunPos1.y = -365.0f;
-            plat = FindTaggedPlatform(&platformList.head, plat->tag + 4);
-            plat->path->dir = -1;
-            plat->path->moving = 1;
-            frStunPos2 = plat->actor.pos;
-            frStunPos2.y = -365.0f;
-            AddLightning(&frStunPos2, &frStunPos1, 205, 205, 255, 10, 5, 6, 1.0f, 2.0f);
-            PlaySample(62, &e->pos, 130, 128);
-            frStunCount = 5;
-        } else if (plat->tag < 9) {
-            plat->path->moving = 1;
-            plat->path->dir = 1;
-            frStunPos1 = plat->actor.pos;
-            frStunPos1.y = -365.0f;
-            plat = FindTaggedPlatform(&platformList.head, plat->tag - 4);
-            plat->path->dir = -1;
-            plat->path->moving = 1;
-            frStunPos2 = plat->actor.pos;
-            frStunPos2.y = -365.0f;
-            AddLightning(&frStunPos2, &frStunPos1, 205, 205, 255, 10, 5, 6, 1.0f, 2.0f);
-            PlaySample(62, &e->pos, 130, 128);
-            frStunCount = 5;
+    fired = FortressBossPlayer(e, &slamLanded, TRUE);
+    /* g64coopdx: each other player has that part too, with them in the globals. One slam a frame sends a bolt: the
+       first player's, or else the first slot's. */
+    players = G64SlotCount();
+    for (p = 1; p < players; p++) {
+        s32 landed = FALSE;
+        if (G64HazardBegin(p)) {
+            if (FortressBossPlayer(e, &landed, !fired)) {
+                fired = 1;
+            }
+            G64HazardEnd(p);
         }
     }
     if (deltaTick) {
@@ -921,9 +987,11 @@ void DoFortressBoss(void) {
                 lightningSfx = PlaySample(62, &e->pos, 130, 128);
             }
             dist2 = 10000.0f;
+            /* g64coopdx: the boss goes for the platform of the glove nearest to it. */
+            nearGlove = &G64NearestGlove(&e->pos)->pos;
             for (plat = platformList.head.next; plat != &platformList.head; plat = plat->next) {
                 if (plat->tag >= 1 && plat->tag <= 8) {
-                    dist = DistanceBetweenPoints2D(&hand.pos, &plat->actor.pos);
+                    dist = DistanceBetweenPoints2D(nearGlove, &plat->actor.pos);
                     if (dist < dist2) {
                         dist2 = dist;
                         nearPlat = plat;
@@ -977,9 +1045,10 @@ void DoFortressBoss(void) {
         if (enemies[0].brain.instr.type == NME_FOLLOWPLAYER && enemies[0].brain.attackTime == 0) {
             dist2 = 10000.0f;
             enemies[0].brain.instr.type = NME_MOVETO2D;
+            nearGlove = &G64NearestGlove(&e->pos)->pos;
             for (plat = platformList.head.next; plat != &platformList.head; plat = plat->next) {
                 if (plat->tag >= 1 && plat->tag <= 8) {
-                    dist = DistanceBetweenPoints2D(&hand.pos, &plat->actor.pos);
+                    dist = DistanceBetweenPoints2D(nearGlove, &plat->actor.pos);
                     if (dist < dist2) {
                         dist2 = dist;
                         nearPlat = plat;
@@ -1006,8 +1075,12 @@ void DoFortressBoss(void) {
             StopContinuousSample(&en->samples[0]);
         }
     }
-    if (handControl.edgePlatform != NULL && (handControl.edgePlatform->flags & 0x4000)) {
-        HurtHand(HURT_GO_TO_SAFE, 1);
+    FortressBossEdge();
+    for (p = 1; p < players; p++) {
+        if (G64HazardBegin(p)) {
+            FortressBossEdge();
+            G64HazardEnd(p);
+        }
     }
     if (deltaTick && enemies[0].brain.instr.type == NME_WAIT && enemies[0].brain.instrTime == 1) {
         PlaySample(66, &e->pos, 120, 128);
@@ -1042,29 +1115,11 @@ void DoFortressBoss(void) {
         e->flags |= 0x100000;
         e->obj->spheres[2].targetRadius = 35.0f;
         e->obj->spheres[3].targetRadius = 35.0f;
-        /* handPain and ballPain count original frames near the boss. */
-        if (deltaTick && ball.obj->platform == NULL) {
-            dist = 35.0f;
-            if (DistanceBetweenPoints2D(&e->pos, &hand.pos) < dist) {
-                handPain++;
-                AddLightning(&frankieSprite[Random(10) % 2]->pos, &hand.pos, 180, 180, 250, 6, 1, 6, 1.0f, 1.0f);
-                if (handPain == 8) {
-                    HurtHand(HURT_GO_BACKWARDS, 1);
-                    handPain = 0;
-                }
-            } else {
-                handPain = 0;
-            }
-            dist = goForPlatform ? 70.0f : 111.0f;
-            if (DistanceBetweenPoints2D(&e->pos, &ball.pos) < dist) {
-                ballPain++;
-                AddLightning(&frankieSprite[Random(10) % 2]->pos, &ball.pos, 180, 180, 250, 6, 1, 6, 1.0f, 1.0f);
-                if (ballPain == 8) {
-                    BurstBall();
-                    ballPain = 0;
-                }
-            } else {
-                ballPain = 0;
+        FortressBossPain(e);
+        for (p = 1; p < players; p++) {
+            if (G64HazardBegin(p)) {
+                FortressBossPain(e);
+                G64HazardEnd(p);
             }
         }
     } else {
@@ -1084,6 +1139,21 @@ void DoFortressBoss(void) {
             ball.vel.y = 10.0f;
             ball.vel.x = Random(8) - 4;
             ball.vel.z = Random(8) - 4;
+        }
+        /* g64coopdx: the stomp throws the other players' gloves and balls too. */
+        for (p = 1; p < players; p++) {
+            Actor *h = G64SlotGlove(p);
+            Actor *b = G64SlotBall(p);
+            if (h != NULL && h->obj->onGround != 0) {
+                h->vel.y = 10.0f;
+                h->vel.x = Random(8) - 4;
+                h->vel.z = Random(8) - 4;
+            }
+            if (b != NULL && b->obj->onGround != 0) {
+                b->vel.y = 10.0f;
+                b->vel.x = Random(8) - 4;
+                b->vel.z = Random(8) - 4;
+            }
         }
     }
     /* The death sequence counts original frames. */

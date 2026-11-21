@@ -107,6 +107,10 @@ typedef struct G64Slot {
     Vec3 ballStart;
     /* The point a boss level's camera looks at (boss.c). */
     Vec3 bossFocalPoint;
+    /* The frames this player's glove and ball have been near the charged Fortress boss (boss.c). */
+    u8 handPain;
+    u8 ballPain;
+    u8 painPad[2];
     G64Cave cave;
     u8 caveStage;
     u8 disableZoom;
@@ -151,6 +155,8 @@ static void move_restart(s32 toPlayer, s32 fromPlayer);
 static s32 enemyHitBy[G64_ENEMIES];
 extern Vec3 ballStart;
 extern Vec3 bossFocalPoint;
+extern u8 handPain;
+extern u8 ballPain;
 extern s32 frameCount;
 void AddActor(Actor *actor);
 void SubActor(Actor *actor);
@@ -276,6 +282,8 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&tickCameraRequests, &s->tickCameraRequests, sizeof(CameraRequests));
     swap_bytes(&ballStart, &s->ballStart, sizeof(Vec3));
     swap_bytes(&bossFocalPoint, &s->bossFocalPoint, sizeof(Vec3));
+    swap_bytes(&handPain, &s->handPain, 1);
+    swap_bytes(&ballPain, &s->ballPain, 1);
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
     /* Online the globals' part of the cave exists before the first slot does (global_cave). */
@@ -395,6 +403,8 @@ static G64Slot *copy_globals(void) {
     s->tickCameraRequests = tickCameraRequests;
     s->ballStart = ballStart;
     s->bossFocalPoint = bossFocalPoint;
+    s->handPain = handPain;
+    s->ballPain = ballPain;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
         s->cave = *(G64Cave *)globalCave;
