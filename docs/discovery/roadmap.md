@@ -116,7 +116,9 @@ between levels at random; every client's hash equals the host's copy of its inst
 Game changes 2 (per-player state) and 3 (hooks for the session layer), system by system, each step checked by the
 harness at N players and by the determinism tests:
 
-1. Enemies' targets: the nearest glove or ball; bullets; enemies holding a glove or a ball.
+1. Enemies' targets: the nearest glove or ball; bullets; enemies holding a glove or a ball. Done: before an enemy's
+   or a bullet's update, the player it looks at is swapped into the globals (weemitt/src/game/g64players.c,
+   tests/rom/enemies.c). An enemy updates when any player's camera is near it. Left: vents, and bosses (item 6).
 2. Puzzles: "any glove", "any ball", "any camera"; the records of which glove or ball just touched a puzzle's
    object, per player.
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.

@@ -7,8 +7,9 @@
    into the globals, that player's part of the frame runs, and the slot is swapped back out.
 
    What a swap leaves alone: the list links of every swapped actor (the first 0x18 bytes: the actor lists hold the
-   globals' addresses), and every world system. Enemies, collectables, puzzles and platforms still see only the first
-   player. With one player nothing here runs, and the game is unchanged. */
+   globals' addresses), and every world system. Enemies and bullets swap in the player they look at ("Enemies and
+   bullets", below). Collectables, puzzles and platforms still see only the first player. With one player nothing here
+   runs, and the game is unchanged. */
 PORT_C_BEGIN
 #include "common.h"
 #include "actor.h"
@@ -21,6 +22,7 @@ PORT_C_BEGIN
 #include "delta.h"
 #include "platform.h"
 #include "maths.h"
+#include "bullet.h"
 PORT_C_END
 
 #include <string.h>
@@ -116,6 +118,9 @@ static u32 cameLate;
    can move the glove before its camera gives way, so the start copy may be elsewhere. */
 static Vec3 startPos;
 static s32 startPosSet;
+/* The slot whose player is in the globals during the logic: 0, or the slot of G64ExtraPlayersStep's player or of
+   G64TargetBegin's target. */
+static s32 logicSlot;
 extern Vec3 ballStart;
 extern s32 frameCount;
 void AddActor(Actor *actor);
@@ -135,6 +140,16 @@ static Actor *new_proxy(const Actor *from) {
     Actor *a = (Actor *)JallocAlloc(sizeof(Actor), 1, "G64Proxy");
     copy_to_proxy(a, from);
     AddActor(a);
+    /* AddActor puts an actor at the front of the list, and the outro's code takes the first actor for its own
+       (DoOutroEffects). A proxy goes to the back. */
+    if (a->next && a->prev == &actorList.head) {
+        a->prev->next = a->next;
+        a->next->prev = a->prev;
+        a->next = &actorList.head;
+        a->prev = actorList.head.prev;
+        actorList.head.prev->next = a;
+        actorList.head.prev = a;
+    }
     return a;
 }
 
@@ -488,7 +503,9 @@ void G64ExtraPlayersStep(void) {
         swap_slot(s);
         /* Sounds made in this player's own update are theirs (the sound table, soundtable.h). */
         soundtable_set_owner(g64Member[i]);
+        logicSlot = i;
         player_frame(i);
+        logicSlot = 0;
         soundtable_set_owner(-1);
         swap_slot(s);
     }
@@ -969,5 +986,205 @@ void G64RemovePlayer(s32 player) {
         g64Member[j] = g64Member[j + 1];
     g64Players--;
     g64Member[g64Players] = 0;
+}
+/* Enemies and bullets (phase 3). The game's enemies and bullets read the glove, the ball and the camera in the
+   globals. Before an enemy's or a bullet's update, the player it should look at is swapped into the globals, and
+   swapped out after it. That player is, in order:
+   - the player the enemy or bullet holds, or who holds it (a glove in a bubble, a ball in a mouth);
+   - for a bullet that homes in on a glove or a ball, the player whose glove or ball it is;
+   - the nearest player, by the nearer of their glove and their ball. A player who is dying counts only when every
+     player is. A tie goes to the lower slot.
+   With one player nothing here runs. */
+
+/* The player each bullet homes in on, by player number. A bullet is added when it is made, and taken out when it
+   goes (bullet.c). */
+#define G64_BULLETS 256
+typedef struct G64BulletOwner {
+    PTR32(struct Bullet) bullet;
+    s32 player;
+} G64BulletOwner;
+static G64BulletOwner bulletOwner[G64_BULLETS];
+/* The bullet that G64BulletGone took out during the current update. */
+static PTR32(struct Bullet) bulletGone;
+
+static HandControl *slot_control(G64Slot *s) {
+    return (HandControl *)s->handBlock;
+}
+
+/* The glove, the ball and their control blocks of slot i, or of the globals for 0. */
+static Actor *slot_glove(s32 i) {
+    return i ? &((G64Slot *)slots[i])->hand : &hand;
+}
+static Actor *slot_ball(s32 i) {
+    return i ? &((G64Slot *)slots[i])->ball : &ball;
+}
+static HandControl *slot_hand_control(s32 i) {
+    return i ? slot_control(slots[i]) : &handControl;
+}
+static BallControl *slot_ball_control(s32 i) {
+    return i ? &((G64Slot *)slots[i])->ballControl : &ballControl;
+}
+
+static s32 slot_used(s32 i) {
+    return i == 0 || (i < slotCount && slots[i]);
+}
+
+/* 1 when the player in slot i holds the actor or is held by it. */
+static s32 slot_holds(s32 i, Actor *a) {
+    return slot_glove(i)->link == a || slot_ball(i)->link == a || slot_hand_control(i)->attachedTo == a ||
+           slot_ball_control(i)->enemy == a;
+}
+
+/* The squared distance from a point to the nearer of a slot's glove and ball. */
+static f32 slot_distance(s32 i, const Vec3 *p) {
+    f32 h = DistanceBetweenPointsSquared(&slot_glove(i)->pos, (Vec3 *)p);
+    f32 b = DistanceBetweenPointsSquared(&slot_ball(i)->pos, (Vec3 *)p);
+    return b < h ? b : h;
+}
+
+/* The slot an actor's update should see in the globals, by the rules above. homing: the slot of the player a bullet
+   homes in on, or -1. */
+static s32 choose_target(Actor *a, s32 homing) {
+    s32 i, best = -1, alive;
+    f32 bestDist = 0.0f;
+    for (i = 0; i < slotCount; i++)
+        if (slot_used(i) && slot_holds(i, a))
+            return i;
+    if (homing >= 0)
+        return homing;
+    for (alive = 1; alive >= 0 && best < 0; alive--) {
+        for (i = 0; i < slotCount; i++) {
+            f32 d;
+            if (!slot_used(i) || (alive && slot_hand_control(i)->deathTimer))
+                continue;
+            d = slot_distance(i, &a->pos);
+            if (best < 0 || d < bestDist) {
+                best = i;
+                bestDist = d;
+            }
+        }
+    }
+    return best < 0 ? 0 : best;
+}
+
+static s32 target_begin(Actor *a, s32 homing) {
+    s32 i;
+    if (slotCount < 2 || swapped || logicSlot)
+        return 0;
+    i = choose_target(a, homing);
+    if (i > 0) {
+        swap_slot(slots[i]);
+        logicSlot = i;
+    }
+    return i;
+}
+
+s32 G64TargetBegin(Actor *a) {
+    return target_begin(a, -1);
+}
+
+void G64TargetEnd(s32 i) {
+    if (i > 0) {
+        swap_slot(slots[i]);
+        logicSlot = 0;
+    }
+}
+
+s32 G64EnemyNear(Actor *a, f32 rangeSq) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (!s)
+            continue;
+        if (s->ballControl.enemy == a || DistanceBetweenPointsSquared(&a->pos, &s->camera.pos) <= rangeSq)
+            return 1;
+    }
+    return 0;
+}
+
+static G64BulletOwner *find_bullet(struct Bullet *b) {
+    s32 i;
+    for (i = 0; i < G64_BULLETS; i++)
+        if (bulletOwner[i].bullet == b)
+            return &bulletOwner[i];
+    return NULL;
+}
+
+void G64BulletMade(struct Bullet *b) {
+    G64BulletOwner *o;
+    if (slotCount < 2)
+        return;
+    o = find_bullet(b);
+    if (!o)
+        o = find_bullet(NULL);
+    if (o) {
+        o->bullet = b;
+        o->player = g64Member[logicSlot];
+    }
+}
+
+void G64BulletGone(struct Bullet *b) {
+    G64BulletOwner *o = find_bullet(b);
+    if (o) {
+        o->bullet = NULL;
+        o->player = 0;
+    }
+    bulletGone = b;
+}
+
+s32 G64BulletBegin(struct Bullet *b) {
+    G64BulletOwner *o;
+    s32 homing = -1;
+    if (slotCount < 2)
+        return 0;
+    bulletGone = NULL;
+    if (b->target == &hand || b->target == &ball) {
+        o = find_bullet(b);
+        if (o) {
+            homing = slot_of(o->player);
+            if (homing < 0 || !slot_used(homing))
+                homing = -1;
+        }
+    }
+    return target_begin(&b->actor, homing);
+}
+
+void G64BulletEnd(struct Bullet *b, s32 i) {
+    G64BulletOwner *o;
+    if (slotCount >= 2 && bulletGone != b && (b->target == &hand || b->target == &ball)) {
+        /* The bullet homes in on the glove or the ball in the globals: the target's player. */
+        o = find_bullet(b);
+        if (!o)
+            o = find_bullet(NULL);
+        if (o) {
+            o->bullet = b;
+            o->player = g64Member[i];
+        }
+    }
+    bulletGone = NULL;
+    G64TargetEnd(i);
+}
+s32 G64EnemyInfo(s32 i, f32 *x, f32 *y, f32 *z) {
+    Enemy *e;
+    if (i < 0 || i >= numberOfEnemies)
+        return 0;
+    e = &enemies[i];
+    *x = e->actor.pos.x;
+    *y = e->actor.pos.y;
+    *z = e->actor.pos.z;
+    return e->actor.active ? e->actor.type + 1 : 0;
+}
+s32 G64BulletPositions(f32 *xyz, s32 max) {
+    Bullet *b;
+    s32 n = 0;
+    for (b = bulletList.head.next; b != &bulletList.head; b = b->next) {
+        if (n < max) {
+            xyz[n * 3] = b->actor.pos.x;
+            xyz[n * 3 + 1] = b->actor.pos.y;
+            xyz[n * 3 + 2] = b->actor.pos.z;
+        }
+        n++;
+    }
+    return n;
 }
 PORT_C_END
