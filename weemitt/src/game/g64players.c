@@ -1231,8 +1231,8 @@ void G64RemovePlayer(s32 player) {
     }
     if (slotCount > i) {
         /* The leaving player's slam ring would be nobody's and hurt the others: it ends now. */
-        if (slots[i] && slot_hand_control(i)->footprint)
-            KillFootprint(slot_hand_control(i)->footprint);
+        if (slots[i] && ((HandControl *)((G64Slot *)slots[i])->handBlock)->footprint)
+            KillFootprint(((HandControl *)((G64Slot *)slots[i])->handBlock)->footprint);
         free_slot(i, blocks);
         for (j = i; j + 1 < slotCount; j++) {
             slots[j] = slots[j + 1];
