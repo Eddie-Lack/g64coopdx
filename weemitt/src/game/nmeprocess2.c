@@ -27,6 +27,7 @@ PORT_C_BEGIN
 #include "object.h"
 #include "delta.h"
 #include "ballworld.h"
+#include "g64players.h"
 
 extern s32 frameCount;
 
@@ -1378,12 +1379,10 @@ void NMEProcessSelwynWhale(Enemy *enemy) {
     }
 }
 
-void NMEProcessSelwynCrab(Enemy *enemy) {
+/* The Atlantis boss's camera for the player in the globals: it stands behind their glove, away from the crab. */
+static void SelwynCrabCamera(Enemy *enemy) {
     Vec3 v;
     Vec3 tempVect2;
-    f32 dist;
-    s32 hit;
-    f64 damp;
 
     v.x = enemy->actor.pos.x;
     v.z = enemy->actor.pos.z;
@@ -1397,6 +1396,26 @@ void NMEProcessSelwynCrab(Enemy *enemy) {
     if (deltaTick && LENGTH_2D(&v) < 500.0f) {
         cameraInfo.destActive = 1;
         cameraInfo.destPos = v;
+    }
+}
+
+void NMEProcessSelwynCrab(Enemy *enemy) {
+    Vec3 v;
+    Vec3 tempVect2;
+    s32 players;
+    s32 p;
+    f32 dist;
+    s32 hit;
+    f64 damp;
+
+    SelwynCrabCamera(enemy);
+    /* g64coopdx: every other player has the boss's camera too. */
+    players = G64OtherPlayers();
+    for (p = 0; p < players; p++) {
+        if (G64OtherBegin(p)) {
+            SelwynCrabCamera(enemy);
+            G64OtherEnd(p);
+        }
     }
     if (enemy->brain.scratch == 0) {
         enemy->actor.anim->speed = enemies[0].actor.anim->speed;
@@ -1441,7 +1460,8 @@ void NMEProcessSelwynCrab(Enemy *enemy) {
                 }
             } else if (hit) {
                 KillEnemy(enemy);
-                levelCamHeight = 300;
+                /* g64coopdx: for every player's camera (g64players.c). */
+                G64SetLevelCamHeight(300);
                 NMEGetNewInstruction(&enemies[2], 0, 1);
                 enemies[2].brain.scratch = 2;
                 enemies[2].brain.attackTime = 0;
@@ -1669,21 +1689,63 @@ void CreateEnemyBlastring(Vec3 *pos, s32 time, f32 yAdd, f32 scaleAimSpeed) {
     }
 }
 
-void NMEProcessRobot(Enemy *enemy) {
+/* The part of the robot's code that each player has: a foot that comes down squashes the glove and bursts the ball
+   under it, a dying glove stays where it is, and the camera circles the robot from far away. */
+static void RobotPlayer(Enemy *enemy) {
     Vec3 *ptr;
+    s32 i;
+    s32 j;
+
+    if (deltaTick && hand.obj->onGround && hand.obj->contactPlatform != NULL
+        && hand.obj->contactPlatform->actor.vel.y < 0.0f) {
+        for (i = 0; i < 4; i++) {
+            if (hand.obj->planes[i] != NULL && hand.obj->planes[i]->y < 0.0f) {
+                KillHand(HURT_SQUASH);
+                hand.flags &= ~0x11;
+                for (j = 0; j < 4; j++) {
+                    hand.obj->planes[j] = NULL;
+                }
+                ZERO_VECTOR(&hand.vel);
+            }
+        }
+    }
+    if (handControl.deathTimer != 0) {
+        hand.pos.y = MAX(5.0f, hand.pos.y);
+        hand.vel.x = hand.vel.y = hand.vel.z = 0.0f;
+        hand.flags &= ~0x11;
+    }
+    if (deltaTick && ball.obj->onGround && ball.obj->contactPlatform != NULL
+        && ball.obj->contactPlatform->actor.vel.y < 0.0f) {
+        for (i = 0; i < 4; i++) {
+            if (ball.obj->planes[i] != NULL && ball.obj->planes[i]->y < 0.0f) {
+                BurstBall();
+            }
+        }
+    }
+    /* A camera request: it is made in ticks (docs/delta-time.md, "The camera"). */
+    if (deltaTick) {
+        if (DistanceBetweenPoints2D(&enemy->actor.pos, &hand.pos) > 200.0f) {
+            ptr = &enemy->actor.pos;
+            if (bulletList.count) {
+                // the first bullet is loaded into ptr itself, then offset to its position (the ROM's register use)
+                ptr = (Vec3 *)bulletList.head.next;
+                ptr = &((Bullet *)ptr)->actor.pos;
+            }
+            CamCirclePoint(ptr);
+            levelCamHeight = 20;
+        } else {
+            levelCamHeight = 0;
+        }
+    }
+}
+
+/* The level's exit, for the player in the globals: they bring their ball to the robot's platform while its foot is
+   down, the robot stops, the ball goes to the platform and the level ends. Returns 1 while the robot waits. */
+static s32 RobotExit(Enemy *enemy) {
     Vec3 tempVect;
     Platform *platform;
     f32 dist;
-    f64 d;
-    s32 i;
-    s32 j;
-    s32 vol;
-    s32 footDown = FALSE;
-    f32 scale;
 
-    if (frameCount == 0) {
-        waitForFootDown = 0;
-    }
     if (waitForFootDown || (ball.link == &hand && TagToFirstPlatform(2)->actor.pos.y < TagToFirstPlatform(2)->extent.y + 10.0f)) {
         platform = TagToFirstPlatform(3);
         SUB_VECTORS(&tempVect, &platform->actor.pos, &ball.pos);
@@ -1695,7 +1757,12 @@ void NMEProcessRobot(Enemy *enemy) {
             ZERO_VECTOR(&enemy->actor.vel);
             MakeUnit(&tempVect);
             if (dist < 5.0f || levelExitTimer != 0) {
-                if (deltaTick && levelExitTimer == 0) {
+                /* g64coopdx: online an exit takes the players at once, with no spin (g64players.c). */
+                if (deltaTick && g64Online) {
+                    gameInfo.exitPlatform = platform;
+                    gameInfo.exitType = SUB_LEVEL_EXIT;
+                    ExitLevel(SUB_LEVEL_EXIT, 1, 1);
+                } else if (deltaTick && levelExitTimer == 0) {
                     levelExitTimer = 10000;
                     PlaySample((Random(4) + 269), &hand.pos, 100, 128);
                     gameInfo.exitPlatform = platform;
@@ -1709,10 +1776,12 @@ void NMEProcessRobot(Enemy *enemy) {
             } else {
                 AddToOneScaledVector(&ball.pos, &tempVect, 5.0f * deltaTime);
             }
-            return;
+            return 1;
         }
         if (deltaTick && dist < 50.0f) {
             waitForFootDown = 1;
+            /* g64coopdx: this player is the carrier until the exit (g64players.c). */
+            G64CarrierSet(1);
             enemy->brain.delayTimer = 30000;
             enemy->brain.cooldownTimer = 30000;
             enemy->brain.scratch = 1000;
@@ -1723,6 +1792,60 @@ void NMEProcessRobot(Enemy *enemy) {
             ZERO_VECTOR(&enemy->actor.vel);
             DisableControl(900);
             handControl.actionLock = 900;
+        }
+    }
+    return 0;
+}
+
+void NMEProcessRobot(Enemy *enemy) {
+    Vec3 *ptr;
+    Vec3 tempVect;
+    Platform *platform;
+    f32 dist;
+    f64 d;
+    s32 i;
+    s32 j;
+    s32 vol;
+    s32 footDown = FALSE;
+    f32 scale;
+    s32 players;
+    s32 p;
+    s32 waiting;
+
+    if (frameCount == 0) {
+        waitForFootDown = 0;
+        G64CarrierSet(0);
+    }
+    /* g64coopdx: any player can be the carrier. Once there is one, the exit is theirs. */
+    if (waitForFootDown) {
+        p = G64CarrierBegin();
+        if (p < 0) {
+            /* The carrier has left the game. The robot goes on as before it stopped, and another player can
+               carry. */
+            waitForFootDown = 0;
+            G64CarrierSet(0);
+            enemy->brain.delayTimer = 0;
+            enemy->brain.cooldownTimer = 0;
+            enemy->brain.scratch = 0;
+            enemy->actor.anim->speed = enemy->actor.anim->anims[15].speed;
+        } else {
+            waiting = RobotExit(enemy);
+            G64CarrierEnd(p);
+            if (waiting) {
+                return;
+            }
+        }
+    } else {
+        waiting = RobotExit(enemy);
+        players = G64OtherPlayers();
+        for (p = 0; p < players && !waitForFootDown; p++) {
+            if (G64OtherBegin(p)) {
+                RobotExit(enemy);
+                G64OtherEnd(p);
+            }
+        }
+        if (waiting) {
+            return;
         }
     }
     d = enemy->actor.scale.x * 100.0 / enemyStats[ROBOT].scale;
@@ -1797,45 +1920,13 @@ void NMEProcessRobot(Enemy *enemy) {
     enemy->actor.pos.y = enemy->actor.scale.x * 250.0f / enemyStats[ROBOT].scale;
     enemy->actor.vel.y = 0.0f;
     enemy->actor.state->flying = 0;
-    if (deltaTick && hand.obj->onGround && hand.obj->contactPlatform != NULL
-        && hand.obj->contactPlatform->actor.vel.y < 0.0f) {
-        for (i = 0; i < 4; i++) {
-            if (hand.obj->planes[i] != NULL && hand.obj->planes[i]->y < 0.0f) {
-                KillHand(HURT_SQUASH);
-                hand.flags &= ~0x11;
-                for (j = 0; j < 4; j++) {
-                    hand.obj->planes[j] = NULL;
-                }
-                ZERO_VECTOR(&hand.vel);
-            }
-        }
-    }
-    if (handControl.deathTimer != 0) {
-        hand.pos.y = MAX(5.0f, hand.pos.y);
-        hand.vel.x = hand.vel.y = hand.vel.z = 0.0f;
-        hand.flags &= ~0x11;
-    }
-    if (deltaTick && ball.obj->onGround && ball.obj->contactPlatform != NULL
-        && ball.obj->contactPlatform->actor.vel.y < 0.0f) {
-        for (i = 0; i < 4; i++) {
-            if (ball.obj->planes[i] != NULL && ball.obj->planes[i]->y < 0.0f) {
-                BurstBall();
-            }
-        }
-    }
-    /* A camera request: it is made in ticks (docs/delta-time.md, "The camera"). */
-    if (deltaTick) {
-        if (DistanceBetweenPoints2D(&enemy->actor.pos, &hand.pos) > 200.0f) {
-            ptr = &enemy->actor.pos;
-            if (bulletList.count) {
-                // the first bullet is loaded into ptr itself, then offset to its position (the ROM's register use)
-                ptr = (Vec3 *)bulletList.head.next;
-                ptr = &((Bullet *)ptr)->actor.pos;
-            }
-            CamCirclePoint(ptr);
-            levelCamHeight = 20;
-        } else {
-            levelCamHeight = 0;
+    RobotPlayer(enemy);
+    /* g64coopdx: every other player has that part too. */
+    players = G64OtherPlayers();
+    for (p = 0; p < players; p++) {
+        if (G64OtherBegin(p)) {
+            RobotPlayer(enemy);
+            G64OtherEnd(p);
         }
     }
 

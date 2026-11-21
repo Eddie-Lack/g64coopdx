@@ -158,8 +158,11 @@ harness at N players and by the determinism tests:
    Fortress, Prehistoric and Atlantis bonus levels each player has the level's per-player part, and online a player
    wins or loses a bonus level alone: the others play on (weemitt/src/game/bonus.c; tests/rom/bonus.c). The bonus
    clock's end still takes everyone. An enemy's slam ring and a quake reach every player, and a player's own slam
-   ring hurts no other player (footprint.c, quake.c). Left: the Atlantis and space bosses, the Carnival and space bonus levels and
-   the control room. The Carnival boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
+   ring hurts no other player (footprint.c, quake.c). Every player has the Atlantis boss's camera and the first
+   space boss's circling camera, with their own camera height; the robot's foot squashes every glove and bursts
+   every ball under it; any player can carry their ball to the robot's platform, and online that exit takes the
+   players at once (nmeprocess2.c; these have no test of their own). Left: the last space boss, the Carnival and space bonus levels and the control
+   room. The Carnival boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
 7. Cameos: which glove they move.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).

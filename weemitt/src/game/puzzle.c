@@ -603,7 +603,8 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             }
             return;
         case ACTION_SET_CAM_HEIGHT:
-            levelCamHeight = action->value;
+            /* g64coopdx: the height is each player's own, and this action is for the level (g64players.c). */
+            G64SetLevelCamHeight(action->value);
             return;
         case ACTION_DROP_PICKUP:
             collectable = CreateNewPickup(action->tag, (Vec3 *)action->data, 0, action->flags);
