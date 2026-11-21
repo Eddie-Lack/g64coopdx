@@ -9,6 +9,7 @@ PORT_C_BEGIN
 #include "ball.h"
 #include "enemy.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s32 autoPlayback;
 extern s32 frameCount;
@@ -76,11 +77,60 @@ static f32 QuakeRollTime(void) {
     return frameCount + lag * remainder(1.0 / eqf, TWOPI) * eqf;
 }
 
+/* A quake's effect on one player: the camera's roll and jolts, and the kicks to the glove and the ball. */
+static void QuakePlayer(f32 str) {
+    s32 index;
+
+    if (earthQuake.flags & 2) {
+        RotateVector2DXYZ(&cameraUpVect, &cameraUpVectAim,
+                          SineWave(eqf, QuakeRollTime(), 0) * (eqs * (str < 500.0f ? str : 500.0f)) / 200.0f, 2);
+    }
+    if (!deltaTick) {
+        return;
+    }
+    if (earthQuake.flags & 2) {
+        if (earthQuake.flags & 8) {
+            if (earthQuake.time & 1) {
+                camera.pos.y += str / (2.0f * camStr);
+                cameraInfo.actor.pos.y += str / (2.0f * camStr);
+            } else {
+                camera.pos.y -= str / (2.0f * camStr);
+                cameraInfo.actor.pos.y -= str / (2.0f * camStr);
+            }
+        } else {
+            if (Random(10) < 5) {
+                (&camera.vel.x)[Random(3)] += str / (2.0f * camStr);
+            } else {
+                (&camera.vel.x)[Random(3)] -= str / (2.0f * camStr);
+            }
+            if (Random(10) < 5) {
+                (&cameraInfo.actor.pos.x)[Random(3)] += str / (camStr * 4.0f);
+            } else {
+                (&cameraInfo.actor.pos.x)[Random(3)] -= str / (camStr * 4.0f);
+            }
+        }
+    }
+    str = (Random(str) - str / 2.0f) / ballStr;
+    index = Random(2);
+    if (index == 1) {
+        index = 2;
+    }
+    if (earthQuake.flags & 1) {
+        if (hand.obj->onGround != 0) {
+            (&hand.vel.x)[index] += str * 10.0f / hand.phys->mass;
+        }
+        if (ball.obj->onGround != 0) {
+            (&ball.vel.x)[index] += str * 10.0f / ball.phys->mass;
+        }
+    }
+}
+
 void DoEarthquake(void) {
     s32 pad[4]; // forces the original stack frame size
     f32 temp;
     f32 str;
-    s32 index;
+    s32 players;
+    s32 p;
 
     /* The countdown, the camera's jolts and the kicks to the glove and the ball happen once per original frame. The
        roll is set again in every update: CheckCameraForWater pulls cameraUpVect back to its aim in every update. */
@@ -90,46 +140,13 @@ void DoEarthquake(void) {
         }
         temp = (SineWave(earthQuake.speed, earthQuake.phase, frameCount) + 1.0) / 2.0;
         str = temp * earthQuake.start + (1.0f - temp) * earthQuake.end;
-        if (earthQuake.flags & 2) {
-            RotateVector2DXYZ(&cameraUpVect, &cameraUpVectAim,
-                              SineWave(eqf, QuakeRollTime(), 0) * (eqs * (str < 500.0f ? str : 500.0f)) / 200.0f, 2);
-        }
-        if (!deltaTick) {
-            return;
-        }
-        if (earthQuake.flags & 2) {
-            if (earthQuake.flags & 8) {
-                if (earthQuake.time & 1) {
-                    camera.pos.y += str / (2.0f * camStr);
-                    cameraInfo.actor.pos.y += str / (2.0f * camStr);
-                } else {
-                    camera.pos.y -= str / (2.0f * camStr);
-                    cameraInfo.actor.pos.y -= str / (2.0f * camStr);
-                }
-            } else {
-                if (Random(10) < 5) {
-                    (&camera.vel.x)[Random(3)] += str / (2.0f * camStr);
-                } else {
-                    (&camera.vel.x)[Random(3)] -= str / (2.0f * camStr);
-                }
-                if (Random(10) < 5) {
-                    (&cameraInfo.actor.pos.x)[Random(3)] += str / (camStr * 4.0f);
-                } else {
-                    (&cameraInfo.actor.pos.x)[Random(3)] -= str / (camStr * 4.0f);
-                }
-            }
-        }
-        str = (Random(str) - str / 2.0f) / ballStr;
-        index = Random(2);
-        if (index == 1) {
-            index = 2;
-        }
-        if (earthQuake.flags & 1) {
-            if (hand.obj->onGround != 0) {
-                (&hand.vel.x)[index] += str * 10.0f / hand.phys->mass;
-            }
-            if (ball.obj->onGround != 0) {
-                (&ball.vel.x)[index] += str * 10.0f / ball.phys->mass;
+        QuakePlayer(str);
+        /* g64coopdx: every other player feels the quake too, with them in the globals. */
+        players = G64SlotCount();
+        for (p = 1; p < players; p++) {
+            if (G64HazardBegin(p)) {
+                QuakePlayer(str);
+                G64HazardEnd(p);
             }
         }
     }

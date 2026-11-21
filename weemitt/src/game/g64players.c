@@ -33,6 +33,7 @@ PORT_C_BEGIN
 #include "spike.h"
 #include "buzzer.h"
 #include "collect.h"
+#include "footprint.h"
 
 PORT_C_END
 
@@ -2024,6 +2025,15 @@ void G64HazardEnd(s32 i) {
 }
 
 void DisableControl(s16 time);
+
+s32 G64IsPlayerFootprint(const void *footprint) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        if (slot_used(i) && (const void *)(Footprint *)slot_hand_control(i)->footprint == footprint)
+            return 1;
+    }
+    return 0;
+}
 
 void G64DisableControlAll(s32 time) {
     s32 i;
