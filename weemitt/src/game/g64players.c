@@ -2038,34 +2038,42 @@ void G64FootprintGone(const void *footprint) {
     }
 }
 
-/* The running quake's place, the distance within which it is felt, and how far from it the camera target of the
-   player was whose distance set its strength. quakePlaced is 0 for a quake without a place. */
+/* The running quake's place, the two ranges its strength comes from (StartEarthquakeAtPoint), and the number, plus
+   1, of the player whose distance set its strength. quakePlaced is 0 for a quake without a place. */
 static Vec3 quakePos;
-static f32 quakeMax, quakeDist;
-static s32 quakePlaced;
+static f32 quakeMax, quakeMin;
+static s32 quakePlaced, quakeBy;
 
-void G64QuakeAt(const Vec3 *pos, f32 maxStrength, f32 dist) {
+void G64QuakeAt(const Vec3 *pos, f32 maxStrength, f32 minStrength) {
     quakePlaced = pos != NULL;
     if (pos != NULL)
         quakePos = *pos;
     quakeMax = maxStrength;
-    quakeDist = dist;
+    quakeMin = minStrength;
+    quakeBy = g64Member[logicSlot] + 1;
 }
 
-/* The game sets a quake's strength from maxStrength minus the distance. Another player's strength is in the same
-   proportion to their own distance. The first space boss's level gives every quake a strength of its own
-   (StartEarthquakeAtPoint), so every player has the same there. */
-f32 G64QuakeScale(void) {
-    f32 mine, first;
-    if (!quakePlaced || gameInfo.level == SPACEBOSS1)
-        return 1.0f;
-    first = quakeMax - quakeDist;
-    mine = quakeMax - DistanceBetweenPoints((Vec3 *)cameraInfo.focus, &quakePos);
-    if (mine <= 0.0f)
-        return 0.0f;
-    if (first < 1.0f)
-        first = 1.0f;
-    return mine / first > 4.0f ? 4.0f : mine / first;
+/* The strengths are the game's own (StartEarthquakeAtPoint), from this player's distance. */
+s32 G64QuakeStrength(f32 blend, f32 *str) {
+    f32 dist, start, end;
+    if (slotCount < 2 || !quakePlaced || quakeBy == g64Member[logicSlot] + 1)
+        return 1;
+    dist = DistanceBetweenPoints((Vec3 *)cameraInfo.focus, &quakePos);
+    if (dist >= quakeMax && gameInfo.level != SPACEBOSS1)
+        return 0;
+    start = (quakeMax - dist) * 0.2;
+    start = MIN(start, 1000.0f);
+    end = (quakeMin - dist) * 0.2;
+    end = MIN(end, 1000.0f);
+    if (gameInfo.level == SPACEBOSS1) {
+        start *= 5.0f;
+        end *= 5.0f;
+        start = MIN(start < 50.0f ? 50.0f : start, 800.0f);
+        end = MIN(end < 25.0f ? 25.0f : end, 400.0f);
+    }
+    /* StartEarthquake keeps the strengths as whole numbers. */
+    *str = blend * (s16)start + (1.0f - blend) * (s16)end;
+    return 1;
 }
 
 s32 G64IsPlayerFootprint(const void *footprint) {

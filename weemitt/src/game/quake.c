@@ -63,7 +63,7 @@ void StartEarthquakeAtPoint(Vec3 *pos, s16 duration, f32 maxStrength, f32 minStr
         if (earthQuake.time == 0 || earthQuake.start < dist) {
             StartEarthquake(duration, str, str2, numCycles, flags);
             /* g64coopdx: the other players feel it by their own distance (g64players.c). */
-            G64QuakeAt(pos, maxStrength, dist);
+            G64QuakeAt(pos, maxStrength, minStrength);
         }
     }
 }
@@ -133,6 +133,7 @@ void DoEarthquake(void) {
     s32 pad[4]; // forces the original stack frame size
     f32 temp;
     f32 str;
+    f32 mine;
     s32 players;
     s32 p;
 
@@ -144,12 +145,19 @@ void DoEarthquake(void) {
         }
         temp = (SineWave(earthQuake.speed, earthQuake.phase, frameCount) + 1.0) / 2.0;
         str = temp * earthQuake.start + (1.0f - temp) * earthQuake.end;
-        QuakePlayer(str);
-        /* g64coopdx: every other player feels the quake too, with them in the globals. */
+        /* g64coopdx: every player feels the quake, by their own distance from it (g64players.c). With one player
+           the strength is the one above. */
+        mine = str;
+        if (G64QuakeStrength(temp, &mine)) {
+            QuakePlayer(mine);
+        }
         players = G64SlotCount();
         for (p = 1; p < players; p++) {
             if (G64HazardBegin(p)) {
-                QuakePlayer(str * G64QuakeScale());
+                mine = str;
+                if (G64QuakeStrength(temp, &mine)) {
+                    QuakePlayer(mine);
+                }
                 G64HazardEnd(p);
             }
         }
