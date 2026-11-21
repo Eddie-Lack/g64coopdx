@@ -432,8 +432,6 @@ static void take_start(void) {
         startSlot = copy_globals();
 }
 
-static void note_bullet_hits(void);
-
 /* One extra player's part of the frame, in the order MainGameLoop runs the first player's (main.c). */
 static void player_frame(s32 p) {
     Vec3 tempVect;
@@ -498,8 +496,6 @@ void G64ExtraPlayersStep(void) {
         return;
     if (slotCount == 0)
         G64ExtraPlayersStart();
-    /* The first player's part of the frame has run. */
-    note_bullet_hits();
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (!s)
@@ -509,7 +505,6 @@ void G64ExtraPlayersStep(void) {
         soundtable_set_owner(g64Member[i]);
         logicSlot = i;
         player_frame(i);
-        note_bullet_hits();
         logicSlot = 0;
         soundtable_set_owner(-1);
         swap_slot(s);
@@ -997,8 +992,8 @@ void G64RemovePlayer(s32 player) {
    swapped out after it. That player is, in order:
    - the player the enemy or bullet holds, or who holds it (a glove in a bubble, a ball in a mouth). For a Baby Spank
      this also counts the ball its partner holds: the two pass one ball between them;
-   - for a bullet that a glove or a ball hit since its last update, that player (the hit's effect comes in the
-     bullet's next update);
+   - for a bullet that a glove or a ball hit in its last update, that player (the hit's effect comes in the bullet's
+     next update);
    - for a bullet that homes in on a glove or a ball, the player whose glove or ball it is. A bullet aimed before
      there was a second player has no record, and keeps the player in the globals;
    - the nearest player, by the nearer of their glove and their ball. A player who is dying counts only when every
@@ -1008,7 +1003,8 @@ void G64RemovePlayer(s32 player) {
 /* For each bullet: the player it homes in on, and the player whose glove or ball hit it since its last update (-1:
    none), by player number. A bullet is added when it is made, and taken out when it goes (bullet.c). */
 #define G64_BULLETS 256
-/* The bullet flags that a collision with a glove or a ball sets (collision.c), and its next update reads. */
+/* The bullet flags that a collision with a glove or a ball sets (collision.c), and its next update reads. Bullets
+   are not in the actor list, so only the bullet's own update sets them, against the player in the globals then. */
 #define BULLET_HIT_FLAGS 0x44000000
 typedef struct G64BulletOwner {
     PTR32(struct Bullet) bullet;
@@ -1182,21 +1178,6 @@ void G64BulletGone(struct Bullet *b) {
     bulletGone = b;
 }
 
-/* After a player's part of the frame: the bullets that their glove or ball hit in it, and that no one hit before. */
-static void note_bullet_hits(void) {
-    Bullet *b;
-    G64BulletOwner *o;
-    if (slotCount < 2)
-        return;
-    for (b = bulletList.head.next; b != &bulletList.head; b = b->next) {
-        if (!(b->actor.flags & BULLET_HIT_FLAGS))
-            continue;
-        o = bullet_entry(b);
-        if (o && o->hitBy < 0)
-            o->hitBy = g64Member[logicSlot];
-    }
-}
-
 s32 G64BulletBegin(struct Bullet *b) {
     G64BulletOwner *o;
     s32 preferred = -1;
@@ -1204,8 +1185,9 @@ s32 G64BulletBegin(struct Bullet *b) {
         return 0;
     bulletGone = NULL;
     o = find_bullet(b);
-    if (o && (b->actor.flags & BULLET_HIT_FLAGS))
-        preferred = recorded_slot(o->hitBy);
+    /* With no record, the hit came while the player in the globals was the only one. */
+    if (b->actor.flags & BULLET_HIT_FLAGS)
+        preferred = o ? recorded_slot(o->hitBy) : 0;
     if (preferred < 0 && (b->target == &hand || b->target == &ball)) {
         /* With no record, the bullet was aimed while the player in the globals was the only one. */
         preferred = o ? recorded_slot(o->player) : 0;
@@ -1215,7 +1197,10 @@ s32 G64BulletBegin(struct Bullet *b) {
 
 void G64BulletEnd(struct Bullet *b, s32 i) {
     G64BulletOwner *o;
-    if (slotCount >= 2 && bulletGone != b) {
+    if (slotCount < 2 && bulletGone != b && (o = find_bullet(b)) != NULL) {
+        /* A bullet made when there were more players: only the player in the globals can have hit it. */
+        o->hitBy = (b->actor.flags & BULLET_HIT_FLAGS) ? g64Member[0] : -1;
+    } else if (slotCount >= 2 && bulletGone != b) {
         o = NULL;
         if (b->target == &hand || b->target == &ball || (b->actor.flags & BULLET_HIT_FLAGS))
             o = bullet_entry(b);
