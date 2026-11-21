@@ -84,6 +84,11 @@ int netplay_pause_selection(void);
 int netplay_pause_items(void);
 const char *netplay_pause_item(int i);
 int netplay_quit_requested(void);
+/* The tip that the local player reads, as of the last netplay_frame: the number of lines on its page (0 when the
+ * player reads none), each line, and 1 when another page follows. The game holds the reader and takes their A. */
+int netplay_tip_lines(void);
+const char *netplay_tip_line(int i);
+int netplay_tip_more(void);
 /* A line for the window's title: the player number, the level, the frames ahead of the confirmed ones, desyncs. */
 const char *netplay_status(void);
 /* 1 when the session has failed; netplay_status says why. */

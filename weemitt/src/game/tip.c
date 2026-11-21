@@ -11,6 +11,7 @@ PORT_C_BEGIN
 #include "overlay.h"
 #include "sound.h"
 #include "delta.h"
+#include "g64players.h"
 
 typedef struct TipLine {
     /* 0x00 */ PTR32(char) str;
@@ -63,6 +64,37 @@ void AddTip(Tip *tip) {
     tipList.count++;
 }
 
+/* g64coopdx: the text of a tip, for a tip that a player reads on their own (g64players.c, "Tips"). A tip's text is
+   a run of lines. A page ends with a line of type 1, and the tip's last page with a line of type 2.
+   TipFirstLine gives the number of a tip's first line, TipPageEnd the last line of the page that starts at a line. */
+s32 TipFirstLine(s32 tag) {
+    s32 line = 0;
+    s32 x;
+
+    for (x = 0; x < tag; x++) {
+        while (tipText[line].type != 2) {
+            line++;
+        }
+        line++;
+    }
+    return line;
+}
+
+s32 TipPageEnd(s32 line) {
+    while (tipText[line].type == 0) {
+        line++;
+    }
+    return line;
+}
+
+s32 TipLineType(s32 line) {
+    return tipText[line].type;
+}
+
+const char *TipLineText(s32 line) {
+    return tipText[line].str;
+}
+
 void UpdateTips(void) {
     Tip *tip;
     Vec3 tempVect2;
@@ -70,6 +102,9 @@ void UpdateTips(void) {
     f32 sine;
 
     readingTip = FALSE;
+    if (deltaTick) {
+        G64TipsStep();
+    }
     for (tip = tipList.head.next; tip != &tipList.head; tip = tip->next) {
         /* The timer counts original frames. The bob and the pulse read it as continuous time. */
         if (deltaTick) {
@@ -112,7 +147,21 @@ void UpdateTips(void) {
                 tip->shadowAlpha = 140;
                 tip->shadowTarget = 140;
             }
-            if (deltaTick
+            if (G64TipsOwn()) {
+                /* g64coopdx: online a tip opens for the players who ask for it, and the two tips that the game
+                   opens by itself open for everyone. The level does not stop: tip->state stays 0. */
+                u32 readers = 0;
+                if ((gameInfo.level == HUB1 && tip->tag == 0 && frameCount == 330 && gameInfo.cameoActive)
+                    || (gameInfo.level == ACOURSE && tip->tag == 0 && frameCount == 67)) {
+                    readers = G64TipEveryone();
+                } else if (deltaTick) {
+                    readers = G64TipReaders(&tip->pos);
+                }
+                if (readers && G64TipOpen(readers, tip->tag, &tip->pos)) {
+                    tip->read = 1;
+                    lastTipTag = tip->tag;
+                }
+            } else if (deltaTick
                 && ((DistanceBetweenPoints(&hand.pos, &tip->pos) < 20.0f && DeltaTickPressed(ActiveController, BUTTON_B))
                     || (gameInfo.level == HUB1 && tip->tag == 0 && frameCount == 330 && gameInfo.cameoActive)
                     || (gameInfo.level == ACOURSE && tip->tag == 0 && frameCount == 67))) {

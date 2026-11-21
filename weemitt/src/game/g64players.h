@@ -275,6 +275,21 @@ s32 G64AnyPressed(s32 button);
    player other than the first while a cameo plays. */
 void G64CameoView(void);
 s32 G64CameoHeld(void);
+/* Tips (g64players.c, "Tips"). Online a tip does not stop the level: each player reads it on their own, and only
+   the reader is held. G64TipsOwn is 1 then. G64TipReaders gives the players (a bit each, by player number) whose
+   glove is at a tip and who have just pressed B, G64TipEveryone all the players in the game. G64TipOpen opens the
+   tip for those of them who read none, with the tip's sound, and returns 1 if it opened for any. G64TipsStep runs
+   the open tips once a frame: A turns the page or closes. G64TipHeld is 1 while the player in the globals reads. */
+s32 G64TipsOwn(void);
+u32 G64TipReaders(const struct Vec3 *pos);
+u32 G64TipEveryone(void);
+s32 G64TipOpen(u32 players, s32 tag, const struct Vec3 *pos);
+void G64TipsStep(void);
+s32 G64TipHeld(void);
+/* For the client's own tip box and for tests: the tip that a player reads. It returns the number of the page's
+   lines and fills lines with them (at most max), or 0 when the player reads no tip. more is 1 when another page
+   follows. The lines are in the game's memory: they hold the game's text and stay on this machine. */
+s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more);
 /* DisableControl(time) for every player who is not in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are
