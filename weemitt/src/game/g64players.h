@@ -237,6 +237,9 @@ struct Actor *G64SlotBall(s32 i);
 s32 G64HazardBegin(s32 i);
 void G64HazardEnd(s32 i);
 s32 G64SlotBallBursting(s32 i);
+/* A bonus level ends for the player in the globals (g64players.c): 1 when they took the exit alone, online; 0 when
+   the caller must end the level for everyone. */
+s32 G64PlayerExits(s32 type, s32 complete);
 /* DisableControl(time) for every player who is not in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are

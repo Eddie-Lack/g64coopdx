@@ -111,6 +111,10 @@ typedef struct G64Slot {
     u8 handPain;
     u8 ballPain;
     u8 painPad[2];
+    /* Who has the controls: the camera, the glove or the ball (controller.c, bonus.c). */
+    s32 controlMethod;
+    /* The frames this player's glove has swum in the Atlantis bonus level (bonus.c). */
+    s32 atlantisInWater;
     G64Cave cave;
     u8 caveStage;
     u8 disableZoom;
@@ -155,6 +159,8 @@ static void move_restart(s32 toPlayer, s32 fromPlayer);
 static s32 enemyHitBy[G64_ENEMIES];
 extern Vec3 ballStart;
 extern Vec3 bossFocalPoint;
+extern s32 controlMethod;
+extern s32 atlantisInWater;
 extern u8 handPain;
 extern u8 ballPain;
 extern s32 frameCount;
@@ -283,6 +289,8 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&ballStart, &s->ballStart, sizeof(Vec3));
     swap_bytes(&bossFocalPoint, &s->bossFocalPoint, sizeof(Vec3));
     swap_bytes(&handPain, &s->handPain, 1);
+    swap_bytes(&controlMethod, &s->controlMethod, sizeof(s32));
+    swap_bytes(&atlantisInWater, &s->atlantisInWater, sizeof(s32));
     swap_bytes(&ballPain, &s->ballPain, 1);
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
@@ -404,6 +412,8 @@ static G64Slot *copy_globals(void) {
     s->ballStart = ballStart;
     s->bossFocalPoint = bossFocalPoint;
     s->handPain = handPain;
+    s->controlMethod = controlMethod;
+    s->atlantisInWater = atlantisInWater;
     s->ballPain = ballPain;
     s->caveStage = gameInfo.caveStage;
     if (globalCave)
@@ -1023,6 +1033,15 @@ static void player_exits(s32 player, s32 type, s32 complete) {
     r->complete = complete;
     G64ExitTarget(type, &r->level, &r->world);
     G64ExitSave(type, complete, &r->save);
+}
+
+/* A bonus level ends for one player: they won it or lost it. Online the player in the globals takes the exit alone
+   and the function returns 1. Otherwise it returns 0, and the caller ends the level for everyone as the game does. */
+s32 G64PlayerExits(s32 type, s32 complete) {
+    if (!g64Online || swapped)
+        return 0;
+    player_exits(g64Member[logicSlot], type, complete);
+    return 1;
 }
 
 void G64CheckExit(Platform *platform) {

@@ -3799,7 +3799,10 @@ void HurtHand(s32 type, s16 damage) {
 void LoseLife(void) {
     if (IsBonusLevel()) {
         player.health = 3;
-        ExitLevel(BONUS_DONE_EXIT, 1, 0);
+        /* g64coopdx: online a death sends this player out of the bonus level, and the others play on. */
+        if (!G64PlayerExits(BONUS_DONE_EXIT, 0)) {
+            ExitLevel(BONUS_DONE_EXIT, 1, 0);
+        }
         return;
     }
     /* g64coopdx: in co-op a death takes no life (the owner's rules, g64players.c). */
