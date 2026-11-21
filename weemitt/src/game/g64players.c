@@ -27,6 +27,7 @@ PORT_C_END
 
 PORT_C_BEGIN
 #include "g64players.h"
+#include "soundtable.h"
 
 extern u8 ActiveController;
 extern u8 gamePaused;
@@ -483,7 +484,10 @@ void G64ExtraPlayersStep(void) {
         if (!s)
             continue;
         swap_slot(s);
+        /* Sounds made in this player's own update are theirs (the sound table, soundtable.h). */
+        soundtable_set_owner(g64Member[i]);
         player_frame(i);
+        soundtable_set_owner(-1);
         swap_slot(s);
     }
 }
@@ -651,9 +655,30 @@ void G64CavePlayers(void) {
         if (!s)
             continue;
         swap_slot(s);
+        soundtable_set_owner(g64Member[i]);
         G64CavePlayer();
+        soundtable_set_owner(-1);
         swap_slot(s);
     }
+}
+
+extern s32 MAX_SFX_DIST;
+
+s32 G64SoundListener(s32 player, f32 *pos, f32 *yaw, s32 *maxDist) {
+    s32 i = slot_of(player);
+    const Actor *c;
+    if (i == 0)
+        c = &camera;
+    else if (i > 0 && i < slotCount && slots[i])
+        c = &((G64Slot *)slots[i])->camera;
+    else
+        return 0;
+    pos[0] = c->pos.x;
+    pos[1] = c->pos.y;
+    pos[2] = c->pos.z;
+    *yaw = c->rot.y;
+    *maxDist = MAX_SFX_DIST;
+    return 1;
 }
 
 s32 G64HasPlayer(s32 player) {

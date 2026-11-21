@@ -322,6 +322,24 @@ GLOVER_API uint32_t glover_hash_memory(Glover *g);                       /* weem
 GLOVER_API int32_t glover_audio_rate(Glover *g);   /* also on the sound thread, also after the game stopped */
 GLOVER_API int32_t glover_audio_read(Glover *g, int16_t *out, int32_t frames);   /* frames copied */
 
+/* g64coopdx: the sound player driven from outside, for a host whose own game plays no sound (src/lib/sound.c). Call
+   these without glover_update: this library's game does not run, only its sound player does. glover_sound runs the
+   commands in order; handles (count of them, or NULL) gets each effect's handle, or 0. glover_sound_advance runs the
+   player for retraces sixtieths of a second (0 to 600); its frames go to glover_audio_read. */
+#define GLOVER_SOUND_SONG 1      /* a: the game's song number (PrepareSong) */
+#define GLOVER_SOUND_EFFECT 2    /* a: effect, b: volume (0 to 255), c: pan, e: tempo, f: reverb, freq: offset */
+#define GLOVER_SOUND_STOP 3      /* a: handle, b: speed */
+#define GLOVER_SOUND_SET 4       /* a: handle, b: volume, c: pan, e: tempo, f: reverb, freq: offset */
+#define GLOVER_SOUND_STOP_ALL 5  /* a: flags (1 effects, 2 songs), b: speed */
+#define GLOVER_SOUND_MASTER 6    /* a: flags, b: volume */
+typedef struct GloverSoundCmd {
+    int32_t op;
+    int32_t a, b, c, d, e, f;
+    float freq;
+} GloverSoundCmd;
+GLOVER_API int32_t glover_sound(Glover *g, const GloverSoundCmd *cmds, uint32_t count, int32_t *handles);
+GLOVER_API int32_t glover_sound_advance(Glover *g, float retraces);
+
 /* The OpenGL 3.3 renderer. These calls go on the thread whose context is current, never during glover_update. Each
    call leaves OpenGL's state at its initial values (as in a new context), except the viewport, the scissor box and
    the framebuffer bound to GL_FRAMEBUFFER: the fbo of the latest glover_gl_draw or glover_gl_composite, or 0. */

@@ -5,6 +5,8 @@ VERSION ?= dev
 JOBS ?= $(shell nproc 2>/dev/null || echo 4)
 WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
+PHONY_SOUND := sound sound-build
+.PHONY: $(PHONY_SOUND)
 .PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
@@ -51,6 +53,24 @@ rollback-game-build: savestates
 	    $(ENGINE_LINUX) -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/rollback_game.exe $(ROLLBACK_GAME_SRC) $(ENGINE_WINDOWS) -lm
+
+# The online game's sound with rollbacks (tests/rom/sound.c), on Linux and under Wine; the outputs must be equal (needs
+# the ROM in GLOVER_ROM).
+SOUND_SRC := tests/rom/sound.c src/client/sound.c src/rollback/engine_game.c src/rollback/rollback.c \
+             weemitt/src/port/statehash.c
+sound-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -g -Wall -Wextra -Werror -no-pie -o build/tests/sound $(SOUND_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/sound.exe $(SOUND_SRC) $(ENGINE_WINDOWS) -lm
+
+sound: sound-build
+	build/tests/sound "$$GLOVER_ROM" > build/tests/sound.out
+	tail -1 build/tests/sound.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/sound.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/sound-windows.out
+	cmp build/tests/sound.out build/tests/sound-windows.out
 
 # One host and three clients play level 13 over a lossy simulated network, on Linux and under Wine (needs the ROM in
 # GLOVER_ROM).
