@@ -195,5 +195,7 @@ s32 G64PuzzleInSlot(void);
 void G64PuzzleCameraState(s32 i);
 s32 PuzzleCameraStateSize(void);
 void PuzzleSwapCameraState(u8 *buf, s32 copy);
+/* puzzle.c: 1 for an action that only sets the camera (a camera zone's). */
+s32 IsCameraZoneAction(s16 type);
 
 #endif

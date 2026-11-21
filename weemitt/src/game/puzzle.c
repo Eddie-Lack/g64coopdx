@@ -329,7 +329,13 @@ void AddPuzzle(Puzzle *puzzle) {
 /* g64coopdx: 1 while a camera zone is tested for the player in the globals alone (PuzzleEvaluateCondition). */
 static s32 conditionsHereOnly;
 
-/* 1 for a camera zone: a puzzle whose every action moves the camera. Each player has their own (CheckPuzzles). */
+/* 1 for an action that only sets the player's camera (ACTION_CAM_HEIGHT to ACTION_CAM_CIRCLE). IsCameraAction also
+   counts the sound, backdrop and fog actions, which change the world. */
+s32 IsCameraZoneAction(s16 type) {
+    return type >= ACTION_CAM_HEIGHT && type <= ACTION_CAM_CIRCLE;
+}
+
+/* 1 for a camera zone: a puzzle whose every action only sets the camera. Each player has their own (CheckPuzzles). */
 static s32 IsCameraPuzzle(Puzzle *puzzle) {
     PuzzleAction *action;
 
@@ -337,7 +343,7 @@ static s32 IsCameraPuzzle(Puzzle *puzzle) {
         return FALSE;
     }
     for (action = puzzle->actions.head.next; action != &puzzle->actions.head; action = action->next) {
-        if (!IsCameraAction(action->type)) {
+        if (!IsCameraZoneAction(action->type)) {
             return FALSE;
         }
     }

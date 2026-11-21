@@ -987,6 +987,8 @@ void G64RemovePlayer(s32 player) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
            the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
         swap_slot(slots[1]);
+        /* Their camera zones come with them, and the leaving player's go into the slot that is freed. */
+        G64PuzzleCameraState(1);
         g64Member[0] = g64Member[1];
         i = 1;
         blocks = 0;
@@ -1463,7 +1465,7 @@ s32 G64PuzzleZone(s32 k, f32 *box) {
         if (pz->conds.count != 1 || c->type != CONDITION_HAND_IN_BOX || !c->cam || pz->actions.count == 0)
             return 0;
         for (a = pz->actions.head.next; a != &pz->actions.head; a = a->next)
-            if (!IsCameraAction(a->type))
+            if (!IsCameraZoneAction(a->type))
                 return 0;
         box[0] = c->cam->pos.x;
         box[1] = c->cam->pos.y;
