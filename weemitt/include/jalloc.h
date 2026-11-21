@@ -5,6 +5,14 @@
 
 #define JALLOC_NUM_BLOCKS 0x500
 
+/* More room for dynamic blocks, outside the N64's layout: many players need more blocks than the table holds.
+   A dynamic block's number counts down from JALLOC_NUM_BLOCKS - 1. The dynamic blocks are in the table, as on the
+   N64, until they meet the static blocks there. Then they all move to jallocMore (jalloc.c), which has room for
+   JALLOC_MORE_BLOCKS, and the static blocks have the table to themselves. The blocks keep their numbers. They stay
+   there until the heap is set up again. */
+#define JALLOC_MORE_BLOCKS 0x800
+#define JALLOC_DYNAMIC_MIN (JALLOC_NUM_BLOCKS - JALLOC_MORE_BLOCKS)
+
 typedef struct JallocBlock {
     /* 0x00 */ u32 addr;
     /* 0x04 */ s32 size;
@@ -23,6 +31,10 @@ typedef struct JallocControl {
 } JallocControl;
 
 extern JallocControl jallocControl;
+
+/* Dynamic block number i, and the number of blocks still free: the smaller of the static and the dynamic side's. */
+JallocBlock *JallocDynamicBlock(s32 i);
+s32 JallocFreeBlocks(void);
 
 void memclear(void *ptr, s32 size);
 void JallocInit(u32 start, u32 size);

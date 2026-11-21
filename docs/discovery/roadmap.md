@@ -179,6 +179,16 @@ harness at N players and by the determinism tests:
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).
+   Done: with 16 players every level runs 1500 frames. The peaks then are 596 object matrices (the Atlantis hub;
+   one player needs up to 212), 1489 heap blocks (one player: 1146) and a display list task of 31320 bytes (one
+   player: about 14000). The N64 game's limits were 256 matrices, 1280 blocks and 20000 bytes. From about 6 players
+   the matrices ran past their table into the display list, and at about 13 the Atlantis hub ran out of blocks.
+   Now a frame has room for 1024 matrices (objectMtxMore, weemitt/include/display.h), the dynamic heap blocks move
+   to a table of 2048 when they meet the static ones (weemitt/src/game/jalloc.c), and a frame's tasks may fill the
+   whole display list buffer of 20000 commands, of which 16 players use 4196 (main.c). With one player nothing
+   moves: the tables in the game's memory hold what they held before. The vertices (peak 606 of 800) do not
+   depend on the number of players. The sphere hit table matters only for part frames, which the online game
+   does not run (tests/rom/limits.c). Left: a look at the picture with 16 players in the window program.
 
 Playable: the whole game, start to end, with 8 players. Test: a scripted run of each level by N bots in the harness;
 the matrix and list peaks measured with 16 players.

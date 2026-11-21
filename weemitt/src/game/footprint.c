@@ -240,8 +240,11 @@ void DrawFootprint(Footprint *ptr) {
     guScaleF(scalemat.m, ptr->width, 1.0f, ptr->width);
     guMtxCatF(rotmat.m, transmat.m, tempmat.m);
     guMtxCatF(scalemat.m, tempmat.m, tempmat.m);
-    guMtxF2L(tempmat.m, &dynamicp->objectMtx[objectMatrix]);
-    gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(&dynamicp->objectMtx[objectMatrix++]), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+    {
+        Mtx *m = NextObjectMtx();
+        guMtxF2L(tempmat.m, m);
+        gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(m), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+    }
     vtx = ptr->vtx;
     vtx[0].v.ob[0] = 10;
     vtx[0].v.ob[1] = 0;

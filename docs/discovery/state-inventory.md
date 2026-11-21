@@ -284,6 +284,10 @@ second instance of the same data. "Shared" means one copy for everybody.
 
 ### 3. Frame limits and hard-coded sizes
 
+The table gives the N64 game's limits as they were measured for the design. g64coopdx has since raised three of
+them for 16 players: the object matrices (1024 a frame), the heap's block table (2048 more dynamic blocks) and the
+display list task's size check (the whole buffer). [roadmap.md](roadmap.md), phase 3, item 9, has the numbers.
+
 | Limit | Value | Where | Measured use | Status |
 | --- | --- | --- | --- | --- |
 | Object matrices per frame | 256 (`Mtx objectMtx[256]` inside `Dynamic`); `objectMatrix` index has no bounds check at the four write sites | `weemitt/include/display.h:9`; sites `object.c:687,694`, `shadow.c:195`, `footprint.c:226`; reset `object.c:309` | peak 158 (hub level 0), 138 (level 21), 128 (level 35); glove draw costs up to 14 matrices (sampled in level 10), ball 1, other actor types 0 to 20 | V (peak), I (the glove cost depends on its pose) |

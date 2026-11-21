@@ -680,15 +680,14 @@ static unsigned int HeapGap(void) {
     unsigned int top = jc->lastStatic == -1 ? jc->heapStart + jc->heapSize : jc->blocks[jc->lastStatic].addr;
     unsigned int bottom = jc->firstDynamic == JALLOC_NUM_BLOCKS
                               ? jc->heapStart
-                              : jc->blocks[jc->firstDynamic].addr + jc->blocks[jc->firstDynamic].size;
+                              : JallocDynamicBlock(jc->firstDynamic)->addr + JallocDynamicBlock(jc->firstDynamic)->size;
 
     return top > bottom ? top - bottom : 0;
 }
 
 /* HW_OK when blocks of these total bytes fit and leave the reserve. */
 static int HeapFits(unsigned int bytes, unsigned int blocks) {
-    JallocControl *jc = &jallocControl;
-    int freeSlots = jc->firstDynamic - jc->lastStatic - 1;
+    int freeSlots = JallocFreeBlocks();
 
     if ((double)bytes + HEAP_RESERVE > (double)HeapGap() || (int)blocks + BLOCK_RESERVE > freeSlots) {
         return HW_ERR_MEMORY;

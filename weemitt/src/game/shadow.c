@@ -193,8 +193,11 @@ void CastShadow(Vec3 *pos, Vec3 *plane, f32 size, f32 altitude, u16 alpha, Shado
     guScaleF(scalemat.m, scale, 1.0f, scale);
     guMtxCatF(rotmat.m, transmat.m, tempmat.m);
     guMtxCatF(scalemat.m, tempmat.m, tempmat.m);
-    guMtxF2L(tempmat.m, &dynamicp->objectMtx[objectMatrix]);
-    gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(&dynamicp->objectMtx[objectMatrix++]), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+    {
+        Mtx *m = NextObjectMtx();
+        guMtxF2L(tempmat.m, m);
+        gSPMatrix(glistp++, OS_K0_TO_PHYSICAL(m), G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+    }
     gSPVertex(glistp++, vert, 4, 0);
     gSP2Triangles(glistp++, 2, 0, 1, 0, 3, 0, 2, 0);
     gSPPopMatrix(glistp++, G_MTX_MODELVIEW);

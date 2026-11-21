@@ -577,7 +577,9 @@ void CleanupAndSendDisplayList(s32 flag, s32 flags) {
     gSPEndDisplayList(glistp++);
     ((NNScTask *)tlistp[currentTask])->list.t.data_size = (glistp - (Gfx *)((NNScTask *)tlistp[currentTask])->list.t.data_ptr) * sizeof(Gfx);
     actualGFXListLength[currentTask] = ((NNScTask *)tlistp[currentTask])->list.t.data_size;
-    if (((NNScTask *)tlistp[currentTask])->list.t.data_size >= 20000) {
+    /* The N64 game dropped a task of 20000 bytes or more. One player's largest task is about 12000 bytes, and each
+       more player adds to it. The buffer holds 20000 commands for all of a frame's tasks: that is the limit here. */
+    if ((u32)(glistp - dynamicp->glist) >= 20000) {
         PRINTF("Overran the graphics list.......");
         return;
         Crash("GFX LIST");

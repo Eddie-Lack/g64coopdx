@@ -27,6 +27,41 @@ void memclear(void *ptr, s32 size) {
    what it built is gone. Outside the game's memory. */
 u32 portHeapInits;
 
+/* The dynamic blocks once they have met the static blocks in the table (include/jalloc.h), and whether they have.
+   Block number i is jallocMore[JALLOC_NUM_BLOCKS - 1 - i]. */
+static JallocBlock jallocMore[JALLOC_MORE_BLOCKS];
+static s32 jallocMoved;
+
+JallocBlock *JallocDynamicBlock(s32 i) {
+    if (!jallocMoved) {
+        return &jallocControl.blocks[i];
+    }
+    return &jallocMore[JALLOC_NUM_BLOCKS - 1 - i];
+}
+
+/* Moves the dynamic blocks out of the table. */
+static void JallocMoveDynamic(void) {
+    JallocControl *jc = &jallocControl;
+    s32 i;
+
+    for (i = JALLOC_NUM_BLOCKS - 1; i >= jc->firstDynamic; i--) {
+        jallocMore[JALLOC_NUM_BLOCKS - 1 - i] = jc->blocks[i];
+        jc->blocks[i].used = FALSE;
+        jc->blocks[i].addr = 0;
+        jc->blocks[i].size = 0;
+    }
+    jallocMoved = TRUE;
+}
+
+s32 JallocFreeBlocks(void) {
+    JallocControl *jc = &jallocControl;
+    s32 statics = JALLOC_NUM_BLOCKS - 1 - jc->lastStatic;
+    s32 dynamics = jc->firstDynamic - JALLOC_DYNAMIC_MIN;
+
+    /* Before the move this counts the room there is after it: the next block that does not fit moves them. */
+    return statics < dynamics ? statics : dynamics;
+}
+
 void JallocInit(u32 start, u32 size) {
     JallocControl *jc = &jallocControl;
 
@@ -67,6 +102,9 @@ void *JallocAllocStatic(s32 size, s32 clear, char *name) {
 
     jc = &jallocControl;
     if (jc->lastStatic == -1) {
+        if (jc->firstDynamic <= 0 && !jallocMoved) {
+            JallocMoveDynamic();
+        }
         ptr = jc->heapStart + jc->heapSize - size;
         jc->blocks[0].used = TRUE;
         jc->blocks[0].size = size;
@@ -80,7 +118,10 @@ void *JallocAllocStatic(s32 size, s32 clear, char *name) {
             break;
         }
     }
-    if (i >= jc->firstDynamic) {
+    if (i >= jc->firstDynamic && !jallocMoved) {
+        JallocMoveDynamic();
+    }
+    if (i >= JALLOC_NUM_BLOCKS) {
         goto oom;
     }
     if (i == jc->lastStatic + 1) {
@@ -98,7 +139,7 @@ void *JallocAllocStatic(s32 size, s32 clear, char *name) {
     oldSize = jc->blocks[i].size;
     jc->blocks[i].size = size;
     jc->blocks[i].used = TRUE;
-    if (size < oldSize && jc->lastStatic < jc->firstDynamic - 1) {
+    if (size < oldSize && jc->lastStatic < (jallocMoved ? JALLOC_NUM_BLOCKS : jc->firstDynamic) - 1) {
         for (j = jc->lastStatic; j > i; j--) {
             jc->blocks[j + 1] = jc->blocks[j];
         }
@@ -139,7 +180,7 @@ done:
 }
 
 void *JallocAllocDynamic(s32 size, s32 clear, char *name) {
-    u32 j;
+    s32 j; /* signed: a dynamic block's number can be below 0 (jallocMore) */
     u32 oldSize;
     s32 i;
     JallocControl *jc;
@@ -147,50 +188,56 @@ void *JallocAllocDynamic(s32 size, s32 clear, char *name) {
 
     jc = &jallocControl;
     if (jc->firstDynamic == JALLOC_NUM_BLOCKS) {
+        if (jc->lastStatic >= JALLOC_NUM_BLOCKS - 1 && !jallocMoved) {
+            JallocMoveDynamic();
+        }
         ptr = jc->heapStart;
         i = JALLOC_NUM_BLOCKS - 1;
-        jc->blocks[i].used = TRUE;
-        jc->blocks[i].size = size;
-        jc->blocks[i].addr = ptr;
+        JallocDynamicBlock(i)->used = TRUE;
+        JallocDynamicBlock(i)->size = size;
+        JallocDynamicBlock(i)->addr = ptr;
         jc->firstDynamic = i;
         goto done;
     }
     for (i = JALLOC_NUM_BLOCKS - 1; i > jc->firstDynamic - 1; i--) {
-        if (!jc->blocks[i].used && jc->blocks[i].size >= size) {
+        if (!JallocDynamicBlock(i)->used && JallocDynamicBlock(i)->size >= size) {
             break;
         }
     }
-    if (i <= jc->lastStatic) {
+    if (i <= jc->lastStatic && !jallocMoved) {
+        JallocMoveDynamic();
+    }
+    if (i < JALLOC_DYNAMIC_MIN) {
         goto oom;
     }
     if (i == jc->firstDynamic - 1) {
         if (jc->heapSize - jc->staticUsed - jc->dynamicUsed < size) {
             goto oom;
         }
-        ptr = jc->blocks[jc->firstDynamic].addr + jc->blocks[jc->firstDynamic].size;
+        ptr = JallocDynamicBlock(jc->firstDynamic)->addr + JallocDynamicBlock(jc->firstDynamic)->size;
         jc->firstDynamic--;
-        jc->blocks[jc->firstDynamic].used = TRUE;
-        jc->blocks[jc->firstDynamic].size = size;
-        jc->blocks[jc->firstDynamic].addr = ptr;
+        JallocDynamicBlock(jc->firstDynamic)->used = TRUE;
+        JallocDynamicBlock(jc->firstDynamic)->size = size;
+        JallocDynamicBlock(jc->firstDynamic)->addr = ptr;
         i = jc->firstDynamic;
         goto done;
     }
-    oldSize = jc->blocks[i].size;
-    jc->blocks[i].size = size;
-    jc->blocks[i].used = TRUE;
-    if (size < oldSize && jc->lastStatic < jc->firstDynamic - 1) {
+    oldSize = JallocDynamicBlock(i)->size;
+    JallocDynamicBlock(i)->size = size;
+    JallocDynamicBlock(i)->used = TRUE;
+    if (size < oldSize && (jallocMoved ? JALLOC_DYNAMIC_MIN : jc->lastStatic + 1) < jc->firstDynamic) {
         for (j = jc->firstDynamic; j < i; j++) {
-            jc->blocks[j - 1] = jc->blocks[j];
+            *JallocDynamicBlock(j - 1) = *JallocDynamicBlock(j);
         }
         j = i - 1;
         jc->firstDynamic--;
-        jc->blocks[j].used = FALSE;
-        jc->blocks[j].size = oldSize - size;
-        jc->blocks[j].addr = jc->blocks[i].addr + size;
+        JallocDynamicBlock(j)->used = FALSE;
+        JallocDynamicBlock(j)->size = oldSize - size;
+        JallocDynamicBlock(j)->addr = JallocDynamicBlock(i)->addr + size;
     } else if (size < oldSize) {
-        jc->blocks[i].size = oldSize;
+        JallocDynamicBlock(i)->size = oldSize;
     }
-    ptr = jc->blocks[i].addr;
+    ptr = JallocDynamicBlock(i)->addr;
     goto done;
 
 oom:
@@ -205,10 +252,10 @@ oom:
     return NULL;
 
 done:
-    jc->dynamicUsed += jc->blocks[i].size;
-    memcpy(jc->blocks[i].name, name, strlen(name));
+    jc->dynamicUsed += JallocDynamicBlock(i)->size;
+    memcpy(JallocDynamicBlock(i)->name, name, strlen(name));
     if (strlen(name) < 10) {
-        jc->blocks[i].name[strlen(name)] = '\0';
+        JallocDynamicBlock(i)->name[strlen(name)] = '\0';
     }
     if (clear == TRUE) {
         memclear(PORT_W2P(void, ptr), size);
@@ -276,7 +323,7 @@ s32 JallocFreeDynamic(void *ptrRef) {
         return FALSE;
     }
     for (i = JALLOC_NUM_BLOCKS - 1; i >= jc->firstDynamic; i--) {
-        if (jc->blocks[i].addr == *(u32 *)ptrRef) {
+        if (JallocDynamicBlock(i)->addr == *(u32 *)ptrRef) {
             break;
         }
     }
@@ -284,32 +331,32 @@ s32 JallocFreeDynamic(void *ptrRef) {
         return FALSE;
     }
     *(u32 *)ptrRef = 0;
-    if (!jc->blocks[i].used) {
+    if (!JallocDynamicBlock(i)->used) {
         return TRUE;
     }
     if (i == jc->firstDynamic) {
-        jc->dynamicUsed -= jc->blocks[jc->firstDynamic].size;
+        jc->dynamicUsed -= JallocDynamicBlock(jc->firstDynamic)->size;
         jc->firstDynamic++;
-        if (jc->firstDynamic < JALLOC_NUM_BLOCKS && !jc->blocks[jc->firstDynamic].used) {
+        if (jc->firstDynamic < JALLOC_NUM_BLOCKS && !JallocDynamicBlock(jc->firstDynamic)->used) {
             jc->firstDynamic++;
         }
         return TRUE;
     }
-    jc->blocks[i].used = FALSE;
-    jc->dynamicUsed -= jc->blocks[i].size;
-    if (!jc->blocks[i - 1].used) {
-        jc->blocks[i].size += jc->blocks[i - 1].size;
+    JallocDynamicBlock(i)->used = FALSE;
+    jc->dynamicUsed -= JallocDynamicBlock(i)->size;
+    if (!JallocDynamicBlock(i - 1)->used) {
+        JallocDynamicBlock(i)->size += JallocDynamicBlock(i - 1)->size;
         for (j = i - 1; j > jc->firstDynamic; j--) {
-            jc->blocks[j] = jc->blocks[j - 1];
+            *JallocDynamicBlock(j) = *JallocDynamicBlock(j - 1);
         }
-        jc->blocks[jc->firstDynamic++].used = FALSE;
+        JallocDynamicBlock(jc->firstDynamic++)->used = FALSE;
     }
-    if (i < JALLOC_NUM_BLOCKS - 1 && !jc->blocks[i + 1].used) {
-        jc->blocks[i + 1].size += jc->blocks[i].size;
+    if (i < JALLOC_NUM_BLOCKS - 1 && !JallocDynamicBlock(i + 1)->used) {
+        JallocDynamicBlock(i + 1)->size += JallocDynamicBlock(i)->size;
         for (j = i; j > jc->firstDynamic; j--) {
-            jc->blocks[j] = jc->blocks[j - 1];
+            *JallocDynamicBlock(j) = *JallocDynamicBlock(j - 1);
         }
-        jc->blocks[jc->firstDynamic++].used = FALSE;
+        JallocDynamicBlock(jc->firstDynamic++)->used = FALSE;
     }
     return TRUE;
 }
@@ -333,6 +380,8 @@ void JallocReset(void) {
         jc->blocks[i].addr = 0;
         jc->blocks[i].size = 0;
     }
+    memset(jallocMore, 0, sizeof(jallocMore));
+    jallocMoved = FALSE;
     jc->lastStatic = -1;
     jc->firstDynamic = JALLOC_NUM_BLOCKS;
     jc->dynamicUsed = 0;
@@ -343,6 +392,7 @@ void ShowJalloc(void) {
     u32 used = 0;
     u32 empty = 0;
     u32 i;
+    s32 d;
     JallocControl *jc = &jallocControl;
 
     PRINTF("\nJalloc block list...\n");
@@ -360,14 +410,14 @@ void ShowJalloc(void) {
         PRINTF("    block #%d (%s): at (&%x), size %d status %d\n", i, jc->blocks[i].name,
                jc->blocks[i].addr, jc->blocks[i].size, jc->blocks[i].used);
     }
-    for (i = JALLOC_NUM_BLOCKS - 1; i >= jc->firstDynamic; i--) {
-        if (jc->blocks[i].used) {
+    for (d = JALLOC_NUM_BLOCKS - 1; d >= jc->firstDynamic; d--) {
+        if (JallocDynamicBlock(d)->used) {
             used++;
         } else {
             empty++;
         }
-        PRINTF("    block #%d (%s): at (&%x), size %d status %d\n", i, jc->blocks[i].name,
-               jc->blocks[i].addr, jc->blocks[i].size, jc->blocks[i].used);
+        PRINTF("    block #%d (%s): at (&%x), size %d status %d\n", d, JallocDynamicBlock(d)->name,
+               JallocDynamicBlock(d)->addr, JallocDynamicBlock(d)->size, JallocDynamicBlock(d)->used);
     }
     PRINTF("\n");
     PRINTF("%d blocks used; %d blocks empty\n", used, empty);
@@ -380,6 +430,7 @@ void ShowJalloc(void) {
 void CheckJalloc(void) {
     JallocControl *jc;
     u32 i;
+    s32 d;
     s32 total;
 
     jc = &jallocControl;
@@ -402,11 +453,11 @@ void CheckJalloc(void) {
         while (!(controllerdata[ActiveController].button & A_BUTTON)) {}
     }
     total = 0;
-    for (i = JALLOC_NUM_BLOCKS - 1; i >= jc->firstDynamic; i--) {
-        if (jc->blocks[i].used) {
-            total += jc->blocks[i].size;
+    for (d = JALLOC_NUM_BLOCKS - 1; d >= jc->firstDynamic; d--) {
+        if (JallocDynamicBlock(d)->used) {
+            total += JallocDynamicBlock(d)->size;
         }
-        if (i < JALLOC_NUM_BLOCKS - 1 && jc->blocks[i + 1].addr + jc->blocks[i + 1].size != jc->blocks[i].addr) {
+        if (d < JALLOC_NUM_BLOCKS - 1 && JallocDynamicBlock(d + 1)->addr + JallocDynamicBlock(d + 1)->size != JallocDynamicBlock(d)->addr) {
             PRINTF("Uh-oh - memory crobbed on frame %d\n", frameCount);
             MusSetMasterVolume(1, 0x55F0);
             PlaySampleNot3D(248, 100, 128, 128);

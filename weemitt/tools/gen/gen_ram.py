@@ -135,7 +135,8 @@ def apply_type(bm, base, lay, label_size):
 
 # The host objects in port_win, after port_hw (see ram.S): name and the bytes reserved for it. These are the sound
 # player's objects that its memory in port_ram points to (src/audio/mus/mus_internal.h). port_win.h gives each size
-# to the C code, which checks that the object fits.
+# to the C code, which checks that the object fits. objectMtxMore is the game's: the object matrices of a frame past
+# the 256 in Dynamic (include/display.h), which a display list points to.
 WINDOW_OBJECTS = [
     ("musGlobals", 0x50),     # ALGlobals: the synthesizer; alGlobals and musReverb.synth point to it
     ("musPlayer", 0x20),      # ALPlayer: the synthesizer's list of players starts here
@@ -144,6 +145,7 @@ WINDOW_OBJECTS = [
     ("musBuffer", 0x2000),    # the output of the audio command lists (A_SAVEBUFF)
     ("musDropBuffer", 0x2000),
     ("musDmaZeros", 0x1000),  # what a request for wave data that the port cannot serve reads (A_LOADBUFF)
+    ("objectMtxMore", 0x18000),  # Mtx[2][768]: a frame's object matrices past objectMtx, for each draw buffer
 ]
 
 
