@@ -224,4 +224,28 @@ s32 G64PlayerLives(s32 player);
 /* For tests: the altitude of a player's glove above the ground under it (-1 for none, -2 when not in this game). */
 f32 G64PlayerAltitude(s32 player);
 
+/* World hazards (g64players.c): the number of slots to go through after the actor list (0 with one player, or while
+   a slot is swapped in), and slot i's glove and ball (i from 1; NULL for an empty slot). They are read and changed in
+   place. */
+s32 G64SlotCount(void);
+struct Actor *G64SlotGlove(s32 i);
+struct Actor *G64SlotBall(s32 i);
+/* A hazard that hit slot i's glove or ball: G64HazardBegin swaps that player into the globals (0 when it cannot),
+   G64HazardEnd swaps them back. G64SlotBallBursting: 1 when slot i's ball is bursting. */
+s32 G64HazardBegin(s32 i);
+void G64HazardEnd(s32 i);
+s32 G64SlotBallBursting(s32 i);
+/* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are
+   keyed by the slot's own actors, not by the globals' addresses. G64SlotWaterReset clears the other players'
+   water state at the start of a frame. */
+struct Actor *G64EventKey(struct Actor *a);
+void G64SlotWaterReset(void);
+/* For tests: the place of the k-th hazard of a kind (0 a wind's middle, 1 a water's middle at its surface, 2 a
+   spike, 3 a buzzer's middle: 2 when it is buzzing); 0 when there is none. A player's health, their glove's
+   velocity, and their glove's water state (-1 when not in this game). */
+s32 G64HazardPlace(s32 kind, s32 k, f32 *x, f32 *y, f32 *z);
+s32 G64PlayerHealth(s32 player);
+s32 G64PlayerVelocity(s32 player, f32 *x, f32 *y, f32 *z);
+s32 G64PlayerInWater(s32 player);
+
 #endif

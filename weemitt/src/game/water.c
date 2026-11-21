@@ -19,6 +19,7 @@ PORT_C_BEGIN
 #include "object.h"
 #include "delta.h"
 #include "porthooks.h"
+#include "g64players.h"
 
 extern PTR32(Texture) rippleTex;
 extern PTR32(Texture) wakeTex;
@@ -82,6 +83,8 @@ static s32 FirstWaterEvent(Actor *aPtr, s32 kind) {
     static s32 next[2];
     s32 i;
 
+    /* g64coopdx: each player's glove and ball have their own stamps (g64players.c). */
+    aPtr = G64EventKey(aPtr);
     for (i = 0; i < NUM_EVENT_STAMPS; i++) {
         if (eventStamps[kind][i].actor == aPtr) {
             return DeltaFirst(&eventStamps[kind][i].stamp);
@@ -314,6 +317,7 @@ void UpdateWater(void) {
     Debris *sparkle;
     f32 waterLevel;
     s32 i;
+    s32 n;
 
     ProcessRain();
     CheckCameraForWater();
@@ -338,6 +342,11 @@ void UpdateWater(void) {
     if (handControl.fakeball != NULL && deltaNewFrame) {
         handControl.fakeball->state->waterState = 0;
     }
+    /* g64coopdx: the other players' gloves, balls and fake balls (g64players.c). */
+    if (deltaNewFrame) {
+        G64SlotWaterReset();
+    }
+    n = G64SlotCount();
     for (ptr = waterList.head.next; ptr != &waterList.head; ptr = ptr->next) {
         if (ptr->height != ptr->targetHeight) {
             /* The level moves a quarter of the way per original frame, at most 1 unit per frame. */
@@ -353,8 +362,28 @@ void UpdateWater(void) {
             }
         }
         for (aPtr = actorList.head.next; aPtr != &actorList.head; aPtr = aPtr->next) {
-            if (!(aPtr->flags & 0x10000) && (aPtr->flags & 0x200010)) {
+            /* g64coopdx: a proxy only shows another player, who is checked below. */
+            if (!(aPtr->flags & 0x10000) && (aPtr->flags & 0x200010) && !G64IsProxy(aPtr)) {
                 CheckActorForWater(aPtr, ptr, 1);
+            }
+        }
+        /* g64coopdx: the other players' gloves and balls in this water, each with their player swapped into the
+           globals (the water's identity tests use &hand and &ball). */
+        for (i = 1; i < n; i++) {
+            Actor *h = G64SlotGlove(i);
+            Actor *b = G64SlotBall(i);
+            s32 inHand = h != NULL && !(h->flags & 0x10000) && (h->flags & 0x200010)
+                         && IsPointWithinBoxPlusHeight(&ptr->box, &h->pos, h->radius);
+            s32 inBall = b != NULL && !(b->flags & 0x10000) && (b->flags & 0x200010)
+                         && IsPointWithinBoxPlusHeight(&ptr->box, &b->pos, b->radius);
+            if ((inHand || inBall) && G64HazardBegin(i)) {
+                if (inHand) {
+                    CheckActorForWater(&hand, ptr, 1);
+                }
+                if (inBall) {
+                    CheckActorForWater(&ball, ptr, 1);
+                }
+                G64HazardEnd(i);
             }
         }
         for (i = 0; i < 120; i++) {

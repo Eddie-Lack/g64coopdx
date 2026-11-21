@@ -11,6 +11,7 @@ PORT_C_BEGIN
 #include "macros.h"
 #include "ball.h"
 #include "delta.h"
+#include "g64players.h"
 
 extern s32 buzzOffset;
 extern s32 frameCount;
@@ -59,6 +60,7 @@ void UpdateBuzzer(Buzzer *buzzer) {
     s16 b;
     s32 numSegs;
     s16 i;
+    s32 n;
 
     if (buzzer->timer > 0 && --buzzer->timer == 0) {
         if (buzzer->buzzing) {
@@ -120,6 +122,21 @@ void UpdateBuzzer(Buzzer *buzzer) {
         }
         if (CheckActorBuzzed(&ball, &tempVect, &tempVect2)) {
             BurstBall();
+        }
+        /* g64coopdx: the other players' gloves and balls, tested where they are; a hit swaps that player into the
+           globals (g64players.c). */
+        n = G64SlotCount();
+        for (i = 1; i < n; i++) {
+            Actor *h = G64SlotGlove(i);
+            Actor *sb = G64SlotBall(i);
+            if (h != NULL && CheckActorBuzzed(h, &tempVect, &tempVect2) && G64HazardBegin(i)) {
+                HurtHand(HURT_GO_BACKWARDS, 0);
+                G64HazardEnd(i);
+            }
+            if (sb != NULL && CheckActorBuzzed(sb, &tempVect, &tempVect2) && G64HazardBegin(i)) {
+                BurstBall();
+                G64HazardEnd(i);
+            }
         }
         ADD_VECTORS(&buzzer->mid, &tempVect, &tempVect2);
         SCALE_VECTOR(&buzzer->mid, 0.5);

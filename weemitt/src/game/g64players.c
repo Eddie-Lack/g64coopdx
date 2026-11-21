@@ -28,6 +28,10 @@ PORT_C_BEGIN
 #include "collision.h"
 #include "debris.h"
 #include "save.h"
+#include "wind.h"
+#include "water.h"
+#include "spike.h"
+#include "buzzer.h"
 PORT_C_END
 
 #include <string.h>
@@ -1774,5 +1778,134 @@ f32 G64PlayerAltitude(s32 who) {
     if (i < 0 || !slot_used(i) || !slot_glove(i)->shadow)
         return -2.0f;
     return slot_glove(i)->shadow->altitude;
+}
+/* World hazards (phase 3). Winds, fans, water, spikes and buzzers act on the actors in the actor list, which hold the
+   first player's glove and ball and the proxies. The other players' actors are in their slots. */
+
+s32 G64SlotCount(void) {
+    return slotCount >= 2 && !swapped && !logicSlot ? slotCount : 0;
+}
+
+Actor *G64SlotGlove(s32 i) {
+    return i >= 1 && slot_used(i) ? slot_glove(i) : NULL;
+}
+
+Actor *G64SlotBall(s32 i) {
+    return i >= 1 && slot_used(i) ? slot_ball(i) : NULL;
+}
+s32 G64HazardBegin(s32 i) {
+    if (i < 1 || !slot_used(i) || swapped || logicSlot)
+        return 0;
+    swap_slot(slots[i]);
+    logicSlot = i;
+    /* The hurt's sounds are this player's (the sound table, soundtable.h). */
+    soundtable_set_owner(g64Member[i]);
+    return 1;
+}
+
+void G64HazardEnd(s32 i) {
+    if (i >= 1 && logicSlot == i) {
+        soundtable_set_owner(-1);
+        swap_slot(slots[i]);
+        logicSlot = 0;
+    }
+}
+
+s32 G64SlotBallBursting(s32 i) {
+    return i >= 1 && slot_used(i) && slot_ball_control(i)->state == BALL_BURST;
+}
+Actor *G64EventKey(Actor *a) {
+    if (logicSlot && a == &hand)
+        return slot_glove(logicSlot);
+    if (logicSlot && a == &ball)
+        return slot_ball(logicSlot);
+    return a;
+}
+
+void G64SlotWaterReset(void) {
+    s32 i;
+    for (i = 1; i < G64SlotCount(); i++) {
+        Debris *fb;
+        if (!slot_used(i))
+            continue;
+        if (slot_glove(i)->state)
+            slot_glove(i)->state->waterState = 0;
+        if (slot_ball(i)->state)
+            slot_ball(i)->state->waterState = 0;
+        fb = slot_hand_control(i)->fakeball;
+        if (fb != NULL && fb->state)
+            fb->state->waterState = 0;
+    }
+}
+s32 G64HazardPlace(s32 kind, s32 k, f32 *x, f32 *y, f32 *z) {
+    s32 i = 0;
+    if (kind == 0) {
+        Wind *w;
+        for (w = windList.head.next; w != &windList.head; w = w->next) {
+            if (w->type == 1 && i++ == k) {
+                *x = w->pos[0] + w->size[0] / 2;
+                *y = w->pos[1] + w->size[1] / 2;
+                *z = w->pos[2] + w->size[2] / 2;
+                return 1;
+            }
+        }
+    } else if (kind == 1) {
+        Water *w;
+        for (w = waterList.head.next; w != &waterList.head; w = w->next) {
+            if (i++ == k) {
+                *x = w->box.pos.x + w->box.size.x / 2;
+                *y = w->height;
+                *z = w->box.pos.z + w->box.size.z / 2;
+                return 1;
+            }
+        }
+    } else if (kind == 2) {
+        Spike *sp;
+        for (sp = spikeList.head.next; sp != &spikeList.head; sp = sp->next) {
+            if (i++ == k) {
+                *x = sp->platform->actor.pos.x;
+                *y = sp->platform->actor.pos.y;
+                *z = sp->platform->actor.pos.z;
+                return 1;
+            }
+        }
+    } else if (kind == 3) {
+        Buzzer *b;
+        for (b = buzzerList.head.next; b != &buzzerList.head; b = b->next) {
+            if (i++ == k) {
+                *x = b->mid.x;
+                *y = b->mid.y;
+                *z = b->mid.z;
+                return 1 + (b->buzzing != 0);
+            }
+        }
+    }
+    return 0;
+}
+
+s32 G64PlayerHealth(s32 who) {
+    s32 i = slot_of(who);
+    Player *pl;
+    if (i < 0 || !slot_used(i))
+        return -100;
+    pl = i == 0 ? &player : (Player *)(((G64Slot *)slots[i])->handBlock + ((u8 *)&player - (u8 *)&handControl));
+    return pl->health;
+}
+
+s32 G64PlayerVelocity(s32 who, f32 *x, f32 *y, f32 *z) {
+    s32 i = slot_of(who);
+    if (i < 0 || !slot_used(i))
+        return 0;
+    *x = slot_glove(i)->vel.x;
+    *y = slot_glove(i)->vel.y;
+    *z = slot_glove(i)->vel.z;
+    return 1;
+}
+
+s32 G64PlayerInWater(s32 who) {
+    s32 i = slot_of(who);
+    if (i < 0 || !slot_used(i) || !slot_glove(i)->state)
+        return -1;
+    return slot_glove(i)->state->waterState;
 }
 PORT_C_END
