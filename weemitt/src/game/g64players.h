@@ -248,4 +248,20 @@ s32 G64PlayerHealth(s32 player);
 s32 G64PlayerVelocity(s32 player, f32 *x, f32 *y, f32 *z);
 s32 G64PlayerInWater(s32 player);
 
+/* Garibs and pick-ups (collect.c). G64GaribGroupNear: 1 when another player's glove or ball is within the radius of
+   a group of garibs. G64GaribTaker: the slot of the player who takes the garib at pos, the one whose glove or ball
+   reaches it from the nearest; 0 for the first player or nobody. G64GaribGained adds a garib to every other player's
+   count: the count is the team's. G64PickupTaker: the first slot whose glove is within the pick-up's radius; -1 when
+   there is none. */
+s32 G64GaribGroupNear(const struct Vec3 *pos, f32 radius);
+s32 G64GaribTaker(const struct Vec3 *pos);
+void G64GaribGained(void);
+s32 G64PickupTaker(const struct Vec3 *pos, f32 radiusSq);
+/* For tests: a player's count of garibs and their time left on a power-up (-1 when not in this game), the number of
+   garibs left in the level and the place of the k-th of them, and the place and type of the k-th pick-up. */
+s32 G64PlayerGaribs(s32 player);
+s32 G64PlayerPowerup(s32 player, s32 type);
+s32 G64GaribPlace(s32 k, f32 *x, f32 *y, f32 *z);
+s32 G64PickupPlace(s32 k, f32 *x, f32 *y, f32 *z);
+
 #endif

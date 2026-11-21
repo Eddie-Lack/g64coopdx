@@ -32,6 +32,8 @@ PORT_C_BEGIN
 #include "water.h"
 #include "spike.h"
 #include "buzzer.h"
+#include "collect.h"
+
 PORT_C_END
 
 #include <string.h>
@@ -1908,4 +1910,118 @@ s32 G64PlayerInWater(s32 who) {
         return -1;
     return slot_glove(i)->state->waterState;
 }
+
+/* Garibs and pick-ups (phase 3). The game lets the first player's glove and ball take them. Here every player can:
+   collect.c asks who takes one, and that player is swapped in for the game's own code (G64HazardBegin). */
+
+static Player *slot_player(s32 i) {
+    return i == 0 ? &player : (Player *)(((G64Slot *)slots[i])->handBlock + ((u8 *)&player - (u8 *)&handControl));
+}
+
+s32 G64GaribGroupNear(const Vec3 *pos, f32 radius) {
+    s32 i;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (slot_used(i) && (!(radius < DistanceBetweenPoints((Vec3 *)pos, &slot_glove(i)->pos)) ||
+                             !(radius < DistanceBetweenPoints((Vec3 *)pos, &slot_ball(i)->pos))))
+            return 1;
+    }
+    return 0;
+}
+
+/* The squared distance from which a player takes the garib at pos, by the game's own rule (UpdateGaribs): the ball
+   when it is not lost, or the glove when it is nearer and not joined to the ball; within the taker's radius plus 15.
+   -1 when the player does not reach it. */
+static f32 garib_reach(Actor *h, Actor *b, BallControl *bc, const Vec3 *pos) {
+    f32 dist = 100000.0f, radius = 0.0f, d;
+    if (bc->loseTimer == 0) {
+        dist = DistanceBetweenPointsSquared(&b->pos, (Vec3 *)pos);
+        radius = b->radius * 1.5;
+    }
+    if (h->state && h->state->mode != HAND_JOINED) {
+        d = DistanceBetweenPointsSquared(&h->pos, (Vec3 *)pos);
+        if (d < dist) {
+            dist = d;
+            radius = h->radius;
+        }
+    }
+    return dist < (radius + 15.0) * (radius + 15.0) ? dist : -1.0f;
+}
+
+s32 G64GaribTaker(const Vec3 *pos) {
+    f32 best = garib_reach(&hand, &ball, &ballControl, pos), d;
+    s32 i, taker = 0;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (!slot_used(i))
+            continue;
+        d = garib_reach(slot_glove(i), slot_ball(i), slot_ball_control(i), pos);
+        if (d >= 0.0f && (best < 0.0f || d < best)) {
+            best = d;
+            taker = i;
+        }
+    }
+    return taker;
+}
+
+/* slots[logicSlot] holds the first player's block while a slot is swapped in, so the loop reaches every player but
+   the one in the globals. */
+void G64GaribGained(void) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        if (slot_used(i))
+            slot_player(i)->garibs++;
+    }
+}
+
+s32 G64PickupTaker(const Vec3 *pos, f32 radiusSq) {
+    s32 i;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (slot_used(i) && DistanceBetweenPointsSquared(&slot_glove(i)->pos, (Vec3 *)pos) < radiusSq)
+            return i;
+    }
+    return -1;
+}
+
+s32 G64PlayerGaribs(s32 who) {
+    s32 i = slot_of(who);
+    return i < 0 || !slot_used(i) ? -1 : slot_player(i)->garibs;
+}
+
+s32 G64PlayerPowerup(s32 who, s32 type) {
+    s32 i = slot_of(who);
+    return i < 0 || !slot_used(i) || type < 0 || type >= 15 ? -1 : slot_player(i)->powerups[type];
+}
+
+s32 G64GaribPlace(s32 k, f32 *x, f32 *y, f32 *z) {
+    GaribGroup *g;
+    Garib *garib;
+    s32 n = 0;
+    for (g = garibGroupList.head.prev; g != &garibGroupList.head; g = g->prev) {
+        for (garib = g->garibs.head.prev; garib != &g->garibs.head; garib = garib->prev) {
+            if (abs(garib->active) != 1 || garib->type != NORMAL_GARIB)
+                continue;
+            if (n++ == k) {
+                *x = garib->sprite.pos.x;
+                *y = garib->sprite.pos.y;
+                *z = garib->sprite.pos.z;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+s32 G64PickupPlace(s32 k, f32 *x, f32 *y, f32 *z) {
+    Collectable *c;
+    s32 n = 0;
+    for (c = collectableList.head.next; c != &collectableList.head; c = c->next) {
+        if (n++ == k) {
+            *x = c->actor.pos.x;
+            *y = c->actor.pos.y;
+            *z = c->actor.pos.z;
+            return c->active == 1 && c->scaleTarget != 0.0f && c->alphaTarget > 0 ? c->type + 100 : 1;
+        }
+    }
+    return 0;
+}
+
 PORT_C_END
