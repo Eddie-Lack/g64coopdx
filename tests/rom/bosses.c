@@ -322,9 +322,10 @@ static void stand(int level, unsigned frames, float *path) {
 }
 
 static void case_f(void) {
-    float path[2];
+    float path[2], x, y, z;
     char what[260];
     stand(38, 1500, path);
+    check(G64PlayerPosition(1, &x, &y, &z), "F: the second player is in the first space boss's level");
     snprintf(what, sizeof what, "F: the robot's steps move player 0's camera %.0f and player 1's %.0f", path[0],
              path[1]);
     check(path[0] > 300.0f && path[1] > path[0] * 0.5f, what);

@@ -1707,7 +1707,9 @@ void RestartPlayer(void) {
                 }
             }
             if (*timer == 35 && DeltaFirst(G64RestartStamp(1, &restartJumpFrame))) {
-                if (!ballWithHand && (gameInfo.cameoActive == 0 || gameInfo.level == ATLANTISBONUS)) {
+                /* g64coopdx: a cameo owns the first player's camera and glove only. For a player who is held for
+                   it, this test and the two below act as if no cameo played (g64players.c). */
+                if (!ballWithHand && (gameInfo.cameoActive == 0 || G64CameoHeld() || gameInfo.level == ATLANTISBONUS)) {
                     cameraInfo.focus = &hand.pos;
                     cameraInfo.focusVel = &hand.vel;
                     cameraInfo.followSpeed = 5.0f;
@@ -1735,7 +1737,7 @@ void RestartPlayer(void) {
                         ball.spinSpeed = 1.2f;
                         ball.vel.y = gravity * 6.0f + 2.0f;
                         PlaySample(93, &ball.pos, 100, 100);
-                        if (gameInfo.cameoActive == 0) {
+                        if (gameInfo.cameoActive == 0 || G64CameoHeld()) {
                             cameraInfo.focus = &ball.pos;
                             cameraInfo.focusVel = &ball.vel;
                             cameraInfo.followSpeed = 5.0f;
@@ -1765,7 +1767,7 @@ void RestartPlayer(void) {
                 hand.vel = zero;
             }
             if (step && --*timer == 0) {
-                if (gameInfo.cameoActive == 0) {
+                if (gameInfo.cameoActive == 0 || G64CameoHeld()) {
                     cameraInfo.focus = &hand.pos;
                 }
                 if (ballWithHand) {
