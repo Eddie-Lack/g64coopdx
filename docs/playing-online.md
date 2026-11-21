@@ -137,7 +137,9 @@ game data, only addresses and counts.
 
 ## What does not work yet
 
-- Collectables and bosses react only to the first player in each level.
+- Bosses react only to the first player in each level.
+- Any player takes a garib or a pick-up. The players of a level share one count of garibs. A power-up is its
+  taker's own. A power-up that changes the look of the glove or the ball changes it for every player.
 - Any player's glove or ball works a puzzle's switch or zone. Each player has their own camera zones.
 - An enemy goes for the nearest player, or the one it holds. A bullet that homes in on a glove keeps to that player.
   A bullet that flies straight can only hit the player nearest to it.

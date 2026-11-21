@@ -32,6 +32,8 @@ PORT_C_BEGIN
 #include "water.h"
 #include "spike.h"
 #include "buzzer.h"
+#include "collect.h"
+
 PORT_C_END
 
 #include <string.h>
@@ -177,6 +179,34 @@ static Actor *new_proxy(const Actor *from) {
     return a;
 }
 
+/* A power-up's orbiters (collect.c, CreateOrbiter) are actors inside handControl and ballControl, which a swap
+   exchanges. With more than one player the game's own orbiters stay out of the actor list, and each player's
+   orbiters are drawn as proxies: proxyOrbiter[i][k] exists while the player of slot i has orbiter k. */
+#define G64_ORBITERS 4
+static PTR32(Actor) proxyOrbiter[G64_MAX_PLAYERS][G64_ORBITERS];
+/* sync_orbiters took one of the game's own orbiters out of the actor list. */
+static s32 orbitersUnlinked;
+/* The slot swapped into the globals for a view (G64SwapPlayer), or 0. */
+static s32 swapped;
+/* The pick-ups taken and not yet scored: the pick-up and the number, plus 1, of the player who took it. */
+#define G64_TAKEN 16
+static PTR32(Collectable) takenPickup[G64_TAKEN];
+static s32 takenBy[G64_TAKEN];
+static void sync_orbiters(void);
+static void free_orbiter_proxies(void);
+static Player *slot_player(s32 i);
+
+/* handControl.orbiter3 is not always a player's: the first space boss makes its rotor in it, and a cameo can link it
+   to an enemy. Then it belongs to the world: it stays in the globals through every swap and in the actor list, and
+   no slot has a copy of it. A player's own orbiter3 is linked to the glove (collect.c, ActivateCollectable). */
+static s32 world_orbiter3(void) {
+    return handControl.orbiter3.inst && (Actor *)handControl.orbiter3.link != &hand;
+}
+
+static Actor *slot_orbiter3(G64Slot *s) {
+    return (Actor *)(s->handBlock + ((u8 *)&handControl.orbiter3 - (u8 *)&handControl));
+}
+
 static void swap_bytes(void *a, void *b, size_t n) {
     u8 tmp[256];
     u8 *pa = (u8 *)a, *pb = (u8 *)b;
@@ -213,6 +243,7 @@ static void swap_slot(G64Slot *s) {
     Actor *handActors[5];
     Actor *ballActors[1];
     Actor *camActors[1];
+    s32 world3;
     handActors[0] = &handControl.edgeProbe;
     handActors[1] = &handControl.frontProbe;
     handActors[2] = &handControl.orbiter;
@@ -224,7 +255,10 @@ static void swap_slot(G64Slot *s) {
     swap_actor(&ball, &s->ball);
     swap_actor(&camera, &s->camera);
     swap_with_actors(&cameraInfo, &s->cameraInfo, sizeof(CameraInfo), camActors, 1);
+    world3 = world_orbiter3();
     swap_with_actors(&handControl, s->handBlock, hand_block_size(), handActors, 5);
+    if (world3)
+        swap_bytes((u8 *)&handControl.orbiter3 + LINKS, (u8 *)slot_orbiter3(s) + LINKS, sizeof(Actor) - LINKS);
     swap_with_actors(&ballControl, &s->ballControl, sizeof(BallControl), ballActors, 1);
     swap_bytes(&pad[ActiveController], &s->pad, sizeof(Pad));
     swap_bytes(&oldHandPos, &s->oldHandPos, sizeof(Vec3));
@@ -341,6 +375,8 @@ static G64Slot *copy_globals(void) {
     memcpy(&s->camera, &camera, sizeof(Actor));
     memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
     memcpy(s->handBlock, &handControl, hand_block_size());
+    if (world_orbiter3())
+        slot_orbiter3(s)->inst = NULL;
     memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
     memcpy(&s->pad, &pad[ActiveController], sizeof(Pad));
     s->oldHandPos = oldHandPos;
@@ -384,6 +420,8 @@ static void new_late_slot(s32 i) {
         add_slot(i, copy_slot(startSlot));
         copy_restart(i, -1);
         arrive(i, startPosSet ? &startPos : NULL);
+        /* The count of garibs is the team's (G64GaribGained). */
+        slot_player(i)->garibs = player.garibs;
     } else {
         add_slot(i, copy_globals());
         copy_restart(i, 0);
@@ -417,6 +455,12 @@ static void free_slot(s32 i, s32 blocks) {
 
 static void free_slots(void) {
     s32 i;
+    free_orbiter_proxies();
+    orbitersUnlinked = 0;
+    for (i = 0; i < G64_TAKEN; i++) {
+        takenBy[i] = 0;
+        takenPickup[i] = NULL;
+    }
     for (i = 1; i < G64_MAX_PLAYERS; i++)
         free_slot(i, 1);
     slotCount = 0;
@@ -437,13 +481,107 @@ void G64ExtraPlayersStart(void) {
     }
 }
 
+/* Orbiter k of the player whose state is in the globals (store 0) or in slot `store`. */
+static Actor *orbiter_in(s32 store, s32 k) {
+    Actor *live[G64_ORBITERS];
+    G64Slot *s = slots[store];
+    live[0] = &handControl.orbiter;
+    live[1] = &handControl.orbiter2;
+    live[2] = &handControl.orbiter3;
+    live[3] = &ballControl.orbiter;
+    if (store == 0)
+        return live[k];
+    if (k == 3)
+        return &s->ballControl.orbiter;
+    return (Actor *)(s->handBlock + ((u8 *)live[k] - (u8 *)&handControl));
+}
+
+static void free_orbiter_proxy(s32 i, s32 k) {
+    if (proxyOrbiter[i][k]) {
+        SubActor(proxyOrbiter[i][k]);
+        JallocFree(&proxyOrbiter[i][k]);
+    }
+}
+
+static void free_orbiter_proxies(void) {
+    s32 i, k;
+    for (i = 0; i < G64_MAX_PLAYERS; i++)
+        for (k = 0; k < G64_ORBITERS; k++)
+            free_orbiter_proxy(i, k);
+}
+
+/* Makes and frees the orbiters' proxies. It runs in the logic with no slot swapped in, so the actor list is the
+   same on every machine. */
+static void sync_orbiters(void) {
+    s32 i, k, world3;
+    if (swapped || logicSlot)
+        return;
+    if (slotCount < 2) {
+        /* One player again: the game's own orbiters go back into the actor list. */
+        if (orbitersUnlinked) {
+            free_orbiter_proxies();
+            for (k = 0; k < G64_ORBITERS; k++) {
+                Actor *a = orbiter_in(0, k);
+                if (a->inst && !a->next)
+                    AddActor(a);
+            }
+            orbitersUnlinked = 0;
+        }
+        return;
+    }
+    world3 = world_orbiter3();
+    for (k = 0; k < G64_ORBITERS; k++) {
+        Actor *a = orbiter_in(0, k);
+        if (k == 2 && world3) {
+            /* The world's orbiter is drawn as itself. */
+            if (!a->next)
+                AddActor(a);
+        } else if (a->next) {
+            SubActor(a);
+            orbitersUnlinked = 1;
+        }
+    }
+    for (i = 0; i < G64_MAX_PLAYERS; i++) {
+        for (k = 0; k < G64_ORBITERS; k++) {
+            Actor *a = i < slotCount && (i == 0 || slots[i]) && !(k == 2 && world3) ? orbiter_in(i, k) : NULL;
+            Actor *p = proxyOrbiter[i][k];
+            if (p && (!a || !a->inst || (ObjectInstance *)p->inst != (ObjectInstance *)a->inst)) {
+                free_orbiter_proxy(i, k);
+                p = NULL;
+            }
+            if (!p && a && a->inst) {
+                proxyOrbiter[i][k] = new_proxy(a);
+                orbitersUnlinked = 1;
+            }
+        }
+    }
+}
+
+s32 G64OrbitersByProxy(void) {
+    if (slotCount < 2)
+        return 0;
+    /* An orbiter made now is not in the actor list: with one player again, sync_orbiters puts it there. */
+    orbitersUnlinked = 1;
+    return 1;
+}
+
 void G64UpdateProxies(void) {
-    s32 i;
+    s32 i, k;
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (s && proxyHand[i] && proxyBall[i]) {
             copy_to_proxy(proxyHand[i], &s->hand);
             copy_to_proxy(proxyBall[i], &s->ball);
+        }
+    }
+    sync_orbiters();
+    for (i = 0; i < slotCount; i++) {
+        /* With slot `swapped` in the globals for a view, its player is there and the first player is in that slot. */
+        s32 store = !swapped ? i : i == 0 ? swapped : i == swapped ? 0 : i;
+        for (k = 0; k < G64_ORBITERS; k++) {
+            Actor *p = proxyOrbiter[i][k];
+            if (p && !(k == 2 && world_orbiter3()) && (store == 0 || slots[store]) && orbiter_in(store, k)->inst)
+                copy_to_proxy(p, orbiter_in(store, k));
         }
     }
 }
@@ -552,9 +690,6 @@ void G64ExtraPlayersStep(void) {
         swap_slot(s);
     }
 }
-
-/* The slot swapped into the globals for a view (G64SwapPlayer), or 0. */
-static s32 swapped;
 
 /* The slot of the player with this number, or -1. */
 static s32 slot_of(s32 player) {
@@ -1010,6 +1145,8 @@ void G64RemovePlayer(s32 player) {
         move_restart(g64Member[1], player);
     }
     forget_restart(player);
+    /* The players' slots move: the orbiters' proxies are made again (sync_orbiters). */
+    free_orbiter_proxies();
     if (i == 0 && slotCount > 1) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
            the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
@@ -1908,4 +2045,158 @@ s32 G64PlayerInWater(s32 who) {
         return -1;
     return slot_glove(i)->state->waterState;
 }
+
+/* Garibs and pick-ups (phase 3). The game lets the first player's glove and ball take them. Here every player can:
+   collect.c asks who takes one, and that player is swapped in for the game's own code (G64HazardBegin). */
+
+static Player *slot_player(s32 i) {
+    return i == 0 ? &player : (Player *)(((G64Slot *)slots[i])->handBlock + ((u8 *)&player - (u8 *)&handControl));
+}
+
+s32 G64GaribGroupNear(const Vec3 *pos, f32 radius) {
+    s32 i;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (slot_used(i) && (!(radius < DistanceBetweenPoints((Vec3 *)pos, &slot_glove(i)->pos)) ||
+                             !(radius < DistanceBetweenPoints((Vec3 *)pos, &slot_ball(i)->pos))))
+            return 1;
+    }
+    return 0;
+}
+
+/* The squared distance from which a player takes the garib at pos, by the game's own rule (UpdateGaribs): the ball
+   when it is not lost, or the glove when it is nearer and not joined to the ball; within the taker's radius plus 15.
+   -1 when the player does not reach it. */
+static f32 garib_reach(Actor *h, Actor *b, BallControl *bc, const Vec3 *pos) {
+    f32 dist = 100000.0f, radius = 0.0f, d;
+    if (bc->loseTimer == 0) {
+        dist = DistanceBetweenPointsSquared(&b->pos, (Vec3 *)pos);
+        radius = b->radius * 1.5;
+    }
+    if (h->state && h->state->mode != HAND_JOINED) {
+        d = DistanceBetweenPointsSquared(&h->pos, (Vec3 *)pos);
+        if (d < dist) {
+            dist = d;
+            radius = h->radius;
+        }
+    }
+    return dist < (radius + 15.0) * (radius + 15.0) ? dist : -1.0f;
+}
+
+s32 G64GaribTaker(const Vec3 *pos) {
+    f32 best = garib_reach(&hand, &ball, &ballControl, pos), d;
+    s32 i, taker = 0;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (!slot_used(i))
+            continue;
+        d = garib_reach(slot_glove(i), slot_ball(i), slot_ball_control(i), pos);
+        if (d >= 0.0f && (best < 0.0f || d < best)) {
+            best = d;
+            taker = i;
+        }
+    }
+    return taker;
+}
+
+/* slots[logicSlot] holds the first player's block while a slot is swapped in, so the loop reaches every player but
+   the one in the globals. */
+void G64GaribGained(void) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        if (slot_used(i))
+            slot_player(i)->garibs++;
+    }
+}
+
+s32 G64PickupTaker(const Vec3 *pos, f32 radiusSq) {
+    s32 i;
+    for (i = 1; i < G64SlotCount(); i++) {
+        if (slot_used(i) && DistanceBetweenPointsSquared(&slot_glove(i)->pos, (Vec3 *)pos) < radiusSq)
+            return i;
+    }
+    return -1;
+}
+
+void G64PickupTaken(const void *collectable) {
+    s32 n, spot = -1;
+    if (slotCount < 2)
+        return;
+    for (n = 0; n < G64_TAKEN; n++) {
+        if ((const void *)(Collectable *)takenPickup[n] == collectable) {
+            spot = n;
+            break;
+        }
+        if (spot < 0 && !takenBy[n])
+            spot = n;
+    }
+    if (spot < 0)
+        return;
+    takenPickup[spot] = (Collectable *)collectable;
+    takenBy[spot] = g64Member[logicSlot] + 1;
+}
+
+s32 G64PickupScorer(const void *collectable) {
+    s32 n, i;
+    for (n = 0; n < G64_TAKEN; n++) {
+        if (takenBy[n] && (const void *)(Collectable *)takenPickup[n] == collectable) {
+            i = slot_of(takenBy[n] - 1);
+            takenBy[n] = 0;
+            takenPickup[n] = NULL;
+            return i > 0 && !swapped && !logicSlot ? i : 0;
+        }
+    }
+    return 0;
+}
+
+s32 G64WorldOrbiterDone(void) {
+    return logicSlot && world_orbiter3();
+}
+
+s32 G64PlayerGaribs(s32 who) {
+    s32 i = slot_of(who);
+    return i < 0 || !slot_used(i) ? -1 : slot_player(i)->garibs;
+}
+
+s32 G64PlayerScore(s32 who) {
+    s32 i = slot_of(who);
+    return i < 0 || !slot_used(i) ? -1 : slot_player(i)->score;
+}
+
+s32 G64PlayerPowerup(s32 who, s32 type) {
+    s32 i = slot_of(who);
+    return i < 0 || !slot_used(i) || type < 0 || type >= 15 ? -1 : slot_player(i)->powerups[type];
+}
+
+s32 G64GaribPlace(s32 k, f32 *x, f32 *y, f32 *z) {
+    GaribGroup *g;
+    Garib *garib;
+    s32 n = 0;
+    for (g = garibGroupList.head.prev; g != &garibGroupList.head; g = g->prev) {
+        for (garib = g->garibs.head.prev; garib != &g->garibs.head; garib = garib->prev) {
+            if (abs(garib->active) != 1 || garib->type != NORMAL_GARIB)
+                continue;
+            if (n++ == k) {
+                *x = garib->sprite.pos.x;
+                *y = garib->sprite.pos.y;
+                *z = garib->sprite.pos.z;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+s32 G64PickupPlace(s32 k, f32 *x, f32 *y, f32 *z) {
+    Collectable *c;
+    s32 n = 0;
+    for (c = collectableList.head.next; c != &collectableList.head; c = c->next) {
+        if (n++ == k) {
+            *x = c->actor.pos.x;
+            *y = c->actor.pos.y;
+            *z = c->actor.pos.z;
+            return c->active == 1 && c->scaleTarget != 0.0f && c->alphaTarget > 0 ? c->type + 100 : 1;
+        }
+    }
+    return 0;
+}
+
 PORT_C_END

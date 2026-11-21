@@ -20,6 +20,7 @@ PORT_C_BEGIN
 #include "object.h"
 #include "delta.h"
 #include "ballworld.h"
+#include "g64players.h"
 
 void DestroyAndFreeActor(Actor *actor);
 
@@ -171,6 +172,8 @@ void UpdateGaribs(void) {
     s32 collectedBy;
     s32 mul;
     s32 pitch;
+    s32 players;
+    s32 taker;
 
     /* The timers, the sparkles and the collection run once per original frame, in ticks. The fall and the scale
        run in every update. */
@@ -238,10 +241,22 @@ void UpdateGaribs(void) {
             }
         }
         if (deltaTick && (!(garibGroup->radius < DistanceBetweenPoints(&garibGroup->pos, &hand.pos)) ||
-                          !(garibGroup->radius < DistanceBetweenPoints(&garibGroup->pos, &ball.pos)))) {
+                          !(garibGroup->radius < DistanceBetweenPoints(&garibGroup->pos, &ball.pos)) ||
+                          G64GaribGroupNear(&garibGroup->pos, garibGroup->radius))) {
             for (garib = garibGroup->garibs.head.prev; garib != &garibGroup->garibs.head; garib = garib->prev) {
                 if (abs(garib->active) != 1) {
                     continue;
+                }
+                /* g64coopdx: with more than one player, the player who reaches the garib from the nearest takes it.
+                   That player is in the globals for the rest of the loop's body. */
+                players = G64SlotCount();
+                taker = players ? G64GaribTaker(&garib->sprite.pos) : 0;
+                if (taker && !G64HazardBegin(taker)) {
+                    taker = 0;
+                }
+                if (players) {
+                    /* With one player, a lost ball leaves the last garib's value here. */
+                    ballDistance = 100000.0f;
                 }
                 distance = 100000.0f;
                 if (ballControl.loseTimer == 0) {
@@ -338,6 +353,9 @@ void UpdateGaribs(void) {
                         }
                     }
                 }
+                if (taker) {
+                    G64HazardEnd(taker);
+                }
             }
         }
     }
@@ -351,6 +369,8 @@ void UpdatePickups(void) {
     f32 scale;
     s32 x;
     s32 diff;
+    s32 taker;
+    s32 i;
 
     for (collectable = collectableList.head.next; collectable != &collectableList.head; collectable = collectable2) {
         collectable2 = collectable->next;
@@ -369,7 +389,15 @@ void UpdatePickups(void) {
             collectable->actor.scale.z = collectable->actor.scale.y = collectable->actor.scale.x = scale;
             if (collectable->timer == 0) {
                 CreateStarCircle(&collectable->actor.pos, 6, 19);
+                /* g64coopdx: the points go to the player who took the pick-up. */
+                taker = G64PickupScorer(collectable);
+                if (taker && !G64HazardBegin(taker)) {
+                    taker = 0;
+                }
                 AddToScore(300);
+                if (taker) {
+                    G64HazardEnd(taker);
+                }
                 if (collectable->respawnTime == 0) {
                     SubCollectable(collectable);
                 } else {
@@ -431,8 +459,16 @@ void UpdatePickups(void) {
     }
     for (collectable = collectableList.head.next; collectable != &collectableList.head; collectable = collectable->next) {
         if (collectable->active == 1 && collectable->scaleTarget != 0.0f && collectable->alphaTarget > 0) {
+            /* g64coopdx: the first player whose glove touches the pick-up takes it. A taker from a slot is in the
+               globals while the pick-up acts. */
             SUB_VECTORS(&tempVect, &hand.pos, &collectable->actor.pos);
-            if (DOT_PRODUCT(&tempVect, &tempVect) < collectable->radiusSq) {
+            taker = DOT_PRODUCT(&tempVect, &tempVect) < collectable->radiusSq ? 0
+                    : G64PickupTaker(&collectable->actor.pos, collectable->radiusSq);
+            if (taker < 0 || (taker && !G64HazardBegin(taker))) {
+                continue;
+            }
+            {
+                G64PickupTaken(collectable);
                 collectable->active = 0;
                 collectable->timer = 10;
                 collectable->actor.shadow->shadowTarget = 0;
@@ -447,15 +483,28 @@ void UpdatePickups(void) {
                     handControl.castSpellTime = collectable->duration;
                 }
             }
+            if (taker) {
+                G64HazardEnd(taker);
+            }
         }
     }
-    for (x = 0; x < 15; x++) {
-        if (player.powerups[x] > 0) {
-            if (player.powerups[x] >= 2) {
-                player.powerups[x]--;
-            } else {
-                DeactivateCollectable(x);
+    /* g64coopdx: each player's power-ups run down, with that player in the globals. */
+    taker = G64SlotCount();
+    for (i = 0; i == 0 || i < taker; i++) {
+        if (i && !G64HazardBegin(i)) {
+            continue;
+        }
+        for (x = 0; x < 15; x++) {
+            if (player.powerups[x] > 0) {
+                if (player.powerups[x] >= 2) {
+                    player.powerups[x]--;
+                } else {
+                    DeactivateCollectable(x);
+                }
             }
+        }
+        if (i) {
+            G64HazardEnd(i);
         }
     }
 }
@@ -480,7 +529,10 @@ void CreateOrbiter(Actor *orbiter, s32 type, f32 scale) {
         } else if (orbiter == &ballControl.orbiter && handControl.orbiter.inst) {
             orbiter->rot.y = Aabs(handControl.orbiter.rot.y + 3.141592654);
         }
-        AddActor(orbiter);
+        /* g64coopdx: with more than one player the orbiters are drawn as proxies (g64players.c). */
+        if (!G64OrbitersByProxy()) {
+            AddActor(orbiter);
+        }
     }
 }
 
@@ -859,6 +911,8 @@ void GainExtraLife(void) {
 
 void GainGarib(Vec3 *pos, s16 pitch, s16 fx) {
     PlaySample(fx, pos, 100, pitch);
+    /* g64coopdx: the players share one count of garibs. */
+    G64GaribGained();
     if (++player.garibs % 10 == 0 && player.health < 3) {
         player.health++;
         stats[HEALTH_STATS].scale = 0x800;

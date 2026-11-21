@@ -128,6 +128,12 @@ harness at N players and by the determinism tests:
    with their own copy of its state. Winds, fans, water, spikes and buzzers act on every player's glove and ball
    (g64players.c, "World hazards"; tests/rom/hazards.c). Left: buzzers and fans have no test of their own.
 3. Garibs and pick-ups: the nearest player takes it; power-ups and spells per player.
+   Done: the player whose glove or ball reaches a garib from the nearest takes it, and the players of a level share
+   one count of garibs. The score, the health a garib gives and a power-up are the taker's own. The first player
+   whose glove touches a pick-up takes it. A power-up's orbiters are drawn as proxies
+   (weemitt/src/game/g64players.c, "Garibs and pick-ups"; tests/rom/collect.c). Left: the ball's and the glove's
+   textures are shared, so a power-up that changes the ball's look changes every ball. The combo of garibs taken in
+   quick succession is one for all players.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
    Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with

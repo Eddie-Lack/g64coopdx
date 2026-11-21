@@ -64,7 +64,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
     make sound         # the online game's sound through rollbacks, on Linux and under Wine (needs the ROM)
-    make twoplayers    # four gloves in one game; enemies, puzzles, respawns and hazards with two players; Linux and Wine must print the same (needs the ROM)
+    make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs and pick-ups with two players; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
