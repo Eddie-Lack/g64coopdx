@@ -1,5 +1,5 @@
 /* Bonus levels with more than one player (weemitt's bonus.c), online, with the ROM. Each case builds a level from
- * the state right after power-on, with two players, and runs it until the second player's slot exists (frame 400).
+ * the state right after power-on, with two players, and runs it until both players are in the level.
  * Online a player wins or loses a bonus level alone: they take the level's exit, and the other player plays on.
  *   A. The Prehistoric bonus level: a player whose ball passes the finish wins, alone.
  *   B. The same level: a player whose ball falls out of the level loses, alone.
@@ -40,8 +40,9 @@ extern int g64ExitCount;
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
-/* The frame from which both players are in the game in every level used here. */
-enum { READY = 400 };
+/* The frame at which a case starts. Both players are in the level then, and neither has lost yet: without a hand on
+   the controls a bonus level is soon lost. */
+static unsigned READY;
 
 static Engine *engine;
 static void *boot, *ready;
@@ -124,10 +125,12 @@ static Outcome run(int kind, int who) {
     return o;
 }
 
-static void pair(const char *name, int level, int kind, int complete) {
+static void pair(const char *name, int level, unsigned from, int kind, int complete) {
     Outcome a, b;
     char what[260];
+    READY = from;
     start(level);
+    check(G64HasPlayer(0) && G64HasPlayer(1) && g64ExitCount == 0, "both players are in the level");
     a = run(kind, 0);
     b = run(kind, 1);
     snprintf(what, sizeof what, "%s: player 0: frame %d, %d record(s), player %d, complete %d, the other stays %d; "
@@ -158,9 +161,9 @@ int main(int argc, char **argv) {
     if (!boot || !ready)
         return 1;
     engine_save(engine, boot);
-    pair("A", 29, 0, 1);
-    pair("B", 29, 1, 0);
-    pair("C", 14, 2, 0);
+    pair("A", 29, 100, 0, 1);
+    pair("B", 29, 100, 1, 0);
+    pair("C", 14, 60, 2, 0);
     printf("%s each player wins or loses a bonus level alone\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);
