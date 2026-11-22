@@ -22,6 +22,8 @@
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
  *
+ * A second run tests a game that players join after its start (join_later).
+ *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,7 +115,7 @@ static void deliver(void) {
         }
         if (p->to < 0)
             g64_ihost_receive(host, p->from, p->data, p->len);
-        else
+        else if (player[p->to])
             g64_iclient_receive(player[p->to], p->data, p->len);
     }
     count = kept;
@@ -144,6 +146,86 @@ static rb_input controller(int p, uint32_t f) {
     }
     in.present = 1;
     return in;
+}
+
+extern unsigned g64PlayerColor[16][2];
+
+/* A game that players join after its start. The host's player starts alone in Atlantis 2. Player 1 comes at frame
+ * 100 and player 2 at frame 300, each with colors of their own: they have no game at first, ask the host for one,
+ * and join the running instance after its log. Player 1 leaves at frame 600, and at frame 700 another player takes
+ * the place, with other colors. Place 3 stays empty. The test: everyone ends in the one instance with no desync and
+ * no hash mismatch, and every game has the colors of the players who are in it now. */
+static void join_later(Engine *e, const void *boot) {
+    enum { ATLANTIS2 = 11, RUN = 1300 };
+    static const uint32_t glove[3] = {0x1ff0000u, 0x100ff00u, 0x10000ffu}, ball[3] = {0x1ffff00u, 0x1ff00ffu, 0x100ffffu};
+    uint32_t none[16][2];
+    int p, before = failed;
+    memset(none, 0, sizeof none);
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, PLAYERS, 1u, none, ATLANTIS2, DEADLINE, host_send, NULL);
+    player[0] = g64_iclient_new_with(e, boot, PLAYERS, 1u, none, 0, ATLANTIS2, WINDOW, DEADLINE, player_send, &ids[0]);
+    check(host && player[0], "a host starts a game alone");
+    if (!host || !player[0])
+        return;
+    for (now = 0; now < RUN; now++) {
+        int who = now == 100 ? 1 : now == 300 ? 2 : now == 700 ? 1 : 0;
+        if (now == 600) {
+            /* Player 1 leaves. */
+            g64_ihost_drop(host, 1);
+            g64_iclient_free(player[1]);
+            player[1] = NULL;
+        }
+        if (who) {
+            /* A player comes: the host has their colors from the session, and their program has no game yet. */
+            int c = now == 700 ? 2 : who - 1;
+            g64_ihost_set_colors(host, who, glove[c], ball[c]);
+            player[who] = g64_iclient_new_with(e, boot, PLAYERS, 1u, none, who, ATLANTIS2, WINDOW, DEADLINE, player_send,
+                                               &ids[who]);
+        }
+        deliver();
+        g64_ihost_tick(host);
+        for (p = 0; p < PLAYERS; p++)
+            if (player[p])
+                g64_iclient_step(player[p], controller(p, g64_iclient_frame(player[p])));
+        if ((now + 1) % 325 == 0) {
+            printf("frame %u: %d instances; levels", now + 1, g64_ihost_instances(host));
+            for (p = 0; p < PLAYERS; p++)
+                printf(" %d", !player[p] || !g64_iclient_game(player[p]) ? -1 : g64_iclient_level(player[p]));
+            printf("; %u hash checks, %u mismatches\n", g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host));
+        }
+    }
+    check(g64_ihost_instances(host) == 1 && g64_ihost_level_of(host, 1) == ATLANTIS2 &&
+              g64_ihost_level_of(host, 2) == ATLANTIS2 && g64_ihost_level_of(host, 3) < 0,
+          "the host has one instance with players 0, 1 and 2, and nobody in place 3");
+    for (p = 0; p < 3; p++) {
+        char what[200];
+        rb_engine_game *g = g64_iclient_game(player[p]);
+        unsigned c[4] = {0, 0, 0, 0};
+        if (g) {
+            rb_engine_game_enter(g);
+            c[0] = g64PlayerColor[1][0], c[1] = g64PlayerColor[1][1];
+            c[2] = g64PlayerColor[2][0], c[3] = g64PlayerColor[2][1];
+        }
+        snprintf(what, sizeof what, "player %d: level %d, %u frames confirmed, %u desyncs; place 1's colors %07x %07x, "
+                 "place 2's %07x %07x", p, g ? g64_iclient_level(player[p]) : -1, g64_iclient_confirmed(player[p]),
+                 g64_iclient_desyncs(player[p]), c[0], c[1], c[2], c[3]);
+        check(g && !g64_iclient_moving(player[p]) && g64_iclient_level(player[p]) == ATLANTIS2 &&
+                  g64_iclient_desyncs(player[p]) == 0 && g64_iclient_confirmed(player[p]) > RUN - 100 &&
+                  c[0] == glove[2] && c[1] == ball[2] && c[2] == glove[1] && c[3] == ball[1],
+              what);
+    }
+    {
+        char what[160];
+        snprintf(what, sizeof what, "%u hash checks, %u mismatches", g64_ihost_hash_matches(host),
+                 g64_ihost_hash_mismatches(host));
+        check(g64_ihost_hash_matches(host) > 100 && g64_ihost_hash_mismatches(host) == 0, what);
+    }
+    printf("%s players join a game that has started\n", failed != before ? "FAIL" : "ok  ");
+    for (p = 0; p < PLAYERS; p++)
+        g64_iclient_free(player[p]);
+    g64_ihost_free(host);
 }
 
 int main(int argc, char **argv) {
@@ -253,6 +335,7 @@ int main(int argc, char **argv) {
     for (p = 0; p < PLAYERS; p++)
         g64_iclient_free(player[p]);
     g64_ihost_free(host);
+    join_later(e, boot);
     free(boot);
     engine_free(e);
     return failed;

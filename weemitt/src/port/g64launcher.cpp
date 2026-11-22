@@ -373,7 +373,14 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     SDL_SetClipboardText(room);
                     copied = 1;
                 }
-                ImGui::TextWrapped("Send the code to the other players. The game starts when everyone is in.");
+                ImGui::TextWrapped("Send the code to the other players. The game starts when everyone is in, or "
+                                   "when you press Start now. Others can still join after the start.");
+            }
+            if (hosting && (room[0] || !relay[0])) {
+                if (ImGui::Button("Start now", ImVec2(-1, 0)) || (autoPress && !strcmp(autoPress, "start"))) {
+                    autoPress = NULL;
+                    netplay_start_now();
+                }
             }
             ImGui::Spacing();
             if (ImGui::Button("Cancel", ImVec2(-1, 0))) {

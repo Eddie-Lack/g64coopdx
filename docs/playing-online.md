@@ -19,13 +19,19 @@ are in, with the other players who are in it. It is a test build: see "What does
 1. Put your ROM next to `g64coopdx.exe` and name it `glover.z64`.
 2. Double-click `g64coopdx.exe`. A start screen opens.
 3. To host: choose the number of players and press **Host**. The screen shows a room code such as `F3J7WZ`; press
-   **Copy code** and send it to the other players. The game starts when everyone is in.
+   **Copy code** and send it to the other players. The game starts when everyone is in, or when you press
+   **Start now**.
 4. To join: type the code under **Join an online game** and press **Join**.
+
+The number of players is the most the game takes. Players can join a game that has started, while it has a free
+place: they come into the game's first level, or the hub's newest stage if it started in the hub. A player who
+leaves frees their place for the next one. The host finds the room code again under Esc, **Online game**,
+**Players**.
 
 A host can check **Show this game in the list of open games** and give the game a title. Every player with the same
 version then sees it under **Open games**, with the number of players in it, and joins with the **Join** button
-beside it. No code is needed. The game leaves the list when it starts. Without the check, only players with the code
-can join. `--public TITLE` does the same from a command prompt.
+beside it. No code is needed. The game stays on the list while it has a free place, also after it has started.
+Without the check, only players with the code can join. `--public TITLE` does the same from a command prompt.
 
 **Play alone** starts the normal game.
 
@@ -38,7 +44,8 @@ g64coopdx.exe --rom glover.z64 --online-host --players 2
 g64coopdx.exe --rom glover.z64 --online-join F3J7WZ
 ```
 
-The host's program prints the room code (`Room code: F3J7WZ`). The start screen opens unless an option asks for
+The host's program prints the room code (`Room code: F3J7WZ`). With `--start-alone` the host starts at once and
+the others join the running game. The start screen opens unless an option asks for
 something else; `--launcher` opens it in any case.
 
 Nobody forwards a port: every player connects out to the relay on the lobby server, which passes the game's packets
@@ -101,9 +108,8 @@ In a game, press Esc and open **Online game**:
 A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
 show there too.
 
-A removed player cannot come back. In a game through the relay, the relay refuses their address for that room,
-before and after the start. In a direct game (`--host`) that has not started, they can join again a few seconds
-later.
+A removed player cannot come back: their address is refused for that game. Another player at the same address,
+such as someone in the same household, is refused too.
 
 ## Everyone needs the same version
 
@@ -209,4 +215,7 @@ game data, only addresses and counts.
 - A player who comes into a running level starts where the level put the first player.
 - Players can go to different worlds. The planned rule (a portal to another world opens only when everyone is in
   the hub) is not there yet.
-- A joiner who leaves vanishes; the game goes on for the others. If the host leaves, the game ends.
+- A joiner who leaves vanishes; the game goes on for the others, and someone else can take the place. If the host
+  leaves, the game ends.
+- A player who joins a running game waits while their program runs the level's inputs so far. That takes longer
+  the longer the level has run.

@@ -15,8 +15,12 @@
  * change one or play one back. A message in the clear after the welcome is dropped. The players have no
  * identities: someone who can change packets on the path during the hello could sit in the middle
  * (docs/discovery/netcode.md, "Encryption").
- *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_), and for each
- *            player: glove color (u32), ball color (u32), name (16 bytes, padded with zeros)
+ *   start    0x43, players (u8: the game's places), level (u8), deadline (u8), flags (u8: the host's options,
+ *            G64_FLAG_), present (u16: a bit for each player who is in now), start members (u16: a bit for each
+ *            player who was in at the start), and for each place: glove color (u32), ball color (u32), name (16
+ *            bytes, padded with zeros). After the start the host sends it again every second as the list of
+ *            players: a player may join a game that has started, and takes a free place or the place of a player
+ *            who is gone.
  * A color is G64_COLOR_SET plus 0xRRGGBB when the player chose it, or 0 for the color of their player number.
  *   ping     0x44 (either way; keeps the connection and a router's mapping open)
  *   game     0x45, then one rollback message
@@ -34,7 +38,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 8
+#define G64_PROTOCOL 9
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -49,7 +53,8 @@ enum {
     G64_REFUSE_FULL = 1,     /* every player slot is taken */
     G64_REFUSE_ROM = 2,      /* another ROM */
     G64_REFUSE_PROTOCOL = 3, /* another version of g64coopdx: another protocol or another build */
-    G64_REFUSE_STARTED = 4,  /* the game has started */
+    G64_REFUSE_STARTED = 4,  /* the game has started (not sent any more: a started game takes new players) */
+    G64_REFUSE_REMOVED = 5,  /* the host removed a player at this address from the game */
 };
 
 typedef enum {
@@ -113,6 +118,18 @@ const net_addr *g64_session_peer_addr(const g64_session *g, int p);
  * (g64_session_gone). Their program is told, and told again if it goes on sending. */
 /* It gives 1 when it removed the player, 0 when there was no one to remove (an empty place, or one already removed). */
 int g64_session_kick(g64_session *g, int p);
+/* On the host: starts the game now, with the players who are in. Others may still join, while there are places.
+ * Without it the game starts when every place is taken. */
+void g64_session_begin(g64_session *g);
+/* After the start: a bit for each player who was in at the start. A player whose bit is not set joined later. */
+unsigned g64_session_start_members(const g64_session *g);
+/* Player p's colors at the start, or 0 for a player who was not in at the start. Every machine builds the first
+ * game with these. */
+void g64_session_start_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball);
+/* After the start: 1 when player p is in the game now. A joiner knows it from the host's list of players. */
+int g64_session_present(const g64_session *g, int p);
+/* On the host: a number that changes each time place p gets a new player. */
+uint32_t g64_session_epoch(const g64_session *g, int p);
 /* Players who have joined so far, the host included (the host's count; a joiner knows only itself). */
 int g64_session_joined(const g64_session *g);
 /* On the host after the start: 1 when player p stopped answering. The game goes on without them. */

@@ -18,7 +18,10 @@
  *   log     0x03, instance (u8), players (u8), first frame (u32), count (u8), unused (u8), count frames: present
  *           (u16, a bit per player), players inputs (buttons u16, x s8, y s8); then the frames' session events
  *           (rb_events_write)                                                          host to player
+ *           then every player's colors at the instance's start: 16 times glove (u32), ball (u32)
  *   logack  0x04, instance (u8), join frame (u32), frames received (u32)              player to host
+ *   ready   0x05, unused (u8): a player who is in the session and in no instance asks for one. The host puts
+ *           them in the instance of the session's first level and answers with a move.   player to host
  * Every message is checked before use: lengths, counts, players, instance numbers, frames.
  *
  * Progress made in one instance reaches the others as a session event (imsg.h, G64_EVENT_PROGRESS) on a confirmed
@@ -48,6 +51,17 @@ g64_ihost *g64_ihost_new(Engine *e, const void *boot, int players, int level, ui
 /* The host's "any ball" rule for every game that is built from now on: a glove may take any free ball (1), or only
  * its own (0, the default). Every machine of a session must set the same before its first game is built. */
 void g64_instances_any_ball(int on);
+/* The same for a session that players may join later: members has a bit for each player who is there at the start
+ * (at least one), and colors has every player's colors (NULL: the game's own now). */
+g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned members,
+                              const uint32_t colors[16][2], int level, uint32_t deadline, g64_isend_fn send,
+                              void *user);
+/* Player p's colors from now on. Every running instance gets them as an event on a confirmed frame, and every new
+ * instance starts with them. */
+void g64_ihost_set_colors(g64_ihost *h, int p, uint32_t glove, uint32_t ball);
+/* Puts player p, who is in no instance, into the instance of the session's first level. A player's ready message
+ * does the same. Returns 0, or -1 when there is no room. */
+int g64_ihost_add(g64_ihost *h, int p);
 void g64_ihost_free(g64_ihost *h);
 /* One host frame: ticks every instance, moves the players who took an exit, and sends what is due. */
 void g64_ihost_tick(g64_ihost *h);
@@ -74,6 +88,11 @@ uint32_t g64_ihost_hash_mismatches(const g64_ihost *h);
  * client's savestate window; deadline is the host's (a player who has fallen behind the host's clock catches up). */
 g64_iclient *g64_iclient_new(Engine *e, const void *boot, int players, int me, int level, int window,
                              uint32_t deadline, g64_isend_fn send, void *user);
+/* The same with the start's members and colors (g64_ihost_new_with). A player who is not a member has no game at
+ * first: g64_iclient_step asks the host for one, and the host's move brings it. */
+g64_iclient *g64_iclient_new_with(Engine *e, const void *boot, int players, unsigned members,
+                                  const uint32_t colors[16][2], int me, int level, int window, uint32_t deadline,
+                                  g64_isend_fn send, void *user);
 void g64_iclient_free(g64_iclient *c);
 /* A message from the host. Returns 0, or -1 when it is malformed (it is then ignored). */
 int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len);

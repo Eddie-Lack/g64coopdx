@@ -59,9 +59,19 @@ static int same_progress(const g64_progress *a, const g64_progress *b) {
 
 /* A session event, in the game that is about to run the event's frame (rb_engine_set_event_fn). The bytes come from
    the network: a malformed event changes nothing. */
+extern unsigned g64PlayerColor[16][2];
+
 static void apply_event(const uint8_t *data, size_t len) {
     g64_progress p;
     G64Save s;
+    int player;
+    uint32_t glove, ball;
+    if (g64_parse_colors_event(data, len, &player, &glove, &ball) == 0) {
+        /* The colors are part of the game's state: every machine sets them at this frame. */
+        g64PlayerColor[player][0] = glove;
+        g64PlayerColor[player][1] = ball;
+        return;
+    }
     if (g64_parse_progress_event(data, len, &p) != 0)
         return;
     to_save(&p, &s);
@@ -74,6 +84,7 @@ typedef struct {
     int level, world;
     unsigned members;
     g64_progress progress;
+    uint32_t colors[16][2]; /* every player's colors at the start */
 } start_record;
 
 /* The host's "any ball" rule (weemitt's g64players.c). Every game that is built starts with it. */
@@ -85,9 +96,14 @@ void g64_instances_any_ball(int on) { anyBallRule = on != 0; }
 static void build_setup(void *ctx) {
     const start_record *r = ctx;
     G64Save s;
+    int p;
     to_save(&r->progress, &s);
     g64Online = 1;
     g64AnyBall = anyBallRule;
+    for (p = 0; p < 16; p++) {
+        g64PlayerColor[p][0] = r->colors[p][0];
+        g64PlayerColor[p][1] = r->colors[p][1];
+    }
     G64StartPlayers(r->members);
     G64SetStartRecord(r->world, &s);
     port_game_start_level(r->level);
@@ -112,6 +128,10 @@ typedef struct inst {
     rb_event *log_event; /* log_event[f]: each logged frame's session event */
     uint32_t log_len, log_cap;
     g64_progress sent; /* the progress the instance has: its start's, then the last progress event's */
+    uint32_t colors[16][2]; /* the colors the instance has: its start's, then the colors events' */
+    /* The frame the instance's last event went on, plus 1, or 0: one event fits on a frame. */
+    uint32_t event_frame;
+    int event_colors; /* that event set colors */
 } inst;
 
 typedef struct {
@@ -138,6 +158,8 @@ struct g64_ihost {
     const void *boot;
     const rb_game_ops *ops;
     int players;
+    int level; /* the session's first level: a player who joins later starts there */
+    uint32_t colors[16][2]; /* every player's colors now */
     uint32_t deadline;
     g64_isend_fn send;
     void *user;
@@ -233,6 +255,8 @@ static int new_instance(g64_ihost *h, int level, int world, unsigned members) {
     in->start.world = world;
     in->start.members = members;
     in->start.progress = h->progress;
+    memcpy(in->start.colors, h->colors, sizeof in->start.colors);
+    memcpy(in->colors, h->colors, sizeof in->colors);
     in->sent = h->progress;
     in->game = build(h->boot, &in->start);
     if (!in->game)
@@ -275,6 +299,7 @@ static void send_move(g64_ihost *h, int p) {
     mv.members = (uint16_t)in->start.members;
     mv.join = m->join;
     mv.progress = in->start.progress;
+    memcpy(mv.colors, in->start.colors, sizeof mv.colors);
     g64_write_move(d, &mv);
     h->send(h->user, p, d, sizeof d);
 }
@@ -375,8 +400,35 @@ static int valid_exit(const g64_ihost *h, const pending_exit *e) {
 }
 
 /* Moves the player of an exit. The exits' progress is already merged (g64_ihost_tick). */
+/* Puts player p, who is in no instance, into the instance of level and world, or into a new one, and sends them
+   the move. type and from are for the log (on_move): the exit they took and the level they left, or -1 for a player
+   who joins the session. Returns 0, or -1 when there is no room. */
+static int enter(g64_ihost *h, int p, int level, int world, int type, int from) {
+    int t = find_instance(h, level, world);
+    memset(&h->move[p], 0, sizeof h->move[p]);
+    if (t < 0) {
+        t = new_instance(h, level, world, 1u << p);
+        if (t < 0)
+            return -1;
+        h->move[p].join = 0;
+    } else {
+        h->move[p].join = rb_host_confirmed(h->inst[t].host);
+        if (h->move[p].join > G64_MAX_LOG)
+            return -1;
+        rb_host_set_present(h->inst[t].host, p, 1);
+    }
+    h->where[p] = t;
+    h->move[p].active = 1;
+    h->move[p].slot = t;
+    h->move[p].id = h->inst[t].id;
+    if (h->on_move)
+        h->on_move(h->move_user, p, type, from, level, world, h->move[p].join, &h->progress);
+    send_move(h, p);
+    return 0;
+}
+
 static void take_exit(g64_ihost *h, const pending_exit *e) {
-    int p = e->r.player, s = e->slot, t, from, level = e->r.level;
+    int p = e->r.player, s = e->slot, from, level = e->r.level;
     if (!valid_exit(h, e))
         return;
     /* An exit to the hub leads to its newest stage. The level the player leaves may not have heard yet of a crystal
@@ -385,33 +437,40 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
         level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
     from = h->inst[s].start.level;
     leave_instance(h, p);
-    t = find_instance(h, level, e->r.world);
-    memset(&h->move[p], 0, sizeof h->move[p]);
-    if (t < 0) {
-        t = new_instance(h, level, e->r.world, 1u << p);
-        if (t < 0)
-            return;
-        h->move[p].join = 0;
-    } else {
-        h->move[p].join = rb_host_confirmed(h->inst[t].host);
-        if (h->move[p].join > G64_MAX_LOG)
-            return;
-        rb_host_set_present(h->inst[t].host, p, 1);
-    }
-    h->where[p] = t;
-    h->move[p].active = 1;
-    h->move[p].slot = t;
-    h->move[p].id = h->inst[t].id;
-    if (h->on_move)
-        h->on_move(h->move_user, p, e->r.type, from, level, e->r.world, h->move[p].join, &h->progress);
-    send_move(h, p);
+    enter(h, p, level, e->r.world, e->r.type, from);
+}
+
+void g64_ihost_set_colors(g64_ihost *h, int p, uint32_t glove, uint32_t ball) {
+    if (p < 0 || p >= h->players || !g64_valid_color(glove) || !g64_valid_color(ball))
+        return;
+    h->colors[p][0] = glove;
+    h->colors[p][1] = ball;
+}
+
+int g64_ihost_add(g64_ihost *h, int p) {
+    int level = h->level;
+    if (p < 0 || p >= h->players)
+        return -1;
+    if (h->where[p] >= 0)
+        return 0;
+    /* A first level in the hub means its newest stage, as an exit to the hub does. */
+    if (level <= HUB8)
+        level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
+    return enter(h, p, level, 0, -1, -1);
 }
 
 g64_ihost *g64_ihost_new(Engine *e, const void *boot, int players, int level, uint32_t deadline, g64_isend_fn send,
                          void *user) {
+    return g64_ihost_new_with(e, boot, players, all_players(players), NULL, level, deadline, send, user);
+}
+
+g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned members,
+                              const uint32_t colors[16][2], int level, uint32_t deadline, g64_isend_fn send,
+                              void *user) {
     g64_ihost *h;
     int p, s;
-    if (!e || !boot || players < 1 || players > RB_MAX_PLAYERS || level < 0 || level >= G64_NUM_LEVELS || !send)
+    if (!e || !boot || players < 1 || players > RB_MAX_PLAYERS || level < 0 || level >= G64_NUM_LEVELS || !send ||
+        members == 0 || (members & ~all_players(players)) != 0)
         return NULL;
     h = calloc(1, sizeof *h);
     if (!h)
@@ -421,16 +480,25 @@ g64_ihost *g64_ihost_new(Engine *e, const void *boot, int players, int level, ui
     h->ops = rb_engine_ops(e);
     rb_engine_set_event_fn(apply_event);
     h->players = players;
+    h->level = level;
     h->deadline = deadline;
     h->send = send;
     h->user = user;
-    s = new_instance(h, level, 0, all_players(players));
+    /* Without a table, the colors are the ones the game has now. */
+    for (p = 0; p < 16; p++) {
+        h->colors[p][0] = colors ? colors[p][0] : g64PlayerColor[p][0];
+        h->colors[p][1] = colors ? colors[p][1] : g64PlayerColor[p][1];
+    }
+    for (p = 0; p < RB_MAX_PLAYERS; p++)
+        h->where[p] = -1;
+    s = new_instance(h, level, 0, members);
     if (s < 0) {
         free(h);
         return NULL;
     }
-    for (p = 0; p < RB_MAX_PLAYERS; p++)
-        h->where[p] = p < players ? s : -1;
+    for (p = 0; p < players; p++)
+        if (members & (1u << p))
+            h->where[p] = s;
     return h;
 }
 
@@ -461,11 +529,37 @@ void g64_ihost_tick(g64_ihost *h) {
        event may replace one not yet confirmed. */
     for (i = 0; i < G64_MAX_INSTANCES; i++) {
         inst *in = &h->inst[i];
-        uint8_t ev[G64_EVENT_PROGRESS_SIZE];
-        if (!in->used || same_progress(&in->sent, &h->progress))
+        uint8_t ev[RB_EVENT_MAX];
+        uint32_t next;
+        if (!in->used)
             continue;
-        if (rb_host_set_event(in->host, ev, g64_write_progress_event(ev, &h->progress)) == 0)
-            in->sent = h->progress;
+        next = rb_host_confirmed(in->host);
+        if (!same_progress(&in->sent, &h->progress)) {
+            /* The whole progress: it may replace a progress event that is not confirmed yet, but not a colors
+               event, which waits for a frame of its own. */
+            if (in->event_frame == next + 1 && in->event_colors)
+                continue;
+            if (rb_host_set_event(in->host, ev, g64_write_progress_event(ev, &h->progress)) == 0) {
+                in->sent = h->progress;
+                in->event_frame = next + 1;
+                in->event_colors = 0;
+            }
+            continue;
+        }
+        /* A player's new colors, one player on a frame. */
+        if (in->event_frame == next + 1)
+            continue;
+        for (p = 0; p < h->players; p++)
+            if (in->colors[p][0] != h->colors[p][0] || in->colors[p][1] != h->colors[p][1]) {
+                if (rb_host_set_event(in->host, ev,
+                                      g64_write_colors_event(ev, p, h->colors[p][0], h->colors[p][1])) == 0) {
+                    in->colors[p][0] = h->colors[p][0];
+                    in->colors[p][1] = h->colors[p][1];
+                    in->event_frame = next + 1;
+                    in->event_colors = 1;
+                }
+                break;
+            }
     }
     for (p = 0; p < h->players; p++) {
         move_state *m = &h->move[p];
@@ -488,6 +582,12 @@ void g64_ihost_tick(g64_ihost *h) {
 
 int g64_ihost_receive(g64_ihost *h, int from, const uint8_t *data, size_t len) {
     int s;
+    /* A player who is in the session and in no instance asks for one. */
+    if (data && len == G64_READY_SIZE && data[0] == G64_IMSG_READY && from >= 0 && from < h->players) {
+        if (h->where[from] < 0)
+            g64_ihost_add(h, from);
+        return 0;
+    }
     if (!data || len < 2 || from < 0 || from >= h->players)
         return -1;
     switch (data[0]) {
@@ -578,6 +678,7 @@ struct g64_iclient {
     rb_engine_game *game;
     rb_client *rb;
     int moving;
+    uint32_t asked;
     g64_move mv;
     rb_input *log;
     rb_event *log_event;
@@ -638,6 +739,7 @@ static int finish_move(g64_iclient *c) {
     r.world = c->mv.world;
     r.members = c->mv.members;
     r.progress = c->mv.progress;
+    memcpy(r.colors, c->mv.colors, sizeof r.colors);
     c->game = build(c->boot, &r);
     if (!c->game)
         return -1;
@@ -671,10 +773,17 @@ static int finish_move(g64_iclient *c) {
 
 g64_iclient *g64_iclient_new(Engine *e, const void *boot, int players, int me, int level, int window,
                              uint32_t deadline, g64_isend_fn send, void *user) {
+    return g64_iclient_new_with(e, boot, players, all_players(players), NULL, me, level, window, deadline, send, user);
+}
+
+g64_iclient *g64_iclient_new_with(Engine *e, const void *boot, int players, unsigned members,
+                                  const uint32_t colors[16][2], int me, int level, int window, uint32_t deadline,
+                                  g64_isend_fn send, void *user) {
     g64_iclient *c;
     start_record r;
+    int p;
     if (!e || !boot || players < 1 || players > RB_MAX_PLAYERS || me < 0 || me >= players || level < 0 ||
-        level >= G64_NUM_LEVELS || !send)
+        level >= G64_NUM_LEVELS || !send || (members & ~all_players(players)) != 0)
         return NULL;
     c = calloc(1, sizeof *c);
     if (!c)
@@ -690,11 +799,24 @@ g64_iclient *g64_iclient_new(Engine *e, const void *boot, int players, int me, i
     c->send = send;
     c->user = user;
     c->level = level;
+    /* A player who is not there at the start has no game yet: they ask the host for one (g64_iclient_step). */
+    if (!(members & (1u << me)))
+        return c;
     memset(&r, 0, sizeof r);
     r.level = level;
-    r.members = all_players(players);
+    r.members = members;
+    for (p = 0; p < 16; p++) {
+        r.colors[p][0] = colors ? colors[p][0] : g64PlayerColor[p][0];
+        r.colors[p][1] = colors ? colors[p][1] : g64PlayerColor[p][1];
+    }
     c->game = build(boot, &r);
-    c->rb = c->game ? rb_client_new(c->ops, c->game, players, me, window, client_rb_send, client_final, c) : NULL;
+    if (c->game) {
+        rb_input first[RB_MAX_PLAYERS];
+        memset(first, 0, sizeof first);
+        for (p = 0; p < players; p++)
+            first[p].present = (uint8_t)((members >> p) & 1);
+        c->rb = rb_client_new_at(c->ops, c->game, players, me, window, 0, first, client_rb_send, client_final, c);
+    }
     if (!c->rb) {
         drop_game(c);
         free(c);
@@ -786,6 +908,14 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
 
 int g64_iclient_step(g64_iclient *c, rb_input local) {
     int n;
+    if (!c->moving && !c->rb) {
+        /* In the session and in no instance: ask the host for one, a few times a second, until its move comes. */
+        if (c->asked++ % 8 == 0) {
+            uint8_t m[G64_READY_SIZE] = {G64_IMSG_READY, 0};
+            c->send(c->user, 0, m, sizeof m);
+        }
+        return 0;
+    }
     if (c->moving || !c->rb)
         return 0;
     if (!rb_client_step(c->rb, local)) {
