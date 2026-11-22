@@ -232,6 +232,9 @@ wide because each boss and each bonus level has its own code.
 - The lobby and signaling server (`server/`), written from scratch: sessions, ICE candidates, TURN credentials,
   version filtering.
 - libjuice for ICE; libsodium for encryption.
+  Encryption is done, with Monocypher in place of libsodium: a key exchange in the hello and the welcome, then
+  every message sealed, through the relay and in the direct mode ([netcode.md](netcode.md#encryption);
+  src/session/seal.h; `third_party/monocypher`; tests/net/seal_test.c). The protocol is 8.
 - The relay: Cloudflare's managed TURN service, tested with libjuice first; coturn on a server as the fallback
   ([hosting.md](../hosting.md)).
 - The lobby deployed where [hosting.md](../hosting.md) says; its placeholder is already in `server/`.

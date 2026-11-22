@@ -53,10 +53,15 @@ BF_PROGRAM_OBJS := $(patsubst $(BF)/%.c,$(BUILD)/bf/%.o,$(wildcard $(BF)/src/*.c
 STUDIO_OBJS := $(BUILD)/src/port/studio.o
 # g64coopdx: the online mode (src/client/netplay.c of the repository around this copy) and what it needs.
 G64_ROOT := ..
-G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c client/instances.c client/imsg.c session/session.c \
+G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c client/instances.c client/imsg.c session/session.c session/seal.c \
             net/udp.c rollback/rollback.c rollback/engine_game.c client/sound.c client/soundout.c)
 G64_OBJS := $(patsubst $(G64_ROOT)/src/%.c,$(BUILD)/g64/%.o,$(G64_SRCS))
-STUDIO_OBJS += $(G64_OBJS) $(BUILD)/src/port/g64launcher.o
+STUDIO_OBJS += $(G64_OBJS) $(BUILD)/src/port/g64launcher.o $(BUILD)/g64/monocypher.o
+
+# The cryptography library that seals the session's messages (third_party/monocypher of the repository around).
+$(BUILD)/g64/monocypher.o: $(G64_ROOT)/third_party/monocypher/monocypher.c
+	@mkdir -p $(dir $@)
+	$(CC) $(BF_CFLAGS) -c $< -o $@
 
 $(BUILD)/src/port/g64launcher.o: src/port/g64launcher.cpp src/port/g64launcher.h $(G64_ROOT)/src/client/netplay.h
 	@mkdir -p $(dir $@)
@@ -111,6 +116,6 @@ $(BUILD)/src/port/platform.o: src/port/studio.h
 
 $(EXE): $(BUILD)/game.o $(STUDIO_RAM_OBJ) $(BUILD)/src/port/devview.o $(HOST_OBJS) $(BF_ENGINE_OBJS) \
         $(BF_PROGRAM_OBJS) $(STUDIO_OBJS)
-	$(CXX) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(SDL_LIBS) -lm $(if $(filter windows,$(TARGET)),-lws2_32,-lrt -lpthread)
+	$(CXX) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(SDL_LIBS) -lm $(if $(filter windows,$(TARGET)),-lws2_32 -lbcrypt,-lrt -lpthread)
 
 $(BUILD)/src/port/menu.o: src/port/studio.h

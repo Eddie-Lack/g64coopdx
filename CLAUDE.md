@@ -93,6 +93,7 @@ run locally: set `GLOVER_ROM`.
 | More than one player in the game (the swap prototype) | weemitt/src/game/g64players.c |
 | The UDP transport (direct mode) | src/net (`udp.h`) |
 | The direct-mode session (hello, welcome, start, game messages) | src/session (`session.h`) |
+| The session's encryption, and the library it uses | src/session (`seal.h`), `third_party/monocypher` |
 | The online mode of the window program | src/client (`netplay.h`), built into weemitt's studio (`make client`) |
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |

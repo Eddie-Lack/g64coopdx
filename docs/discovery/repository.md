@@ -106,6 +106,7 @@ Facts (VERIFIED):
   Glovebox's Cargo.toml points at `THIRD_PARTY_NOTICES.md`.
 - sm64coopdx has no license file, so no right to its code exists. g64coopdx does not use its code in any case.
 - CoopNet, sm64coopdx's lobby server, is AGPL-3.0. g64coopdx does not use it.
+- In the repository: Monocypher (BSD 2-Clause or CC0) in `third_party/monocypher`, for the session's encryption.
 - The libraries recommended in [netcode.md](netcode.md) and [mods.md](mods.md): ENet MIT, libsodium ISC, libjuice
   MPL-2.0, Lua MIT, SDL2 zlib, Dear ImGui MIT (already in weemitt's `third_party/imgui`), coturn BSD-3-Clause (a
   separate server, and only the fallback relay: [hosting.md](../hosting.md)).

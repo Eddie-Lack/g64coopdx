@@ -462,7 +462,7 @@ int netplay_poll(void) {
                                 : net_relay_refusal(sock) == 3 ? "the host has removed you from that room"
                                                                : "there is no room with that code");
         if (net_relay_state(sock) == 0) {
-            if (t - cstart > 15000) {
+            if ((int32_t)(t - cstart) > 15000) {
                 char why[300];
                 snprintf(why, sizeof why, "no answer from the relay at %s", crelay);
                 return fail_connect(why);
@@ -479,8 +479,9 @@ int netplay_poll(void) {
         g64_session_state st = g64_session_poll(session, t, NULL, NULL);
         if (st == G64_SESSION_FAILED)
             return fail_connect(g64_session_error(session));
-        /* The relay's word of a ban, for a joiner whose kick message was lost. */
-        if (!chost && crelay[0] && net_relay_state(sock) < 0)
+        /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word is not sealed, so
+           it counts only once the host has also been silent for three seconds. */
+        if (!chost && crelay[0] && net_relay_state(sock) < 0 && g64_session_host_silent(session, t) > 3000)
             return fail_connect("the host has removed you from that room");
         send_ban();
         announce_room(st == G64_SESSION_WAITING);
@@ -492,7 +493,8 @@ int netplay_poll(void) {
             active = 1;
             return 1;
         }
-        if (t - cstart > CONNECT_TIMEOUT_MS)
+        /* The session can be made in this same call, a moment after t was read: the difference is signed. */
+        if ((int32_t)(t - cstart) > CONNECT_TIMEOUT_MS)
             return fail_connect("nobody came");
         cjoined = g64_session_joined(session);
         if (chost)
@@ -1000,6 +1002,14 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         failed = 1;
         tipLines = 0;
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
+        return -1;
+    }
+    /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word is not sealed, so it
+       counts only once the host has also been silent for three seconds. */
+    if (!chost && crelay[0] && net_relay_state(sock) < 0 && g64_session_host_silent(session, now_ms()) > 3000) {
+        failed = 1;
+        tipLines = 0;
+        snprintf(status, sizeof status, "g64coopdx: the host removed you from the game");
         return -1;
     }
     if (ihost) {
