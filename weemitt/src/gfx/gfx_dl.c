@@ -132,6 +132,10 @@ static struct {
     int lastMtxBlended; /* 1 when the interpolation changed it */
     int tinted;         /* g64coopdx: vertex colors are multiplied by tint (G_NOOP with a tint word, below) */
     float tint[3];
+    /* g64coopdx: while texPairs is not 0, a texture image at texFrom[k] is read at texTo[k] (G_NOOP, below). */
+    int texPairs;
+    u32 texFrom[8];
+    u32 texTo[8];
 } rsp;
 
 /* ---- Addresses and memory. */
@@ -1122,9 +1126,17 @@ static void command(u32 op, u32 w0, u32 w1) {
                 gfx_state_changed();
             }
             break;
-        case G_SETTIMG:
+        case G_SETTIMG: {
+            int k;
+            for (k = 0; k < rsp.texPairs; k++) {
+                if (w1 == rsp.texFrom[k]) {
+                    w1 = rsp.texTo[k];
+                    break;
+                }
+            }
             gfx_tex_set_image((w0 >> 21) & 7, (w0 >> 19) & 3, (w0 & 0xFFF) + 1, seg_addr(w1));
             break;
+        }
         case G_SETCIMG:
             rsp.colorImage = seg_addr(w1);
             break;
@@ -1132,7 +1144,19 @@ static void command(u32 op, u32 w0, u32 w1) {
             /* G_NOOP. g64coopdx's player colors use it (src/game/g64players.c): a word 0x67RRGGBB multiplies the
                following vertices' colors by RR, GG and BB out of 255, and 0x67000000 ends it. On the N64 it does
                nothing. */
-            if ((w1 >> 24) == 0x67) {
+            /* The low bits of the first word choose g64coopdx's other use: 1 gives a texture image's address, 2
+               the address to read in its place (another player's own ball or glove texture), 3 ends them all. */
+            if ((w0 & 0xFFFFFF) == 1) {
+                if (rsp.texPairs < 8) {
+                    rsp.texFrom[rsp.texPairs] = w1;
+                }
+            } else if ((w0 & 0xFFFFFF) == 2) {
+                if (rsp.texPairs < 8) {
+                    rsp.texTo[rsp.texPairs++] = w1;
+                }
+            } else if ((w0 & 0xFFFFFF) == 3) {
+                rsp.texPairs = 0;
+            } else if ((w1 >> 24) == 0x67) {
                 rsp.tinted = (w1 & 0xFFFFFF) != 0;
                 rsp.tint[0] = ((w1 >> 16) & 0xFF) / 255.0f;
                 rsp.tint[1] = ((w1 >> 8) & 0xFF) / 255.0f;
@@ -1259,6 +1283,7 @@ void gfx_dl_begin_frame(void) {
     rsp.fogMul = rsp.fogOff = 0.0f;
     rsp.numLights = 0;
     rsp.tinted = 0;
+    rsp.texPairs = 0;
     memset(rsp.lights, 0, sizeof(rsp.lights));
     for (i = 0; i < 8; i++) {
         rsp.lights[i].z = 1.0f;

@@ -131,9 +131,12 @@ harness at N players and by the determinism tests:
    Done: the player whose glove or ball reaches a garib from the nearest takes it, and the players of a level share
    one count of garibs. The score, the health a garib gives and a power-up are the taker's own. The first player
    whose glove touches a pick-up takes it. A power-up's orbiters are drawn as proxies
-   (weemitt/src/game/g64players.c, "Garibs and pick-ups"; tests/rom/collect.c). Left: the ball's and the glove's
-   textures are shared, so a power-up that changes the ball's look changes every ball. The combo of garibs taken in
-   quick succession is one for all players.
+   (weemitt/src/game/g64players.c, "Garibs and pick-ups"; tests/rom/collect.c). The ball's and the glove's textures are each player's own: the words in their display lists that name the
+   texture and the palette go with the player in a swap, with the crystal ball's model, and the renderer draws
+   another player's glove and ball with that player's words (G64ActorTextures; gfx_dl.c; tests/rom/textures.c).
+   Left: the drawn result has not been looked at in the window program. Two players with the same kind of ball
+   share its palette, so a blend (a ball that is changing, a snowball) shows on both. The run of garibs taken in
+   quick succession is each player's own.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
    Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with

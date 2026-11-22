@@ -12,6 +12,8 @@
  *   F. Player 0 takes a garib alone, and player 1 comes into the level afterwards. Player 1's count is the team's.
  *   G. Two players in the first space boss's level (level 38) for 900 frames. The boss keeps its rotor in one of
  *      the glove's orbiters.
+ *   H. Player 1 takes a garib. Player 1 has a run of garibs (the count that makes the next one sound higher) and
+ *      player 0 has none.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -36,6 +38,7 @@ void G64SetStartRecord(int world, const G64Save *s);
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64PlacePlayer(int p, float x, float y, float z);
 int G64PlayerGaribs(int p);
+int G64PlayerGaribRun(int p);
 int G64PlayerPowerup(int p, int type);
 int G64PlayerScore(int p);
 int G64GaribPlace(int k, float *x, float *y, float *z);
@@ -139,6 +142,30 @@ static void case_a(int level) {
              "left; with nobody there: counts %d and %d, %d left", level, n, d, c0, c1, left, idle0, idle1, idleLeft);
     check(d > 800.0f && c0 == 1 && c1 == 1 && left == n - 1 && idle0 == 0 && idle1 == 0 && idleLeft == n, what);
     printf("A: hash %08x\n", port_hash_ram());
+}
+
+/* H. Garibs taken in quick succession make a run: each one sounds higher and scores more. A run is its taker's
+   own. Player 1 takes a garib: player 1 has a run and player 0 has none. 25 frames later the run has ended. */
+static void case_h(int level) {
+    float at[3], d;
+    int run0, run1, end0, end1;
+    unsigned f;
+    char what[200];
+    start(level);
+    far_garib(at, &d);
+    engine_load(engine, ready);
+    frame(READY, 0x3);
+    G64PlacePlayer(1, at[0], at[1], at[2]);
+    for (f = 1; f < 4; f++)
+        frame(READY + f, 0x3);
+    run0 = G64PlayerGaribRun(0), run1 = G64PlayerGaribRun(1);
+    for (; f < 30; f++)
+        frame(READY + f, 0x3);
+    end0 = G64PlayerGaribRun(0), end1 = G64PlayerGaribRun(1);
+    snprintf(what, sizeof what, "H: level %d: player 1 takes a garib: runs %d and %d; 25 frames later %d and %d", level,
+             run0, run1, end0, end1);
+    check(run0 == 0 && run1 > 0 && end0 == 0 && end1 == 0, what);
+    printf("H: hash %08x\n", port_hash_ram());
 }
 
 static void case_b(int level) {
@@ -305,6 +332,7 @@ int main(int argc, char **argv) {
     case_e(11, 0);
     case_f(10);
     case_g();
+    case_h(10);
     printf("%s every player takes garibs and pick-ups\n", failed ? "FAIL" : "ok  ");
     free(ready);
     free(boot);

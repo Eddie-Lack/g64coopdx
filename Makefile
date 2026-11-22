@@ -93,7 +93,7 @@ rollback-game: rollback-game-build
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), enemies, puzzles, respawns, world hazards, garibs, pick-ups, bosses and bonus levels with more than one player
-# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c) and a cameo that a player sets off (tests/rom/cameos.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c) and each player's ball texture (tests/rom/textures.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -110,6 +110,7 @@ LOOKAROUND_SRC := tests/rom/lookaround.c weemitt/src/port/statehash.c
 LIMITS_SRC := tests/rom/limits.c weemitt/src/port/statehash.c
 TIPS_SRC := tests/rom/tips.c weemitt/src/port/statehash.c
 CAMEOS_SRC := tests/rom/cameos.c weemitt/src/port/statehash.c
+TEXTURES_SRC := tests/rom/textures.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -176,6 +177,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/cameos.exe $(CAMEOS_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/textures $(TEXTURES_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/textures.exe $(TEXTURES_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -258,6 +263,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/cameos.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/cameos-windows.out
 	cmp build/tests/cameos.out build/tests/cameos-windows.out
+	build/tests/textures "$$GLOVER_ROM" > build/tests/textures.out
+	tail -1 build/tests/textures.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/textures.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/textures-windows.out
+	cmp build/tests/textures.out build/tests/textures-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).

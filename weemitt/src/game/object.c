@@ -469,8 +469,27 @@ void DrawActor(Actor *ptr) {
             glistp->words.w1 = 0x67000000 | tint;
             glistp++;
         }
+        /* g64coopdx: another player's glove and ball with that player's own textures (a power-up's or a spell's
+           look). The renderer puts one texture word for another until the clearing word (gfx_dl.c). */
+        u32 texFrom[4];
+        u32 texTo[4];
+        s32 textures = G64ActorTextures(ptr, texFrom, texTo, 4);
+        s32 t;
+        for (t = 0; t < textures; t++) {
+            glistp->words.w0 = 0xC0000001;
+            glistp->words.w1 = texFrom[t];
+            glistp++;
+            glistp->words.w0 = 0xC0000002;
+            glistp->words.w1 = texTo[t];
+            glistp++;
+        }
         if (ptr->inst->obj != NULL) {
             TransformAndDrawObject(ptr->inst->obj, animTime, 0, 0);
+        }
+        if (textures) {
+            glistp->words.w0 = 0xC0000003;
+            glistp->words.w1 = 0;
+            glistp++;
         }
         if (tint) {
             glistp->words.w0 = 0xC0000000;

@@ -84,6 +84,10 @@ s32 G64IsProxy(struct Actor *a);
 extern u32 g64PlayerColor[G64_MAX_PLAYERS][2];
 /* The color (0xRRGGBB) to tint an actor with, for a player's glove or ball; 0 for none. */
 u32 G64ActorTint(struct Actor *a);
+/* collect.c: the other players' runs of garibs taken in quick succession count down (g64players.c). */
+void G64GaribRuns(void);
+/* The texture words of another player's glove or ball that differ from the viewer's (g64players.c). */
+s32 G64ActorTextures(struct Actor *a, u32 *from, u32 *to, s32 max);
 /* A player's glove position, by number; 0 when the player is not in this game. */
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* The same for a player's ball. */

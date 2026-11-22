@@ -88,7 +88,46 @@ typedef struct G64Cave {
     s32 target;
 } G64Cave;
 
+extern s16 garibTimer;
+extern s16 garibCount;
+
+/* The words in the glove's and the ball's display lists that name their textures and palettes. The game writes
+   them when a power-up or a spell changes the look (ball.c, collect.c). They are each player's own: a swap
+   exchanges them, and another player's glove and ball are drawn with that player's words (G64ActorTextures). */
+#define G64_TEX_WORDS 10
+extern PTR32(u32) ballTextureData;
+extern PTR32(u32) ballTexturePalette;
+extern PTR32(u32) ballTextureData2;
+extern PTR32(u32) ballTexturePalette2;
+extern PTR32(u32) ballBitTextureData;
+extern PTR32(u32) ballBitTexturePalette;
+extern PTR32(u32) handTextureData[2];
+extern PTR32(u32) handTexturePalette[2];
+/* The ball's other model: the crystal ball's, or the usual one while the ball is crystal (ChangeBallInto). */
+extern PTR32(ObjectInstance) crystalBall;
+
+/* Word k's place in the game's memory, or NULL when the level has none. 0 to 5 are the ball's, 6 to 9 the glove's. */
+static u32 *tex_word(s32 k) {
+    switch (k) {
+        case 0: return ballTextureData;
+        case 1: return ballTexturePalette;
+        case 2: return ballTextureData2;
+        case 3: return ballTexturePalette2;
+        case 4: return ballBitTextureData;
+        case 5: return ballBitTexturePalette;
+        case 6: return handTextureData[0];
+        case 7: return handTextureData[1];
+        case 8: return handTexturePalette[0];
+        default: return handTexturePalette[1];
+    }
+}
+
 typedef struct G64Slot {
+    u32 texWords[G64_TEX_WORDS];
+    PTR32(ObjectInstance) crystalBall;
+    /* The run of garibs taken in quick succession: the frames left to add to it, and its length (collect.c). */
+    s16 garibTimer;
+    s16 garibCount;
     Actor hand;
     Actor ball;
     Actor camera;
@@ -325,6 +364,17 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&spaceBossReload, &s->spaceBossReload, sizeof(s32));
     swap_bytes(&spbCrosshairAlpha, &s->spbCrosshairAlpha, 1);
     swap_bytes(&ballPain, &s->ballPain, 1);
+    {
+        s32 k;
+        for (k = 0; k < G64_TEX_WORDS; k++) {
+            u32 *w = tex_word(k);
+            if (w)
+                swap_bytes(w, &s->texWords[k], sizeof(u32));
+        }
+        swap_bytes(&crystalBall, &s->crystalBall, sizeof(crystalBall));
+    }
+    swap_bytes(&garibTimer, &s->garibTimer, sizeof(s16));
+    swap_bytes(&garibCount, &s->garibCount, sizeof(s16));
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
     /* Online the globals' part of the cave exists before the first slot does (global_cave). */
@@ -433,6 +483,16 @@ static G64Slot *copy_globals(void) {
     if (world_orbiter3())
         slot_orbiter3(s)->inst = NULL;
     memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
+    {
+        s32 k;
+        for (k = 0; k < G64_TEX_WORDS; k++) {
+            u32 *w = tex_word(k);
+            s->texWords[k] = w ? *w : 0;
+        }
+        s->crystalBall = crystalBall;
+    }
+    /* A new player starts no run of garibs. */
+    s->garibTimer = s->garibCount = 0;
     memcpy(&s->pad, &pad[ActiveController], sizeof(Pad));
     s->oldHandPos = oldHandPos;
     s->ballWithHand = ballWithHand;
@@ -851,6 +911,81 @@ s32 G64IsProxy(Actor *a) {
         if (a == proxyHand[i] || a == proxyBall[i])
             return 1;
     return 0;
+}
+
+/* For tests: the length of a player's run of garibs taken in quick succession, or -1. */
+s32 G64PlayerGaribRun(s32 player) {
+    s32 i = slot_of(player);
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return -1;
+    return i ? ((G64Slot *)slots[i])->garibCount : garibCount;
+}
+
+/* collect.c counts the first player's run of garibs down once a frame. This does the same for the other players,
+   each of whom has a run of their own. */
+void G64GaribRuns(void) {
+    s32 i;
+    if (swapped || logicSlot)
+        return;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (s && (s->garibTimer == 0 || --s->garibTimer == 0))
+            s->garibCount = 0;
+    }
+}
+
+/* For the draw of another player's glove or ball (a proxy): the texture words that differ from the ones in the
+   game's memory now, which are the viewer's. from[] gets the words the display list holds, to[] that player's own.
+   It returns how many, at most max. The renderer puts one for the other while the actor is drawn (object.c). */
+s32 G64ActorTextures(Actor *a, u32 *from, u32 *to, s32 max) {
+    s32 i, k, first, last, n = 0;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (!s || (a != proxyHand[i] && a != proxyBall[i]))
+            continue;
+        first = a == proxyBall[i] ? 0 : 6;
+        last = a == proxyBall[i] ? 3 : 9;
+        for (k = first; k <= last && n < max; k++) {
+            u32 *w = tex_word(k);
+            if (w && *w && s->texWords[k] && *w != s->texWords[k]) {
+                from[n] = *w;
+                to[n] = s->texWords[k];
+                n++;
+            }
+        }
+        return n;
+    }
+    return 0;
+}
+
+/* For tests: a player's texture word k (tex_word), and the type of their ball. -1 when the player has no glove. */
+s32 G64PlayerTexture(s32 player, s32 k) {
+    s32 i = slot_of(player);
+    u32 *w;
+    if (k < 0 || k >= G64_TEX_WORDS || i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return -1;
+    w = tex_word(k);
+    return (s32)((i ? ((G64Slot *)slots[i])->texWords[k] : w ? *w : 0) & 0x7FFFFFFF);
+}
+
+/* For tests: the player's ball starts to change into the next kind, as the R button makes it (HandTransformBall),
+   with that player in the globals. */
+void HandTransformBall(void);
+void G64TestChangeBall(s32 player) {
+    s32 i = slot_of(player);
+    if (i == 0) {
+        HandTransformBall();
+    } else if (i > 0 && G64HazardBegin(i)) {
+        HandTransformBall();
+        G64HazardEnd(i);
+    }
+}
+
+s32 G64PlayerBallType(s32 player) {
+    s32 i = slot_of(player);
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return -1;
+    return i ? ((G64Slot *)slots[i])->ballControl.type : ballControl.type;
 }
 
 /* Each player's color as 0xRRGGBB, multiplied into the glove's and ball's colors. Player 1 keeps the game's own. */
