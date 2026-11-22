@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "../net/udp.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -96,6 +98,19 @@ int netplay_quit_requested(void);
 int netplay_tip_lines(void);
 const char *netplay_tip_line(int i);
 int netplay_tip_more(void);
+/* The host's choice, before netplay_start: put the room on the relay's list (1), with a title of up to 32
+ * characters, for players of the same build to find; or keep it to the room code (0, the default). The room leaves
+ * the list when the game starts. */
+void netplay_set_public(int on, const char *title);
+int netplay_public(void);
+const char *netplay_public_title(void);
+/* The relay's list of rooms, for the start screen. Call netplay_rooms_refresh every frame while the list shows: it
+ * asks the relay at most once a second. netplay_rooms_count is -1 until the relay has answered. netplay_rooms_close
+ * ends it. */
+void netplay_rooms_refresh(const char *relay);
+int netplay_rooms_count(void);
+const net_room *netplay_room(int i);
+void netplay_rooms_close(void);
 /* This player's name, up to 16 printable characters. Call netplay_set_name before netplay_start. */
 void netplay_set_name(const char *name);
 const char *netplay_name(void);

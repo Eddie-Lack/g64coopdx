@@ -247,9 +247,11 @@ wide because each boss and each bonus level has its own code.
   Done in part: names (the start screen, `--name`), the player list, chat and the host's kick with a confirm step
   (src/session/session.h: the start message carries the names, and the chat and kick messages; src/client/netplay.c;
   the Players and Chat windows in weemitt/src/port/menu.cpp). Names and chat lines are text from the network: bytes
-  outside printable ASCII become question marks, and they never enter the game's state. Left: a ban (through the
-  relay the host does not see a joiner's address, so only the relay can enforce one), moderators and the lobby
-  browser.
+  outside printable ASCII become question marks, and they never enter the game's state. The lobby browser: a host
+  can list its room with a title, and the start screen shows the open games of the same build (`server/relay.go`,
+  `net_rooms_ask` in src/net/udp.h). The list travels over the relay's UDP protocol, so the game needs no HTTPS
+  client for it. The ban: through the relay the host does not see a joiner's address, so the host's kick tells the
+  relay, and the relay refuses that address for the room. Left: moderators.
 - Fuzz targets for every parser.
 
 Playable: up to 16 people from home networks (the design limit; the promise stays 8 until phase 3's 16-glove

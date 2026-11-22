@@ -1,4 +1,5 @@
-/* A libFuzzer target for the client's side of the relay protocol (net_relay_parse in src/net/udp.c). The first byte
+/* A libFuzzer target for the client's side of the relay protocol (net_relay_parse and net_rooms_parse in
+ * src/net/udp.c). The first byte
  * of each input picks the socket (a host, a joiner, or a joiner that knows two addresses of the relay) and the sender
  * (the relay's address, its second address, or another); the rest is the datagram.
  *
@@ -38,5 +39,19 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     s = (data[0] & 3) == 0 ? host : (data[0] & 3) == 1 ? join : join2;
     src = data[0] & 4 ? &other : data[0] & 8 ? &relays[1] : &relay;
     net_relay_parse(s, src, data + 1, (int)(size - 1), &from, buf, data[0] & 16 ? 8 : sizeof buf);
+    {
+        /* The relay's list of rooms: every room that comes out has a code of letters and digits and a title of
+           printable characters, both with their ends. */
+        net_room rooms[4];
+        int n = net_rooms_parse(data + 1, (int)(size - 1), rooms, data[0] & 32 ? 4 : 1), i;
+        size_t k;
+        for (i = 0; i < n; i++) {
+            if (strlen(rooms[i].code) != NET_ROOM_CODE || strlen(rooms[i].title) > NET_ROOM_TITLE)
+                __builtin_trap();
+            for (k = 0; rooms[i].title[k]; k++)
+                if (rooms[i].title[k] < 32 || rooms[i].title[k] > 126)
+                    __builtin_trap();
+        }
+    }
     return 0;
 }

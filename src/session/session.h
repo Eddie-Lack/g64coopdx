@@ -94,6 +94,8 @@ const char *g64_session_name(const g64_session *g, int p);
 typedef void (*g64_chat_fn)(void *user, int from, const char *text);
 void g64_session_on_chat(g64_session *g, g64_chat_fn fn, void *user);
 void g64_session_chat(g64_session *g, const char *text);
+/* On the host: the address player p sends from (through the relay: their place in the room), or NULL. */
+const net_addr *g64_session_peer_addr(const g64_session *g, int p);
 /* On the host: removes player p. Before the start their place is free again. After it they count as gone
  * (g64_session_gone). Their program is told, and told again if it goes on sending. */
 void g64_session_kick(g64_session *g, int p);

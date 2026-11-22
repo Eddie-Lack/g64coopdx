@@ -147,6 +147,36 @@ int main(int argc, char **argv) {
         nap();
     }
     check(ready == PLAYERS - 1, "two joiners join the room by its code");
+    {
+        /* The list of rooms. The host lists its room for build 77; a player of that build finds it with its title,
+           and a player of another build does not. */
+        net_socket *asker = net_open(0, err, sizeof err);
+        net_room rooms[4];
+        int found = -2, foundOther = -2;
+        net_relay_announce(m[0].sock, 77, PLAYERS, 3, 1, 1, "The relay\x01test");
+        for (f = 0; f < 400 && (found < 0 || foundOther < 0); f++) {
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            int n;
+            if (f % 40 == 0)
+                net_rooms_ask(asker, relay, 2, found < 0 ? 77 : 78);
+            while ((n = net_recv(asker, &from, d, sizeof d)) >= 0) {
+                int got = net_rooms_parse(d, n, rooms, 4);
+                if (got >= 0 && found < 0)
+                    found = got == 1 && !strcmp(rooms[0].code, net_relay_code(m[0].sock)) &&
+                                    !strcmp(rooms[0].title, "The relay?test") && rooms[0].wanted == PLAYERS &&
+                                    rooms[0].joined == 3 && rooms[0].flags == 1
+                                ? 1
+                                : -1;
+                else if (got >= 0 && found >= 0)
+                    foundOther = got;
+            }
+            nap();
+        }
+        check(found == 1, "a player of the host's build finds the listed room, with its title");
+        check(foundOther == 0, "a player of another build does not");
+        net_close(asker);
+    }
     m[0].session = g64_session_host(m[0].sock, PLAYERS, 7, 0, 4);
     for (i = 1; i < PLAYERS; i++) {
         net_addr h = net_relay_player(0);
@@ -194,6 +224,32 @@ int main(int argc, char **argv) {
     }
     check(ok && wrong == 0 && rb_host_hash_mismatches(host) == 0 && rb_host_hash_matches(host) > 0,
           "the toy game through the relay: every machine has the same state on every frame");
+    {
+        /* A ban: the host puts joiner 1 out of the room. That socket is told, and its address cannot join again. */
+        net_socket *again = net_open(0, err, sizeof err);
+        int banned = 0;
+        net_relay_ban(m[0].sock, 1);
+        net_relay_join(again, relay, 2, net_relay_code(m[0].sock));
+        for (f = 0; f < 2000 && (!banned || net_relay_state(again) == 0); f++) {
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            clock += 5;
+            net_relay_tick(again, clock);
+            for (i = 0; i < PLAYERS; i++) {
+                net_relay_tick(m[i].sock, clock);
+                while (net_recv(m[i].sock, &from, d, sizeof d) >= 0) {
+                }
+                if (i > 0 && net_relay_state(m[i].sock) < 0 && net_relay_refusal(m[i].sock) == 3)
+                    banned = i;
+            }
+            while (net_recv(again, &from, d, sizeof d) >= 0) {
+            }
+            nap();
+        }
+        check(banned != 0, "a banned joiner is told");
+        check(net_relay_state(again) < 0 && net_relay_refusal(again) == 3, "a banned address cannot join the room again");
+        net_close(again);
+    }
     printf("%s: %d failures\n", failures ? "FAIL" : "ok", failures);
     return failures ? 1 : 0;
 }

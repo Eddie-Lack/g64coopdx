@@ -475,6 +475,12 @@ void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball) {
     }
 }
 
+const net_addr *g64_session_peer_addr(const g64_session *g, int p) {
+    if (g->me != 0 || p < 1 || p >= g->players || !g->peers[p].used)
+        return NULL;
+    return &g->peers[p].addr;
+}
+
 void g64_session_set_name(g64_session *g, const char *name) {
     clean_text(g->name, sizeof g->name, (const uint8_t *)(name ? name : ""), NAME_MAX);
 }

@@ -134,6 +134,17 @@ static int start_level(void) {
     return level >= 0 && level < G64_NUM_LEVELS ? level : START_LEVEL;
 }
 
+/* The host's choice to put its room on the relay's list, with a title (netplay_set_public), and when the room was
+ * last announced. The list of rooms that the start screen shows comes from a socket of its own (netplay_rooms_). */
+static int publicRoom;
+static char publicTitle[NET_ROOM_TITLE + 1];
+static uint32_t announced;
+static net_socket *listSock;
+static net_addr listRelays[NET_RELAY_ADDRS];
+static int listRelayCount, listCount = -1;
+static net_room listRooms[12];
+static uint32_t listAsked;
+
 /* This player's name (netplay_set_name), and the chat's latest lines with the time each came. Names and chat are
  * the players' own words: they stay out of the game's state and out of its inputs. */
 static char myName[G64_NAME_MAX + 1] = "Player";
@@ -205,6 +216,76 @@ int netplay_chat_count(void) { return chatCount; }
 const char *netplay_chat_line(int i) { return i >= 0 && i < chatCount ? chatLines[i] : ""; }
 unsigned netplay_chat_age(int i) { return i >= 0 && i < chatCount ? now_ms() - chatTimes[i] : 0xFFFFFFFFu; }
 
+static uint32_t build_hash(void);
+
+void netplay_set_public(int on, const char *title) {
+    size_t i;
+    publicRoom = on != 0;
+    for (i = 0; i < NET_ROOM_TITLE && title && title[i]; i++)
+        publicTitle[i] = title[i] >= 32 && title[i] < 127 ? title[i] : '?';
+    publicTitle[i] = 0;
+}
+
+int netplay_public(void) { return publicRoom; }
+const char *netplay_public_title(void) { return publicTitle; }
+
+/* The host tells the relay about its room: every two seconds while it waits, and once more when the game starts,
+   which takes the room off the list. */
+static void announce_room(int open) {
+    uint32_t t = now_ms();
+    if (!publicRoom || !sock || !session || !chost || !crelay[0])
+        return;
+    if (open && announced && t - announced < 2000)
+        return;
+    announced = t ? t : 1;
+    net_relay_announce(sock, build_hash(), cwanted, g64_session_joined(session), g64_session_flags(session), open,
+                       publicTitle[0] ? publicTitle : myName);
+}
+
+/* The list of rooms for the start screen. netplay_rooms_refresh asks the relay again (at most once a second) and
+   reads what has come; netplay_rooms_count is -1 until the relay has answered. */
+void netplay_rooms_refresh(const char *relay) {
+    uint8_t d[NET_MAX_DATAGRAM];
+    net_addr from;
+    char err[160];
+    uint32_t t = now_ms();
+    int n;
+    if (!relay || !relay[0] || net_init() != 0)
+        return;
+    if (!listSock) {
+        listSock = net_open(0, err, sizeof err);
+        listRelayCount = listSock ? net_resolve_all(relay, 27065, listRelays, NET_RELAY_ADDRS, err, sizeof err) : -1;
+    }
+    if (!listSock || listRelayCount < 1)
+        return;
+    while ((n = net_recv(listSock, &from, d, sizeof d)) >= 0) {
+        int i, known = 0;
+        /* Only the relay's own answer counts. */
+        for (i = 0; i < listRelayCount; i++)
+            known |= net_addr_equal(&from, &listRelays[i]);
+        if (known) {
+            int got = net_rooms_parse(d, n, listRooms, (int)(sizeof listRooms / sizeof listRooms[0]));
+            if (got >= 0)
+                listCount = got;
+        }
+    }
+    if (listAsked == 0 || t - listAsked >= 1000) {
+        listAsked = t ? t : 1;
+        net_rooms_ask(listSock, listRelays, listRelayCount, build_hash());
+    }
+}
+
+int netplay_rooms_count(void) { return listCount; }
+const net_room *netplay_room(int i) { return i >= 0 && i < listCount ? &listRooms[i] : NULL; }
+
+void netplay_rooms_close(void) {
+    if (listSock)
+        net_close(listSock);
+    listSock = NULL;
+    listCount = -1;
+    listAsked = 0;
+}
+
 /* The players of the session, for the list in the menu. Before the start only the host knows them. */
 int netplay_me(void) { return session ? g64_session_me(session) : -1; }
 const char *netplay_player_name(int p) { return session ? g64_session_name(session, p) : ""; }
@@ -219,6 +300,13 @@ void netplay_kick(int p) {
         return;
     snprintf(note, sizeof note, "%s was removed by the host",
              g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
+    {
+        /* Through the relay the removal is also a ban: the relay refuses that player's address for this room. Only
+           the relay sees addresses. */
+        const net_addr *a = g64_session_peer_addr(session, p);
+        if (a && a->family == NET_FAMILY_RELAY && sock)
+            net_relay_ban(sock, a->ip[0]);
+    }
     g64_session_kick(session, p);
     kickNoted[p] = 1;
     chat_add(-1, note);
@@ -236,6 +324,8 @@ void netplay_kick(int p) {
 #endif
 
 const char *netplay_build(void) { return G64_BUILD_ID; }
+
+static uint32_t build_hash(void) { return g64_rom_hash((const uint8_t *)G64_BUILD_ID, strlen(G64_BUILD_ID)); }
 
 /* Makes the session once the socket is ready: at once in the direct mode, after the relay's answer through it. */
 static int make_session(void) {
@@ -256,7 +346,7 @@ static int make_session(void) {
     if (session) {
         g64_session_set_flags(session, hostFlags);
         g64_session_set_colors(session, myGlove, myBall);
-        g64_session_set_build(session, g64_rom_hash((const uint8_t *)netplay_build(), strlen(netplay_build())));
+        g64_session_set_build(session, build_hash());
         g64_session_set_name(session, myName);
         g64_session_on_chat(session, on_chat, NULL);
     }
@@ -277,6 +367,8 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
     cjoined = 0;
     chatCount = 0;
     memset(kickNoted, 0, sizeof kickNoted);
+    announced = 0;
+    netplay_rooms_close();
     romHash = g64_rom_hash(rom, romSize);
     cwanted = wanted;
     cdeadline = deadline;
@@ -328,7 +420,9 @@ int netplay_poll(void) {
         while (net_recv(sock, &from, d, sizeof d) >= 0) {
         }
         if (net_relay_state(sock) < 0)
-            return fail_connect(net_relay_refusal(sock) == 2 ? "that room is full" : "there is no room with that code");
+            return fail_connect(net_relay_refusal(sock) == 2   ? "that room is full"
+                                : net_relay_refusal(sock) == 3 ? "the host has removed you from that room"
+                                                               : "there is no room with that code");
         if (net_relay_state(sock) == 0) {
             if (t - cstart > 15000) {
                 char why[300];
@@ -347,6 +441,7 @@ int netplay_poll(void) {
         g64_session_state st = g64_session_poll(session, t, NULL, NULL);
         if (st == G64_SESSION_FAILED)
             return fail_connect(g64_session_error(session));
+        announce_room(st == G64_SESSION_WAITING);
         if (st == G64_SESSION_STARTED) {
             me = g64_session_me(session);
             players = g64_session_players(session);

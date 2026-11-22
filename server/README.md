@@ -5,8 +5,11 @@ between a host and a joiner, and hands out short-lived credentials for the relay
 
 It answers the routes below and runs the relay (`relay.go`): a UDP service on port 27065 that carries the game's
 packets between a host and its joiners inside a room, so no player forwards a port. A host opens a room and gets a
-six-character code; joiners join with the code. The relay never reads the game's packets. The HTTP routes are still
-a placeholder. Phase 4 of the
+six-character code; joiners join with the code. The relay never reads the game's packets. A host can put its room on a list, with a title. The game asks the relay
+for the list over UDP (the rooms of its own build, 12 at most); a room leaves the list 10 seconds after its host's
+last announcement. The request is as long as the longest answer, so the relay never sends more than it received. A
+host can also ban a joiner: the relay then refuses that joiner's address for the room. The other HTTP routes are
+still a placeholder. Phase 4 of the
 [roadmap](../docs/discovery/roadmap.md) writes the real one. [docs/hosting.md](../docs/hosting.md) says where it
 runs.
 
@@ -14,7 +17,7 @@ runs.
 | --- | --- |
 | `GET /healthz` | `ok` |
 | `GET /v1/info` | The server's name, version and protocol version, `"placeholder": true`, and the relay's port with its open rooms and players |
-| `GET /v1/sessions` | An empty list |
+| `GET /v1/sessions` | The rooms on the list: code, title, wanted and joined players |
 | `GET /v1/ice` | The STUN servers a client should use |
 
 ## Settings

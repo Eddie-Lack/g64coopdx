@@ -26,8 +26,12 @@ typedef int sock_t;
 
 /* The relay's datagrams (server/relay.go): "G64R", a type, then the body. */
 #define RELAY_HEAD 5
-enum { R_OPEN = 0x01, R_JOIN = 0x02, R_TO_HOST = 0x03, R_TO_PEER = 0x04, R_ROOM = 0x81, R_JOINED = 0x82,
-       R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85 };
+enum { R_OPEN = 0x01, R_JOIN = 0x02, R_TO_HOST = 0x03, R_TO_PEER = 0x04, R_ANNOUNCE = 0x05, R_LIST = 0x06,
+       R_BAN = 0x07, R_ROOM = 0x81, R_JOINED = 0x82, R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85,
+       R_ROOMS = 0x86 };
+/* The length of a list request: the relay's longest answer (relay.go, relayListMin). */
+#define RELAY_LIST_ROOMS 12
+#define RELAY_LIST_MIN (RELAY_HEAD + 1 + RELAY_LIST_ROOMS * (NET_ROOM_CODE + 4 + NET_ROOM_TITLE))
 /* How often a host asks the relay to keep its room, and a joiner to keep its place, in milliseconds. */
 #define RELAY_KEEP 2000
 
@@ -401,6 +405,86 @@ void net_relay_tick(net_socket *s, uint32_t now) {
     }
 }
 
+static void put_u32(uint8_t *p, uint32_t v) {
+    p[0] = (uint8_t)v, p[1] = (uint8_t)(v >> 8), p[2] = (uint8_t)(v >> 16), p[3] = (uint8_t)(v >> 24);
+}
+
+void net_relay_announce(net_socket *s, uint32_t build, int wanted, int joined, int flags, int open,
+                        const char *title) {
+    uint8_t m[8 + NET_ROOM_TITLE];
+    size_t len = title ? strlen(title) : 0;
+    if (!s || s->relay != NET_RELAY_HOST || s->state != 1)
+        return;
+    if (len > NET_ROOM_TITLE)
+        len = NET_ROOM_TITLE;
+    put_u32(m, build);
+    m[4] = (uint8_t)wanted;
+    m[5] = (uint8_t)joined;
+    m[6] = (uint8_t)flags;
+    m[7] = open ? 1 : 0;
+    if (len)
+        memcpy(m + 8, title, len);
+    relay_send(s, R_ANNOUNCE, m, 8 + len);
+}
+
+void net_relay_ban(net_socket *s, int peer) {
+    uint8_t m = (uint8_t)peer;
+    if (!s || s->relay != NET_RELAY_HOST || s->state != 1 || peer < 1 || peer > 255)
+        return;
+    relay_send(s, R_BAN, &m, 1);
+}
+
+void net_rooms_ask(net_socket *s, const net_addr *relays, int count, uint32_t build) {
+    uint8_t m[RELAY_LIST_MIN];
+    int i;
+    if (!s || !relays || count < 1)
+        return;
+    /* The request is as long as the longest answer: the relay sends no more than it was sent. */
+    memset(m, 0, sizeof m);
+    memcpy(m, "G64R", 4);
+    m[4] = R_LIST;
+    put_u32(m + RELAY_HEAD, build);
+    for (i = 0; i < count && i < NET_RELAY_ADDRS; i++)
+        raw_send(s, &relays[i], m, sizeof m);
+}
+
+int net_rooms_parse(const uint8_t *d, int n, net_room *out, int max) {
+    int count, i, at = RELAY_HEAD + 1, got = 0;
+    if (!d || n < RELAY_HEAD + 1 || memcmp(d, "G64R", 4) != 0 || d[4] != R_ROOMS)
+        return -1;
+    count = d[RELAY_HEAD];
+    for (i = 0; i < count; i++) {
+        int k, len;
+        if (at + NET_ROOM_CODE + 4 > n)
+            return -1;
+        len = d[at + NET_ROOM_CODE + 3];
+        if (len > NET_ROOM_TITLE || at + NET_ROOM_CODE + 4 + len > n)
+            return -1;
+        if (got < max && out) {
+            net_room *r = &out[got];
+            /* The code and the title are text from the network: letters and digits, and printable ASCII. */
+            for (k = 0; k < NET_ROOM_CODE; k++) {
+                uint8_t c = d[at + k];
+                if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')))
+                    return -1;
+                r->code[k] = (char)c;
+            }
+            r->code[NET_ROOM_CODE] = 0;
+            r->wanted = d[at + NET_ROOM_CODE];
+            r->joined = d[at + NET_ROOM_CODE + 1];
+            r->flags = d[at + NET_ROOM_CODE + 2];
+            for (k = 0; k < len; k++) {
+                uint8_t c = d[at + NET_ROOM_CODE + 4 + k];
+                r->title[k] = c >= 32 && c < 127 ? (char)c : '?';
+            }
+            r->title[len] = 0;
+            got++;
+        }
+        at += NET_ROOM_CODE + 4 + len;
+    }
+    return got;
+}
+
 net_addr net_relay_player(int p) {
     net_addr a;
     memset(&a, 0, sizeof a);
@@ -459,7 +543,8 @@ int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n,
         }
         return -1;
     case R_REFUSED:
-        if (s->relay == NET_RELAY_JOIN && s->state == 0 && n == RELAY_HEAD + 1) {
+        /* A ban (reason 3) can also come to a joiner who is in the room. */
+        if (s->relay == NET_RELAY_JOIN && n == RELAY_HEAD + 1 && (s->state == 0 || d[RELAY_HEAD] == 3)) {
             settle(s, i);
             s->state = -1;
             s->refusal = d[RELAY_HEAD];
