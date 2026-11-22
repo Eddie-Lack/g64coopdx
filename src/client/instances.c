@@ -188,6 +188,7 @@ struct g64_ihost {
     /* A player who waits to come back into the instance they left (take_exit). */
     struct {
         int wait, level, world, type, from;
+        int id; /* the instance they wait for, or -1 for any */
         uint32_t frame;
     } back[RB_MAX_PLAYERS];
     pending_exit exits[MAX_PENDING];
@@ -480,16 +481,22 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
         /* An exit that leads back into the instance the player has just left: in that game they are gone from
            the next confirmed frame, and must be absent for a frame before they come again. They enter once the
            instance has confirmed that frame (g64_ihost_tick). */
+        h->back[p].level = level;
+        h->back[p].world = world;
+        h->back[p].type = e->r.type;
+        h->back[p].from = from;
         if (h->inst[s].used && find_instance(h, level, world) == s) {
             h->back[p].wait = 1;
+            h->back[p].id = h->inst[s].id;
             h->back[p].frame = rb_host_confirmed(h->inst[s].host) + 1;
-            h->back[p].level = level;
-            h->back[p].world = world;
-            h->back[p].type = e->r.type;
-            h->back[p].from = from;
             return;
         }
-        enter(h, p, level, world, e->r.type, from);
+        /* No room for the player now (every instance is in use, or the level's log is full): the host tries again
+           on its next frames. */
+        if (enter(h, p, level, world, e->r.type, from) != 0) {
+            h->back[p].wait = 1;
+            h->back[p].id = -1;
+        }
     }
 }
 
@@ -582,12 +589,18 @@ void g64_ihost_tick(g64_ihost *h) {
         int t;
         if (!h->back[p].wait)
             continue;
+        /* The hub's newest stage, as it is now. */
+        if (h->back[p].world == 0 && h->back[p].level <= HUB8)
+            h->back[p].level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
         t = find_instance(h, h->back[p].level, h->back[p].world);
-        if (t >= 0 && rb_host_confirmed(h->inst[t].host) <= h->back[p].frame)
+        /* They wait only for the instance they left. If it has ended, another one of the level is new to them. */
+        if (t >= 0 && h->inst[t].id == h->back[p].id && rb_host_confirmed(h->inst[t].host) <= h->back[p].frame)
             continue;
-        h->back[p].wait = 0;
-        if (h->where[p] < 0)
-            enter(h, p, h->back[p].level, h->back[p].world, h->back[p].type, h->back[p].from);
+        if (h->where[p] >= 0 ||
+            enter(h, p, h->back[p].level, h->back[p].world, h->back[p].type, h->back[p].from) == 0)
+            h->back[p].wait = 0;
+        else
+            h->back[p].id = -1;
     }
     /* Progress made in one instance goes to every other, at its next confirmed frame: the whole progress, so a newer
        event may replace one not yet confirmed. */

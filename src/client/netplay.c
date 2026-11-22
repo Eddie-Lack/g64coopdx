@@ -927,6 +927,8 @@ enum { PAUSE_RESUME, PAUSE_CHECKPOINT, PAUSE_HUB, PAUSE_LEAVE, PAUSE_ITEMS };
 static const char *const pauseItems[PAUSE_ITEMS] = {"Resume", "Back to checkpoint", "Back to the hub",
                                                     "Leave the online game"};
 static int pauseOpen, pauseSelection, pauseQuit, actionFrames, action;
+/* The game the choice was made in: it is not repeated in the next one. */
+static int actionInstance;
 static uint16_t lastButtons;
 /* The buttons held when the menu opened or closed. The game gets none of them until each is released: the press that
    closes the menu must not also jump or grab. */
@@ -950,10 +952,12 @@ void netplay_pause_pick(int item) {
     case PAUSE_CHECKPOINT:
         action = 1;
         actionFrames = ACTION_FRAMES;
+        actionInstance = iclient ? g64_iclient_instance(iclient) : -1;
         break;
     case PAUSE_HUB:
         action = 2;
         actionFrames = ACTION_FRAMES;
+        actionInstance = iclient ? g64_iclient_instance(iclient) : -1;
         break;
     case PAUSE_LEAVE:
         pauseQuit = 1;
@@ -1142,6 +1146,9 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     buttons = (uint16_t)(buttons & ~ACTION_BUTTON);
     pause_menu(buttons, stickY);
     heldBack &= buttons;
+    /* A choice ends with the game it was made in: "Back to the hub" must not act again in the hub it led to. */
+    if (actionFrames > 0 && (g64_iclient_moving(iclient) || g64_iclient_instance(iclient) != actionInstance))
+        actionFrames = 0;
     if (actionFrames > 0) {
         actionFrames--;
         in.buttons = ACTION_BUTTON;
