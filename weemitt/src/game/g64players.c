@@ -1466,14 +1466,35 @@ static u32 framesRun;
 
 /* For scripts (src/port/g64lua.c). */
 void G64LuaEvent(int kind, int player);
+void HurtHand(s32 type, s16 damage);
+static s32 slot_used(s32 i);
+
+/* For scripts: hurts a player's glove by one point, as an enemy's touch does, by the game's own rules (HurtHand).
+   A glove that was just hurt, or that reads a tip, is not hurt again. The player's state is in the game's
+   variables for the call. */
+void G64HurtPlayer(s32 who) {
+    s32 i = slot_of(who);
+    if (i == 0) {
+        HurtHand(HURT_FALL, 1);
+    } else if (i > 0 && G64HazardBegin(i)) {
+        HurtHand(HURT_FALL, 1);
+        G64HazardEnd(i);
+    }
+}
+
+/* For scripts: sets a player's health, 1 to 3. */
+void G64SetPlayerHealth(s32 who, s32 health) {
+    s32 i = slot_of(who);
+    if (i < 0 || !slot_used(i) || health < 1 || health > 3)
+        return;
+    slot_player(i)->health = health;
+}
 
 /* Tells the script that something happened to the player whose state is in the game's variables now
    (src/port/g64lua.c: 1 a garib taken, 2 a death). Without a script it does nothing. */
 void G64ScriptEvent(s32 kind) {
     G64LuaEvent(kind, g64Member[logicSlot]);
 }
-
-static s32 slot_used(s32 i);
 
 /* 1 when the player has a glove in this level. A player who has just come has none for a frame (G64HasPlayer is
    already 1 then), and a script that asked for their place would get nothing. */

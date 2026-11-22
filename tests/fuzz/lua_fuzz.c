@@ -54,8 +54,23 @@ int G64PlayerGaribs(int p) {
     return p == 0 ? frames / 10 : -1;
 }
 
+/* A hurt takes a point of the stand-in player's health; the health call sets it. */
+static int health = 3;
+
+void G64HurtPlayer(int p) {
+    if (p == 0 && health > 0) {
+        health--;
+    }
+}
+
+void G64SetPlayerHealth(int p, int n) {
+    if (p == 0) {
+        health = n;
+    }
+}
+
 int G64PlayerHealth(int p) {
-    return p == 0 ? 3 : -100;
+    return p == 0 ? health : -100;
 }
 
 int G64PlayerLives(int p) {

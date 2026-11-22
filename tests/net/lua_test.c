@@ -57,8 +57,23 @@ int G64PlayerGaribs(int p) {
     return p == 0 ? frames / 10 : -1;
 }
 
+/* A hurt takes a point of the stand-in player's health; the health call sets it. */
+static int health = 3;
+
+void G64HurtPlayer(int p) {
+    if (p == 0 && health > 0) {
+        health--;
+    }
+}
+
+void G64SetPlayerHealth(int p, int n) {
+    if (p == 0) {
+        health = n;
+    }
+}
+
 int G64PlayerHealth(int p) {
-    return p == 0 ? 3 : -100;
+    return p == 0 ? health : -100;
 }
 
 int G64PlayerLives(int p) {
@@ -199,6 +214,14 @@ int main(void) {
         "          game.health(3) == nil and game.lives(3) == nil) and 'an absent player gives nothing' or 'WRONG')\n"
         "game.log(math.sin(1.5) .. ' ' .. math.cos(2) .. ' ' .. (pcall(math.sin, 1e7) and 'ALLOWED' or 'refused') ..\n"
         "         ' ' .. (pcall(math.cos, 0 / 0) and 'ALLOWED' or 'refused'))\n",
+        1, 1);
+
+    run("hurting and healing",
+        "game.hurt(0); game.hurt(0); local a = game.health(0)\n"
+        "game.set_health(0, 3); local b = game.health(0)\n"
+        "game.hurt(7); game.set_health(7, 2)\n"
+        "game.log(a .. ' ' .. b .. ' ' .. ((pcall(game.set_health, 0, 0) or pcall(game.set_health, 0, 4) or\n"
+        "         pcall(game.set_health, 0, 1.5) or pcall(game.hurt, 16)) and 'ALLOWED' or 'refused'))\n",
         1, 1);
 
     run("random numbers",

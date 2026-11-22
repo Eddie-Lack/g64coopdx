@@ -299,10 +299,10 @@ not hashed. Lua is in the game: Lua 5.4.8 with two small patches (`weemitt/third
 game's own data for the scripts, a sandbox with a limit on work, and a pack's `script.lua`, which every game of the
 session runs ([scripts.md](../scripts.md); `weemitt/src/port/g64lua.c`; `script_run` in tests/rom/instances.c;
 tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). A script reads the players' places, balls and
-counts, moves a glove, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
+counts, moves, hurts and heals a glove, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
 comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory, and a number made of the script's memory
-counts and random state in place of the scripts' block. Left: more events from inside the game's step, writes to the players'
-counters, spawns, puzzle conditions and actions, the HUD, and session state that a
+counts and random state in place of the scripts' block. Left: more events from inside the game's step, writes to garibs and
+lives, spawns, puzzle conditions and actions, the HUD, and session state that a
 script keeps across levels.
 
 Playable: a session on a custom Glovebox level with a script, joined by players who did not have the pack. Test: the
