@@ -455,6 +455,9 @@ static s32 name_is(Object *obj, const char *name) {
     return obj->name[i] == 0;
 }
 
+/* g64coopdx: this level's model has texture word k (src/game/g64players.c, tex_word). */
+void G64TexWordLoaded(s32 k);
+
 void RestoreDrawList(u8 *list, s32 base, Object *obj) {
     u32 *dl = (u32 *)list;
     Texture *tex;
@@ -473,14 +476,19 @@ void RestoreDrawList(u8 *list, s32 base, Object *obj) {
                     }
                     if (name_is(obj, "gball")) {
                         ballTextureData = &dl[1];
+                        G64TexWordLoaded(0);
                     } else if (name_is(obj, "cball")) {
                         ballTextureData2 = &dl[1];
+                        G64TexWordLoaded(2);
                     } else if (name_is(obj, "GShinL")) {
                         handTextureData[0] = &dl[1];
+                        G64TexWordLoaded(6);
                     } else if (name_is(obj, "GShinR")) {
                         handTextureData[1] = &dl[1];
+                        G64TexWordLoaded(7);
                     } else if (ballBitTextureData == NULL && name_is(obj, "gbl_bt")) {
                         ballBitTextureData = &dl[1];
+                        G64TexWordLoaded(4);
                     }
                     dl += 0x38 / 4;
                 } else if ((dl[2] >> 24) == 0xE8) {
@@ -490,14 +498,19 @@ void RestoreDrawList(u8 *list, s32 base, Object *obj) {
                     }
                     if (name_is(obj, "gball")) {
                         ballTexturePalette = &dl[1];
+                        G64TexWordLoaded(1);
                     } else if (name_is(obj, "cball")) {
                         ballTexturePalette2 = &dl[1];
+                        G64TexWordLoaded(3);
                     } else if (name_is(obj, "GShinL")) {
                         handTexturePalette[0] = &dl[1];
+                        G64TexWordLoaded(8);
                     } else if (name_is(obj, "GShinR")) {
                         handTexturePalette[1] = &dl[1];
+                        G64TexWordLoaded(9);
                     } else if (ballBitTexturePalette == NULL && name_is(obj, "gbl_bt")) {
                         ballBitTexturePalette = &dl[1];
+                        G64TexWordLoaded(5);
                     }
                     dl += 0x30 / 4;
                 } else {

@@ -135,7 +135,8 @@ harness at N players and by the determinism tests:
    texture and the palette go with the player in a swap, with the crystal ball's model, and the renderer draws
    another player's glove and ball with that player's words (G64ActorTextures; gfx_dl.c; tests/rom/textures.c).
    Left: the drawn result has not been looked at in the window program. Two players with the same kind of ball
-   share its palette, so a blend (a ball that is changing, a snowball) shows on both. The run of garibs taken in
+   share its palette, so a blend (a ball that is changing, a snowball) shows on both. The bits of a burst ball are
+   drawn with the viewer's own ball texture. The run of garibs taken in
    quick succession is each player's own.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.

@@ -106,8 +106,19 @@ extern PTR32(u32) handTexturePalette[2];
 /* The ball's other model: the crystal ball's, or the usual one while the ball is crystal (ChangeBallInto). */
 extern PTR32(ObjectInstance) crystalBall;
 
+/* The words that this level's models have (a bit each). The loader sets a bit when it finds the word
+   (src/port/loaders.c), and a level load starts from none (G64ExtraPlayersFree). The game's own pointer to a word
+   that this level lacks is left over from an earlier level, and nothing may be read or written through it. */
+static u32 texLoaded;
+
+void G64TexWordLoaded(s32 k) {
+    texLoaded |= 1u << k;
+}
+
 /* Word k's place in the game's memory, or NULL when the level has none. 0 to 5 are the ball's, 6 to 9 the glove's. */
 static u32 *tex_word(s32 k) {
+    if (!(texLoaded & (1u << k)))
+        return NULL;
     switch (k) {
         case 0: return ballTextureData;
         case 1: return ballTexturePalette;
@@ -738,8 +749,12 @@ void G64UpdateProxies(void) {
         s32 store = !swapped ? i : i == 0 ? swapped : i == swapped ? 0 : i;
         for (k = 0; k < G64_ORBITERS; k++) {
             Actor *p = proxyOrbiter[i][k];
-            if (p && !(k == 2 && world_orbiter3()) && (store == 0 || slots[store]) && orbiter_in(store, k)->inst)
+            if (p && !(k == 2 && world_orbiter3()) && (store == 0 || slots[store]) && orbiter_in(store, k)->inst) {
                 copy_to_proxy(p, orbiter_in(store, k));
+                /* A hidden player's orbiters are hidden too. Slot i's orbiters are player i's in every view. */
+                if (hide && i != cameoOwn)
+                    hide_actor(p);
+            }
         }
     }
 }
@@ -753,6 +768,7 @@ static void forget_tips(void);
 static s32 cameoStarter, cameoMet, cameoUsed, cameoPending, cameoHolding;
 
 void G64ExtraPlayersFree(void) {
+    texLoaded = 0;
     forget_tips();
     forget_cameo();
     free_slots();
@@ -943,8 +959,15 @@ s32 G64ActorTextures(Actor *a, u32 *from, u32 *to, s32 max) {
         G64Slot *s = slots[i];
         if (!s || (a != proxyHand[i] && a != proxyBall[i]))
             continue;
-        first = a == proxyBall[i] ? 0 : 6;
-        last = a == proxyBall[i] ? 3 : 9;
+        /* The ball has two models with a word pair each: the crystal ball's (2 and 3) and the usual one's (0 and
+           1). Only the words of the model that is drawn are passed: the two pairs can hold the same value. */
+        if (a == proxyBall[i]) {
+            first = s->ballControl.type == BALL_MODE_CRYSTAL ? 2 : 0;
+            last = first + 1;
+        } else {
+            first = 6;
+            last = 9;
+        }
         for (k = first; k <= last && n < max; k++) {
             u32 *w = tex_word(k);
             if (w && *w && s->texWords[k] && *w != s->texWords[k]) {
