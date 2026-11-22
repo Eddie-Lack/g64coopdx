@@ -8,6 +8,7 @@
 int G64LuaLoad(const char *source, unsigned int size);
 void G64LuaFrame(void);
 void G64LuaReset(void);
+void G64LuaEvent(int kind, int player);
 
 /* The game's side of the scripts' calls: one player at a place that the script can move. */
 static int frames;
@@ -97,6 +98,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     G64LuaLoad((const char *)data, (unsigned int)size);
     for (frames = 0; frames < 3; frames++) {
         G64LuaFrame();
+        G64LuaEvent(1 + frames % 2, frames % 2);
     }
     G64LuaReset();
     return 0;

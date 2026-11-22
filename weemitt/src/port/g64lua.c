@@ -34,6 +34,12 @@ static lua_State *luaState;
    (on_join, on_leave), one bit each. Both are part of the game's saved state. */
 static unsigned long long luaRandom;
 static unsigned int luaSeen;
+/* What happened inside the game's step since the script last ran (G64LuaEvent): the kind and the player. The script
+   hears of it at the start of the next frame. A step that makes more than EVENT_MAX events loses the later ones,
+   the same on every machine. */
+#define EVENT_MAX 64
+static unsigned char luaEvents[EVENT_MAX][2];
+static unsigned int luaEventCount;
 
 /* The work that is left to the call into the script that runs now: one for each step of Lua and for each byte the
    script asks for. At 0 the script is stopped (spent, below).
@@ -163,6 +169,7 @@ void G64LuaReset(void) {
     luaBudget = 0;
     luaRandom = 0;
     luaSeen = 0;
+    luaEventCount = 0;
 }
 
 /* 1 when a script is loaded. */
@@ -180,7 +187,7 @@ void G64LuaCounts(unsigned int out[4]) {
 }
 
 /* One number for the comparison between machines: a hash of the counts above, of the state of the random numbers
-   and of the players the script has seen. The block itself holds addresses and cannot be compared. */
+   of the players the script has seen and of the events that wait for it. The block itself holds addresses and cannot be compared. */
 unsigned int G64LuaHash(void) {
     unsigned int c[7], k = 2166136261u;
     int i, b;
@@ -192,6 +199,10 @@ unsigned int G64LuaHash(void) {
         for (b = 0; b < 32; b += 8) {
             k = (k ^ ((c[i] >> b) & 0xFF)) * 16777619u;
         }
+    }
+    for (i = 0; i < (int)luaEventCount; i++) {
+        k = (k ^ luaEvents[i][0]) * 16777619u;
+        k = (k ^ luaEvents[i][1]) * 16777619u;
     }
     return k;
 }
@@ -699,8 +710,25 @@ static void call_event(lua_State *L, const char *name, int p) {
     lua_settop(L, 0);
 }
 
+/* The script's functions for the events of the game's step, by kind (G64LuaEvent). Kind 0 is unused. */
+static const char *const eventName[] = {NULL, "on_garib", "on_death"};
+#define EVENT_KINDS ((int)(sizeof eventName / sizeof eventName[0]))
+
+/* From the game, inside its step: something happened to a player. The script must not run here, since one
+   player's state is in the game's variables at this point. The event waits for the next frame. */
+void G64LuaEvent(int kind, int player) {
+    if (luaState == NULL || kind < 1 || kind >= EVENT_KINDS || player < 0 || player > 15 ||
+        luaEventCount >= EVENT_MAX) {
+        return;
+    }
+    luaEvents[luaEventCount][0] = (unsigned char)kind;
+    luaEvents[luaEventCount][1] = (unsigned char)player;
+    luaEventCount++;
+}
+
 /* One frame of the script: on_leave for each player who is gone since the last frame, on_join for each who is
-   new, then on_frame. All of it runs under one call_script, and so within one frame's work. */
+   new, the events of the last step in their order, then on_frame. All of it runs under one call_script, and so
+   within one frame's work. */
 static int frame_call(lua_State *L) {
     unsigned int now = 0;
     int p;
@@ -719,6 +747,16 @@ static int frame_call(lua_State *L) {
         if ((now & ~luaSeen) & (1u << p)) {
             luaSeen |= 1u << p;
             call_event(L, "on_join", p);
+        }
+    }
+    /* The list is emptied first: the events are the last step's, whatever the script does with them. */
+    {
+        unsigned char events[EVENT_MAX][2];
+        unsigned int n = luaEventCount, i;
+        memcpy(events, luaEvents, sizeof events);
+        luaEventCount = 0;
+        for (i = 0; i < n; i++) {
+            call_event(L, eventName[events[i][0]], events[i][1]);
         }
     }
     call_event(L, "on_frame", -1);

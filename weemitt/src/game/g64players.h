@@ -344,6 +344,10 @@ s32 G64PlayerInWater(s32 player);
 s32 G64GaribGroupNear(const struct Vec3 *pos, f32 radius);
 s32 G64GaribTaker(const struct Vec3 *pos);
 void G64GaribGained(void);
+
+/* Tells a level pack's script that something happened to the player whose state is in the game's variables now:
+   1 a garib taken, 2 a death (src/port/g64lua.c, G64LuaEvent). The script hears of it at the next frame. */
+void G64ScriptEvent(s32 kind);
 s32 G64PickupTaker(const struct Vec3 *pos, f32 radiusSq);
 /* G64PickupTaken notes that the player in the globals took this pick-up. G64PickupScorer gives the slot of the
    player who took it, for its points ten frames later, and forgets the note; 0 for the first player or nobody. */
