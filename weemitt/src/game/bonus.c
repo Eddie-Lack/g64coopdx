@@ -73,6 +73,9 @@ static u32 carnivalBonusSetUpFrame;
 static u32 atlantisBonusSetUpFrame;
 static u32 controlRoomSnapFrame;
 
+/* g64coopdx: the slot of the player whose part runs (EachOtherPlayer). */
+static s32 cannonSlot;
+
 /* g64coopdx: runs a bonus level's per-player part for each player who is not in the globals, with them in the
    globals. */
 static void EachOtherPlayer(void (*part)(void)) {
@@ -81,14 +84,96 @@ static void EachOtherPlayer(void (*part)(void)) {
 
     for (p = 1; p < players; p++) {
         if (G64HazardBegin(p)) {
+            cannonSlot = p;
             part();
             G64HazardEnd(p);
         }
     }
 }
 
+/* A shot from the glove in the globals: the bullet, its random shape, its sounds and its sparks. The same for the
+   first player and, online, for every other player on the cannon. */
+static void CarnivalShot(void) {
+    Bullet *bul;
+    Debris *d;
+    f32 ang;
+    s32 j;
+
+    ckbNumShots++;
+    bul = FireBulletFromActor(&hand, BALL_BULLET, 0);
+    if (bul != NULL) {
+        switch (Random(15)) {
+            case 0:
+                FindObject(&bul->actor.inst, UpdateCRC(nmeObjectName[28]), nmeObjectName[28], 1);
+                bul->actor.obj->spheres[0].radius = bul->actor.radius = defaultBehaviour[28].radius;
+                bul->actor.spinSpeed = 0.6f;
+                PlaySample(25, &bul->actor.pos, 80, (Random(24) + 116));
+                break;
+            case 1:
+                FindObject(&bul->actor.inst, UpdateCRC(nmeObjectName[29]), nmeObjectName[29], 1);
+                bul->actor.obj->spheres[0].radius = bul->actor.radius = defaultBehaviour[29].radius;
+                PlaySample(19, &bul->actor.pos, 80, (Random(24) + 116));
+                break;
+            case 2:
+                FindObject(&bul->actor.inst, UpdateCRC(nmeObjectName[30]), nmeObjectName[30], 1);
+                bul->actor.obj->spheres[0].radius = bul->actor.radius = defaultBehaviour[30].radius;
+                PlaySample(21, &bul->actor.pos, 80, (Random(24) + 116));
+                break;
+        }
+        PlaySample(27, &bul->actor.pos, 80, (Random(24) + 116));
+        AddDebris(POPB, &bul->actor.pos, &zero, NULL, NULL);
+        ang = Random(62) / 10;
+        for (j = 0; j < 5; j++) {
+            carnivalTempVect.x = carnivalTempVect.z = 0.0f;
+            carnivalTempVect.y = 8.0f;
+            RotateVector2DXYZ(&carnivalTempVect, &carnivalTempVect, ang + j * 2 * 3.141592654 / 5.0, 2);
+            RotateVectorByQuaternion(&carnivalTempVect, &carnivalTempVect, &hand.rotQuat);
+            ADD_VECTORS(&carnivalCamVect, &carnivalTempVect, &bul->actor.pos);
+            d = AddDebris(WIND_BIT, &carnivalCamVect, &carnivalTempVect, NULL, NULL);
+            if (d != NULL) {
+                d->lifeTimer = 5;
+                d->info->friction = 0.6f;
+                d->friction = 0.6f;
+            }
+        }
+        for (j = 0; j < 10; j++) {
+            carnivalTempVect = bul->actor.vel;
+            carnivalTempVect.x += Random(15) - 7;
+            carnivalTempVect.y += Random(15) - 7;
+            carnivalTempVect.z += Random(15) - 7;
+            if (j < 5) {
+                d = AddDebris(WIND_BIT, &bul->actor.pos, &carnivalTempVect, NULL, NULL);
+                if (d != NULL) {
+                    d->lifeTimer = 8;
+                    d->info->friction = 0.6f;
+                    d->friction = 0.6f;
+                }
+            } else {
+                d = AddDebris(STAR, &bul->actor.pos, &carnivalTempVect, NULL, NULL);
+                if (d != NULL) {
+                    d->flags &= ~0x800000;
+                    d->info->friction = 0.6f;
+                    d->friction = 0.6f;
+                }
+            }
+        }
+    }
+}
+
+extern Vec3 spaceBossTempVect2;
+
 /* The cannon's platform, for CarnivalBonusPlayer. */
 static Platform *carnivalPlat;
+/* g64coopdx: each other player's own aim (the turn and the tilt of the cannon as they see it) and the frames until
+   their next shot, by the player's slot. The first player's are the cannon's own, as in the original. */
+static f32 cannonAim[G64_MAX_PLAYERS][2];
+static s32 cannonReload[G64_MAX_PLAYERS];
+
+/* The bullets the level allows at once: the original's 8 for one player, and 4 more for each other player. */
+static s32 G64CannonBullets(void) {
+    s32 n = 8 + 4 * (G64SlotCount() - 1);
+    return n > 40 ? 40 : n;
+}
 
 /* The Carnival bonus level's part for a player other than the first: their glove is held on the cannon as the first
    player's is, and their camera stands behind the cannon. The camera's aim is the one the level has worked out for
@@ -96,8 +181,13 @@ static Platform *carnivalPlat;
    a shot's sparks use the level's variable for it. */
 static void CarnivalBonusPlayer(void) {
     Platform *plat = carnivalPlat;
+    f32 *aim = cannonAim[cannonSlot & (G64_MAX_PLAYERS - 1)];
+    s32 *reload = &cannonReload[cannonSlot & (G64_MAX_PLAYERS - 1)];
+    s32 free = !gamePaused && (cameoList.head.next == NULL || !cameoList.head.next->active);
+    Vec3 rot;
     Vec3 up;
     Vec3 spot;
+    Vec3 target;
     f32 keep;
 
     camera.flags &= ~0x10;
@@ -112,26 +202,77 @@ static void CarnivalBonusPlayer(void) {
     }
     hand.flags = 0;
     hand.state->mode = HAND_NOTHING;
-    hand.rotQuat = plat->actor.rotQuat;
+    /* This player's own stick turns their aim, within the cannon's limits. */
+    if (free) {
+        aim[0] = Aabs(aim[0] - pad[ActiveController].stickX / cannonxspeed * deltaTime);
+        aim[1] = MIN(MAX(5.4977871445, aim[1] + pad[ActiveController].stickY / cannonyspeed * deltaTime), 6.282185308);
+    }
+    rot = plat->motion->rot;
+    rot.y = aim[0];
+    rot.x = aim[1];
+    GetQuaternionFromXYZRot(&hand.rotQuat, &rot);
     up.x = 0.0f;
     up.y = 13.0f;
     up.z = 0.0f;
     RotateVectorByQuaternion(&up, &up, &hand.rotQuat);
     ADD_VECTORS(&hand.pos, &up, &plat->actor.pos);
     if (!cameoList.head.next->active) {
+        /* The camera stands behind this player's aim and looks along it. */
+        target.x = target.y = 0.0f;
+        target.z = 40.0f;
+        RotateVectorByQuaternion(&target, &target, &hand.rotQuat);
+        ADD_TO_VECTOR(&target, &hand.pos);
         RotateVectorByQuaternion(&spot, &carnivalCamOffVect, &hand.rotQuat);
         ADD_TO_VECTOR(&spot, &hand.pos);
         keep = DeltaPow(ckbcamfrac);
         AddScaledVector(&camera.pos, &camera.pos, keep, &spot, DeltaTake(ckbcamfrac, 1.0f - ckbcamfrac));
-        SetCameraOverride(camera.pos.x, camera.pos.y, camera.pos.z, &carnivalTempVect2, &zero, 10, 0);
+        /* The camera keeps a pointer to what it looks at, which must be in the game's memory and this player's
+           own. The last Space boss's aim point is such a variable (g64players.c swaps it with the player), and
+           this level does not use it. */
+        spaceBossTempVect2 = target;
+        SetCameraOverride(camera.pos.x, camera.pos.y, camera.pos.z, &spaceBossTempVect2, &zero, 10, 0);
+        if (free) {
+            if (deltaTick && *reload != 0) {
+                (*reload)--;
+            }
+            /* Their own A fires along their aim. The cannon's recoil is the first player's alone. */
+            if (bulletList.count < G64CannonBullets() && *reload == 0 && pad[ActiveController].pressed[BUTTON_A]) {
+                *reload = reloadCounter;
+                CarnivalShot();
+            }
+        }
+    }
+}
+
+/* g64coopdx: before a player's view is drawn (G64CannonView, g64players.c): the cannon points where that player
+   aims. slot is the player's slot; the first player's aim is the cannon's own. The client loads the state again
+   after the view. */
+void CarnivalView(s32 slot) {
+    Platform *plat = carnivalPlat;
+    Platform *side;
+    Vec3 at;
+    s32 tag;
+
+    if (gameInfo.level != CARNIVALBONUS || plat == NULL || slot < 1 || slot >= G64_MAX_PLAYERS) {
+        return;
+    }
+    plat->motion->rot.y = cannonAim[slot][0];
+    plat->motion->rot.x = cannonAim[slot][1];
+    GetQuaternionFromXYZRot(&plat->actor.rotQuat, &plat->motion->rot);
+    for (tag = 2; tag <= 3; tag++) {
+        side = TagToFirstPlatform(tag);
+        side->motion->rot.y = plat->motion->rot.y;
+        at.x = tag == 2 ? -12.0f : 12.0f;
+        at.y = -5.0f;
+        at.z = -2.0f;
+        RotateVector2D(&side->actor.pos, &at, side->motion->rot.y);
+        GetQuaternionFromXYZRot(&side->actor.rotQuat, &side->motion->rot);
     }
 }
 
 void DoCarnivalBonus(void) {
     Platform *plat;
     Platform *platform;
-    Bullet *bul;
-    Debris *d;
     f32 ang;
     f32 keep;
     s32 numTargetsHit;
@@ -146,6 +287,11 @@ void DoCarnivalBonus(void) {
         ckbNumShots = 0;
         carnivalReload = 0;
         plat->motion->rot.x = 5.9f;
+        for (j = 0; j < G64_MAX_PLAYERS; j++) {
+            cannonAim[j][0] = plat->motion->rot.y;
+            cannonAim[j][1] = plat->motion->rot.x;
+            cannonReload[j] = 0;
+        }
         hand.link = &ball;
         AnimateActor(&hand, HANDANIM_DENIS, 0, 0, 0);
         carnivalCamOffVect.x = 0.0f;
@@ -201,10 +347,11 @@ void DoCarnivalBonus(void) {
     plat->motion->oldRot.y = plat->motion->rot.y;
     plat->motion->oldRot.x = plat->motion->rot.x;
     if (!gamePaused && (cameoList.head.next == NULL || !cameoList.head.next->active)) {
-        /* g64coopdx: there is one cannon. The stick that is pushed the farthest turns it (g64players.c). */
-        plat->motion->rot.y = Aabs(plat->motion->rot.y - G64AnyStick(0) / cannonxspeed * deltaTime);
+        /* g64coopdx: the first player's stick turns the cannon. Every other player has an aim of their own
+           (CarnivalBonusPlayer), and in their view the cannon points along it (CarnivalView). */
+        plat->motion->rot.y = Aabs(plat->motion->rot.y - (f32)pad[ActiveController].stickX / cannonxspeed * deltaTime);
         plat->motion->rot.x = MIN(MAX(5.4977871445,
-                                      plat->motion->rot.x + G64AnyStick(1) / cannonyspeed * deltaTime),
+                                      plat->motion->rot.x + (f32)pad[ActiveController].stickY / cannonyspeed * deltaTime),
                                   6.282185308);
     }
     ang = FindShortestAngle(plat->motion->oldRot.y, plat->motion->rot.y);
@@ -267,72 +414,14 @@ void DoCarnivalBonus(void) {
             /* The recoil dies away. */
             keep = DeltaPow(cannonrecoilfac);
             SCALE_VECTOR(&plat->actor.pos, keep);
-            /* g64coopdx: any player's A fires it. */
-            if (bulletList.count < 8 && carnivalReload == 0 && G64AnyPressed(BUTTON_A)) {
+            /* g64coopdx: each player fires with their own A (CarnivalBonusPlayer has the others). */
+            if (bulletList.count < G64CannonBullets() && carnivalReload == 0 && pad[ActiveController].pressed[BUTTON_A]) {
                 carnivalTempVect.x = carnivalTempVect.y = 0.0f;
                 carnivalTempVect.z = cannonrecoil;
                 RotateVectorByQuaternion(&carnivalTempVect, &carnivalTempVect, &hand.rotQuat);
                 ADD_TO_VECTOR(&plat->actor.pos, &carnivalTempVect);
-                ckbNumShots++;
                 carnivalReload = reloadCounter;
-                bul = FireBulletFromActor(&hand, BALL_BULLET, 0);
-                if (bul != NULL) {
-                    switch (Random(15)) {
-                        case 0:
-                            FindObject(&bul->actor.inst, UpdateCRC(nmeObjectName[28]), nmeObjectName[28], 1);
-                            bul->actor.obj->spheres[0].radius = bul->actor.radius = defaultBehaviour[28].radius;
-                            bul->actor.spinSpeed = 0.6f;
-                            PlaySample(25, &bul->actor.pos, 80, (Random(24) + 116));
-                            break;
-                        case 1:
-                            FindObject(&bul->actor.inst, UpdateCRC(nmeObjectName[29]), nmeObjectName[29], 1);
-                            bul->actor.obj->spheres[0].radius = bul->actor.radius = defaultBehaviour[29].radius;
-                            PlaySample(19, &bul->actor.pos, 80, (Random(24) + 116));
-                            break;
-                        case 2:
-                            FindObject(&bul->actor.inst, UpdateCRC(nmeObjectName[30]), nmeObjectName[30], 1);
-                            bul->actor.obj->spheres[0].radius = bul->actor.radius = defaultBehaviour[30].radius;
-                            PlaySample(21, &bul->actor.pos, 80, (Random(24) + 116));
-                            break;
-                    }
-                    PlaySample(27, &bul->actor.pos, 80, (Random(24) + 116));
-                    AddDebris(POPB, &bul->actor.pos, &zero, NULL, NULL);
-                    ang = Random(62) / 10;
-                    for (j = 0; j < 5; j++) {
-                        carnivalTempVect.x = carnivalTempVect.z = 0.0f;
-                        carnivalTempVect.y = 8.0f;
-                        RotateVector2DXYZ(&carnivalTempVect, &carnivalTempVect, ang + j * 2 * 3.141592654 / 5.0, 2);
-                        RotateVectorByQuaternion(&carnivalTempVect, &carnivalTempVect, &hand.rotQuat);
-                        ADD_VECTORS(&carnivalCamVect, &carnivalTempVect, &bul->actor.pos);
-                        d = AddDebris(WIND_BIT, &carnivalCamVect, &carnivalTempVect, NULL, NULL);
-                        if (d != NULL) {
-                            d->lifeTimer = 5;
-                            d->info->friction = 0.6f;
-                            d->friction = 0.6f;
-                        }
-                    }
-                    for (j = 0; j < 10; j++) {
-                        carnivalTempVect = bul->actor.vel;
-                        carnivalTempVect.x += Random(15) - 7;
-                        carnivalTempVect.y += Random(15) - 7;
-                        carnivalTempVect.z += Random(15) - 7;
-                        if (j < 5) {
-                            d = AddDebris(WIND_BIT, &bul->actor.pos, &carnivalTempVect, NULL, NULL);
-                            if (d != NULL) {
-                                d->lifeTimer = 8;
-                                d->info->friction = 0.6f;
-                                d->friction = 0.6f;
-                            }
-                        } else {
-                            d = AddDebris(STAR, &bul->actor.pos, &carnivalTempVect, NULL, NULL);
-                            if (d != NULL) {
-                                d->flags &= ~0x800000;
-                                d->info->friction = 0.6f;
-                                d->friction = 0.6f;
-                            }
-                        }
-                    }
-                }
+                CarnivalShot();
             }
             TagToFirstPlatform(60)->motion->speed =
                 (frameCount / 30000.0f < 0.025) ? frameCount / 30000.0f * 0.55 + 0.015 : 0.02875f;
