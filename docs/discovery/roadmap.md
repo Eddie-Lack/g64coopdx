@@ -12,7 +12,7 @@ with a look through weemitt's log for fixes worth taking into the copy.
 | 2. Rollback on a LAN | 2 to 4 players over direct UDP, in different levels of one world, with desync checks | 5 to 8 weeks | 1; game changes 3 (first part), 5, 10 and 12 |
 | 3. The whole game in co-op | Every level, boss and bonus level, 8 players, the owner's rules | 8 to 14 weeks | 2; game changes 2 to 4 and 11 |
 | 4. Online services | Lobby, NAT traversal, relay, encryption, chat, moderation, 16 players | 4 to 6 weeks | 2 (can run beside 3) |
-| 5. Mods | Lua scripts and level packs from Glovebox, downloaded on join | 6 to 9 weeks | 2; game change 6; Glovebox's pack export |
+| 5. Mods | Lua scripts and level packs from Glovebox, downloaded on join | 6 to 9 weeks | 2; game change 6; the pack tool (`tools/g64pack.c`) |
 | 6. Release | A Windows release, documentation, crash reports | 2 to 4 weeks | 3, 4, 5 |
 
 In all: about 31 to 51 weeks with every phase done one after another, so roughly 7 to 12 months for one person
@@ -285,7 +285,8 @@ machines on two networks.
 - Lua 5.4 vendored, its arena in the savestate, the sandbox, the deterministic math, the API v1 with generated docs
   ([mods.md](mods.md#the-lua-api)).
 - Game change 6: levels and banks from buffers, more bank slots, rotation and scale on every object type.
-- Glovebox: Export level pack; imported models in banks of their own.
+- A tool that makes a pack from Glovebox's level file or built ROM (done: `tools/g64pack.c`); imported models in
+  banks of their own.
 - Packs by hash, a prompt before download, path checks, a cache.
 
 Done so far: a level pack from a folder that every player has (`--pack FOLDER`). Its level file takes the place of

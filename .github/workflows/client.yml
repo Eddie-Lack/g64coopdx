@@ -39,12 +39,15 @@ jobs:
         run: make -C weemitt -j"$(nproc)" studio-windows64
       - name: Build its sound player (the library with the real sound player)
         run: make -C weemitt -j"$(nproc)" lib-windows64-sound
+      - name: Build the tool that makes level packs
+        run: make packtool-windows
       - name: Pack it
         run: |
           d=g64coopdx-windows
           mkdir -p "$d"
           cp weemitt/build/studio-windows64/weemitt-studio.exe "$d/g64coopdx.exe"
           cp weemitt/build/lib-windows64-sound/glover.dll "$d/g64coopdx-sound.dll"
+          cp build/g64pack.exe "$d/"
           cp weemitt/deps/SDL2-mingw/x86_64-w64-mingw32/bin/SDL2.dll "$d/"
           cp docs/playing-online.md "$d/README.md"
           cp LICENSE "$d/LICENSE.txt"
@@ -72,6 +75,8 @@ jobs:
           mkdir -p "$d"
           cp weemitt/build/studio64/weemitt-studio "$d/g64coopdx"
           cp weemitt/build/studio64/g64coopdx-sound.so "$d/"
+          make packtool
+          cp build/g64pack "$d/"
           cp docs/playing-online.md "$d/README.md"
           cp LICENSE "$d/LICENSE.txt"
           cp weemitt/LICENSE "$d/LICENSE-weemitt.txt"

@@ -88,6 +88,65 @@ static void hash_file(crypto_blake2b_ctx *ctx, const char *name, const uint8_t *
     crypto_blake2b_update(ctx, d, n);
 }
 
+static uint32_t rom_be32(const uint8_t *p) {
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
+}
+
+/* The ROM offset that two instructions of the game's code load: "lui REG, high" and then "addiu REG, REG, low" or
+ * "ori REG, REG, low". The game's loader has such a pair for the start of the level files and one for their end,
+ * and Glovebox changes them when it moves the files. Returns 0 when the words at that place are not such a pair, or
+ * the address is not in the cartridge. */
+static uint32_t code_pointer(const uint8_t *rom, size_t size, size_t at) {
+    uint32_t hi, lo, addr, op;
+    if (size < 8 || at > size - 8)
+        return 0;
+    hi = rom_be32(rom + at);
+    lo = rom_be32(rom + at + 4);
+    /* The second instruction is "addiu" in the game's own ROM, which adds a signed low half, and "ori" in a ROM
+     * that Glovebox built, which puts in an unsigned one. */
+    op = lo >> 26;
+    if ((hi >> 26) != 0x0F || (op != 0x09 && op != 0x0D) || ((hi >> 16) & 31) != ((lo >> 16) & 31) ||
+        ((lo >> 21) & 31) != ((lo >> 16) & 31))
+        return 0;
+    addr = ((hi & 0xFFFF) << 16) + (lo & 0xFFFF) - ((op == 0x09 && (lo & 0x8000)) ? 0x10000u : 0u);
+    /* The cartridge is at 0xB0000000 in the game's addresses. */
+    if ((addr >> 28) != 0xB)
+        return 0;
+    return addr & 0x0FFFFFFF;
+}
+
+/* Where the game's code keeps the two pairs (weemitt's LoadLandscapeFile; the ROM's map in libgarib's formats). */
+#define LEVELS_START_CODE 341164
+#define LEVELS_END_CODE 341348
+
+const char *g64_pack_level_from_rom(const uint8_t *rom, size_t size, int num, size_t *at, size_t *levSize) {
+    uint32_t pos, end, n;
+    int i;
+    if (size < 0x1000 || rom_be32(rom) != 0x80371240u)
+        return "this is not a ROM in the .z64 byte order";
+    if (num < 0 || num >= G64_PACK_LEVELS)
+        return "the game has no level with that number";
+    pos = code_pointer(rom, size, LEVELS_START_CODE);
+    end = code_pointer(rom, size, LEVELS_END_CODE);
+    if (pos == 0 || end == 0 || pos >= end || end > size)
+        return "the ROM's code does not say where the level files are";
+    for (i = 0;; i++) {
+        if (end - pos < 8)
+            return "the ROM has no level file with that number";
+        n = rom_be32(rom + pos);
+        if (n < 8 || n > end - pos)
+            return "a level file in the ROM has a wrong size";
+        if (i == num)
+            break;
+        pos += n;
+    }
+    if (n > G64_PACK_LEVEL_MAX)
+        return "the level file is too large for a pack";
+    *at = pos;
+    *levSize = n;
+    return NULL;
+}
+
 int g64_pack_check_script(const uint8_t *script, size_t n) {
     if (!script || n < 1 || n > G64_PACK_SCRIPT_MAX || script[0] == 0x1B)
         return -1;
