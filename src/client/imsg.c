@@ -28,6 +28,13 @@ size_t g64_write_move(uint8_t *d, const g64_move *m) {
     d[20] = m->progress.hub_level;
     d[21] = m->progress.worlds_done;
     d[22] = 0;
+    {
+        int p;
+        for (p = 0; p < 16; p++) {
+            put32(d + G64_MOVE_HEAD + 8 * p, m->colors[p][0]);
+            put32(d + G64_MOVE_HEAD + 8 * p + 4, m->colors[p][1]);
+        }
+    }
     return G64_MOVE_SIZE;
 }
 
@@ -51,7 +58,36 @@ int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
         (m.progress.worlds_done >> G64_NUM_WORLDS) != 0 || m.progress.hub_target > G64_MAX_HUB ||
         m.progress.hub_level > G64_MAX_HUB)
         return -1;
+    {
+        int p;
+        for (p = 0; p < 16; p++) {
+            m.colors[p][0] = get32(d + G64_MOVE_HEAD + 8 * p);
+            m.colors[p][1] = get32(d + G64_MOVE_HEAD + 8 * p + 4);
+            if (!g64_valid_color(m.colors[p][0]) || !g64_valid_color(m.colors[p][1]))
+                return -1;
+        }
+    }
     *out = m;
+    return 0;
+}
+
+int g64_valid_color(uint32_t c) { return (c >> 25) == 0; }
+
+size_t g64_write_colors_event(uint8_t *d, int player, uint32_t glove, uint32_t ball) {
+    d[0] = G64_EVENT_COLORS;
+    d[1] = (uint8_t)player;
+    put32(d + 2, glove);
+    put32(d + 6, ball);
+    return G64_EVENT_COLORS_SIZE;
+}
+
+int g64_parse_colors_event(const uint8_t *d, size_t len, int *player, uint32_t *glove, uint32_t *ball) {
+    if (!d || len != G64_EVENT_COLORS_SIZE || d[0] != G64_EVENT_COLORS || d[1] >= 16 ||
+        !g64_valid_color(get32(d + 2)) || !g64_valid_color(get32(d + 6)))
+        return -1;
+    *player = d[1];
+    *glove = get32(d + 2);
+    *ball = get32(d + 6);
     return 0;
 }
 

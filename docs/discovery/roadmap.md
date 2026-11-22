@@ -256,6 +256,18 @@ wide because each boss and each bonus level has its own code.
   relay, and the relay refuses that address for the room. Left: moderators.
 - Fuzz targets for every parser.
 
+- Joining a game that has started (not in the first list; done). The host starts with the players who are in
+  (**Start now**, or `--start-alone`), and the number of players is the number of places. A hello after the start
+  gets a free place, or the place of a player who is gone. The host sends the start only to a player whose sealed
+  message has opened, then sends it every second as the list of players (who is in, with names and colors). The
+  new player's program has no game at first: it asks the host for one (the instances' ready message), and the host
+  puts it in the instance of the session's first level with a move, as after an exit. Colors are part of the
+  game's state, so a new player's colors reach every running instance as an event on a confirmed frame, and every
+  move carries the colors at the instance's start. A removed player's address stays out: the host's session
+  remembers it in the direct mode, and the relay bans it in a room. The room stays on the list while it has a
+  free place. The protocol is 9 (src/session/session.h, src/client/instances.h; tests/net/session_test.c,
+  tests/rom/instances.c).
+
 Playable: up to 16 people from home networks (the design limit; the promise stays 8 until phase 3's 16-glove
 measurement passes). That measurement has passed, and a host and 15 joiners on one machine ran 1500 frames through
 the lobby's relay with 2393 hash checks and no mismatch. The start screen offers 2 to 16 players. Test: the harness through the relay; fuzzing in CI; a test with real

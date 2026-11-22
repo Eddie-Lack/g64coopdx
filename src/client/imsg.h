@@ -16,8 +16,12 @@
 #define G64_IMSG_MOVE 0x02
 #define G64_IMSG_LOG 0x03
 #define G64_IMSG_LOGACK 0x04
+#define G64_IMSG_READY 0x05
 
-#define G64_MOVE_SIZE 23
+/* A move's bytes before the colors, and with them: two colors (u32) for each of 16 players. */
+#define G64_MOVE_HEAD 23
+#define G64_MOVE_SIZE (G64_MOVE_HEAD + 16 * 8)
+#define G64_READY_SIZE 2
 #define G64_LOG_HEAD 9
 #define G64_LOGACK_SIZE 10
 /* The most frames a log may hold: 4 hours at 20 frames a second. A longer instance cannot take a new player. */
@@ -41,6 +45,8 @@ typedef struct {
     uint16_t members; /* the instance's players at its start */
     uint32_t join;    /* the frame the player joins at: they run the log's frames before it */
     g64_progress progress;
+    /* Every player's glove and ball color at the instance's start (session.h, G64_COLOR_SET). */
+    uint32_t colors[16][2];
 } g64_move;
 
 /* The parsers (also the fuzz targets' way in). Each returns 0, or -1 for a malformed message. */
@@ -66,6 +72,14 @@ int g64_parse_logack(const uint8_t *d, size_t len, uint8_t *instance, uint32_t *
 #define G64_EVENT_PROGRESS_SIZE 12
 /* The hub counts a progress may hold: HUB1 .. HUB8 are levels 0 .. 7. */
 #define G64_MAX_HUB 7
+/*   colors    0x02, player (u8), glove color (u32), ball color (u32): the colors of a player who joined the session
+ *             after the instance started, or joined it again (weemitt's g64PlayerColor) */
+#define G64_EVENT_COLORS 0x02
+#define G64_EVENT_COLORS_SIZE 10
+size_t g64_write_colors_event(uint8_t *d, int player, uint32_t glove, uint32_t ball);
+int g64_parse_colors_event(const uint8_t *d, size_t len, int *player, uint32_t *glove, uint32_t *ball);
+/* 1 for a color a player may have: 0, or the chosen bit and 24 bits of color. */
+int g64_valid_color(uint32_t c);
 size_t g64_write_progress_event(uint8_t *d, const g64_progress *p);
 int g64_parse_progress_event(const uint8_t *d, size_t len, g64_progress *out);
 

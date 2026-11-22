@@ -121,6 +121,12 @@ int netplay_name_chosen(void);
  * host only). */
 int netplay_me(void);
 const char *netplay_player_name(int p);
+/* 1 when player p is in the game now. Places of the game that nobody has taken, and players who left, are not. */
+int netplay_player_present(int p);
+/* The host starts the game now, with the players who are in; others join the running game while it has places.
+ * netplay_set_start_alone(1) does it as soon as the host's room is ready. */
+void netplay_start_now(void);
+void netplay_set_start_alone(int on);
 int netplay_player_gone(int p);
 void netplay_kick(int p);
 /* Chat. netplay_chat_send sends a line (up to 80 characters) to every other player. The latest lines, oldest first,

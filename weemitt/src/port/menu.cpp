@@ -1232,8 +1232,21 @@ static void players_window() {
         return;
     }
     int n = netplay_players(), me = netplay_me();
+    if (me == 0 && netplay_room_code()[0]) {
+        /* The host can still hand the code out: players join a running game while it has places. */
+        ImGui::Text("Room code: %s", netplay_room_code());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Copy")) {
+            SDL_SetClipboardText(netplay_room_code());
+        }
+        ImGui::Separator();
+    }
     for (int p = 0; p < n; p++) {
         const char *name = netplay_player_name(p);
+        /* A place that nobody has taken, or whose player left, is not listed. */
+        if (!netplay_player_present(p)) {
+            continue;
+        }
         ImGui::PushID(p);
         ImGui::Text("%2d  %s%s%s", p + 1, name[0] ? name : "(no name)", p == 0 ? "  (host)" : "", p == me ? "  (you)" : "");
         if (netplay_player_gone(p)) {

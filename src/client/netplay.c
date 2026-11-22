@@ -153,6 +153,12 @@ static char myName[G64_NAME_MAX + 1] = "Player";
 static int nameChosen;
 /* The players whose removal the chat has already said (netplay_kick). */
 static int kickNoted[G64_SESSION_MAX_PLAYERS];
+/* On the host: each place's number of players so far as last seen (g64_session_epoch), and whether its player's
+   coming was handled. On a joiner: the players who were in at the last look. */
+static uint32_t seenEpoch[G64_SESSION_MAX_PLAYERS];
+static int inNoted[G64_SESSION_MAX_PLAYERS];
+static unsigned seenPresent;
+static int startAlone;
 static int banPeer, banSends;
 static uint32_t banTime, listTried;
 static void send_ban(void);
@@ -235,13 +241,16 @@ const char *netplay_public_title(void) { return publicTitle; }
 
 /* The host tells the relay about its room: every two seconds while it waits, and once more when the game starts,
    which takes the room off the list. */
+static int announcedOpen;
 static void announce_room(int open) {
     uint32_t t = now_ms();
     if (!publicRoom || !sock || !session || !chost || !crelay[0])
         return;
-    if (open && announced && t - announced < 2000)
+    /* An open room is announced every two seconds. A room that is full or has started is taken off the list once. */
+    if (open ? announced && announcedOpen && t - announced < 2000 : announced && !announcedOpen)
         return;
     announced = t ? t : 1;
+    announcedOpen = open;
     net_relay_announce(sock, build_hash(), cwanted, g64_session_joined(session), g64_session_flags(session), open,
                        publicTitle[0] ? publicTitle : myName);
 }
@@ -308,6 +317,13 @@ void netplay_rooms_close(void) {
 /* The players of the session, for the list in the menu. Before the start only the host knows them. */
 int netplay_me(void) { return session ? g64_session_me(session) : -1; }
 const char *netplay_player_name(int p) { return session ? g64_session_name(session, p) : ""; }
+void netplay_set_start_alone(int on) { startAlone = on != 0; }
+void netplay_start_now(void) {
+    if (session && chost)
+        g64_session_begin(session);
+}
+
+int netplay_player_present(int p) { return session && g64_session_present(session, p); }
 int netplay_player_gone(int p) {
     return session && g64_session_me(session) == 0 && p > 0 && g64_session_gone(session, p);
 }
@@ -484,7 +500,12 @@ int netplay_poll(void) {
         if (!chost && crelay[0] && net_relay_state(sock) < 0 && g64_session_host_silent(session, t) > 3000)
             return fail_connect("the host has removed you from that room");
         send_ban();
-        announce_room(st == G64_SESSION_WAITING);
+        /* A host that asked for it starts alone; the others join the running game. */
+        if (chost && startAlone && st == G64_SESSION_WAITING) {
+            g64_session_begin(session);
+            st = g64_session_poll(session, t, NULL, NULL);
+        }
+        announce_room(g64_session_joined(session) < cwanted);
         if (st == G64_SESSION_STARTED) {
             me = g64_session_me(session);
             players = g64_session_players(session);
@@ -710,7 +731,11 @@ static void report_difference(const void *reference, const void *local, int inst
 static void on_move(void *user, int player, int exit_type, int from_level, int level, int world, uint32_t join,
                     const g64_progress *g) {
     (void)user;
-    plog_printf("g64coopdx: player %d took exit type %d: level %d to level %d (world %d), joining at frame %u; "
+    plog_printf(exit_type < 0 ? "g64coopdx: player %d came into the game (%d): from level %d to level %d (world %d), "
+                                "joining at frame %u; progress: levels %08x, all garibs %08x, hub target %u, "
+                                "hub level %u, worlds done %02x"
+                              : "g64coopdx: player %d took exit type %d: level %d to level %d (world %d), joining at "
+                                "frame %u; "
                 "progress: levels %08x, all garibs %08x, hub target %u, hub level %u, worlds done %02x",
                 player + 1, exit_type, from_level, level, world, join, g->levels, g->all_garibs, g->hub_target,
                 g->hub_level, g->worlds_done);
@@ -773,14 +798,34 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         sound = g64_sound_new(soundout_backend());
     /* The host's rule for the ball, before any game is built. */
     g64_instances_any_ball(netplay_any_ball());
-    if (me == 0) {
-        ihost = g64_ihost_new(e, boot, players, clevel, deadline, host_send, NULL);
-        if (!ihost) {
-            snprintf(err, errSize, "cannot start the host's instances");
-            return -1;
+    {
+        /* The first game has the players who were in at the start, with their colors. A player who comes later
+           has no game at first: the host's move brings it. */
+        uint32_t colors[16][2];
+        unsigned members = g64_session_start_members(session);
+        int p;
+        memset(colors, 0, sizeof colors);
+        for (p = 0; p < players && p < 16; p++)
+            g64_session_start_colors(session, p, &colors[p][0], &colors[p][1]);
+        if (me == 0) {
+            ihost = g64_ihost_new_with(e, boot, players, members, colors, clevel, deadline, host_send, NULL);
+            if (!ihost) {
+                snprintf(err, errSize, "cannot start the host's instances");
+                return -1;
+            }
+            for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++) {
+                seenEpoch[p] = g64_session_epoch(session, p);
+                inNoted[p] = (int)((members >> p) & 1);
+                dropped[p] = 0;
+            }
         }
+        /* Who is in now: a player who comes later is not told of everyone who came before. */
+        seenPresent = 0;
+        for (p = 0; p < players; p++)
+            seenPresent |= (unsigned)g64_session_present(session, p) << p;
+        iclient = g64_iclient_new_with(e, boot, players, members, colors, me, clevel, WINDOW, deadline, client_send,
+                                       NULL);
     }
-    iclient = g64_iclient_new(e, boot, players, me, clevel, WINDOW, deadline, client_send, NULL);
     if (!iclient) {
         snprintf(err, errSize, "cannot start the game");
         return -1;
@@ -1014,10 +1059,35 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     }
     if (ihost) {
         int p;
+        for (p = 1; p < players; p++) {
+            /* A new player took this place: what the place's last player left ends first. */
+            if (g64_session_epoch(session, p) != seenEpoch[p]) {
+                seenEpoch[p] = g64_session_epoch(session, p);
+                g64_ihost_drop(ihost, p);
+                dropped[p] = 0;
+                kickNoted[p] = 0;
+                inNoted[p] = 0;
+            }
+            /* A player is in: their colors go to every game. Their program asks for a game by itself. */
+            if (g64_session_present(session, p) && !inNoted[p]) {
+                char note[64];
+                uint32_t glove, ball;
+                inNoted[p] = 1;
+                g64_session_colors(session, p, &glove, &ball);
+                g64_ihost_set_colors(ihost, p, glove, ball);
+                snprintf(note, sizeof note, "%s joined the game",
+                         g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
+                chat_add(-1, note);
+                plog_printf("g64coopdx: player %d joined the running game", p + 1);
+            }
+        }
         for (p = 1; p < players; p++)
             if (g64_session_gone(session, p) && !dropped[p]) {
                 dropped[p] = 1;
                 g64_ihost_drop(ihost, p);
+                /* A place that only a hello took, with no sealed message after it, had no player. */
+                if (!inNoted[p])
+                    continue;
                 plog_printf(kickNoted[p] ? "g64coopdx: player %d was removed; the game goes on without them"
                                          : "g64coopdx: player %d stopped answering; the game goes on without them",
                             p + 1);
@@ -1031,6 +1101,23 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         flush_local();
         g64_ihost_tick(ihost);
         flush_local();
+        /* The room stays on the list while it has free places. */
+        announce_room(g64_session_joined(session) < players);
+    } else {
+        /* A joiner learns who comes and goes from the host's list of players. */
+        unsigned now = 0;
+        int p;
+        for (p = 0; p < players; p++)
+            now |= (unsigned)g64_session_present(session, p) << p;
+        for (p = 1; p < players; p++)
+            if (p != me && ((now ^ seenPresent) >> p) & 1) {
+                char note[64];
+                snprintf(note, sizeof note, "%s %s the game",
+                         g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player",
+                         (now >> p) & 1 ? "joined" : "left");
+                chat_add(-1, note);
+            }
+        seenPresent = now;
     }
     {
         /* For tests: G64_TEST_CHAT is a line that this player says at frame 300. */

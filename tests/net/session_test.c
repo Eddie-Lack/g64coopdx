@@ -115,11 +115,186 @@ static void test_refusals(net_addr hostAddr, uint32_t *clock) {
     check(g64_session_poll(wrong, *clock, NULL, NULL) == G64_SESSION_FAILED &&
               strstr(g64_session_error(wrong), "ROM") != NULL,
           "a joiner with another ROM is refused");
-    check(g64_session_poll(late, *clock, NULL, NULL) == G64_SESSION_FAILED, "a joiner of a started game is refused");
+    check(g64_session_poll(late, *clock, NULL, NULL) == G64_SESSION_FAILED &&
+              strstr(g64_session_error(late), "full") != NULL,
+          "a joiner of a full game is refused");
     g64_session_free(wrong);
     g64_session_free(late);
     net_close(s1);
     net_close(s2);
+}
+
+/* Two cases of the welcome, each with a host for two players and one joiner. */
+static void test_welcomes(uint32_t *clock) {
+    char err[128];
+    int round;
+    for (round = 0; round < 2; round++) {
+        net_socket *hs = net_open(0, err, sizeof err), *js = net_open(0, err, sizeof err);
+        net_addr to;
+        g64_session *h, *j;
+        int i;
+        memset(&to, 0, sizeof to);
+        to.family = 4, to.ip[0] = 127, to.ip[3] = 1, to.port = net_port(hs);
+        h = g64_session_host(hs, 2, ROM, 0, 3);
+        j = g64_session_join(js, &to, ROM, "j");
+        g64_session_set_build(h, BUILD);
+        g64_session_set_build(j, BUILD);
+        *clock += 10;
+        g64_session_poll(j, *clock, NULL, NULL);
+        if (round == 0) {
+            /* A forged welcome comes first, with a key of the forger's. The real one must still make the link. */
+            uint8_t forged[35] = {0x41, 1, 2};
+            memset(forged + 3, 7, 32);
+            g64_session_receive(j, &to, forged, sizeof forged, *clock, NULL, NULL);
+        } else {
+            /* The welcome is lost, and the starts of the next second with it: the host has started, since the
+               room is full. The joiner's next hello must get the welcome again. */
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            for (i = 0; i < 100; i++) {
+                *clock += 10;
+                g64_session_poll(h, *clock, NULL, NULL);
+                while (net_recv(js, &from, d, sizeof d) >= 0) {
+                }
+            }
+            check(g64_session_poll(h, *clock, NULL, NULL) == G64_SESSION_STARTED, "the host starts when the room is full");
+        }
+        for (i = 0; i < 200; i++) {
+            *clock += 10;
+            g64_session_poll(h, *clock, NULL, NULL);
+            g64_session_poll(j, *clock, NULL, NULL);
+        }
+        check(g64_session_poll(j, *clock, NULL, NULL) == G64_SESSION_STARTED,
+              round == 0 ? "a forged welcome before the real one does not stop the join"
+                         : "a joiner whose welcome was lost after the start still gets in");
+        g64_session_free(h);
+        g64_session_free(j);
+        net_close(hs);
+        net_close(js);
+    }
+}
+
+/* A game that players join after its start: a host for three starts alone. It has a clock of its own: it runs
+   for longer than the main test's players may stay silent. */
+static void test_join_later(uint32_t start) {
+    uint32_t time = start, *clock = &time;
+    char err[128];
+    net_socket *hs = net_open(0, err, sizeof err), *js[4];
+    g64_session *h, *j[4] = {NULL, NULL, NULL, NULL};
+    net_addr to;
+    uint32_t glove, ball, firstEpoch;
+    int i, k;
+    memset(&to, 0, sizeof to);
+    to.family = 4, to.ip[0] = 127, to.ip[3] = 1, to.port = net_port(hs);
+    for (k = 0; k < 4; k++)
+        js[k] = net_open(0, err, sizeof err);
+    h = g64_session_host(hs, 3, ROM, 0, 3);
+    g64_session_set_build(h, BUILD);
+    g64_session_set_name(h, "host");
+    *clock += 10;
+    g64_session_poll(h, *clock, NULL, NULL);
+    g64_session_begin(h);
+    check(g64_session_poll(h, *clock, NULL, NULL) == G64_SESSION_STARTED && g64_session_start_members(h) == 1 &&
+              g64_session_joined(h) == 1,
+          "a host starts alone");
+#define RUN_ALL(n)                                           \
+    for (i = 0; i < (n); i++) {                              \
+        *clock += 10;                                        \
+        g64_session_poll(h, *clock, NULL, NULL);             \
+        for (k = 0; k < 4; k++)                              \
+            if (j[k])                                        \
+                g64_session_poll(j[k], *clock, NULL, NULL);  \
+    }
+    j[0] = g64_session_join(js[0], &to, ROM, "first");
+    g64_session_set_build(j[0], BUILD);
+    g64_session_set_colors(j[0], G64_COLOR_SET | 0x112233, G64_COLOR_SET | 0x445566);
+    RUN_ALL(150)
+    check(g64_session_poll(j[0], *clock, NULL, NULL) == G64_SESSION_STARTED && g64_session_me(j[0]) == 1 &&
+              g64_session_start_members(j[0]) == 1 && g64_session_present(j[0], 1) && !g64_session_present(j[0], 2) &&
+              !strcmp(g64_session_name(j[0], 0), "host"),
+          "a player joins the started game, and is not one of the start's players");
+    g64_session_colors(h, 1, &glove, &ball);
+    check(g64_session_present(h, 1) && g64_session_joined(h) == 2 && glove == (G64_COLOR_SET | 0x112233) &&
+              ball == (G64_COLOR_SET | 0x445566),
+          "the host has the new player, with their colors");
+    firstEpoch = g64_session_epoch(h, 1);
+    j[1] = g64_session_join(js[1], &to, ROM, "second");
+    g64_session_set_build(j[1], BUILD);
+    RUN_ALL(150)
+    check(g64_session_me(j[1]) == 2 && g64_session_present(j[0], 2) && !strcmp(g64_session_name(j[0], 2), "second"),
+          "the first player learns of the second from the host's list of players");
+    /* The first player stops. The host counts them as gone, and the next joiner takes the place. */
+    g64_session_free(j[0]);
+    j[0] = NULL;
+    RUN_ALL(1100)
+    check(g64_session_gone(h, 1) && !g64_session_present(h, 1) && !g64_session_present(j[1], 1) &&
+              g64_session_joined(h) == 2,
+          "a player who stops is gone, and the others are told");
+    j[2] = g64_session_join(js[2], &to, ROM, "third");
+    g64_session_set_build(j[2], BUILD);
+    RUN_ALL(150)
+    check(g64_session_me(j[2]) == 1 && g64_session_present(h, 1) && !g64_session_gone(h, 1) &&
+              g64_session_epoch(h, 1) != firstEpoch && !strcmp(g64_session_name(j[1], 1), "third"),
+          "the next joiner takes the place of the player who is gone");
+    /* The host removes the third player. Their address stays out of the game; another machine may still come.
+       Every socket here is at 127.0.0.1, so the other machine is tried from the IPv6 loopback where there is one. */
+    g64_session_kick(h, 1);
+    RUN_ALL(50)
+    check(g64_session_poll(j[2], *clock, NULL, NULL) == G64_SESSION_FAILED, "a removed player is told");
+    g64_session_free(j[2]);
+    j[2] = g64_session_join(js[3], &to, ROM, "again");
+    g64_session_set_build(j[2], BUILD);
+    RUN_ALL(150)
+    check(g64_session_poll(j[2], *clock, NULL, NULL) == G64_SESSION_FAILED &&
+              strstr(g64_session_error(j[2]), "removed") != NULL && !g64_session_present(h, 1),
+          "a removed player's address cannot join the game again, from any port");
+#undef RUN_ALL
+    for (k = 0; k < 4; k++) {
+        if (j[k])
+            g64_session_free(j[k]);
+        net_close(js[k]);
+    }
+    g64_session_free(h);
+    net_close(hs);
+    /* The place of a player of the start, taken by a newcomer after that player is gone: the newcomer is not one of
+       the start's players, and must not build the first game. */
+    {
+        net_socket *hs2 = net_open(0, err, sizeof err), *a = net_open(0, err, sizeof err), *b = net_open(0, err, sizeof err);
+        g64_session *h2, *first, *next;
+        to.port = net_port(hs2);
+        h2 = g64_session_host(hs2, 2, ROM, 0, 3);
+        first = g64_session_join(a, &to, ROM, "first");
+        g64_session_set_build(h2, BUILD);
+        g64_session_set_build(first, BUILD);
+        for (i = 0; i < 150; i++) {
+            *clock += 10;
+            g64_session_poll(h2, *clock, NULL, NULL);
+            g64_session_poll(first, *clock, NULL, NULL);
+        }
+        check(g64_session_start_members(h2) == 3 && g64_session_start_members(first) == 3,
+              "a game for two starts with both players");
+        g64_session_free(first);
+        for (i = 0; i < 1100; i++) {
+            *clock += 10;
+            g64_session_poll(h2, *clock, NULL, NULL);
+        }
+        next = g64_session_join(b, &to, ROM, "next");
+        g64_session_set_build(next, BUILD);
+        for (i = 0; i < 150; i++) {
+            *clock += 10;
+            g64_session_poll(h2, *clock, NULL, NULL);
+            g64_session_poll(next, *clock, NULL, NULL);
+        }
+        check(g64_session_poll(next, *clock, NULL, NULL) == G64_SESSION_STARTED && g64_session_me(next) == 1 &&
+                  g64_session_start_members(next) == 1 && g64_session_start_members(h2) == 3 &&
+                  g64_session_present(h2, 1),
+              "a newcomer in the place of a start's player who is gone is not one of the start's players");
+        g64_session_free(next);
+        g64_session_free(h2);
+        net_close(hs2);
+        net_close(a);
+        net_close(b);
+    }
 }
 
 int main(void) {
@@ -259,6 +434,8 @@ int main(void) {
               "ten lines at once from one joiner: the host passes on one");
     }
     test_refusals(hostAddr, &clock);
+    test_welcomes(&clock);
+    test_join_later(clock);
     /* A joiner who stops answering: the host's game goes on without it. */
     {
         int k;
