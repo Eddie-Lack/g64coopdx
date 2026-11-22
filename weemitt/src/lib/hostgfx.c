@@ -17,7 +17,7 @@ static void set_up(void) {
         return;
     }
     port_game_dynamic_range(&lo, &hi);
-    gfx_host_setup(PORT_PTR_BASE, PORT_PTR_BASE + 0x1800000, PORT_PTR_DELTA, lo, hi);
+    gfx_host_setup(PORT_PTR_BASE, PORT_PTR_END, PORT_PTR_DELTA, lo, hi);
     setUp = 1;
 }
 

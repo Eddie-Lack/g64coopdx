@@ -77,6 +77,9 @@ extern uintptr_t port_ptr_delta;
 #define PORT_PTR_BASE ((unsigned int)(uintptr_t)port_ram)
 #define PORT_PTR_DELTA ((uintptr_t)0)
 #endif
+/* The word just past the window: the renderer reads display lists, vertices and matrices up to here. The object
+   matrices past the first 256 are in port_win (include/display.h), after the heap. */
+#define PORT_PTR_END (PORT_PTR_BASE + (unsigned int)(port_win_end - port_ram))
 #define PORT_FN_BASE 0x0BF00000u
 
 #ifdef PORT_PTR_ENCODED
