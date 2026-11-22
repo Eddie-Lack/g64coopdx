@@ -4,7 +4,7 @@
  * it off: their glove and camera are the scene's, and the other players are held and watch.
  *   A. Two players. Player 1's glove and ball are put on the platform. The cameo starts, and it is player 1's.
  *      While it plays, player 0's glove does not answer their stick. When it has ended, no cameo has a player and
- *      player 0's glove answers again.
+ *      player 0's glove answers again. While it plays only the cameo's player has a glove that is drawn.
  *   B. The same with player 0 on the platform: the cameo is player 0's.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
@@ -32,6 +32,7 @@ void G64PlacePlayer(int p, float x, float y, float z);
 void G64PlaceBall(int p, float x, float y, float z);
 int G64PlatformPosition(int tag, float *x, float *y, float *z);
 int G64CameoPlayer(void);
+int G64ProxyShown(int player);
 void port_game_start_level(int level);
 unsigned int port_hash_ram(void);
 
@@ -91,14 +92,17 @@ static int stand(int p) {
 
 static void run_case(int p, const char *name) {
     float held, after;
-    int started, f, owner, length;
+    int started, f, owner, length, shownBefore, shownIn, shownAfter;
     engine_load(engine, ready);
     check(G64CameoPlayer() == -1, "no cameo plays before a player stands on the platform");
     started = stand(p);
     owner = G64CameoPlayer();
     check(started >= 0, "the cameo starts when a glove and a ball are on the platform");
     check(owner == p, "the cameo is the player's who set it off");
+    /* Player 1's glove is drawn from a proxy. In a cameo only the cameo's own player is drawn. */
+    shownBefore = G64ProxyShown(1);
     held = walk(10, 1 - p);
+    shownIn = G64ProxyShown(1);
     for (f = 0; f < 1500 && G64CameoPlayer() >= 0; f++)
         frame(0, 0, 0);
     length = f;
@@ -106,8 +110,12 @@ static void run_case(int p, const char *name) {
     for (f = 0; f < 5; f++)
         frame(0, 0, 0);
     after = walk(40, 1 - p);
+    /* This cameo ends the level for its player, who leaves: after it no player is drawn from a proxy. */
+    shownAfter = G64ProxyShown(1);
+    check(shownIn == (p == 1), "in the cameo only its player's glove is drawn");
     check(held < 3.0f, "the other player's glove is held while it plays");
     check(after > 20.0f, "the other player's glove answers their stick after it");
+    printf("%s: player 1's glove drawn %d before, %d in, %d after the cameo\n", name, shownBefore, shownIn, shownAfter);
     printf("%s: started after %d frames, player %d, other held %.1f, after %.1f, ended after %d frames, hash %08x\n",
            name, started, owner, held, after, length, port_hash_ram());
 }

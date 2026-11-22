@@ -176,8 +176,9 @@ harness at N players and by the determinism tests:
    script moves their glove and camera. The other players are held and cannot be hurt while it plays, and they
    see its camera (cameo.c, puzzle.c, g64players.c, "Cameos"; tests/rom/cameos.c). The other players are made only
    when no cameo plays. In the control room, whose scene plays from a recording of the first player, the other
-   players have no glove and watch through the first player's camera. Left: hiding the other gloves during a
-   cameo. A cameo whose player leaves goes on with the first player's glove.
+   players have no glove and watch through the first player's camera. While a cameo plays, only its player's
+   glove and ball are drawn: the others have no size and no shadow in the frame (G64UpdateProxies). Left: a cameo
+   whose player leaves goes on with the first player's glove.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
    Tips are done: online a tip does not stop the level. Any player opens one with B at the tip, and the two tips

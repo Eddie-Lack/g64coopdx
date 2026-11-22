@@ -636,14 +636,41 @@ s32 G64OrbitersByProxy(void) {
     return 1;
 }
 
+/* 1 after G64SwapPlayer: the frame that is drawn next is a player's view, and the client loads the state again
+   after it. What the draw changes in the globals then does not reach the game. */
+static s32 viewDraw;
+
+static void forget_cameo(void);
+static s32 cameo_slot(void);
+
+/* An actor that is not drawn: no size, no shadow. */
+static void hide_actor(Actor *a) {
+    ZERO_VECTOR(&a->scale);
+    a->flags &= ~0x100;
+}
+
 void G64UpdateProxies(void) {
     s32 i, k;
+    /* While a cameo plays, only its player's glove and ball are drawn. cameoOwn is that player's slot. */
+    s32 hide = gameInfo.cameoActive && slotCount > 1;
+    s32 cameoOwn = hide ? cameo_slot() : 0;
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (s && proxyHand[i] && proxyBall[i]) {
             copy_to_proxy(proxyHand[i], &s->hand);
             copy_to_proxy(proxyBall[i], &s->ball);
+            /* With slot `swapped` in the globals for a view, that slot holds the first player. */
+            if (hide && (i == swapped ? 0 : i) != cameoOwn) {
+                hide_actor(proxyHand[i]);
+                hide_actor(proxyBall[i]);
+            }
         }
+    }
+    /* The viewer's own glove and ball are the globals' in their view. Only a view may hide them: the frame the
+       game draws for itself must leave the globals as they are. */
+    if (hide && viewDraw && swapped != cameoOwn) {
+        hide_actor(&hand);
+        hide_actor(&ball);
     }
     sync_orbiters();
     for (i = 0; i < slotCount; i++) {
@@ -659,7 +686,6 @@ void G64UpdateProxies(void) {
 
 static void forget_tips(void);
 
-static void forget_cameo(void);
 /* Cameos (below): cameoStarter is the number plus 1 of the player who set the cameo off, or 0 for the first player.
    cameoMet is the player, plus 1, who last met a puzzle's condition on a player in the puzzle that is being run.
    cameoPending is that player for a puzzle whose conditions are met, until its cameo starts. cameoUsed: a cameo
@@ -811,6 +837,8 @@ static s32 slot_of(s32 player) {
 
 void G64SwapPlayer(s32 player) {
     s32 i = slot_of(player);
+    /* The client draws this player's view next, and loads the state again after it (G64UpdateProxies). */
+    viewDraw = 1;
     if (i >= 1 && i < slotCount && slots[i]) {
         swap_slot(slots[i]);
         swapped = swapped == i ? 0 : i;
@@ -2264,6 +2292,17 @@ void G64CameoView(void) {
         s->cameraInfo.actor.pos = cameraInfo.actor.pos;
         s->cameraUpVect = cameraUpVect;
     }
+}
+
+/* For tests: 1 when the glove of a player who is not in the globals is drawn (its proxy has a size), 0 when it is
+   hidden, -1 when the player has no proxy. */
+s32 G64ProxyShown(s32 player) {
+    s32 i = slot_of(player);
+    Actor *a;
+    if (i < 1 || i >= slotCount || !proxyHand[i])
+        return -1;
+    a = proxyHand[i];
+    return a->scale.x != 0.0f || a->scale.y != 0.0f || a->scale.z != 0.0f;
 }
 
 /* For tests: the number of the player a cameo plays for, or -1 when none plays. */
