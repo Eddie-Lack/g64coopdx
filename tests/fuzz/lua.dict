@@ -88,3 +88,4 @@
 "on_death"
 "game.hurt"
 "game.set_health"
+"game.show"
