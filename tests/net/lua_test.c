@@ -10,6 +10,7 @@ void G64LuaFrame(void);
 int G64LuaActive(void);
 void G64LuaCounts(unsigned int out[4]);
 void G64LuaReset(void);
+void G64LuaEvent(int kind, int player);
 
 /* The game's side of the scripts' calls: one player at a place that the script can move. */
 static int frames;
@@ -286,6 +287,42 @@ int main(void) {
     run("an error in the text", "function on_frame( end\n", 3, 0);
 
     run("compiled code is not taken", "\033Lua", 1, 0);
+
+    /* Events from the game's step: the script hears of them at the next frame, in their order. Events of an
+       unknown kind or player are dropped, and so are those past the 64th of one step. */
+    {
+        static const char script[] =
+            "local s, n = '', 0\n"
+            "function on_garib(p) n = n + 1; if n <= 3 then s = s .. 'garib ' .. p .. ' at ' .. game.frame() .. ', ' end end\n"
+            "function on_death(p) s = s .. 'death ' .. p .. ' at ' .. game.frame() .. ', ' end\n"
+            "function on_frame() if game.frame() == 3 then game.log(s .. n .. ' garibs') end end\n";
+        int i;
+        printf("events from the game's step\n");
+        frames = 0;
+        G64LuaEvent(1, 0);
+        G64LuaLoad(script, (unsigned int)strlen(script));
+        G64LuaFrame();
+        G64LuaEvent(1, 3);
+        G64LuaEvent(2, 15);
+        G64LuaEvent(0, 0);
+        G64LuaEvent(3, 0);
+        G64LuaEvent(1, 16);
+        G64LuaEvent(1, -1);
+        frames = 1;
+        G64LuaFrame();
+        for (i = 0; i < 100; i++) {
+            G64LuaEvent(1, 2);
+        }
+        frames = 2;
+        G64LuaFrame();
+        frames = 3;
+        G64LuaFrame();
+        if (!G64LuaActive()) {
+            printf("FAIL events from the game's step: the script stopped\n");
+            failed++;
+        }
+        G64LuaReset();
+    }
 
     printf("%s: %d failures\n", failed ? "FAIL" : "ok", failed);
     return failed != 0;

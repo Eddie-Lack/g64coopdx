@@ -3650,6 +3650,8 @@ void DropHand(s16 timer) {
 void KillHand(s16 type) {
     s32 i;
 
+    /* g64coopdx: a script hears of the death (g64players.c). */
+    G64ScriptEvent(2);
     player.health = 0;
     DeactivateCollectable(ROTORBLADES);
     if (handControl.attachedTo) {

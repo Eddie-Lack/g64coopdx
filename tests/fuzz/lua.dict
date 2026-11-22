@@ -84,3 +84,5 @@
 "math.cos"
 "on_join"
 "on_leave"
+"on_garib"
+"on_death"

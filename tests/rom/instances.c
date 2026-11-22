@@ -465,9 +465,13 @@ void G64LuaCounts(unsigned out[4]);
 double G64LuaGlobal(const char *name);
 
 /* Numbers that two_players reads from the script's global variables at the end. */
-#define SCRIPT_VALUES 6
-static const char *const scriptName[SCRIPT_VALUES] = {"joins", "angles", "dice", "balls", "counts", "frames"};
+#define SCRIPT_VALUES 9
+static const char *const scriptName[SCRIPT_VALUES] = {"joins", "angles", "dice",    "balls", "counts",
+                                                      "frames", "taken", "deaths", "taker"};
 static double scriptValue[SCRIPT_VALUES];
+/* Where a garib of the level is, read at the end of two_players. */
+int G64GaribPlace(int k, float *x, float *y, float *z);
+static float garibAt[3];
 
 /* Two players in Atlantis 1 for 320 frames over the slow, lossy network, which makes their games go back and run
    frames again. Returns where player 0's glove is in their own game at the end, and prints the hash checks. */
@@ -508,6 +512,7 @@ static void two_players(Engine *e, void *boot, float at[3], unsigned counts[4], 
         G64LuaCounts(counts);
         for (p = 0; p < SCRIPT_VALUES; p++)
             scriptValue[p] = G64LuaGlobal(scriptName[p]);
+        G64GaribPlace(0, &garibAt[0], &garibAt[1], &garibAt[2]);
     }
     printf("two players: %u hash checks, %u mismatches, desyncs %u and %u, %llu and %llu frames run again\n",
            g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
@@ -562,7 +567,19 @@ static void script_run(Engine *e, void *boot) {
         "end\n";
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
-    uint8_t *with = malloc(romSize + sizeof script + sizeof endless + sizeof calls);
+    /* Events from the game's step. The script puts player 1's glove on a garib at frame 60, and far below the level
+       at frame 150. It must hear of the garib, from player 1, and of the death. */
+    static const char eventsText[] =
+        "taken, deaths, taker = 0, 0, -1\n"
+        "function on_garib(p) taken = taken + 1; taker = p end\n"
+        "function on_death(p) deaths = deaths + 1 + p * 10 end\n"
+        "function on_frame()\n"
+        "  local f = game.frame()\n"
+        "  if f == 60 and game.has_player(1) then game.place(1, %.3f, %.3f, %.3f) end\n"
+        "  if f == 150 and game.has_player(1) then game.place(1, %.3f, %.3f, %.3f) end\n"
+        "end\n";
+    char events[sizeof eventsText + 200];
+    uint8_t *with = malloc(romSize + sizeof script + sizeof endless + sizeof calls + sizeof events);
     float plain[3], moved[3], after[3];
     unsigned counts[4], none[4];
     int active = 0, before = failed;
@@ -576,7 +593,7 @@ static void script_run(Engine *e, void *boot) {
     memcpy(with + romSize, script, sizeof script - 1);
     memcpy(with + romSize + sizeof script, endless, sizeof endless - 1);
     memcpy(with + romSize + sizeof script + sizeof endless, calls, sizeof calls - 1);
-    engine_set_rom(e, with, romSize + sizeof script + sizeof endless + sizeof calls);
+    engine_set_rom(e, with, romSize + sizeof script + sizeof endless + sizeof calls + sizeof events);
     g64_instances_pack_script((unsigned)romSize, sizeof script - 1);
     two_players(e, boot, moved, counts, &active);
     snprintf(what, sizeof what, "the glove ends at x %.1f without the script and at x %.1f with it", plain[0], moved[0]);
@@ -597,6 +614,16 @@ static void script_run(Engine *e, void *boot) {
     check(active && scriptValue[0] == 12 && scriptValue[5] > 200 && scriptValue[1] != 0 && scriptValue[2] > 200 &&
               scriptValue[4] > 0,
           "a script reads the players, the game's sine and cosine and its random numbers");
+    snprintf(events, sizeof events, eventsText, garibAt[0], garibAt[1], garibAt[2], garibAt[0], garibAt[1] - 3000.0f,
+             garibAt[2]);
+    memcpy(with + romSize + sizeof script + sizeof endless + sizeof calls, events, strlen(events));
+    g64_instances_pack_script((unsigned)(romSize + sizeof script + sizeof endless + sizeof calls),
+                              (unsigned)strlen(events));
+    two_players(e, boot, after, counts, &active);
+    printf("script: %.0f garibs taken, the last by player %.0f, deaths %.0f\n", scriptValue[6], scriptValue[8],
+           scriptValue[7]);
+    check(active && scriptValue[6] >= 1 && scriptValue[8] == 1 && scriptValue[7] == 11,
+          "a script hears of a garib taken and of a death");
     g64_instances_pack_script(0, 0);
     engine_set_rom(e, rom, romSize);
     free(with);

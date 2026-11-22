@@ -917,6 +917,7 @@ void GainGarib(Vec3 *pos, s16 pitch, s16 fx) {
     PlaySample(fx, pos, 100, pitch);
     /* g64coopdx: the players share one count of garibs. */
     G64GaribGained();
+    G64ScriptEvent(1);
     if (++player.garibs % 10 == 0 && player.health < 3) {
         player.health++;
         stats[HEALTH_STATS].scale = 0x800;
