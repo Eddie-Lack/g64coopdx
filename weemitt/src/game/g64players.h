@@ -307,6 +307,10 @@ s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more);
    runs once a frame after every player's part. G64BallLostElsewhere is 1 when the lost ball of the player in the
    globals is another player's, who dies for it. */
 extern s32 g64AnyBall;
+/* A level pack's level file (g64players.c, "A level pack"). */
+extern s32 g64PackLevel;
+extern u32 g64PackRom, g64PackSize;
+void G64SetPack(s32 level, u32 rom, u32 size);
 /* One world at a time (g64players.c, "One world at a time"): the host's rule that a portal from the hub to another
    world is shut while players are in a world. */
 extern s32 g64OneWorld;

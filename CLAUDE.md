@@ -97,4 +97,5 @@ run locally: set `GLOVER_ROM`.
 | The online mode of the window program | src/client (`netplay.h`), built into weemitt's studio (`make client`) |
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
+| Level packs: the reader and the format | src/client (`pack.h`), docs/discovery/level-pack.md |
 | How players host and join | docs/playing-online.md |

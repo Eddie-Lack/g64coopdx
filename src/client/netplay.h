@@ -57,6 +57,12 @@ int netplay_normal_ball(void);
 /* The host's option: a glove may take any free ball (1), or only its own (0, the default). A ball that is lost
  * kills its real owner either way. Call it before netplay_start; netplay_any_ball gives it after the start. */
 void netplay_set_any_ball(int on);
+/* The level pack for the session: a folder with a custom level that takes the place of one of the game's levels
+ * (pack.h). Every player of a session must have the same pack: a host refuses a joiner whose pack differs. Call it
+ * before netplay_start. An empty dir means no pack. Returns 0, or -1 with a message in err. */
+int netplay_set_pack(const char *dir, char *err, size_t errSize);
+const char *netplay_pack_name(void);
+int netplay_pack_level(void);
 /* The host's choice that players may go to different worlds. Without it the session is in one world at a time: a
  * portal from the hub to another world is shut while players are in a world, and opens when everyone is in the
  * hub. Call it before netplay_start; netplay_any_world gives it after the start. */

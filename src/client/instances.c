@@ -103,6 +103,17 @@ static int oneWorldRule;
 void g64_instances_any_ball(int on) { anyBallRule = on != 0; }
 void g64_instances_one_world(int on) { oneWorldRule = on != 0; }
 
+/* The session's level pack (weemitt's g64players.c, G64SetPack). */
+void G64SetPack(int level, unsigned rom, unsigned size);
+static int packLevel = -1;
+static unsigned packRom, packSize;
+
+void g64_instances_pack(int level, unsigned rom, unsigned size) {
+    packLevel = size ? level : -1;
+    packRom = rom;
+    packSize = size;
+}
+
 static void build_setup(void *ctx) {
     const start_record *r = ctx;
     G64Save s;
@@ -111,6 +122,7 @@ static void build_setup(void *ctx) {
     g64Online = 1;
     g64AnyBall = anyBallRule;
     g64OneWorld = oneWorldRule;
+    G64SetPack(packLevel, packRom, packSize);
     G64SetSessionWorld(r->session_world);
     for (p = 0; p < 16; p++) {
         g64PlayerColor[p][0] = r->colors[p][0];
