@@ -182,6 +182,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             int delay = netplay_input_delay();
             bool normalBall = netplay_host_normal_ball() != 0;
 
+            /* Only players with the same build can play together (the session's hello carries it). */
+            ImGui::TextDisabled("Build %s", netplay_build());
             ImGui::TextUnformatted("Host an online game");
             ImGui::SliderInt("Players", &wanted, 2, 8);
             /* The host's choice, for every player: the game's own ball controls, or the easy ones (the default). */

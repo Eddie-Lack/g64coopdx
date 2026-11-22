@@ -239,6 +239,9 @@ wide because each boss and each bonus level has its own code.
 - An HTTPS client in the game for the lobby: the system's own on Windows (WinHTTP), libcurl on Linux (INFERRED;
   chosen in this phase).
 - The handshake: protocol, build id, ROM hash, packs, settings ([netcode.md](netcode.md#the-handshake)).
+  Done in part: the hello carries the protocol, the ROM's hash and the build id, which is the commit the program was
+  built from (weemitt/studio.mk writes it; src/session/session.h). A host refuses a joiner of another build. The
+  host's settings travel in the start message's flags. Left: packs (phase 5).
 - Host and join screens, the lobby browser, the player list, chat, kick and ban with a confirm step, moderators,
   names and colors.
 - Fuzz targets for every parser.

@@ -134,6 +134,19 @@ static int start_level(void) {
     return level >= 0 && level < G64_NUM_LEVELS ? level : START_LEVEL;
 }
 
+/* This program's build id: the commit it was built from (weemitt/studio.mk writes g64build.h), or "dev" for a build
+ * without one. Every change to the game's code plays another game, so players of different builds cannot play
+ * together: the host refuses a joiner whose build differs. The Windows and Linux programs of one commit have the same
+ * id. */
+#ifdef G64_BUILD_HEADER
+#include "g64build.h"
+#endif
+#ifndef G64_BUILD_ID
+#define G64_BUILD_ID "dev"
+#endif
+
+const char *netplay_build(void) { return G64_BUILD_ID; }
+
 /* Makes the session once the socket is ready: at once in the direct mode, after the relay's answer through it. */
 static int make_session(void) {
     if (crelay[0] && !chost) {
@@ -153,6 +166,7 @@ static int make_session(void) {
     if (session) {
         g64_session_set_flags(session, hostFlags);
         g64_session_set_colors(session, myGlove, myBall);
+        g64_session_set_build(session, g64_rom_hash((const uint8_t *)netplay_build(), strlen(netplay_build())));
     }
     if (!session) {
         char why[96];
@@ -544,6 +558,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         g64_ihost_on_move(ihost, on_move, NULL);
         g64_iclient_on_final(iclient, on_local_final, NULL);
     }
+    plog_printf("g64coopdx: build %s", netplay_build());
     plog_printf("g64coopdx: player %d of %d, level %d, deadline %u, input delay %d", me + 1, players, clevel, deadline,
                 inputDelay);
     {

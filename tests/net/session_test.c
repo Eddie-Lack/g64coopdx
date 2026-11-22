@@ -14,6 +14,7 @@
 #define PLAYERS 3
 #define FRAMES 300
 #define ROM 0x1234abcdu
+#define BUILD 0x0b01d001u
 
 static int failures;
 
@@ -81,14 +82,26 @@ static rb_input controller(int p, uint32_t f) {
 static void test_refusals(net_addr hostAddr, uint32_t *clock) {
     char err[128];
     net_socket *s1 = net_open(0, err, sizeof err), *s2 = net_open(0, err, sizeof err);
+    net_socket *s3 = net_open(0, err, sizeof err);
     g64_session *wrong = g64_session_join(s1, &hostAddr, ROM + 1, "wrong"), *late = g64_session_join(s2, &hostAddr, ROM, "late");
+    /* A joiner with the right ROM whose program is another build. */
+    g64_session *other = g64_session_join(s3, &hostAddr, ROM, "other");
     int i;
+    g64_session_set_build(late, BUILD);
+    g64_session_set_build(wrong, BUILD);
+    g64_session_set_build(other, BUILD + 1);
     for (i = 0; i < 200; i++) {
         *clock += 10;
         g64_session_poll(wrong, *clock, NULL, NULL);
         g64_session_poll(late, *clock, NULL, NULL);
+        g64_session_poll(other, *clock, NULL, NULL);
         g64_session_poll(m[0].session, *clock, on_game, &m[0]);
     }
+    check(g64_session_poll(other, *clock, NULL, NULL) == G64_SESSION_FAILED &&
+              strstr(g64_session_error(other), "version") != NULL,
+          "a joiner with another build of the program is refused");
+    g64_session_free(other);
+    net_close(s3);
     check(g64_session_poll(wrong, *clock, NULL, NULL) == G64_SESSION_FAILED &&
               strstr(g64_session_error(wrong), "ROM") != NULL,
           "a joiner with another ROM is refused");
@@ -112,8 +125,12 @@ int main(void) {
         sock[i] = net_open(0, err, sizeof err);
     net_resolve("127.0.0.1", net_port(sock[0]), &hostAddr, err, sizeof err);
     m[0].session = g64_session_host(sock[0], PLAYERS, ROM, 0, 3);
-    for (i = 1; i < PLAYERS; i++)
+    g64_session_set_build(m[0].session, BUILD);
+    for (i = 1; i < PLAYERS; i++) {
         m[i].session = g64_session_join(sock[i], &hostAddr, ROM, "friend");
+        if (m[i].session)
+            g64_session_set_build(m[i].session, BUILD);
+    }
     /* Meet and start. */
     for (f = 0; f < 500 && started < PLAYERS; f++) {
         clock += 10;

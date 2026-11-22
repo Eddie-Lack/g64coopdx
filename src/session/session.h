@@ -3,8 +3,8 @@
  * rollback core's messages between the host and each client.
  *
  * Messages, all numbers little-endian. The first byte is the type; the rollback core's own types are 1 to 5.
- *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), glove color (u32), ball color
- *            (u32), name (up to 16 bytes)
+ *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), build (u32: a hash of the program's
+ *            build id), glove color (u32), ball color (u32), name (up to 16 bytes)
  *   welcome  0x41, player (u8), players (u8)
  *   refuse   0x42, reason (u8)
  *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_), and for each
@@ -20,7 +20,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 5
+#define G64_PROTOCOL 6
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -32,7 +32,7 @@
 enum {
     G64_REFUSE_FULL = 1,     /* every player slot is taken */
     G64_REFUSE_ROM = 2,      /* another ROM */
-    G64_REFUSE_PROTOCOL = 3, /* another version of g64coopdx */
+    G64_REFUSE_PROTOCOL = 3, /* another version of g64coopdx: another protocol or another build */
     G64_REFUSE_STARTED = 4,  /* the game has started */
 };
 
@@ -65,6 +65,10 @@ int g64_session_me(const g64_session *g);
 int g64_session_players(const g64_session *g);
 int g64_session_level(const g64_session *g);
 int g64_session_deadline(const g64_session *g);
+/* This program's build: a hash of its build id. Every build of the game's code plays another game, so a host
+ * refuses a joiner whose build differs (G64_REFUSE_PROTOCOL). Set it on both sides before the first poll. It is 0
+ * until set. */
+void g64_session_set_build(g64_session *g, uint32_t build);
 /* The host's options (G64_FLAG_): the host sets them before the start; a joiner gets them with the start. */
 int g64_session_flags(const g64_session *g);
 void g64_session_set_flags(g64_session *g, int flags);
