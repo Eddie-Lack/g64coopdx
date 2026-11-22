@@ -188,6 +188,13 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             if (ImGui::Checkbox("Normal ball controls", &normalBall)) {
                 netplay_set_normal_ball(normalBall ? 1 : 0);
             }
+            /* The host's choice, for every player: a glove may take any free ball, or only its own (the default). */
+            {
+                bool anyBall = netplay_host_any_ball() != 0;
+                if (ImGui::Checkbox("Any glove can take any ball", &anyBall)) {
+                    netplay_set_any_ball(anyBall ? 1 : 0);
+                }
+            }
             if (ImGui::Button("Host", ImVec2(-1, 0)) || (autoPress && !strcmp(autoPress, "host"))) {
                 autoPress = NULL;
                 error[0] = 0;

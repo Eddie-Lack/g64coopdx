@@ -52,6 +52,10 @@ everyone's choice. The start screen keeps yours for next time.
 Everyone plays with the easy ball controls. The host can tick **Normal ball controls** on the start screen (or add
 `--normal-ball`) for the game's own controls; every player then has them.
 
+A glove takes only its own ball. The host can tick **Any glove can take any ball** (or add `--any-ball`): a glove
+that touches another player's free ball then takes it, and that player gets the ball you left. A ball that is lost
+still kills the player it first belonged to, whoever has it.
+
 For players far apart, the host can add `--deadline 8` (or more). It gives inputs more time to reach the host: each
 step is 50 ms, and the default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed
 game lags further behind.

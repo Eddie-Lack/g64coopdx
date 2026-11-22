@@ -45,6 +45,9 @@ typedef struct g64_iclient g64_iclient;
  * player starts in one instance of level, in world 0, with a new save. */
 g64_ihost *g64_ihost_new(Engine *e, const void *boot, int players, int level, uint32_t deadline, g64_isend_fn send,
                          void *user);
+/* The host's "any ball" rule for every game that is built from now on: a glove may take any free ball (1), or only
+ * its own (0, the default). Every machine of a session must set the same before its first game is built. */
+void g64_instances_any_ball(int on);
 void g64_ihost_free(g64_ihost *h);
 /* One host frame: ticks every instance, moves the players who took an exit, and sends what is due. */
 void g64_ihost_tick(g64_ihost *h);
