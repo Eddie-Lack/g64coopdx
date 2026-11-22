@@ -77,7 +77,7 @@ static void call_init(void *arg) {
     }
     port_game_framebuffers(&a, &b);
     gfx_set_framebuffers(a, b);
-    gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_BASE + 0x1800000);
+    gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_END);
     gfx_set_memory_base(PORT_PTR_DELTA);
     glReady = 1;
     glTarget = 0;

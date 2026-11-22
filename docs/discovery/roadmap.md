@@ -185,8 +185,8 @@ harness at N players and by the determinism tests:
    their A turns the page or closes the tip, and they stay held until they let go of it. What each player reads is part of the game's state, by player number,
    so a rollback keeps it. The window draws the reader's box from the local game's memory: the text never crosses
    the network (weemitt/src/game/g64players.c, "Tips"; tip.c; src/client/netplay.c; tests/rom/tips.c). The game's
-   own box, with its font, is not drawn online: the window's box has the text in the window's font. Left: a look
-   at the box in the window program.
+   own box, with its font, is not drawn online: the window's box has the text in the window's font, and it names
+   the buttons in words where the game's font has a sign for them.
 9. Game change 4: frame limits raised for 16 gloves and balls (matrices, the display list, vertices, sphere hits).
    Done: with 16 players every level runs 1500 frames. The peaks then are 596 object matrices (the Atlantis hub;
    one player needs up to 212), 1489 heap blocks (one player: 1146) and a display list task of 31320 bytes (one
@@ -197,7 +197,11 @@ harness at N players and by the determinism tests:
    whole display list buffer of 20000 commands, of which 16 players use 4196 (main.c). With one player nothing
    moves: the tables in the game's memory hold what they held before. The vertices (peak 606 of 800) do not
    depend on the number of players. The sphere hit table matters only for part frames, which the online game
-   does not run (tests/rom/limits.c). Left: a look at the picture with 16 players in the window program.
+   does not run (tests/rom/limits.c). The picture was looked at with 16 players in one level of the window
+   program, a host and 15 joiners on one machine: the renderer read memory only up to the heap's end and drew the
+   objects past the 256th with a stale matrix, which put a black shape over the screen. It now reads up to the end
+   of port_win (PORT_PTR_END, weemitt/src/port/ptr32.h). That session ran 2000 frames with 3200 hash checks and no
+   mismatch.
 
 Playable: the whole game, start to end, with 8 players. Test: a scripted run of each level by N bots in the harness;
 the matrix and list peaks measured with 16 players.

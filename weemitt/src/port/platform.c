@@ -1405,7 +1405,7 @@ static int run_headless(void) {
 
         port_game_framebuffers(&a, &b);
         gfx_set_framebuffers(a, b);
-        gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_BASE + 0x1800000);
+        gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_END);
         gfx_set_memory_base(PORT_PTR_DELTA);
         set_interp_volatile();
     }
@@ -2180,7 +2180,7 @@ int main(int argc, char **argv) {
 #endif
     port_game_framebuffers(&cfbA, &cfbB);
     gfx_set_framebuffers(cfbA, cfbB);
-    gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_BASE + 0x1800000);
+    gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_END);
     gfx_set_memory_base(PORT_PTR_DELTA);
     set_interp_volatile();
 

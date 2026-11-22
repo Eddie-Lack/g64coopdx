@@ -682,18 +682,40 @@ int G64TipPage(int player, const char **lines, int max, int *more);
 static char tipText[TIP_LINES][TIP_CHARS];
 static int tipLines, tipMore;
 
+/* The game's font has signs for the controller's buttons above the ASCII range (the tips name them): the window's
+   font has none, so the box names the button in words. Any other sign becomes a space. */
+static const char *tip_sign(unsigned char c) {
+    switch (c) {
+    case 0xA3: return "A";
+    case 0xA4: return "B";
+    case 0xA5: return "Z";
+    case 0xA6: return "THE STICK";
+    case 0xA9: return "R";
+    case 0xAA: return "C-LEFT";
+    case 0xAB: return "C-RIGHT";
+    default: return " ";
+    }
+}
+
 static void read_tip(void) {
     const char *lines[TIP_LINES];
-    int i, k;
+    int i, k, n;
     tipMore = 0;
     tipLines = G64TipPage(me, lines, TIP_LINES, &tipMore);
     for (i = 0; i < tipLines; i++) {
-        for (k = 0; k < TIP_CHARS - 1 && lines[i] && lines[i][k]; k++) {
-            /* The game's font has its own signs above the ASCII range: the window's font does not. */
+        n = 0;
+        for (k = 0; lines[i] && lines[i][k]; k++) {
             unsigned char c = (unsigned char)lines[i][k];
-            tipText[i][k] = c >= 0x20 && c < 0x7F ? (char)c : ' ';
+            const char *word = tip_sign(c);
+            if (c >= 0x20 && c < 0x7F) {
+                if (n < TIP_CHARS - 1)
+                    tipText[i][n++] = (char)c;
+                continue;
+            }
+            while (*word && n < TIP_CHARS - 1)
+                tipText[i][n++] = *word++;
         }
-        tipText[i][k] = 0;
+        tipText[i][n] = 0;
     }
 }
 
