@@ -509,16 +509,17 @@ void g64_session_chat(g64_session *g, const char *text) {
     g->chatLast = 0;
 }
 
-void g64_session_kick(g64_session *g, int p) {
+int g64_session_kick(g64_session *g, int p) {
     uint8_t m = MSG_KICK;
     if (g->me != 0 || p < 1 || p >= g->players || !g->peers[p].used || g->peers[p].gone || g->peers[p].kicked)
-        return;
+        return 0;
     send_bytes(g, &g->peers[p].addr, &m, 1);
     g->peers[p].kicked = 1;
     g->peers[p].kickTime = 0;
     /* After the start the player counts as gone for good. Before it the poll frees the place (KICK_HOLD). */
     if (g->state != G64_SESSION_WAITING)
         g->peers[p].gone = 1;
+    return 1;
 }
 
 void g64_session_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball) {

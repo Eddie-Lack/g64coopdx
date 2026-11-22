@@ -1650,7 +1650,7 @@ static void parse_args(int argc, char **argv) {
             opt.netAnyBall = 1;
         } else if (!strcmp(a, "--name") && next) {
             opt.netName = argv[++i];
-        } else if (!strcmp(a, "--public") && next) {
+        } else if (!strcmp(a, "--public") && next && strncmp(next, "--", 2)) {
             opt.netPublic = argv[++i];
         } else if (!strcmp(a, "--players") && next) {
             /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */

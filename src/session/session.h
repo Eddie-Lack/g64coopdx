@@ -98,7 +98,8 @@ void g64_session_chat(g64_session *g, const char *text);
 const net_addr *g64_session_peer_addr(const g64_session *g, int p);
 /* On the host: removes player p. Before the start their place is free again. After it they count as gone
  * (g64_session_gone). Their program is told, and told again if it goes on sending. */
-void g64_session_kick(g64_session *g, int p);
+/* It gives 1 when it removed the player, 0 when there was no one to remove (an empty place, or one already removed). */
+int g64_session_kick(g64_session *g, int p);
 /* Players who have joined so far, the host included (the host's count; a joiner knows only itself). */
 int g64_session_joined(const g64_session *g);
 /* On the host after the start: 1 when player p stopped answering. The game goes on without them. */

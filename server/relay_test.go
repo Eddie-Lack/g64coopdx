@@ -339,7 +339,7 @@ func TestRelayListIsBounded(t *testing.T) {
 }
 
 func TestRelayBan(t *testing.T) {
-	r, out, _ := testRelay()
+	r, out, now := testRelay()
 	host, bad, good := addr("10.0.0.1:1000"), addr("10.0.0.2:2000"), addr("10.0.0.3:3000")
 	code := openRoom(t, r, out, host)
 	peer := joinRoom(t, r, out, code, bad)
@@ -360,12 +360,46 @@ func TestRelayBan(t *testing.T) {
 			t.Fatalf("a banned address joined: %v", s.b)
 		}
 	}
-	if p := joinRoom(t, r, out, code, addr("10.0.0.4:4000")); p != peer {
-		t.Fatalf("the banned peer's place is free again: got %d, want %d", p, peer)
+	// A second ban of the same place does nothing.
+	r.handle(msg(msgBan, peer), host)
+	if len(*out) != 0 {
+		t.Fatalf("a second ban was answered")
 	}
-	// The banned peer's packets no longer reach the host.
+	// The banned peer's packets no longer reach the host. The host's last messages still reach the peer.
 	r.handle(msg(msgToHost, 1, 2, 3), bad)
 	if len(*out) != 0 {
 		t.Fatalf("a banned peer's packet was passed on")
+	}
+	r.handle(msg(msgToPeer, peer, 9), host)
+	if s := last(t, out); s.to != bad || s.b[4] != msgFromHost {
+		t.Fatalf("the host's message to the banned peer: got %v to %v", s.b, s.to)
+	}
+	// The place stays taken for a while, then a newcomer gets it. The ban stays.
+	if p := joinRoom(t, r, out, code, addr("10.0.0.4:4000")); p == peer {
+		t.Fatalf("a newcomer got the banned peer's place at once")
+	}
+	*now = now.Add(relayBanHold + time.Second)
+	r.handle(msg(msgToPeer, 2, 9), host)
+	*out = nil
+	r.expire()
+	if p := joinRoom(t, r, out, code, addr("10.0.0.5:5000")); p != peer {
+		t.Fatalf("the banned peer's place is free after the hold: got %d, want %d", p, peer)
+	}
+	r.handle(msg(msgJoin, []byte(code)...), bad)
+	if s := last(t, out); s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
+		t.Fatalf("the ban ended with the hold: %v", s.b)
+	}
+	// An IPv6 ban covers the /64.
+	six := addr("[2001:db8:1:2::10]:6000")
+	p6 := joinRoom(t, r, out, code, six)
+	r.handle(msg(msgBan, p6), host)
+	*out = nil
+	r.handle(msg(msgJoin, []byte(code)...), addr("[2001:db8:1:2:aaaa::1]:6001"))
+	if s := last(t, out); s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
+		t.Fatalf("another address of the banned /64 joined: %v", s.b)
+	}
+	r.handle(msg(msgJoin, []byte(code)...), addr("[2001:db8:1:3::10]:6000"))
+	if s := last(t, out); s.b[4] != msgJoined {
+		t.Fatalf("another /64 was refused: %v", s.b)
 	}
 }

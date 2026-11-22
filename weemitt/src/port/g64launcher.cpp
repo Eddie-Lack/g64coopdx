@@ -255,6 +255,12 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                room code (the default). */
             {
                 static char title[33];
+                static int seeded;
+                if (!seeded) {
+                    /* The title that --public gave. */
+                    snprintf(title, sizeof title, "%s", netplay_public_title());
+                    seeded = 1;
+                }
                 bool listed = netplay_public() != 0;
                 bool changed = ImGui::Checkbox("Show this game in the list of open games", &listed);
                 if (listed) {
@@ -290,8 +296,12 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             }
             ImGui::EndDisabled();
             /* The open games that hosts have listed, for this build. The titles are other players' text. */
-            netplay_rooms_refresh(relay);
-            if (netplay_rooms_count() < 0) {
+            if (!connecting) {
+                netplay_rooms_refresh(relay);
+            }
+            if (connecting) {
+                /* The list is closed while this program joins or hosts. */
+            } else if (netplay_rooms_count() < 0) {
                 ImGui::TextDisabled("Open games: asking the lobby...");
             } else if (netplay_rooms_count() == 0) {
                 ImGui::TextDisabled("Open games: none right now");
@@ -333,6 +343,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             ImGui::TextWrapped("Frames of 50 ms. More: the other gloves jump less. Less: yours answers sooner.");
             ImGui::Separator();
             if (ImGui::Button("Play alone", ImVec2(-1, 0))) {
+                netplay_rooms_close();
                 ImGui::End();
                 ImGui::Render();
                 return 0;

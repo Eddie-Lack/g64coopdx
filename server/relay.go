@@ -37,6 +37,7 @@ import (
 	"log"
 	"net"
 	"net/netip"
+	"sort"
 	"sync"
 	"time"
 )
@@ -60,6 +61,8 @@ const (
 	relayBansMax  = 32
 	// relayListedFor is how long a room stays on the list after its host last announced it.
 	relayListedFor = 10 * time.Second
+	// A banned peer's place in the room stays taken this long.
+	relayBanHold = 10 * time.Second
 )
 
 const (
@@ -87,6 +90,21 @@ const (
 type relayPeer struct {
 	addr  netip.AddrPort
 	heard time.Time
+	// The time of the host's ban; zero for a peer in good standing. A banned peer keeps its place for
+	// relayBanHold: the host's last messages still reach it, and no newcomer gets its number meanwhile.
+	banned time.Time
+}
+
+// banKey gives the form of an address that bans compare: the address itself for IPv4, its /64 network for IPv6.
+// A home's IPv6 addresses share one /64 and change inside it.
+func banKey(a netip.Addr) netip.Addr {
+	a = a.Unmap()
+	if a.Is6() {
+		if p, err := a.Prefix(64); err == nil {
+			return p.Addr()
+		}
+	}
+	return a
 }
 
 type relayRoom struct {
@@ -128,6 +146,7 @@ func cleanTitle(b []byte) string {
 }
 
 func (room *relayRoom) isBanned(a netip.Addr) bool {
+	a = banKey(a)
 	for _, b := range room.banned {
 		if b == a {
 			return true
@@ -205,6 +224,10 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		if room := r.byPeer[from]; room != nil {
 			for i, p := range room.peers {
 				if p != nil && p.addr == from {
+					if !p.banned.IsZero() {
+						r.send(append(header(msgRefused), refuseBanned), from)
+						return
+					}
 					p.heard = now
 					r.send(append(header(msgJoined), byte(i)), from)
 				}
@@ -236,6 +259,9 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		}
 		for i, p := range room.peers {
 			if p != nil && p.addr == from {
+				if !p.banned.IsZero() {
+					return
+				}
 				p.heard = now
 				r.send(append(append(header(msgFromPeer), byte(i)), body...), room.host)
 				return
@@ -271,21 +297,23 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 			return
 		}
 		build := uint32(body[0]) | uint32(body[1])<<8 | uint32(body[2])<<16 | uint32(body[3])<<24
-		reply := append(header(msgRooms), 0)
-		n := 0
+		// The rooms go out in the order of their codes: a list that is asked for again keeps its rows in place.
+		var open []*relayRoom
 		for _, room := range r.rooms {
-			if n == relayListMax {
-				break
+			if room.build == build && now.Before(room.listedUntil) {
+				open = append(open, room)
 			}
-			if room.build != build || !now.Before(room.listedUntil) {
-				continue
-			}
+		}
+		sort.Slice(open, func(a, b int) bool { return open[a].code < open[b].code })
+		if len(open) > relayListMax {
+			open = open[:relayListMax]
+		}
+		reply := append(header(msgRooms), byte(len(open)))
+		for _, room := range open {
 			reply = append(reply, room.code...)
 			reply = append(reply, room.wanted, room.joined, room.flags, byte(len(room.title)))
 			reply = append(reply, room.title...)
-			n++
 		}
-		reply[relayHeader] = byte(n)
 		r.send(reply, from)
 	case msgBan:
 		room := r.byHost[from]
@@ -297,12 +325,15 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		if i < 1 || i > relayMaxPeers || room.peers[i] == nil {
 			return
 		}
+		// The host sends a ban several times. Only the first one counts.
 		p := room.peers[i]
-		if !room.isBanned(p.addr.Addr()) && len(room.banned) < relayBansMax {
-			room.banned = append(room.banned, p.addr.Addr())
+		if !p.banned.IsZero() {
+			return
 		}
-		delete(r.byPeer, p.addr)
-		room.peers[i] = nil
+		if !room.isBanned(p.addr.Addr()) && len(room.banned) < relayBansMax {
+			room.banned = append(room.banned, banKey(p.addr.Addr()))
+		}
+		p.banned = now
 		r.send(append(header(msgRefused), refuseBanned), p.addr)
 	}
 }
@@ -348,7 +379,7 @@ func (r *relay) expire() {
 			continue
 		}
 		for i, p := range room.peers {
-			if p != nil && now.Sub(p.heard) > relayTimeout {
+			if p != nil && (now.Sub(p.heard) > relayTimeout || (!p.banned.IsZero() && now.Sub(p.banned) > relayBanHold)) {
 				delete(r.byPeer, p.addr)
 				room.peers[i] = nil
 			}

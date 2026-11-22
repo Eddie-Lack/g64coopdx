@@ -152,6 +152,9 @@ static char myName[G64_NAME_MAX + 1] = "Player";
 static int nameChosen;
 /* The players whose removal the chat has already said (netplay_kick). */
 static int kickNoted[G64_SESSION_MAX_PLAYERS];
+static int banPeer, banSends;
+static uint32_t banTime, listTried;
+static void send_ban(void);
 #define CHAT_LINES 32
 #define CHAT_TEXT (G64_NAME_MAX + G64_CHAT_MAX + 4)
 static char chatLines[CHAT_LINES][CHAT_TEXT];
@@ -250,13 +253,23 @@ void netplay_rooms_refresh(const char *relay) {
     char err[160];
     uint32_t t = now_ms();
     int n;
-    if (!relay || !relay[0] || net_init() != 0)
+    if (!relay || !relay[0])
         return;
     if (!listSock) {
+        /* A failed try (no network, an unknown name) is made again after three seconds. */
+        if (listTried && t - listTried < 3000)
+            return;
+        listTried = t ? t : 1;
+        if (net_init() != 0)
+            return;
         listSock = net_open(0, err, sizeof err);
         listRelayCount = listSock ? net_resolve_all(relay, 27065, listRelays, NET_RELAY_ADDRS, err, sizeof err) : -1;
+        if (listSock && listRelayCount < 1) {
+            net_close(listSock);
+            listSock = NULL;
+        }
     }
-    if (!listSock || listRelayCount < 1)
+    if (!listSock)
         return;
     while ((n = net_recv(listSock, &from, d, sizeof d)) >= 0) {
         int i, known = 0;
@@ -264,9 +277,13 @@ void netplay_rooms_refresh(const char *relay) {
         for (i = 0; i < listRelayCount; i++)
             known |= net_addr_equal(&from, &listRelays[i]);
         if (known) {
-            int got = net_rooms_parse(d, n, listRooms, (int)(sizeof listRooms / sizeof listRooms[0]));
-            if (got >= 0)
+            /* A list that does not parse leaves the last good one as it was. */
+            net_room fresh[sizeof listRooms / sizeof listRooms[0]];
+            int got = net_rooms_parse(d, n, fresh, (int)(sizeof fresh / sizeof fresh[0]));
+            if (got >= 0) {
+                memcpy(listRooms, fresh, sizeof listRooms);
                 listCount = got;
+            }
         }
     }
     if (listAsked == 0 || t - listAsked >= 1000) {
@@ -284,6 +301,7 @@ void netplay_rooms_close(void) {
     listSock = NULL;
     listCount = -1;
     listAsked = 0;
+    listTried = 0;
 }
 
 /* The players of the session, for the list in the menu. Before the start only the host knows them. */
@@ -293,21 +311,40 @@ int netplay_player_gone(int p) {
     return session && g64_session_me(session) == 0 && p > 0 && g64_session_gone(session, p);
 }
 
+/* The ban goes to the relay five times, half a second apart: one lost packet does not lose it. The relay holds the
+   banned player's place for ten seconds, so the repeats cannot reach a newcomer. */
+static void send_ban(void) {
+    uint32_t t = now_ms();
+    if (!banSends || !sock || (banTime && t - banTime < 500))
+        return;
+    banTime = t ? t : 1;
+    banSends--;
+    net_relay_ban(sock, banPeer);
+}
+
 /* The host removes a player: their program is told, and the game goes on without them. */
 void netplay_kick(int p) {
     char note[64];
+    const net_addr *a;
+    int place = 0;
     if (!session || g64_session_me(session) != 0 || p < 1 || p >= g64_session_players(session))
         return;
     snprintf(note, sizeof note, "%s was removed by the host",
              g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
-    {
-        /* Through the relay the removal is also a ban: the relay refuses that player's address for this room. Only
-           the relay sees addresses. */
-        const net_addr *a = g64_session_peer_addr(session, p);
-        if (a && a->family == NET_FAMILY_RELAY && sock)
-            net_relay_ban(sock, a->ip[0]);
+    a = g64_session_peer_addr(session, p);
+    if (a && a->family == NET_FAMILY_RELAY)
+        place = a->ip[0];
+    /* A second removal of the same place does nothing: it would reach whoever holds the place next. */
+    if (!g64_session_kick(session, p))
+        return;
+    /* Through the relay the removal is also a ban: the relay refuses that player's address for this room. Only
+       the relay sees addresses. The kick message went first; the relay still passes it on. */
+    if (place && sock) {
+        banPeer = place;
+        banSends = 5;
+        banTime = 0;
+        send_ban();
     }
-    g64_session_kick(session, p);
     kickNoted[p] = 1;
     chat_add(-1, note);
 }
@@ -441,6 +478,10 @@ int netplay_poll(void) {
         g64_session_state st = g64_session_poll(session, t, NULL, NULL);
         if (st == G64_SESSION_FAILED)
             return fail_connect(g64_session_error(session));
+        /* The relay's word of a ban, for a joiner whose kick message was lost. */
+        if (!chost && crelay[0] && net_relay_state(sock) < 0)
+            return fail_connect("the host has removed you from that room");
+        send_ban();
         announce_room(st == G64_SESSION_WAITING);
         if (st == G64_SESSION_STARTED) {
             me = g64_session_me(session);
@@ -462,6 +503,10 @@ int netplay_poll(void) {
 }
 
 void netplay_cancel(void) {
+    /* A host that gives up takes its room off the list. */
+    if (session && sock && chost && publicRoom && crelay[0] && cstate != C_STARTED)
+        net_relay_announce(sock, build_hash(), cwanted, 0, 0, 0, publicTitle[0] ? publicTitle : myName);
+    netplay_rooms_close();
     if (session) {
         g64_session_free(session);
         session = NULL;
@@ -949,6 +994,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     else
         memset(haveBefore, 0, sizeof haveBefore);
     net_relay_tick(sock, now_ms());
+    send_ban();
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
         failed = 1;
         tipLines = 0;
