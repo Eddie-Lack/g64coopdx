@@ -606,7 +606,7 @@
 ** leave 'lua_strx2number' undefined and Lua will provide its own
 ** implementation.
 */
-#if !defined(LUA_USE_C89)
+#if !defined(LUA_USE_C89) && !defined(G64_LUA_OWN_STRX2NUMBER)  /* g64coopdx */
 #define lua_strx2number(s,p)		lua_str2number(s,p)
 #endif
 

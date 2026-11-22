@@ -44,7 +44,7 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
 | `string.match`, `gmatch`, `gsub`, and patterns in `string.find` | one search with a pattern can take longer than any limit. `string.find` looks for plain text only |
 | `string.pack`, `unpack`, `packsize` | their sizes follow the machine |
 | `table.move` | one call can walk a range of any size |
-| `table.insert`, `table.remove` on a table that has a metatable | such a table can claim any length |
+| `table.insert`, `remove`, `sort`, `concat`, `unpack` on a table that has a metatable | such a table can claim any length |
 | `__gc` in a metatable | Lua would run it outside the limit on work |
 | `load`, `loadfile`, `dofile`, `require`, `string.dump` | a script is one file of source text |
 | `collectgarbage` | the game runs Lua's memory by itself |

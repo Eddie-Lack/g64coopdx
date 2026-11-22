@@ -11,10 +11,12 @@ this copy of weemitt).
   four libraries (`lbaselib.c`, `ltablib.c`, `lstrlib.c`, `lmathlib.c`). Not taken: the programs (`lua.c`, `luac.c`)
   and the libraries that reach the system (`liolib.c`, `loslib.c`, `loadlib.c`, `ldblib.c`, `lcorolib.c`,
   `lutf8lib.c`, `linit.c`).
-- One change: in `llimits.h`, a guard around `point2uint`, which turns an address into a hash. The build gives its
+- Two changes. The second: in `luaconf.h`, `G64_LUA_OWN_STRX2NUMBER` keeps Lua from reading a hexadecimal number
+  with the system's `strtod`. Lua's own reader then does it on every system, as it already did on Windows.
+- The first: in `llimits.h`, a guard around `point2uint`, which turns an address into a hash. The build gives its
   own (`src/port/g64lua_conf.h`): the address's place in the scripts' block of memory. Every machine then walks a
   table with table or function keys in the same order.
 - License: MIT. The text is at the end of `lua.h`.
 
-To update: download the new release, check its checksum against lua.org's list, replace the files, put the guard
-back, and run the game's checks.
+To update: download the new release, check its checksum against lua.org's list, replace the files, put the two
+changes back, and run the game's checks.

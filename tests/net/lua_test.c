@@ -96,6 +96,8 @@ int main(void) {
         "game.log(1 / 3 .. ' ' .. 0.1 + 0.2 .. ' ' .. 2 ^ 0.5 .. ' ' .. 1e300 * 10 .. ' ' .. -(0 / 0) .. ' ' .. 2 ^ 63)\n"
         "game.log(string.format('%.3f %g %5.1f %d %x %e %s %s', 2 / 3, 1e-7, 12.25, 42, 255, 12345.678, 7, 'text'))\n"
         "game.log(tonumber('0.1e-3') .. ' ' .. tonumber('0x10') .. ' ' .. math.sqrt(2) .. ' ' .. 7 // 2 .. ' ' .. 7.5 % 2)\n"
+        "game.log((0x1.000000000000080000000001p0 == 1 and 'hex equal ' or 'hex above ') ..\n"
+        "         (tonumber('0x1.000000000000080000000001p0') == 1 and 'equal ' or 'above ') .. 0x.8p1 .. ' ' .. 0xA)\n"
         "game.log(math.pi .. ' ' .. math.huge .. ' ' .. math.maxinteger .. ' ' .. 3 ^ 40 .. ' ' .. 2 ^ -3)\n",
         1, 1);
 
@@ -140,6 +142,10 @@ int main(void) {
         "local third = 0.3\n"
         "no('a power with a fraction', function() return 2 ^ third end)\n"
         "no('insert with a metatable', table.insert, setmetatable({}, {__len = function() return 1e15 end}), 1, 1)\n"
+        "local big = {__len = function() return 2 ^ 30 end, __index = rawlen, __newindex = rawlen}\n"
+        "no('sort with a metatable', table.sort, setmetatable({}, big))\n"
+        "no('concat with a metatable', table.concat, setmetatable({}, big))\n"
+        "no('unpack with a metatable', table.unpack, setmetatable({}, big))\n"
         "no('remove with a metatable', table.remove, setmetatable({}, {__len = function() return 1e15 end}), 1)\n"
         "game.log('#' .. string.rep('', 1e15) .. '# ' .. string.rep('ab', 3, '-') .. ' ' .. ('x'):rep(3))\n"
         "game.log('find: ' .. string.find('a.b', '.') .. ' ' .. (string.find('abc', '%a') or 'none'))\n"

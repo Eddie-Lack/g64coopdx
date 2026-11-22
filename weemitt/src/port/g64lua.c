@@ -410,9 +410,9 @@ static int safe_rep(lua_State *L) {
     return call_wrapped(L);
 }
 
-/* table.insert and table.remove for plain tables. With a metatable, a table can claim any length, and Lua's own
-   then shifts that many places in one call. */
-static int safe_shift(lua_State *L) {
+/* The table library for plain tables only. With a metatable, a table can claim any length and answer every read
+   from a C function, and Lua's own then loops that many times in one call, which the count of steps does not see. */
+static int safe_table(lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
     if (lua_getmetatable(L, 1)) {
         return luaL_argerror(L, 1, "a table with a metatable cannot be used here");
@@ -505,8 +505,12 @@ static int load_script(lua_State *L) {
     wrap_field(L, "string", "format", safe_format);
     wrap_field(L, "string", "find", safe_find);
     wrap_field(L, "string", "rep", safe_rep);
-    wrap_field(L, "table", "insert", safe_shift);
-    wrap_field(L, "table", "remove", safe_shift);
+    {
+        static const char *const plain[] = {"insert", "remove", "sort", "concat", "unpack", NULL};
+        for (i = 0; plain[i] != NULL; i++) {
+            wrap_field(L, "table", plain[i], safe_table);
+        }
+    }
     wrap_field(L, NULL, "setmetatable", safe_setmetatable);
     luaL_newlib(L, api);
     lua_setglobal(L, "game");

@@ -31,6 +31,10 @@ extern unsigned char g64LuaArena[];
          ? (unsigned int)((const unsigned char *)(p) - g64LuaArena) \
          : 0u)
 
+/* A hexadecimal number in a script's text is read by Lua's own code on every system. Without this, Linux would
+   use the C library's, which rounds a long fraction differently (third_party/lua/luaconf.h). */
+#define G64_LUA_OWN_STRX2NUMBER 1
+
 /* The sign between a number's whole part and its fraction. Lua asks the system's locale; a period is the same on
    every machine. */
 #define lua_getlocaledecpoint() '.'
