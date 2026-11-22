@@ -307,6 +307,12 @@ s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more);
    runs once a frame after every player's part. G64BallLostElsewhere is 1 when the lost ball of the player in the
    globals is another player's, who dies for it. */
 extern s32 g64AnyBall;
+/* One world at a time (g64players.c, "One world at a time"): the host's rule that a portal from the hub to another
+   world is shut while players are in a world. */
+extern s32 g64OneWorld;
+void G64SetSessionWorld(s32 world);
+s32 G64SessionWorld(void);
+s32 G64PortalShut(s32 player);
 void G64AnyBallStep(void);
 s32 G64BallLostElsewhere(void);
 /* debris.c: a piece of debris is freed, and no player who is not in the globals keeps it as their fake ball. */

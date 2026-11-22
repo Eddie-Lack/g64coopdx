@@ -57,6 +57,12 @@ int netplay_normal_ball(void);
 /* The host's option: a glove may take any free ball (1), or only its own (0, the default). A ball that is lost
  * kills its real owner either way. Call it before netplay_start; netplay_any_ball gives it after the start. */
 void netplay_set_any_ball(int on);
+/* The host's choice that players may go to different worlds. Without it the session is in one world at a time: a
+ * portal from the hub to another world is shut while players are in a world, and opens when everyone is in the
+ * hub. Call it before netplay_start; netplay_any_world gives it after the start. */
+void netplay_set_any_world(int on);
+int netplay_any_world(void);
+int netplay_host_any_world(void);
 int netplay_any_ball(void);
 int netplay_host_any_ball(void);
 /* This player's glove and ball colors: G64_COLOR_SET (session.h) plus 0xRRGGBB, or 0 for the color of their player

@@ -64,6 +64,11 @@ everyone's choice. The start screen keeps yours for next time.
 Everyone plays with the easy ball controls. The host can tick **Normal ball controls** on the start screen (or add
 `--normal-ball`) for the game's own controls; every player then has them.
 
+The session is in one world at a time. When a player goes through a portal to a world, the hub's portals to the
+other worlds are shut for everyone, and the game tells you so when you walk into one. They open again when every
+player is back in the hub. The portal to the world the others are in stays open. The host can tick **Players can go
+to different worlds** (or add `--any-world`) to play without this rule.
+
 A glove takes only its own ball. The host can tick **Any glove can take any ball** (or add `--any-ball`): a glove
 that touches another player's free ball then takes it, and that player gets the ball you left. A ball that is lost
 still kills the player it first belonged to, whoever has it.
@@ -215,8 +220,6 @@ game data, only addresses and counts.
   A player who came with nothing due has no flight, even if a crystal becomes due while they are there. If another
   player puts the last crystal due in first, there is no flight left for you.
 - A player who comes into a running level starts where the level put the first player.
-- Players can go to different worlds. The planned rule (a portal to another world opens only when everyone is in
-  the hub) is not there yet.
 - A joiner who leaves vanishes; the game goes on for the others, and someone else can take the place. If the host
   leaves, the game ends.
 - A player who joins a running game waits while their program runs the level's inputs so far. That takes longer

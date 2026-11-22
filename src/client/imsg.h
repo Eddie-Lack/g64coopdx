@@ -45,6 +45,8 @@ typedef struct {
     uint16_t members; /* the instance's players at its start */
     uint32_t join;    /* the frame the player joins at: they run the log's frames before it */
     g64_progress progress;
+    /* The world the session is in at the instance's start, or 0 (G64_EVENT_WORLD). */
+    uint8_t session_world;
     /* Every player's glove and ball color at the instance's start (session.h, G64_COLOR_SET). */
     uint32_t colors[16][2];
 } g64_move;
@@ -76,6 +78,12 @@ int g64_parse_logack(const uint8_t *d, size_t len, uint8_t *instance, uint32_t *
  *             after the instance started, or joined it again (weemitt's g64PlayerColor) */
 #define G64_EVENT_COLORS 0x02
 #define G64_EVENT_COLORS_SIZE 10
+/*   world     0x03, world (u8): the world the session is in (weemitt's enum World), or 0 while every player is in
+ *             the hub (weemitt's G64SetSessionWorld) */
+#define G64_EVENT_WORLD 0x03
+#define G64_EVENT_WORLD_SIZE 2
+size_t g64_write_world_event(uint8_t *d, int world);
+int g64_parse_world_event(const uint8_t *d, size_t len, int *world);
 size_t g64_write_colors_event(uint8_t *d, int player, uint32_t glove, uint32_t ball);
 int g64_parse_colors_event(const uint8_t *d, size_t len, int *player, uint32_t *glove, uint32_t *ball);
 /* 1 for a color a player may have: 0, or the chosen bit and 24 bits of color. */

@@ -43,6 +43,7 @@ int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 void G64TipView(int p);
 void G64CannonView(int p);
+int G64PortalShut(int player);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
 int port_game_draw_view(void *tasks, int max);
 /* weemitt's log (src/port/log.c): the online program has no console on Windows, so its lines go to a file too. */
@@ -106,6 +107,9 @@ int netplay_normal_ball(void) { return session && (g64_session_flags(session) & 
 
 void netplay_set_any_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_BALL : hostFlags & ~G64_FLAG_ANY_BALL; }
 
+void netplay_set_any_world(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_WORLD : hostFlags & ~G64_FLAG_ANY_WORLD; }
+int netplay_host_any_world(void) { return (hostFlags & G64_FLAG_ANY_WORLD) != 0; }
+int netplay_any_world(void) { return session && (g64_session_flags(session) & G64_FLAG_ANY_WORLD) != 0; }
 int netplay_any_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_ANY_BALL) != 0; }
 
 /* This player's colors (netplay_set_colors), and weemitt's table of every player's (g64players.c). */
@@ -799,6 +803,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         sound = g64_sound_new(soundout_backend());
     /* The host's rule for the ball, before any game is built. */
     g64_instances_any_ball(netplay_any_ball());
+    g64_instances_one_world(!netplay_any_world());
     {
         /* The first game has the players who were in at the start, with their colors. A player who comes later
            has no game at first: the host's move brings it. */
@@ -915,7 +920,9 @@ static void restore_view(void) {
  * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames,
  * so the host confirms it even if one input is lost; doing it twice does nothing more. */
 #define ACTION_BUTTON 0x0080
-#define ACTION_FRAMES 3
+/* A player who came into a running level runs a little behind the host's clock, and on a slow connection their
+   first inputs after a pause may come too late for the host: the choice is held for 8 frames. */
+#define ACTION_FRAMES 8
 enum { PAUSE_RESUME, PAUSE_CHECKPOINT, PAUSE_HUB, PAUSE_LEAVE, PAUSE_ITEMS };
 static const char *const pauseItems[PAUSE_ITEMS] = {"Resume", "Back to checkpoint", "Back to the hub",
                                                     "Leave the online game"};
@@ -1206,6 +1213,20 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
                 if (offset[p][k] > -0.05f && offset[p][k] < 0.05f)
                     offset[p][k] = 0;
             }
+        }
+    }
+    {
+        /* A portal to another world was shut for this player: they are told why, at most every five seconds. */
+        static const char *const worlds[] = {"", "Atlantis", "Carnival", "Pirates", "Prehistoric", "Fortress of Fear",
+                                             "Out of This World"};
+        static uint32_t told;
+        int w = G64PortalShut(me);
+        if (w >= 1 && w <= 6 && (told == 0 || now_ms() - told > 5000)) {
+            char note[120];
+            told = now_ms() ? now_ms() : 1;
+            snprintf(note, sizeof note, "That way is shut: players are in %s. It opens when everyone is in the hub.",
+                     worlds[w]);
+            chat_add(-1, note);
         }
     }
     /* The tip that this player reads, in the game's own box. */

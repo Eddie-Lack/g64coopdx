@@ -1316,12 +1316,39 @@ void G64ExitSave(s32 type, s32 complete, G64Save *save);
 void G64ReadSave(G64Save *save);
 void G64WriteSave(s32 world, const G64Save *save);
 
+/* One world at a time (the host's rule for the session, g64OneWorld). The session is in the world where players
+   are: g64SessionWorld, or 0 while everyone is in the hub. The host works it out and sends it to every game as an
+   event on a confirmed frame (G64SetSessionWorld). A portal from the hub to another world is shut: a player who
+   walks into it stays in the hub, and portalShut holds the session's world for them for that frame, which the
+   client reads to tell them why (G64PortalShut). */
+s32 g64OneWorld;
+static u8 g64SessionWorld;
+static u8 portalShut[G64_MAX_PLAYERS];
+
+void G64SetSessionWorld(s32 world) {
+    if (world >= 0 && world < NUM_WORLDS)
+        g64SessionWorld = (u8)world;
+}
+
+s32 G64SessionWorld(void) {
+    return g64SessionWorld;
+}
+
+s32 G64PortalShut(s32 player) {
+    return player >= 0 && player < G64_MAX_PLAYERS ? portalShut[player] : 0;
+}
+
 /* A player takes an exit: it is recorded with where it leads, and the player leaves the game at the next frame. */
 static void player_exits(s32 player, s32 type, s32 complete) {
     u32 bit = 1u << player;
     G64ExitRecord *r;
     if ((gone & bit) || g64ExitCount >= G64_MAX_PLAYERS)
         return;
+    if (g64OneWorld && type >= ATLANTIS_EXIT && type <= SPACE_EXIT && g64SessionWorld != HUB &&
+        g64SessionWorld != ATLANTIS + (type - ATLANTIS_EXIT)) {
+        portalShut[player] = g64SessionWorld;
+        return;
+    }
     gone |= bit;
     leaving |= bit;
     r = &g64Exits[g64ExitCount++];
@@ -1427,6 +1454,7 @@ static u32 framesRun;
 void G64SetPresent(u32 present) {
     s32 p, i;
     g64ExitCount = 0;
+    memset(portalShut, 0, sizeof portalShut);
     /* A test's exits at set frames (g64TestExits): the same on every machine, since every copy holds them. */
     for (i = 0; i < G64_TEST_EXITS; i++) {
         G64TestExit *t = &g64TestExits[i];
