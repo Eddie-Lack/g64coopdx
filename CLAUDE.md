@@ -72,7 +72,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed
     make test-windows  # the loopback tests as a Windows program under Wine; its hash must equal Linux's
-    make fuzz          # the message parsers under libFuzzer (needs clang)
+    make fuzz          # the message parsers and the scripts' sandbox under libFuzzer (needs clang)
     make image         # the lobby server's container image (needs Docker)
 
 CI (`.github/workflows/ci.yml`) runs the tests, also under Wine, and fuzzes the parsers. It builds the server and the
@@ -98,4 +98,5 @@ run locally: set `GLOVER_ROM`.
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
 | Level packs: the reader and the format | src/client (`pack.h`), docs/discovery/level-pack.md |
+| Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | How players host and join | docs/playing-online.md |

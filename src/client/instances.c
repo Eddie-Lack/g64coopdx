@@ -105,13 +105,20 @@ void g64_instances_one_world(int on) { oneWorldRule = on != 0; }
 
 /* The session's level pack (weemitt's g64players.c, G64SetPack). */
 void G64SetPack(int level, unsigned rom, unsigned size);
+void G64SetPackScript(unsigned rom, unsigned size);
+void G64LuaStart(void);
 static int packLevel = -1;
-static unsigned packRom, packSize;
+static unsigned packRom, packSize, packScriptRom, packScriptSize;
 
 void g64_instances_pack(int level, unsigned rom, unsigned size) {
     packLevel = size ? level : -1;
     packRom = rom;
     packSize = size;
+}
+
+void g64_instances_pack_script(unsigned rom, unsigned size) {
+    packScriptRom = rom;
+    packScriptSize = size;
 }
 
 static void build_setup(void *ctx) {
@@ -123,6 +130,7 @@ static void build_setup(void *ctx) {
     g64AnyBall = anyBallRule;
     g64OneWorld = oneWorldRule;
     G64SetPack(packLevel, packRom, packSize);
+    G64SetPackScript(packScriptRom, packScriptSize);
     G64SetSessionWorld(r->session_world);
     for (p = 0; p < 16; p++) {
         g64PlayerColor[p][0] = r->colors[p][0];
@@ -131,6 +139,8 @@ static void build_setup(void *ctx) {
     G64StartPlayers(r->members);
     G64SetStartRecord(r->world, &s);
     port_game_start_level(r->level);
+    /* The pack's script starts with the game: its first run is before the first frame. */
+    G64LuaStart();
 }
 
 static rb_engine_game *build(const void *boot, const start_record *r) {

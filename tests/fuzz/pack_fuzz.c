@@ -21,5 +21,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     if (g64_pack_check_level(data, size) == 0 && (size < 8 || size > G64_PACK_LEVEL_MAX))
         __builtin_trap();
+    if (g64_pack_check_script(data, size) == 0 && (size < 1 || size > G64_PACK_SCRIPT_MAX || data[0] == 0x1B ||
+                                                    memchr(data, 0, size)))
+        __builtin_trap();
     return 0;
 }

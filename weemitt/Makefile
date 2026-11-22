@@ -55,6 +55,11 @@ PORT_CXX_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/po
 PORT_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/port/os.c src/port/inputlatch.c src/port/gu.c src/port/sprite.c \
              src/port/libultra.c src/port/devview.c src/port/debugpad.c src/port/portmath.c src/port/soundtable.c gen/ramtab.c gen/romsyms.c \
              gen/layouts.c
+# g64coopdx: Lua 5.4.8 (third_party/lua) and the scripts' own file. They are part of the game's code and data: a
+# savestate holds the scripts' memory. They are C, built with LUA_CFLAGS (below, after GAME_FLAGS).
+LUA_SRCS := $(addprefix third_party/lua/,lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c \
+            lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c \
+            lbaselib.c ltablib.c lstrlib.c lmathlib.c) src/port/g64lua.c
 # The host world (docs/host-world.md): in weemitt's programs and the library. The brute forcer reads PORT_SRCS and
 # leaves it out.
 HOSTWORLD_SRCS := src/port/hostworld.c src/port/drawmark.c
@@ -174,6 +179,11 @@ endif
 # runtime's files in PORT_CXX_SRCS are C compiled as C++, with C linkage (docs/port64.md). -fno-finite-loops keeps C's rule for loops: C++ lets GCC assume that every loop without
 # side effects ends.
 GAME_CFLAGS := -std=gnu89 $(GAME_FLAGS)
+# g64coopdx: Lua's flags (LUA_SRCS above): the game's machine and float flags, without the header that the game's
+# files start with. It is set here, after GAME_FLAGS, as a plain value: the brute forcer's Makefile reads it.
+# -funsigned-char is left out: with it MinGW's <locale.h>, which Lua includes, puts a variable of its own into each
+# object, in a section that a savestate does not hold. Lua does not depend on the sign of char.
+LUA_CFLAGS := -std=gnu99 $(filter-out -funsigned-char -include src/port/port_pre.h,$(GAME_FLAGS)) -include src/port/g64lua_conf.h
 GAME_CXXFLAGS := -x c++ -std=gnu++14 -fno-exceptions -fno-rtti -fno-finite-loops $(CLANG_FLAGS) $(GAME_FLAGS)
 # The platform layer and the renderer talk to SDL and OpenGL, so they keep the system's structure layout.
 HOST_CFLAGS := $(ARCH_FLAGS) -std=gnu99 -O2 -g $(PIC_FLAGS) -Wall -Wno-unused-function -Isrc/port -Isrc/gfx $(SDL_CFLAGS) \
@@ -184,7 +194,7 @@ ifeq ($(SPACE_DEMO),1)
 HOST_CFLAGS += -DPORT_SPACE_DEMO
 endif
 
-GAME_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(GAME_SRCS) $(PORT_SRCS) $(HOSTWORLD_SRCS) $(AUDIO_SRCS)) $(patsubst %.S,$(BUILD)/%.o,$(ASM_SRCS))
+GAME_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(GAME_SRCS) $(PORT_SRCS) $(HOSTWORLD_SRCS) $(AUDIO_SRCS) $(LUA_SRCS)) $(patsubst %.S,$(BUILD)/%.o,$(ASM_SRCS))
 HOST_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(PLATFORM_SRCS) $(GFX_SRCS)) $(patsubst %.cpp,$(BUILD)/%.o,$(CXX_SRCS))
 # The menu and Dear ImGui are C++ for the host: they do not get the game's flags.
 HOST_CXXFLAGS := $(ARCH_FLAGS) -std=gnu++14 -O2 -g $(PIC_FLAGS) -fno-exceptions -fno-rtti -Isrc/port -Ithird_party/imgui \
@@ -501,6 +511,10 @@ $(BUILD)/src/gfx/%.o: src/gfx/%.c $(wildcard src/gfx/*.h)
 $(patsubst %.c,$(BUILD)/%.o,$(PORT_CXX_SRCS)): $(BUILD)/%.o: %.c src/port/port.h src/port/port_pre.h src/port/ptr32.h src/port/hostworld.h src/port/porthooks.h
 	@mkdir -p $(dir $@)
 	$(CXX) $(GAME_CXXFLAGS) -MMD -MP -c $< -o $@
+
+$(patsubst %.c,$(BUILD)/%.o,$(LUA_SRCS)): $(BUILD)/%.o: %.c src/port/g64lua_conf.h $(wildcard third_party/lua/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(LUA_CFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD)/src/port/%.o: src/port/%.c src/port/port.h src/port/port_pre.h src/port/ptr32.h
 	@mkdir -p $(dir $@)

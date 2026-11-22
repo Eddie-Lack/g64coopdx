@@ -9,10 +9,11 @@
  *                 name=NAME      1 to 32 printable ASCII characters
  *                 level=N        the level whose place the pack's level takes (weemitt's enum Level, 0 to 47)
  *   level.lev   the level, in the game's own format, as Glovebox writes it. It starts with its size (u32, big-endian).
+ *   script.lua  a script, as Lua source text (weemitt/src/port/g64lua.c). A pack may have none.
  *
  * The pack's id is the first 16 bytes of the BLAKE2b hash (32 bytes) of its canonical form: the text "g64pack 1",
- * a zero byte, then for pack.txt and level.lev in that order: the file's name, a zero byte, its length (u32,
- * little-endian) and its bytes. Every machine of a session must have the pack with the same id.
+ * a zero byte, then for pack.txt, level.lev and, if the pack has one, script.lua, in that order: the file's name, a
+ * zero byte, its length (u32, little-endian) and its bytes. Every machine of a session must have the pack with the same id.
  *
  * Every byte of a pack is untrusted: the manifest's parser takes only what is listed above, and the level file's
  * size is checked against its own first word. The game's level parser is the original game's and does not check
@@ -30,6 +31,7 @@
 /* The most bytes of a manifest and of a level file. The game's largest level file is about 150 KB. */
 #define G64_PACK_MANIFEST_MAX 1024
 #define G64_PACK_LEVEL_MAX (1024 * 1024)
+#define G64_PACK_SCRIPT_MAX (256 * 1024)
 
 typedef struct {
     char name[G64_PACK_NAME + 1];
@@ -37,6 +39,8 @@ typedef struct {
     uint8_t id[G64_PACK_ID];
     uint8_t *lev; /* the level file, owned by the pack (g64_pack_free) */
     size_t levSize;
+    uint8_t *script; /* the script's source, owned by the pack, or NULL */
+    size_t scriptSize;
 } g64_pack;
 
 /* Reads a manifest's bytes into name and level. Returns 0, or -1 for a manifest that is not exactly as pack.h
@@ -44,9 +48,12 @@ typedef struct {
 int g64_pack_parse_manifest(const uint8_t *d, size_t n, g64_pack *out);
 /* 0 when lev is a level file by its outside: at least a size and a name, and its first word is its length. */
 int g64_pack_check_level(const uint8_t *lev, size_t n);
-/* The pack's id from its two files' bytes. */
+/* 0 when script may be a script by its outside: 1 byte to G64_PACK_SCRIPT_MAX, with no zero byte, and not Lua's
+ * compiled form, which starts with an escape character. The game takes source text only. */
+int g64_pack_check_script(const uint8_t *script, size_t n);
+/* The pack's id from its files' bytes. script is NULL for a pack without one. */
 void g64_pack_make_id(const uint8_t *manifest, size_t manifestSize, const uint8_t *lev, size_t levSize,
-                      uint8_t id[G64_PACK_ID]);
+                      const uint8_t *script, size_t scriptSize, uint8_t id[G64_PACK_ID]);
 /* Loads the pack in folder dir. Returns 0, or -1 with a message in err. */
 int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize);
 void g64_pack_free(g64_pack *p);

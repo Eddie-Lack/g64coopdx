@@ -110,7 +110,7 @@ void netplay_set_any_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_BA
 
 /* The level pack for the session (pack.h), the ROM this program was started with, and the buffer that holds that
    ROM with the pack's level file after it, which the game reads from once the session has begun. */
-static g64_pack pack = {"", -1, {0}, NULL, 0};
+static g64_pack pack = {"", -1, {0}, NULL, 0, NULL, 0};
 static const uint8_t *baseRom;
 static size_t baseRomSize;
 static uint8_t *packRom;
@@ -829,6 +829,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
        ROM from there: the level's loader then finds the file as it finds the ROM's. The host has checked that
        every player has the same pack. */
     g64_instances_pack(-1, 0, 0);
+    g64_instances_pack_script(0, 0);
     if (pack.lev && (!baseRom || baseRomSize >= 0x0F000000u)) {
         /* The other machines play the pack: this one must not start without it. */
         snprintf(err, errSize, "the ROM is too large to play a level pack with");
@@ -836,15 +837,22 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     }
     if (pack.lev) {
         free(packRom);
-        packRom = malloc(baseRomSize + pack.levSize);
+        packRom = malloc(baseRomSize + pack.levSize + pack.scriptSize);
         if (!packRom) {
             snprintf(err, errSize, "out of memory");
             return -1;
         }
         memcpy(packRom, baseRom, baseRomSize);
         memcpy(packRom + baseRomSize, pack.lev, pack.levSize);
-        engine_set_rom(e, packRom, (unsigned long)(baseRomSize + pack.levSize));
+        if (pack.script)
+            memcpy(packRom + baseRomSize + pack.levSize, pack.script, pack.scriptSize);
+        engine_set_rom(e, packRom, (unsigned long)(baseRomSize + pack.levSize + pack.scriptSize));
         g64_instances_pack(pack.level, (unsigned)baseRomSize, (unsigned)pack.levSize);
+        /* The pack's script, after the level file. Every game runs it from its start. */
+        if (pack.script) {
+            g64_instances_pack_script((unsigned)(baseRomSize + pack.levSize), (unsigned)pack.scriptSize);
+            plog_printf("g64coopdx: the level pack has a script of %u bytes", (unsigned)pack.scriptSize);
+        }
         plog_printf("g64coopdx: level pack \"%s\" takes the place of level %d", pack.name, pack.level);
     }
     {

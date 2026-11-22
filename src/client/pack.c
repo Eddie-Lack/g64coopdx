@@ -88,8 +88,14 @@ static void hash_file(crypto_blake2b_ctx *ctx, const char *name, const uint8_t *
     crypto_blake2b_update(ctx, d, n);
 }
 
+int g64_pack_check_script(const uint8_t *script, size_t n) {
+    if (!script || n < 1 || n > G64_PACK_SCRIPT_MAX || script[0] == 0x1B)
+        return -1;
+    return memchr(script, 0, n) ? -1 : 0;
+}
+
 void g64_pack_make_id(const uint8_t *manifest, size_t manifestSize, const uint8_t *lev, size_t levSize,
-                      uint8_t id[G64_PACK_ID]) {
+                      const uint8_t *script, size_t scriptSize, uint8_t id[G64_PACK_ID]) {
     static const char head[] = "g64pack 1";
     uint8_t hash[32];
     crypto_blake2b_ctx ctx;
@@ -97,6 +103,8 @@ void g64_pack_make_id(const uint8_t *manifest, size_t manifestSize, const uint8_
     crypto_blake2b_update(&ctx, (const uint8_t *)head, sizeof head);
     hash_file(&ctx, "pack.txt", manifest, manifestSize);
     hash_file(&ctx, "level.lev", lev, levSize);
+    if (script)
+        hash_file(&ctx, "script.lua", script, scriptSize);
     crypto_blake2b_final(&ctx, hash);
     memcpy(id, hash, G64_PACK_ID);
 }
@@ -145,7 +153,29 @@ int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize) {
         snprintf(err, errSize, "the level pack has no level.lev, or it is not a level file");
         return -1;
     }
-    g64_pack_make_id(manifest, manifestSize, lev, levSize, out->id);
+    {
+        /* The script is optional: a file that is there must be a script. */
+        char path[1024];
+        FILE *f = NULL;
+        size_t scriptSize = 0;
+        uint8_t *script = NULL;
+        if (snprintf(path, sizeof path, "%s/script.lua", dir) < (int)sizeof path)
+            f = fopen(path, "rb");
+        if (f) {
+            fclose(f);
+            script = read_file(dir, "script.lua", G64_PACK_SCRIPT_MAX, &scriptSize);
+            if (!script || g64_pack_check_script(script, scriptSize) != 0) {
+                free(manifest);
+                free(lev);
+                free(script);
+                snprintf(err, errSize, "the level pack's script.lua is empty, too long, or not Lua source text");
+                return -1;
+            }
+        }
+        g64_pack_make_id(manifest, manifestSize, lev, levSize, script, scriptSize, out->id);
+        out->script = script;
+        out->scriptSize = scriptSize;
+    }
     free(manifest);
     out->lev = lev;
     out->levSize = levSize;
@@ -155,6 +185,7 @@ int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize) {
 void g64_pack_free(g64_pack *p) {
     if (p) {
         free(p->lev);
+        free(p->script);
         memset(p, 0, sizeof *p);
         p->level = -1;
     }
