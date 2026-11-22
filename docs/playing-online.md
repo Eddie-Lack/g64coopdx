@@ -209,5 +209,4 @@ game data, only addresses and counts.
 - A player who comes into a running level starts where the level put the first player.
 - Players can go to different worlds. The planned rule (a portal to another world opens only when everyone is in
   the hub) is not there yet.
-- No list of open games: players share the room code themselves.
 - A joiner who leaves vanishes; the game goes on for the others. If the host leaves, the game ends.

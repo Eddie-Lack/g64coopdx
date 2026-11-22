@@ -122,6 +122,56 @@ static void test_refusals(net_addr hostAddr, uint32_t *clock) {
     net_close(s2);
 }
 
+/* Two cases of the welcome, each with a host for two players and one joiner. */
+static void test_welcomes(uint32_t *clock) {
+    char err[128];
+    int round;
+    for (round = 0; round < 2; round++) {
+        net_socket *hs = net_open(0, err, sizeof err), *js = net_open(0, err, sizeof err);
+        net_addr to;
+        g64_session *h, *j;
+        int i;
+        memset(&to, 0, sizeof to);
+        to.family = 4, to.ip[0] = 127, to.ip[3] = 1, to.port = net_port(hs);
+        h = g64_session_host(hs, 2, ROM, 0, 3);
+        j = g64_session_join(js, &to, ROM, "j");
+        g64_session_set_build(h, BUILD);
+        g64_session_set_build(j, BUILD);
+        *clock += 10;
+        g64_session_poll(j, *clock, NULL, NULL);
+        if (round == 0) {
+            /* A forged welcome comes first, with a key of the forger's. The real one must still make the link. */
+            uint8_t forged[35] = {0x41, 1, 2};
+            memset(forged + 3, 7, 32);
+            g64_session_receive(j, &to, forged, sizeof forged, *clock, NULL, NULL);
+        } else {
+            /* The welcome is lost, and the starts of the next second with it: the host has started, since the
+               room is full. The joiner's next hello must get the welcome again. */
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            for (i = 0; i < 100; i++) {
+                *clock += 10;
+                g64_session_poll(h, *clock, NULL, NULL);
+                while (net_recv(js, &from, d, sizeof d) >= 0) {
+                }
+            }
+            check(g64_session_poll(h, *clock, NULL, NULL) == G64_SESSION_STARTED, "the host starts when the room is full");
+        }
+        for (i = 0; i < 200; i++) {
+            *clock += 10;
+            g64_session_poll(h, *clock, NULL, NULL);
+            g64_session_poll(j, *clock, NULL, NULL);
+        }
+        check(g64_session_poll(j, *clock, NULL, NULL) == G64_SESSION_STARTED,
+              round == 0 ? "a forged welcome before the real one does not stop the join"
+                         : "a joiner whose welcome was lost after the start still gets in");
+        g64_session_free(h);
+        g64_session_free(j);
+        net_close(hs);
+        net_close(js);
+    }
+}
+
 int main(void) {
     char err[128];
     net_socket *sock[PLAYERS];
@@ -259,6 +309,7 @@ int main(void) {
               "ten lines at once from one joiner: the host passes on one");
     }
     test_refusals(hostAddr, &clock);
+    test_welcomes(&clock);
     /* A joiner who stops answering: the host's game goes on without it. */
     {
         int k;

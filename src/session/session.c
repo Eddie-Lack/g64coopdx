@@ -419,13 +419,17 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
     case MSG_WELCOME:
         /* A welcome makes the link. Until a sealed message from the host has opened, a welcome with another key
            makes it anew: a forged welcome that came first must not shut the real host out. A welcome with the
-           same key changes nothing, so no counter is ever used twice with one key. */
+           same key changes nothing. */
         if (n == WELCOME_SIZE && d[2] >= 2 && d[2] <= G64_SESSION_MAX_PLAYERS && d[1] >= 1 && d[1] < d[2] &&
             g->state == G64_SESSION_WAITING && !h->opened && g->helloLen &&
             (!h->sealed || memcmp(h->theirKey, d + 3, G64_SEAL_KEY) != 0)) {
             g64_seal fresh;
             if (g64_seal_keys(&fresh, 0, g->secret, d + 3, g->hello, g->helloLen, d, (size_t)n) != 0)
                 break;
+            /* The counter goes on from where it was: if an earlier key comes back, no counter is used twice
+               with it. */
+            if (h->sealed)
+                fresh.sent = h->seal.sent;
             h->seal = fresh;
             g64_seal_wipe(&fresh, sizeof fresh);
             memcpy(h->theirKey, d + 3, G64_SEAL_KEY);
