@@ -294,12 +294,15 @@ one of the game's levels, the session's hello carries the pack's id, and a host 
 tests/fuzz/pack_fuzz.c). The protocol is 11. What a level file must satisfy before a pack may come from another player is in
 [level-file-safety.md](level-file-safety.md). A trial of Lua on Linux and Windows is in
 [lua-trial.md](lua-trial.md): it settles the Lua version, one patch to it, and that the scripts' memory is saved but
-not hashed. Lua is in the game: Lua 5.4.8 with that patch (`weemitt/third_party/lua`), a block of 2 MB in the game's
-own data for the scripts, a sandbox, a first small set of calls, and a pack's `script.lua`, which every game of the
-session runs ([scripts.md](../scripts.md); `weemitt/src/port/g64lua.c`; `script_run` in tests/rom/instances.c). The
-state hash that machines compare covers the game's memory and not the scripts' block. Left: the rest of the API
-(the players' counters, spawns, puzzle conditions and actions, the HUD), the game's own sine and cosine for
-scripts, and session state that a script keeps across levels.
+not hashed. Lua is in the game: Lua 5.4.8 with two small patches (`weemitt/third_party/lua`), a block of 2 MB in the
+game's own data for the scripts, a sandbox with a limit on work, and a pack's `script.lua`, which every game of the
+session runs ([scripts.md](../scripts.md); `weemitt/src/port/g64lua.c`; `script_run` in tests/rom/instances.c;
+tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). A script reads the players' places, balls and
+counts, moves a glove, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
+comes or goes. The hash that machines compare covers the game's memory, and a number made of the script's memory
+counts and random state in place of the scripts' block. Left: events from inside the game's step (a garib taken, a
+death), writes to the players' counters, spawns, puzzle conditions and actions, the HUD, and session state that a
+script keeps across levels.
 
 Playable: a session on a custom Glovebox level with a script, joined by players who did not have the pack. Test: the
 pack reader's fuzz target; a script's state equal on every client after rollbacks; a level built from scratch loads

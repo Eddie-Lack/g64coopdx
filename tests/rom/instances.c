@@ -462,6 +462,12 @@ static void pack_level(Engine *e, void *boot) {
 
 int G64LuaActive(void);
 void G64LuaCounts(unsigned out[4]);
+double G64LuaGlobal(const char *name);
+
+/* Numbers that two_players reads from the script's global variables at the end. */
+#define SCRIPT_VALUES 6
+static const char *const scriptName[SCRIPT_VALUES] = {"joins", "angles", "dice", "balls", "counts", "frames"};
+static double scriptValue[SCRIPT_VALUES];
 
 /* Two players in Atlantis 1 for 320 frames over the slow, lossy network, which makes their games go back and run
    frames again. Returns where player 0's glove is in their own game at the end, and prints the hash checks. */
@@ -500,6 +506,8 @@ static void two_players(Engine *e, void *boot, float at[3], unsigned counts[4], 
         G64PlayerPosition(0, &at[0], &at[1], &at[2]);
         *active = G64LuaActive();
         G64LuaCounts(counts);
+        for (p = 0; p < SCRIPT_VALUES; p++)
+            scriptValue[p] = G64LuaGlobal(scriptName[p]);
     }
     printf("two players: %u hash checks, %u mismatches, desyncs %u and %u, %llu and %llu frames run again\n",
            g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
@@ -533,9 +541,28 @@ static void script_run(Engine *e, void *boot) {
         "  end\n"
         "end\n";
     static const char endless[] = "function on_frame() while true do end end\n";
+    /* The calls a script has: it adds up what they give, in global variables that the test reads. The sums come
+       from the game's own sine and cosine, the script's random numbers and the players' places and counts. */
+    static const char calls[] =
+        "joins, angles, dice, balls, counts, frames = 0, 0, 0, 0, 0, 0\n"
+        "function on_join(p) joins = joins + 1 + p * 10 end\n"
+        "function on_frame()\n"
+        "  local f = game.frame()\n"
+        "  frames = frames + 1\n"
+        "  angles = angles + math.sin(f * 0.37) * math.cos(f * 1.3 - 40)\n"
+        "  dice = dice + game.random(6) + game.random()\n"
+        "  for p = 0, 15 do\n"
+        "    if game.has_player(p) then\n"
+        "      local x, y, z = game.ball_pos(p)\n"
+        "      local gx = game.pos(p)\n"
+        "      balls = balls + x + y + z - gx\n"
+        "      counts = counts + game.ball_type(p) + game.garibs(p) * 7 + game.health(p) * 31 + game.lives(p) * 101\n"
+        "    end\n"
+        "  end\n"
+        "end\n";
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
-    uint8_t *with = malloc(romSize + sizeof script + sizeof endless);
+    uint8_t *with = malloc(romSize + sizeof script + sizeof endless + sizeof calls);
     float plain[3], moved[3], after[3];
     unsigned counts[4], none[4];
     int active = 0, before = failed;
@@ -548,7 +575,8 @@ static void script_run(Engine *e, void *boot) {
     memcpy(with, rom, romSize);
     memcpy(with + romSize, script, sizeof script - 1);
     memcpy(with + romSize + sizeof script, endless, sizeof endless - 1);
-    engine_set_rom(e, with, romSize + sizeof script + sizeof endless);
+    memcpy(with + romSize + sizeof script + sizeof endless, calls, sizeof calls - 1);
+    engine_set_rom(e, with, romSize + sizeof script + sizeof endless + sizeof calls);
     g64_instances_pack_script((unsigned)romSize, sizeof script - 1);
     two_players(e, boot, moved, counts, &active);
     snprintf(what, sizeof what, "the glove ends at x %.1f without the script and at x %.1f with it", plain[0], moved[0]);
@@ -561,6 +589,14 @@ static void script_run(Engine *e, void *boot) {
     snprintf(what, sizeof what, "a script without end is stopped: the glove ends at x %.1f, as without a script",
              after[0]);
     check(!active && after[0] == plain[0], what);
+    g64_instances_pack_script((unsigned)(romSize + sizeof script + sizeof endless), sizeof calls - 1);
+    two_players(e, boot, after, counts, &active);
+    printf("script: joins %.0f, frames %.0f, angles %.9f, dice %.9f, balls %.6f, counts %.0f\n", scriptValue[0],
+           scriptValue[5], scriptValue[1], scriptValue[2], scriptValue[3], scriptValue[4]);
+    /* Players 0 and 1 joined: 1 + 11. The sums are nonzero, and the Linux and Windows outputs are compared. */
+    check(active && scriptValue[0] == 12 && scriptValue[5] > 200 && scriptValue[1] != 0 && scriptValue[2] > 200 &&
+              scriptValue[4] > 0,
+          "a script reads the players, the game's sine and cosine and its random numbers");
     g64_instances_pack_script(0, 0);
     engine_set_rom(e, rom, romSize);
     free(with);

@@ -9,25 +9,17 @@
  * engine's own hash also covers variables that hold program addresses, which differ between the two. */
 unsigned int port_hash_ram(void);
 int G64LuaActive(void);
-void G64LuaCounts(unsigned int out[4]);
+unsigned int G64LuaHash(void);
 
-/* The hash that machines compare: the game's memory in the low half. With a script, the high half is a hash of the
-   script's memory counts (the block's high mark, the bytes in use, the allocations and the frees). The scripts'
-   block itself holds addresses and cannot be compared, but two machines whose scripts ran differently soon differ
-   in these counts. The top bit is set, so a machine whose script was stopped differs from one whose script runs.
-   Without a script the hash is the game's memory alone. */
+/* The hash that machines compare: the game's memory in the low half. With a script, the high half is the script's
+   own number (weemitt's g64lua.c, G64LuaHash): its memory counts, its random numbers' state and the players it has
+   seen. The scripts' block itself holds addresses and cannot be compared, but two machines whose scripts ran
+   differently soon differ in that number. The top bit is set, so a machine whose script was stopped differs from
+   one whose script runs. Without a script the hash is the game's memory alone. */
 static uint64_t game_hash(void) {
     uint64_t h = port_hash_ram();
     if (G64LuaActive()) {
-        unsigned int c[4], k = 2166136261u;
-        int i, b;
-        G64LuaCounts(c);
-        for (i = 0; i < 4; i++) {
-            for (b = 0; b < 32; b += 8) {
-                k = (k ^ ((c[i] >> b) & 0xFF)) * 16777619u;
-            }
-        }
-        h |= (uint64_t)(k | 0x80000000u) << 32;
+        h |= (uint64_t)(G64LuaHash() | 0x80000000u) << 32;
     }
     return h;
 }

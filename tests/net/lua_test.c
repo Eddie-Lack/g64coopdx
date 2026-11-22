@@ -33,8 +33,45 @@ void G64PlacePlayer(int p, float x, float y, float z) {
     }
 }
 
-int G64HasPlayer(int p) {
-    return p == 0;
+/* Player 0 is always there. Player 1 is in the level from frame 5 to frame 7. */
+int G64PlayerInLevel(int p) {
+    return p == 0 || (p == 1 && frames >= 5 && frames < 8);
+}
+
+int G64BallPosition(int p, float *x, float *y, float *z) {
+    if (p != 0) {
+        return 0;
+    }
+    *x = place[0] + 1;
+    *y = place[1] + 2;
+    *z = place[2] + 3;
+    return 1;
+}
+
+int G64PlayerBallType(int p) {
+    return p == 0 ? 2 : -1;
+}
+
+int G64PlayerGaribs(int p) {
+    return p == 0 ? frames / 10 : -1;
+}
+
+int G64PlayerHealth(int p) {
+    return p == 0 ? 3 : -100;
+}
+
+int G64PlayerLives(int p) {
+    return p == 0 ? 5 : -100;
+}
+
+/* The game's sine and cosine take their constants from the ROM. These stand in for them here; the test with the
+   real game compares the real ones between Linux and Windows (tests/rom/instances.c). */
+float port_sinf(float x) {
+    return x * 0.5f;
+}
+
+float port_cosf(float x) {
+    return 1.0f - x * 0.25f;
 }
 
 int G64FramesRun(void) {
@@ -129,7 +166,7 @@ int main(void) {
         "for _, n in ipairs({'dump', 'pack', 'unpack', 'packsize', 'match', 'gmatch', 'gsub'}) do\n"
         "  if string[n] ~= nil then gone = gone .. 'string.' .. n .. ' ' end\n"
         "end\n"
-        "for _, n in ipairs({'random', 'randomseed', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'exp', 'log'}) do\n"
+        "for _, n in ipairs({'random', 'randomseed', 'tan', 'asin', 'acos', 'atan', 'exp', 'log'}) do\n"
         "  if math[n] ~= nil then gone = gone .. 'math.' .. n .. ' ' end\n"
         "end\n"
         "if table.move ~= nil then gone = gone .. 'table.move ' end\n"
@@ -152,6 +189,43 @@ int main(void) {
         "game.log('find: ' .. string.find('a.b', '.') .. ' ' .. (string.find('abc', '%a') or 'none'))\n"
         "local t = {}; table.insert(t, 'x'); table.insert(t, 1, 'y'); game.log(table.concat(t, ',') .. table.remove(t))\n",
         1, 1);
+
+    run("what a script reads",
+        "local x, y, z = game.ball_pos(0)\n"
+        "game.log(x .. ' ' .. y .. ' ' .. z .. ' ' .. game.ball_type(0) .. ' ' .. game.garibs(0) .. ' ' ..\n"
+        "         game.health(0) .. ' ' .. game.lives(0) .. ' ' .. game.level())\n"
+        "game.log((game.ball_pos(3) == nil and game.ball_type(3) == nil and game.garibs(3) == nil and\n"
+        "          game.health(3) == nil and game.lives(3) == nil) and 'an absent player gives nothing' or 'WRONG')\n"
+        "game.log(math.sin(1.5) .. ' ' .. math.cos(2) .. ' ' .. (pcall(math.sin, 1e7) and 'ALLOWED' or 'refused') ..\n"
+        "         ' ' .. (pcall(math.cos, 0 / 0) and 'ALLOWED' or 'refused'))\n",
+        1, 1);
+
+    run("random numbers",
+        "local s = ''\n"
+        "for i = 1, 8 do s = s .. game.random(6) .. ' ' end\n"
+        "for i = 1, 4 do s = s .. game.random(-3, 3) .. ' ' end\n"
+        "game.log(s .. game.random() .. ' ' .. game.random(2147483647) .. ' ' .. game.random(5, 5))\n"
+        "local low, high, sum = 1, 0, 0\n"
+        "for i = 1, 1000 do local r = game.random(); sum = sum + r\n"
+        "  if r < low then low = r end; if r > high then high = r end end\n"
+        "game.log((low >= 0 and high < 1 and sum > 450 and sum < 550) and 'spread from 0 to 1' or 'WRONG')\n"
+        "game.log((pcall(game.random, 0) or pcall(game.random, 3, 2) or pcall(game.random, 1.5) or\n"
+        "          pcall(game.random, -2147483648, 0) or pcall(game.random, 1, 2147483648)) and 'ALLOWED' or 'refused')\n",
+        1, 1);
+
+    run("players who join and leave",
+        "local s = ''\n"
+        "function on_join(p) s = s .. 'join ' .. p .. ' at ' .. game.frame() .. ', ' end\n"
+        "function on_leave(p) s = s .. 'leave ' .. p .. ' at ' .. game.frame() .. ', ' end\n"
+        "function on_frame() if game.frame() == 11 then game.log(s) end end\n",
+        12, 1);
+
+    run("an error in on_join ends the script", "function on_join(p) error('no ' .. p) end\n", 3, 0);
+
+    run("the events of a frame share its work",
+        "function on_join(p) for i = 1, 1500000 do end end\n"
+        "function on_frame() for i = 1, 1500000 do end end\n",
+        3, 0);
 
     run("on_frame behind a metatable is not called",
         "setmetatable(_G, {__index = function(t, k)\n"

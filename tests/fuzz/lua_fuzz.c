@@ -31,8 +31,44 @@ void G64PlacePlayer(int p, float x, float y, float z) {
     }
 }
 
-int G64HasPlayer(int p) {
-    return p == 0;
+int G64PlayerInLevel(int p) {
+    return p == 0 || (p == 1 && frames == 1);
+}
+
+int G64BallPosition(int p, float *x, float *y, float *z) {
+    if (p != 0) {
+        return 0;
+    }
+    *x = place[0] + 1;
+    *y = place[1] + 2;
+    *z = place[2] + 3;
+    return 1;
+}
+
+int G64PlayerBallType(int p) {
+    return p == 0 ? 2 : -1;
+}
+
+int G64PlayerGaribs(int p) {
+    return p == 0 ? frames / 10 : -1;
+}
+
+int G64PlayerHealth(int p) {
+    return p == 0 ? 3 : -100;
+}
+
+int G64PlayerLives(int p) {
+    return p == 0 ? 5 : -100;
+}
+
+/* The game's sine and cosine take their constants from the ROM. These stand in for them here; the test with the
+   real game compares the real ones between Linux and Windows (tests/rom/instances.c). */
+float port_sinf(float x) {
+    return x * 0.5f;
+}
+
+float port_cosf(float x) {
+    return 1.0f - x * 0.25f;
 }
 
 int G64FramesRun(void) {
