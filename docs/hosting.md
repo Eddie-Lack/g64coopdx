@@ -96,7 +96,7 @@ weemitt's MIT license.
 ## What is set up today
 
 - **The lobby server** in [`server/`](../server/README.md): a program that answers a health check, describes
-  itself, and runs the relay on UDP port 27065. It lists no sessions yet. It is built with a supported Go release
+  itself, and runs the relay on UDP port 27065. The relay keeps the list of open games that hosts chose to show. It is built with a supported Go release
   (1.27 today).
 - **Its container image**, built by `make image` from `server/Dockerfile`.
 - **CI** (`.github/workflows/ci.yml`): on every pull request it tests the placeholder, builds the image, runs it

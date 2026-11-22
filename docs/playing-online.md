@@ -22,6 +22,11 @@ are in, with the other players who are in it. It is a test build: see "What does
    **Copy code** and send it to the other players. The game starts when everyone is in.
 4. To join: type the code under **Join an online game** and press **Join**.
 
+A host can check **Show this game in the list of open games** and give the game a title. Every player with the same
+version then sees it under **Open games**, with the number of players in it, and joins with the **Join** button
+beside it. No code is needed. The game leaves the list when it starts. Without the check, only players with the code
+can join. `--public TITLE` does the same from a command prompt.
+
 **Play alone** starts the normal game.
 
 ## From a command prompt
@@ -96,8 +101,9 @@ In a game, press Esc and open **Online game**:
 A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
 show there too.
 
-A removed player cannot come back into a game that has started. Before the start they can join again with the
-room code a few seconds later: the program has no ban yet.
+A removed player cannot come back. In a game through the relay, the relay refuses their address for that room,
+before and after the start. In a direct game (`--host`) that has not started, they can join again a few seconds
+later.
 
 ## Everyone needs the same version
 

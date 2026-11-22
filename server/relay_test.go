@@ -255,3 +255,151 @@ func TestInfoDescribesTheRelay(t *testing.T) {
 		t.Fatalf("info: %s", body)
 	}
 }
+
+// listRequest is a list request for a build, padded to the length the relay asks for.
+func listRequest(build uint32) []byte {
+	d := msg(msgList, byte(build), byte(build>>8), byte(build>>16), byte(build>>24))
+	return append(d, make([]byte, relayListMin-len(d))...)
+}
+
+func announce(build uint32, wanted, joined, flags, open byte, title string) []byte {
+	return msg(msgAnnounce, append([]byte{byte(build), byte(build >> 8), byte(build >> 16), byte(build >> 24), wanted,
+		joined, flags, open}, title...)...)
+}
+
+func TestRelayList(t *testing.T) {
+	r, out, now := testRelay()
+	host, other, asker := addr("10.0.0.1:1000"), addr("10.0.0.2:1000"), addr("10.0.0.9:9")
+	code := openRoom(t, r, out, host)
+	openRoom(t, r, out, other)
+	// A room is not on the list until its host announces it.
+	r.handle(listRequest(7), asker)
+	if s := last(t, out); s.to != asker || s.b[4] != msgRooms || s.b[relayHeader] != 0 {
+		t.Fatalf("an empty list: got %v", s.b)
+	}
+	r.handle(announce(7, 4, 1, 2, 1, "Fraser's \x01game"), host)
+	r.handle(announce(8, 2, 1, 0, 1, "another build"), other)
+	if len(*out) != 0 {
+		t.Fatalf("an announce is not answered: %v", *out)
+	}
+	r.handle(listRequest(7), asker)
+	s := last(t, out)
+	title := "Fraser's ?game"
+	want := append(append(msg(msgRooms, 1), code...), 4, 1, 2, byte(len(title)))
+	want = append(want, title...)
+	if !bytes.Equal(s.b, want) {
+		t.Fatalf("the list for build 7: got %q, want %q", s.b, want)
+	}
+	if len(s.b) > relayListMin {
+		t.Fatalf("the answer is longer than the question")
+	}
+	// A short request gets no answer: the relay must not send more than it was sent.
+	r.handle(listRequest(7)[:relayListMin-1], asker)
+	if len(*out) != 0 {
+		t.Fatalf("a short list request was answered")
+	}
+	// The web route's list has every build's rooms.
+	if l := r.listed(); len(l) != 2 {
+		t.Fatalf("listed: got %v", l)
+	}
+	// The host takes the room off the list.
+	r.handle(announce(7, 4, 2, 2, 0, "Fraser's game"), host)
+	r.handle(listRequest(7), asker)
+	if s := last(t, out); s.b[relayHeader] != 0 {
+		t.Fatalf("a room taken off the list is still on it")
+	}
+	// A room whose host stops announcing leaves the list by itself.
+	r.handle(announce(7, 4, 2, 2, 1, "Fraser's game"), host)
+	*now = now.Add(relayListedFor + time.Second)
+	r.handle(listRequest(7), asker)
+	if s := last(t, out); s.b[relayHeader] != 0 {
+		t.Fatalf("a room that is no longer announced is still on the list")
+	}
+	// Only a room's host can announce it, and a title cannot be longer than the limit.
+	r.handle(announce(7, 4, 2, 2, 1, "x"), asker)
+	r.handle(announce(7, 4, 2, 2, 1, strings.Repeat("x", relayTitleMax+1)), host)
+	r.handle(listRequest(7), asker)
+	if s := last(t, out); s.b[relayHeader] != 0 {
+		t.Fatalf("a bad announce listed a room")
+	}
+}
+
+func TestRelayListIsBounded(t *testing.T) {
+	r, out, _ := testRelay()
+	for i := 0; i < relayListMax+5; i++ {
+		host := netip.AddrPortFrom(netip.AddrFrom4([4]byte{10, 1, byte(i), 1}), 1000)
+		openRoom(t, r, out, host)
+		r.handle(announce(7, 16, 1, 0, 1, strings.Repeat("t", relayTitleMax)), host)
+	}
+	r.handle(listRequest(7), addr("10.0.0.9:9"))
+	s := last(t, out)
+	if s.b[relayHeader] != relayListMax || len(s.b) > relayListMin {
+		t.Fatalf("the list: %d rooms in %d bytes, at most %d in %d", s.b[relayHeader], len(s.b), relayListMax, relayListMin)
+	}
+}
+
+func TestRelayBan(t *testing.T) {
+	r, out, now := testRelay()
+	host, bad, good := addr("10.0.0.1:1000"), addr("10.0.0.2:2000"), addr("10.0.0.3:3000")
+	code := openRoom(t, r, out, host)
+	peer := joinRoom(t, r, out, code, bad)
+	joinRoom(t, r, out, code, good)
+	// Only the host can ban.
+	r.handle(msg(msgBan, peer), good)
+	if len(*out) != 0 {
+		t.Fatalf("a joiner's ban was answered")
+	}
+	r.handle(msg(msgBan, peer), host)
+	if s := last(t, out); s.to != bad || s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
+		t.Fatalf("the banned peer is told: got %v to %v", s.b, s.to)
+	}
+	// The banned address cannot join again, from any port. Another address still can.
+	for _, from := range []netip.AddrPort{bad, addr("10.0.0.2:2001")} {
+		r.handle(msg(msgJoin, []byte(code)...), from)
+		if s := last(t, out); s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
+			t.Fatalf("a banned address joined: %v", s.b)
+		}
+	}
+	// A second ban of the same place does nothing.
+	r.handle(msg(msgBan, peer), host)
+	if len(*out) != 0 {
+		t.Fatalf("a second ban was answered")
+	}
+	// The banned peer's packets no longer reach the host. The host's last messages still reach the peer.
+	r.handle(msg(msgToHost, 1, 2, 3), bad)
+	if len(*out) != 0 {
+		t.Fatalf("a banned peer's packet was passed on")
+	}
+	r.handle(msg(msgToPeer, peer, 9), host)
+	if s := last(t, out); s.to != bad || s.b[4] != msgFromHost {
+		t.Fatalf("the host's message to the banned peer: got %v to %v", s.b, s.to)
+	}
+	// The place stays taken for a while, then a newcomer gets it. The ban stays.
+	if p := joinRoom(t, r, out, code, addr("10.0.0.4:4000")); p == peer {
+		t.Fatalf("a newcomer got the banned peer's place at once")
+	}
+	*now = now.Add(relayBanHold + time.Second)
+	r.handle(msg(msgToPeer, 2, 9), host)
+	*out = nil
+	r.expire()
+	if p := joinRoom(t, r, out, code, addr("10.0.0.5:5000")); p != peer {
+		t.Fatalf("the banned peer's place is free after the hold: got %d, want %d", p, peer)
+	}
+	r.handle(msg(msgJoin, []byte(code)...), bad)
+	if s := last(t, out); s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
+		t.Fatalf("the ban ended with the hold: %v", s.b)
+	}
+	// An IPv6 ban covers the /64.
+	six := addr("[2001:db8:1:2::10]:6000")
+	p6 := joinRoom(t, r, out, code, six)
+	r.handle(msg(msgBan, p6), host)
+	*out = nil
+	r.handle(msg(msgJoin, []byte(code)...), addr("[2001:db8:1:2:aaaa::1]:6001"))
+	if s := last(t, out); s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
+		t.Fatalf("another address of the banned /64 joined: %v", s.b)
+	}
+	r.handle(msg(msgJoin, []byte(code)...), addr("[2001:db8:1:3::10]:6000"))
+	if s := last(t, out); s.b[4] != msgJoined {
+		t.Fatalf("another /64 was refused: %v", s.b)
+	}
+}

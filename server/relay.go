@@ -15,6 +15,19 @@ package main
 //	from peer 0x84, peer (u8), payload     relay -> host
 //	to peer   0x04, peer (u8), payload     host -> relay
 //	from host 0x85, payload                relay -> joiner
+//	announce  0x05, build (u32), wanted (u8), joined (u8), flags (u8), open (u8), title (up to 32 bytes)
+//	                                       host -> relay: list the room for players of this build (open 1), or
+//	                                       take it off the list (open 0). The host repeats it while it waits.
+//	list      0x06, build (u32), padding   anyone -> relay: which listed rooms does this build have? The datagram
+//	                                       must be relayListMin bytes long: the answer is never longer than the
+//	                                       question, so the relay cannot be used to flood a forged address.
+//	rooms     0x86, count (u8), then for each room: code (6), wanted (u8), joined (u8), flags (u8), title length
+//	                                       (u8), title        relay -> the asker: up to relayListMax rooms
+//	ban       0x07, peer (u8)              host -> relay: put the peer out of the room and refuse their address
+//	                                       when it joins this room again
+//
+// A refused join has the reason 3 when the room's host has banned the joiner's address. The relay is the only
+// place that sees a joiner's address, so it is the only place that can keep a ban.
 //
 // A host's or joiner's room is found by the address it sends from. A room that has heard nothing from its host for
 // relayTimeout closes; so does a peer that has gone quiet.
@@ -24,6 +37,7 @@ import (
 	"log"
 	"net"
 	"net/netip"
+	"sort"
 	"sync"
 	"time"
 )
@@ -39,6 +53,16 @@ const (
 	relayCodeLen   = 6
 	// relayRoomsPerIP bounds the rooms one address may hold open at once.
 	relayRoomsPerIP = 4
+	// relayTitleMax bounds a listed room's title, relayListMax the rooms in one answer, relayListMin the length
+	// of a list request, and relayBansMax the addresses one room may ban.
+	relayTitleMax = 32
+	relayListMax  = 12
+	relayListMin  = relayHeader + 1 + relayListMax*(relayCodeLen+4+relayTitleMax)
+	relayBansMax  = 32
+	// relayListedFor is how long a room stays on the list after its host last announced it.
+	relayListedFor = 10 * time.Second
+	// A banned peer's place in the room stays taken this long.
+	relayBanHold = 10 * time.Second
 )
 
 const (
@@ -46,6 +70,10 @@ const (
 	msgJoin     = 0x02
 	msgToHost   = 0x03
 	msgToPeer   = 0x04
+	msgAnnounce = 0x05
+	msgList     = 0x06
+	msgBan      = 0x07
+	msgRooms    = 0x86
 	msgRoom     = 0x81
 	msgJoined   = 0x82
 	msgRefused  = 0x83
@@ -56,11 +84,27 @@ const (
 const (
 	refuseNoRoom = 1
 	refuseFull   = 2
+	refuseBanned = 3
 )
 
 type relayPeer struct {
 	addr  netip.AddrPort
 	heard time.Time
+	// The time of the host's ban; zero for a peer in good standing. A banned peer keeps its place for
+	// relayBanHold: the host's last messages still reach it, and no newcomer gets its number meanwhile.
+	banned time.Time
+}
+
+// banKey gives the form of an address that bans compare: the address itself for IPv4, its /64 network for IPv6.
+// A home's IPv6 addresses share one /64 and change inside it.
+func banKey(a netip.Addr) netip.Addr {
+	a = a.Unmap()
+	if a.Is6() {
+		if p, err := a.Prefix(64); err == nil {
+			return p.Addr()
+		}
+	}
+	return a
 }
 
 type relayRoom struct {
@@ -68,6 +112,47 @@ type relayRoom struct {
 	host  netip.AddrPort
 	heard time.Time
 	peers [relayMaxPeers + 1]*relayPeer // index 1 to relayMaxPeers
+	// The room's place on the list: listed until this time, for players of this build, with what the host said
+	// about it. The title is printable ASCII.
+	listedUntil           time.Time
+	build                 uint32
+	wanted, joined, flags byte
+	title                 string
+	// The addresses the host has banned from the room.
+	banned []netip.Addr
+}
+
+// listedRoom is one room on the list, for the web route.
+type listedRoom struct {
+	Code   string `json:"code"`
+	Title  string `json:"title"`
+	Wanted int    `json:"wanted"`
+	Joined int    `json:"joined"`
+}
+
+// cleanTitle keeps the printable ASCII of a title, up to relayTitleMax bytes.
+func cleanTitle(b []byte) string {
+	if len(b) > relayTitleMax {
+		b = b[:relayTitleMax]
+	}
+	out := make([]byte, 0, len(b))
+	for _, c := range b {
+		if c < 32 || c > 126 {
+			c = '?'
+		}
+		out = append(out, c)
+	}
+	return string(out)
+}
+
+func (room *relayRoom) isBanned(a netip.Addr) bool {
+	a = banKey(a)
+	for _, b := range room.banned {
+		if b == a {
+			return true
+		}
+	}
+	return false
 }
 
 // relay holds the rooms. Its methods are safe for one reader goroutine and the janitor.
@@ -139,6 +224,10 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		if room := r.byPeer[from]; room != nil {
 			for i, p := range room.peers {
 				if p != nil && p.addr == from {
+					if !p.banned.IsZero() {
+						r.send(append(header(msgRefused), refuseBanned), from)
+						return
+					}
 					p.heard = now
 					r.send(append(header(msgJoined), byte(i)), from)
 				}
@@ -148,6 +237,10 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		room := r.rooms[string(body)]
 		if room == nil || r.byHost[from] != nil {
 			r.send(append(header(msgRefused), refuseNoRoom), from)
+			return
+		}
+		if room.isBanned(from.Addr()) {
+			r.send(append(header(msgRefused), refuseBanned), from)
 			return
 		}
 		for i := 1; i <= relayMaxPeers; i++ {
@@ -166,6 +259,9 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		}
 		for i, p := range room.peers {
 			if p != nil && p.addr == from {
+				if !p.banned.IsZero() {
+					return
+				}
 				p.heard = now
 				r.send(append(append(header(msgFromPeer), byte(i)), body...), room.host)
 				return
@@ -182,7 +278,78 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 			return
 		}
 		r.send(append(header(msgFromHost), body[1:]...), room.peers[i].addr)
+	case msgAnnounce:
+		room := r.byHost[from]
+		if room == nil || len(body) < 8 || len(body) > 8+relayTitleMax {
+			return
+		}
+		room.heard = now
+		room.build = uint32(body[0]) | uint32(body[1])<<8 | uint32(body[2])<<16 | uint32(body[3])<<24
+		room.wanted, room.joined, room.flags = body[4], body[5], body[6]
+		room.title = cleanTitle(body[8:])
+		if body[7] == 1 {
+			room.listedUntil = now.Add(relayListedFor)
+		} else {
+			room.listedUntil = time.Time{}
+		}
+	case msgList:
+		if len(d) < relayListMin || len(body) < 4 {
+			return
+		}
+		build := uint32(body[0]) | uint32(body[1])<<8 | uint32(body[2])<<16 | uint32(body[3])<<24
+		// The rooms go out in the order of their codes: a list that is asked for again keeps its rows in place.
+		var open []*relayRoom
+		for _, room := range r.rooms {
+			if room.build == build && now.Before(room.listedUntil) {
+				open = append(open, room)
+			}
+		}
+		sort.Slice(open, func(a, b int) bool { return open[a].code < open[b].code })
+		if len(open) > relayListMax {
+			open = open[:relayListMax]
+		}
+		reply := append(header(msgRooms), byte(len(open)))
+		for _, room := range open {
+			reply = append(reply, room.code...)
+			reply = append(reply, room.wanted, room.joined, room.flags, byte(len(room.title)))
+			reply = append(reply, room.title...)
+		}
+		r.send(reply, from)
+	case msgBan:
+		room := r.byHost[from]
+		if room == nil || len(body) != 1 {
+			return
+		}
+		room.heard = now
+		i := int(body[0])
+		if i < 1 || i > relayMaxPeers || room.peers[i] == nil {
+			return
+		}
+		// The host sends a ban several times. Only the first one counts.
+		p := room.peers[i]
+		if !p.banned.IsZero() {
+			return
+		}
+		if !room.isBanned(p.addr.Addr()) && len(room.banned) < relayBansMax {
+			room.banned = append(room.banned, banKey(p.addr.Addr()))
+		}
+		p.banned = now
+		r.send(append(header(msgRefused), refuseBanned), p.addr)
 	}
+}
+
+// listed gives the rooms on the list, whatever their build, for the web route.
+func (r *relay) listed() []listedRoom {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := r.now()
+	out := []listedRoom{}
+	for _, room := range r.rooms {
+		if now.Before(room.listedUntil) && len(out) < 200 {
+			out = append(out, listedRoom{Code: room.code, Title: room.title, Wanted: int(room.wanted), Joined: int(room.joined)})
+		}
+	}
+	return out
 }
 
 func (r *relay) roomsOf(a netip.Addr) int {
@@ -212,7 +379,7 @@ func (r *relay) expire() {
 			continue
 		}
 		for i, p := range room.peers {
-			if p != nil && now.Sub(p.heard) > relayTimeout {
+			if p != nil && (now.Sub(p.heard) > relayTimeout || (!p.banned.IsZero() && now.Sub(p.banned) > relayBanHold)) {
 				delete(r.byPeer, p.addr)
 				room.peers[i] = nil
 			}

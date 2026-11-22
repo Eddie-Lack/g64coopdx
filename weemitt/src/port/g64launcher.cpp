@@ -251,6 +251,25 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     netplay_set_any_ball(anyBall ? 1 : 0);
                 }
             }
+            /* The host's choice: put the game on the list below for everyone with this build, or keep it to the
+               room code (the default). */
+            {
+                static char title[33];
+                static int seeded;
+                if (!seeded) {
+                    /* The title that --public gave. */
+                    snprintf(title, sizeof title, "%s", netplay_public_title());
+                    seeded = 1;
+                }
+                bool listed = netplay_public() != 0;
+                bool changed = ImGui::Checkbox("Show this game in the list of open games", &listed);
+                if (listed) {
+                    changed |= ImGui::InputTextWithHint("Title", "your name's game", title, sizeof title);
+                }
+                if (changed) {
+                    netplay_set_public(listed ? 1 : 0, title);
+                }
+            }
             if (ImGui::Button("Host", ImVec2(-1, 0)) || (autoPress && !strcmp(autoPress, "host"))) {
                 autoPress = NULL;
                 error[0] = 0;
@@ -276,6 +295,44 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 }
             }
             ImGui::EndDisabled();
+            /* The open games that hosts have listed, for this build. The titles are other players' text. */
+            if (!connecting) {
+                netplay_rooms_refresh(relay);
+            }
+            if (connecting) {
+                /* The list is closed while this program joins or hosts. */
+            } else if (netplay_rooms_count() < 0) {
+                ImGui::TextDisabled("Open games: asking the lobby...");
+            } else if (netplay_rooms_count() == 0) {
+                ImGui::TextDisabled("Open games: none right now");
+            } else {
+                ImGui::TextUnformatted("Open games");
+                for (int i = 0; i < netplay_rooms_count(); i++) {
+                    const net_room *room = netplay_room(i);
+                    char label[32];
+                    ImGui::PushID(i);
+                    snprintf(label, sizeof label, "Join##%d", i);
+                    if (ImGui::SmallButton(label) || (autoPress && !strcmp(autoPress, "list"))) {
+                        char roomCode[NETPLAY_ROOM_CODE + 1];
+                        snprintf(roomCode, sizeof roomCode, "%s", room->code);
+                        autoPress = NULL;
+                        error[0] = 0;
+                        if (netplay_start(NULL, 0, relay, roomCode, 0, 0, rom, romSize, err, sizeof err) == 0) {
+                            connecting = 1;
+                            hosting = 0;
+                        } else {
+                            snprintf(error, sizeof error, "%s", err);
+                        }
+                        ImGui::PopID();
+                        break;
+                    }
+                    ImGui::SameLine();
+                    ImGui::Text("%d/%d", room->joined, room->wanted);
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(room->title);
+                    ImGui::PopID();
+                }
+            }
             ImGui::Separator();
             /* Each player's own choice: how many frames after a press the input counts (netplay.h). */
             ImGui::TextUnformatted("Your options");
@@ -286,6 +343,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             ImGui::TextWrapped("Frames of 50 ms. More: the other gloves jump less. Less: yours answers sooner.");
             ImGui::Separator();
             if (ImGui::Button("Play alone", ImVec2(-1, 0))) {
+                netplay_rooms_close();
                 ImGui::End();
                 ImGui::Render();
                 return 0;

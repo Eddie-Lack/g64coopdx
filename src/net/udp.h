@@ -69,7 +69,7 @@ void net_relay_tick(net_socket *s, uint32_t now);
 int net_relay_state(const net_socket *s);
 /* The room's code (NET_ROOM_CODE letters and digits). */
 const char *net_relay_code(const net_socket *s);
-/* Why the relay refused: 1 no such room, 2 the room is full. */
+/* Why the relay refused: 1 no such room, 2 the room is full, 3 the host has banned this address. */
 int net_relay_refusal(const net_socket *s);
 /* Handles one datagram src sent to a socket in relay mode (net_recv calls it; the fuzz target calls it directly).
  * Returns the game payload's length, with its sender's virtual address in from, or -1 when it held none. */
@@ -77,5 +77,27 @@ int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n,
                     size_t size);
 /* The virtual address of player p through the relay (0 is the host). */
 net_addr net_relay_player(int p);
+
+/* ---- The relay's list of rooms. A host can put its room on the list, for players of the same build to find. */
+
+#define NET_ROOM_TITLE 32
+typedef struct {
+    char code[NET_ROOM_CODE + 1];
+    char title[NET_ROOM_TITLE + 1];
+    uint8_t wanted, joined, flags; /* the players the host wants, the players in the room, the host's options */
+} net_room;
+
+/* On a host's socket whose room is open: lists the room (open 1) with its title, or takes it off the list (open 0).
+ * The relay drops a room from the list 10 seconds after the last call, so call it every few seconds. */
+void net_relay_announce(net_socket *s, uint32_t build, int wanted, int joined, int flags, int open,
+                        const char *title);
+/* On a host's socket: puts joiner peer (1 to 15) out of the room. The relay refuses their address from then on. */
+void net_relay_ban(net_socket *s, int peer);
+/* Asks the relay at relays (count addresses) for the listed rooms of a build, on a socket that is not in relay mode.
+ * The answer is a datagram for net_rooms_parse. */
+void net_rooms_ask(net_socket *s, const net_addr *relays, int count, uint32_t build);
+/* Reads the relay's answer d of n bytes into out (at most max rooms). Returns the number of rooms, or -1 when d is
+ * not a list. Everything in d is checked: the fuzz target calls this. */
+int net_rooms_parse(const uint8_t *d, int n, net_room *out, int max);
 
 #endif

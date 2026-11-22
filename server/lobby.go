@@ -82,8 +82,8 @@ var (
 )
 
 type sessionsReply struct {
-	// Sessions is always empty in the placeholder. Its element type is not decided yet.
-	Sessions []struct{} `json:"sessions"`
+	// Sessions lists the rooms that hosts have put on the relay's list: the games that wait for players.
+	Sessions []listedRoom `json:"sessions"`
 }
 
 type iceServer struct {
@@ -112,7 +112,11 @@ func newLobby(cfg config) http.Handler {
 		writeJSON(w, reply)
 	})
 	mux.HandleFunc("GET /v1/sessions", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, sessionsReply{Sessions: []struct{}{}})
+		reply := sessionsReply{Sessions: []listedRoom{}}
+		if activeRelay != nil {
+			reply.Sessions = activeRelay.listed()
+		}
+		writeJSON(w, reply)
 	})
 	mux.HandleFunc("GET /v1/ice", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, iceReply{ICEServers: []iceServer{{URLs: cfg.STUNURLs}}})
