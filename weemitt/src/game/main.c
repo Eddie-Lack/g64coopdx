@@ -1103,6 +1103,7 @@ void MainGameLoop(void) {
         }
         /* g64coopdx: the other players' parts of the frame (g64players.c). */
         G64ExtraPlayersStep();
+        G64AnyBallStep();
         CalculateShadows();
         UpdateLights();
         if (!cameraInfo.overrideTimer || !(cameraInfo.overrideFlags & 2)) {

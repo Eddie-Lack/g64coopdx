@@ -10,7 +10,8 @@
  * make bots runs it on Linux and under Wine and compares the outputs: the same inputs must give the same game on
  * both.
  *
- * Usage: bots ROM [PLAYERS [FRAMES]]. Without a ROM file it prints that it was skipped and exits with 0. */
+ * Usage: bots ROM [PLAYERS [FRAMES [any]]]. The last word turns the host's "any ball" rule on. Without a ROM file
+ * it prints that it was skipped and exits with 0. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,13 +22,14 @@ typedef struct {
     unsigned levels, allGaribs;
     unsigned char hubTarget, hubLevel, worldComplete, raisedBit;
 } G64Save;
-extern int g64Online;
+extern int g64Online, g64AnyBall;
 extern unsigned short g64Buttons[16];
 extern signed char g64StickX[16], g64StickY[16];
 void G64StartPlayers(unsigned present);
 void G64SetPresent(unsigned present);
 void G64SetStartRecord(int world, const G64Save *s);
 int G64PlayerPosition(int p, float *x, float *y, float *z);
+int G64BallOwner(int player);
 void port_game_start_level(int level);
 /* The exits that players took in the last frame (weemitt's g64players.h). */
 typedef struct {
@@ -58,6 +60,8 @@ int main(int argc, char **argv) {
     void *boot;
     int players = argc > 2 ? atoi(argv[2]) : 8;
     unsigned frames = argc > 3 ? (unsigned)atoi(argv[3]) : 1000;
+    /* A fourth word turns the host's "any ball" rule on: a glove may take any free ball. */
+    int anyBall = argc > 4;
     unsigned mask;
     int level, failed = 0;
     FILE *rom = argc > 1 ? fopen(argv[1], "rb") : NULL;
@@ -82,7 +86,7 @@ int main(int argc, char **argv) {
     for (level = 0; level < LEVELS; level++) {
         G64Save s;
         unsigned f;
-        int p, k, gloves = 0, left = 0, wanted = level == CONTROL_ROOM || level >= FIRST_SCENE ? 1 : players;
+        int p, k, gloves = 0, left = 0, others = 0, wanted = level == CONTROL_ROOM || level >= FIRST_SCENE ? 1 : players;
         unsigned leftMask = 0;
         float x, y, z;
         /* Each bot holds its stick and buttons for a while, then picks again. */
@@ -94,6 +98,7 @@ int main(int argc, char **argv) {
         seed = 12345u + (unsigned)level;
         engine_load(engine, boot);
         g64Online = 1;
+        g64AnyBall = anyBall;
         G64StartPlayers(mask);
         memset(&s, 0, sizeof s);
         s.levels = 1;
@@ -132,12 +137,16 @@ int main(int argc, char **argv) {
             gloves += G64PlayerPosition(p, &x, &y, &z);
             left += (leftMask >> p) & 1;
         }
-        printf("%s level %d: %d of %d players have a glove, %d took an exit, hash %08x\n",
-               gloves + left >= wanted ? "ok  " : "FAIL", level, gloves, players, left, port_hash_ram());
+        /* Under the "any ball" rule: how many players have another player's ball at the end. */
+        for (p = 0; p < players; p++)
+            others += G64BallOwner(p) >= 0 && G64BallOwner(p) != p;
+        printf("%s level %d: %d of %d players have a glove, %d took an exit, %d have another player's ball, hash %08x\n",
+               gloves + left >= wanted ? "ok  " : "FAIL", level, gloves, players, left, others, port_hash_ram());
         fflush(stdout);
         failed |= gloves + left < wanted;
     }
-    printf("%s every level runs with %d players\n", failed ? "FAIL" : "ok  ", players);
+    printf("%s every level runs with %d players%s\n", failed ? "FAIL" : "ok  ", players,
+           anyBall ? " and the any-ball rule" : "");
     free(boot);
     engine_free(engine);
     return failed;

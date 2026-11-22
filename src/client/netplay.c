@@ -102,6 +102,10 @@ void netplay_set_normal_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_NOR
 
 int netplay_normal_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_NORMAL_BALL) != 0; }
 
+void netplay_set_any_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_BALL : hostFlags & ~G64_FLAG_ANY_BALL; }
+
+int netplay_any_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_ANY_BALL) != 0; }
+
 /* This player's colors (netplay_set_colors), and weemitt's table of every player's (g64players.c). */
 static uint32_t myGlove, myBall;
 extern unsigned g64PlayerColor[16][2];
@@ -482,6 +486,7 @@ static int inputDelay = INPUT_DELAY;
 void netplay_set_input_delay(int frames) { inputDelay = frames < 0 ? 0 : frames > 8 ? 8 : frames; }
 int netplay_input_delay(void) { return inputDelay; }
 int netplay_host_normal_ball(void) { return (hostFlags & G64_FLAG_NORMAL_BALL) != 0; }
+int netplay_host_any_ball(void) { return (hostFlags & G64_FLAG_ANY_BALL) != 0; }
 
 /* The sound (sound.h, soundout.h): the reader of the local game's sound table, and the game it last read. */
 static g64_sound *sound;
@@ -515,6 +520,8 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     engine_save(e, boot);
     if (soundout_open(port_rom, port_rom_size) == 0)
         sound = g64_sound_new(soundout_backend());
+    /* The host's rule for the ball, before any game is built. */
+    g64_instances_any_ball(netplay_any_ball());
     if (me == 0) {
         ihost = g64_ihost_new(e, boot, players, clevel, deadline, host_send, NULL);
         if (!ihost) {

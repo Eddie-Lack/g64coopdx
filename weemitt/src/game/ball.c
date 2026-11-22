@@ -562,7 +562,9 @@ void MoveBall(void) {
         }
     }
     if (ballControl.loseTimer > 0) {
-        if (deltaTick && --ballControl.loseTimer == 0) {
+        /* g64coopdx: with the host's "any ball" rule a lost ball kills its real owner, not the player who has it
+           (g64players.c, "Any ball"). */
+        if (deltaTick && --ballControl.loseTimer == 0 && !G64BallLostElsewhere()) {
             LoseLife();
         }
     }

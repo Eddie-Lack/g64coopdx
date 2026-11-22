@@ -93,7 +93,7 @@ rollback-game: rollback-game-build
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), enemies, puzzles, respawns, world hazards, garibs, pick-ups, bosses and bonus levels with more than one player
-# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c) and each player's ball texture (tests/rom/textures.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c) each player's ball texture (tests/rom/textures.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -111,6 +111,7 @@ LIMITS_SRC := tests/rom/limits.c weemitt/src/port/statehash.c
 TIPS_SRC := tests/rom/tips.c weemitt/src/port/statehash.c
 CAMEOS_SRC := tests/rom/cameos.c weemitt/src/port/statehash.c
 TEXTURES_SRC := tests/rom/textures.c weemitt/src/port/statehash.c
+ANYBALL_SRC := tests/rom/anyball.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -181,6 +182,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/textures.exe $(TEXTURES_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/anyball $(ANYBALL_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/anyball.exe $(ANYBALL_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -268,6 +273,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/textures.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/textures-windows.out
 	cmp build/tests/textures.out build/tests/textures-windows.out
+	build/tests/anyball "$$GLOVER_ROM" > build/tests/anyball.out
+	tail -1 build/tests/anyball.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/anyball.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/anyball-windows.out
+	cmp build/tests/anyball.out build/tests/anyball-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).
@@ -286,8 +296,8 @@ levelstart: levelstart-build
 	    > build/tests/levelstart-windows.out
 	cmp build/tests/levelstart.out build/tests/levelstart-windows.out
 
-# Every level with 8 and with 16 players who press buttons and push sticks at random (tests/rom/bots.c), on Linux
-# and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
+# Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
+# "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
 BOTS_SRC := tests/rom/bots.c weemitt/src/port/statehash.c
 bots-build: savestates
 	@mkdir -p build/tests
@@ -299,10 +309,13 @@ bots-build: savestates
 bots: bots-build
 	build/tests/bots "$$GLOVER_ROM" 8 1500 > build/tests/bots.out
 	build/tests/bots "$$GLOVER_ROM" 16 1500 >> build/tests/bots.out
+	build/tests/bots "$$GLOVER_ROM" 8 1500 any >> build/tests/bots.out
 	grep "every level" build/tests/bots.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1500 | tr -d '\r' \
 	    > build/tests/bots-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 16 1500 | tr -d '\r' \
+	    >> build/tests/bots-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1500 any | tr -d '\r' \
 	    >> build/tests/bots-windows.out
 	cmp build/tests/bots.out build/tests/bots-windows.out
 

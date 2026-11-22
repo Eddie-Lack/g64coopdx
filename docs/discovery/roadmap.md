@@ -144,8 +144,13 @@ harness at N players and by the determinism tests:
    their own countdown; a respawn after a death restarts no enemies; a death takes no life
    (weemitt/src/game/g64players.c, "Respawns"; tests/rom/respawn.c). Each player's shadow altitude is measured where
    they are, so a fall into nothing kills every player. The pickup rule "own ball only" holds as the game is built:
-   a glove touches only its own ball, so a lost ball kills its owner. Left: the host's other choice, "any ball",
-   which needs a glove to hold another player's ball.
+   a glove touches only its own ball, so a lost ball kills its owner. The host's other choice, "any ball", is done as an exchange: when a free glove touches another
+   player's free ball, the two players' balls change places in their slots, and each ball keeps its real owner. A
+   ball that is lost kills its real owner at the frame's end; the player who had it lets go of it, gets it back
+   whole at their checkpoint and lives. Only plain balls change places: a power-up's ball runs on its player's own
+   timers. A dying, respawning or held player takes no ball, and theirs is not taken. The rule is off in the bonus
+   levels and in the last space boss's levels (g64players.c, "Any ball"; ball.c; src/session/session.h,
+   G64_FLAG_ANY_BALL; tests/rom/anyball.c). Left: a look at it in the window program with two people playing.
 5. Exits and the hub: each player exits alone, the ball left behind, world doors. Done in part: each player exits
    alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c).
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
@@ -216,7 +221,9 @@ sticks and buttons come from a seeded generator, on Linux and under Wine, and th
 first runs found two faults, both fixed. A player who died with a snowball came back with the snowball still
 counted and a ball of size 0, and the ball's code divided by that size (platform.c). A player's thrown ball could be
 freed while another player was in the globals, and its owner kept the pointer (debris.c, G64FakeballGone). The peaks
-are in item 9.
+are in item 9. With the "any ball" rule on, the bots found a third fault: a new player's copy of the first player
+shared the two sprites of a pointing glove, and wrote through them after the first player had freed them
+(copy_globals).
 
 Risk: the size. 225 functions and about 140 identity tests ([state-inventory.md](state-inventory.md)). The range is
 wide because each boss and each bonus level has its own code.

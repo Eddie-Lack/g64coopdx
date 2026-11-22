@@ -536,6 +536,17 @@ static G64Slot *copy_globals(void) {
     if (globalCave)
         s->cave = *(G64Cave *)globalCave;
     clone_slot_blocks(s);
+    {
+        /* The first player's own things are not the new player's: the two sprites of the pointing glove
+           (HAND_LOCATE), which the first player frees, and the fake ball. A copy taken while the first player
+           points starts as a glove that stands. */
+        HandControl *hc = (HandControl *)s->handBlock;
+        hc->locate[0] = NULL;
+        hc->locate[1] = NULL;
+        hc->fakeball = NULL;
+        if (s->hand.state && s->hand.state->mode == HAND_LOCATE)
+            s->hand.state->mode = HAND_IDLE;
+    }
     return s;
 }
 
@@ -767,8 +778,15 @@ static void forget_tips(void);
    that a puzzle started plays. cameoHolding: the cameo held its player in this frame. */
 static s32 cameoStarter, cameoMet, cameoUsed, cameoPending, cameoHolding;
 
+static void forget_ball_owners(void);
+/* Any ball (below): the real owner of the ball in each player's slot, and the players who die at the frame's end
+   for a ball of theirs that another player lost (a bit each). */
+static s8 ballOwner[G64_MAX_PLAYERS];
+static u32 ballKill;
+
 void G64ExtraPlayersFree(void) {
     texLoaded = 0;
+    forget_ball_owners();
     forget_tips();
     forget_cameo();
     free_slots();
@@ -1438,6 +1456,7 @@ static void forget_tip(s32 player);
 void G64StartPlayers(u32 present) {
     s32 p;
     forget_restarts();
+    forget_ball_owners();
     forget_tips();
     cameLate = 0;
     g64Players = 0;
@@ -1461,6 +1480,16 @@ void G64RemovePlayer(s32 player) {
     forget_tip(player);
     if (cameoStarter == player + 1)
         cameoStarter = 0;
+    {
+        /* Any ball: the ball in the leaving player's slot goes with them. If it was another player's, the ball
+           the leaving player owned, which someone else has, becomes that player's. */
+        s32 q, p2 = player & (G64_MAX_PLAYERS - 1);
+        for (q = 0; q < G64_MAX_PLAYERS; q++)
+            if (q != p2 && ballOwner[q] == p2)
+                ballOwner[q] = ballOwner[p2];
+        ballOwner[p2] = (s8)p2;
+        ballKill &= ~(1u << p2);
+    }
     if (i < 0 || g64Players < 2)
         return;
     if (i == 0 && slotCount <= 1) {
@@ -2995,6 +3024,245 @@ s32 G64PickupPlace(s32 k, f32 *x, f32 *y, f32 *z) {
         }
     }
     return 0;
+}
+
+/* Any ball (the host's choice for the session, g64AnyBall). A glove may take any free ball, not only its own.
+   Each player still has one ball in the game's sense: the one in their slot, which their glove touches, holds and
+   throws. When a free glove touches another player's free ball, the two players' balls change places in the slots:
+   the glove's player now has the ball it touched, and the other player has the ball the first one left behind.
+   Every ball keeps its real owner, the player it started with: ballOwner[p] is the real owner of the ball in
+   player p's slot. A ball that is lost kills its real owner, whoever has it: the player who has it gets it back
+   whole at their checkpoint and lives, and the owner dies at the frame's end (ballKill).
+   Only plain balls change places. A power-up's ball (bowling, crystal, a snowball and the others) runs on its
+   player's own timers, which do not go with the ball. The rule is off in the bonus levels, where a lost ball ends
+   the level for its player, and in the last space boss's levels, where the gloves do not move. */
+s32 g64AnyBall;
+
+s32 IsBonusLevel(void);
+extern f32 gravity;
+void ResetBall(void);
+void ReleaseBall(void);
+void ApplyActionIdle(void);
+void LoseLife(void);
+
+static s32 any_ball_on(void) {
+    return g64AnyBall && !IsBonusLevel() && gameInfo.level != SPACEBOSS3 && gameInfo.level != SPACEBOSS_TWEEN;
+}
+
+static void forget_ball_owners(void) {
+    s32 p;
+    for (p = 0; p < G64_MAX_PLAYERS; p++)
+        ballOwner[p] = (s8)p;
+    ballKill = 0;
+}
+
+/* One player's ball and what belongs to it, in the globals (slot 0) or in a slot. */
+typedef struct BallRef {
+    Actor *ball;
+    BallControl *control;
+    s32 *isStatic;
+    s32 *leftBehind;
+    Vec3 *frameVel;
+    u8 *pain;
+    PTR32(ObjectInstance) *crystal;
+    u32 *tex[6];
+    Actor *glove;
+    /* The player is dying or respawning (dying), or held for a cameo or a tip (held). */
+    s32 dying;
+    s32 held;
+} BallRef;
+
+static s32 ball_ref(s32 i, BallRef *r) {
+    s32 k;
+    if (i == 0) {
+        r->ball = &ball;
+        r->control = &ballControl;
+        r->isStatic = &ballStatic;
+        r->leftBehind = &ballLeftBehind;
+        r->frameVel = &ballFrameVel;
+        r->pain = &ballPain;
+        r->crystal = &crystalBall;
+        for (k = 0; k < 6; k++)
+            r->tex[k] = tex_word(k);
+        r->glove = &hand;
+        r->dying = handControl.deathTimer || restarts[g64Member[0]].timer;
+        r->held = handControl.noControlTimer != 0;
+        return 1;
+    }
+    if (i < 1 || i >= slotCount || !slots[i])
+        return 0;
+    {
+        G64Slot *s = slots[i];
+        r->ball = &s->ball;
+        r->control = &s->ballControl;
+        r->isStatic = &s->ballStatic;
+        r->leftBehind = &s->ballLeftBehind;
+        r->frameVel = &s->ballFrameVel;
+        r->pain = &s->ballPain;
+        r->crystal = &s->crystalBall;
+        for (k = 0; k < 6; k++)
+            r->tex[k] = tex_word(k) ? &s->texWords[k] : NULL;
+        r->glove = &s->hand;
+        r->dying = slot_control(s)->deathTimer || restarts[g64Member[i]].timer;
+        r->held = slot_control(s)->noControlTimer != 0;
+    }
+    return 1;
+}
+
+/* The balls of slots i and j change places, with their real owners. */
+static void exchange_balls(s32 i, s32 j) {
+    BallRef a, b;
+    s32 k;
+    s8 owner;
+    if (i == j || !ball_ref(i, &a) || !ball_ref(j, &b))
+        return;
+    swap_actor(a.ball, b.ball);
+    /* Each actor keeps the heap blocks it came with: a slot frees its own when its player leaves, and the level
+       frees the first player's. What the blocks hold changes places. The physics block stays as it is: two plain
+       balls have the same, and it can be the game's own table (ResetBall). */
+    swap_bytes(&a.ball->phys, &b.ball->phys, sizeof(a.ball->phys));
+    swap_bytes(&a.ball->obj, &b.ball->obj, sizeof(a.ball->obj));
+    swap_bytes(&a.ball->anim, &b.ball->anim, sizeof(a.ball->anim));
+    swap_bytes(&a.ball->shadow, &b.ball->shadow, sizeof(a.ball->shadow));
+    swap_bytes(&a.ball->state, &b.ball->state, sizeof(a.ball->state));
+    if (a.ball->obj && b.ball->obj)
+        swap_bytes((ActorObject *)a.ball->obj, (ActorObject *)b.ball->obj, sizeof(ActorObject));
+    if (a.ball->anim && b.ball->anim)
+        swap_bytes((AnimState *)a.ball->anim, (AnimState *)b.ball->anim, sizeof(AnimState));
+    if (a.ball->shadow && b.ball->shadow)
+        swap_bytes((ActorShadow *)a.ball->shadow, (ActorShadow *)b.ball->shadow, sizeof(ActorShadow));
+    if (a.ball->state && b.ball->state)
+        swap_bytes((ActorState *)a.ball->state, (ActorState *)b.ball->state, sizeof(ActorState));
+    swap_bytes(a.control, b.control, sizeof(BallControl));
+    /* The ball's orbiter is an actor: its list links stay where they are. */
+    swap_bytes(&a.control->orbiter, &b.control->orbiter, LINKS);
+    swap_bytes(a.isStatic, b.isStatic, sizeof(s32));
+    swap_bytes(a.leftBehind, b.leftBehind, sizeof(s32));
+    swap_bytes(a.frameVel, b.frameVel, sizeof(Vec3));
+    swap_bytes(a.pain, b.pain, 1);
+    swap_bytes(a.crystal, b.crystal, sizeof(*a.crystal));
+    for (k = 0; k < 6; k++)
+        if (a.tex[k] && b.tex[k])
+            swap_bytes(a.tex[k], b.tex[k], sizeof(u32));
+    owner = ballOwner[g64Member[i]];
+    ballOwner[g64Member[i]] = ballOwner[g64Member[j]];
+    ballOwner[g64Member[j]] = owner;
+}
+
+/* 1 when the ball lies free and plain: no glove holds it (a held ball is linked to its glove), no enemy has it,
+   it is whole and in play, and no power-up has changed it. */
+static s32 ball_free(const BallRef *r) {
+    const BallControl *c = r->control;
+    return r->ball->link == NULL && c->state == BALL_NORMAL && c->enemy == NULL && c->loseTimer == 0
+           && r->ball->radius > 0.0f && c->type == BALL_MODE_NORMAL && c->snow == 0.0f && c->cancerTimer == 0
+           && c->transformState == 0 && c->orbiter.inst == NULL;
+}
+
+/* 1 when the glove of r reaches the ball of b. */
+static s32 glove_reaches(const BallRef *r, const BallRef *b) {
+    f32 reach = r->glove->radius + b->ball->radius + 2.0f;
+    return DistanceBetweenPointsSquared(&r->glove->pos, &b->ball->pos) < reach * reach;
+}
+
+/* ball.c: the ball of the player in the globals is lost for good. It returns 1 when the ball is another player's.
+   That player dies for it at the frame's end. This one lets go of it, and gets it back whole the way a respawn
+   brings a ball back: at their checkpoint, or over their glove when they have none. */
+s32 G64BallLostElsewhere(void) {
+    s32 me = g64Member[logicSlot];
+    s32 owner, at;
+    if (!any_ball_on() || swapped)
+        return 0;
+    owner = ballOwner[me];
+    at = slot_of(owner);
+    if (owner == me || at < 0 || (at > 0 && !slot_used(at)))
+        return 0;
+    ballKill |= 1u << owner;
+    if (ball.link == &hand) {
+        ReleaseBall();
+        ball.link = NULL;
+        ApplyActionIdle();
+    }
+    ResetBall();
+    ballControl.loseTimer = 0;
+    if (handControl.checkpoint) {
+        ball.pos = handControl.checkpoint->actor.pos;
+    } else {
+        ball.pos = hand.pos;
+        ball.pos.y += 40.0f;
+    }
+    ZERO_VECTOR(&ball.vel);
+    ball.vel.y = gravity * 6.0f + 2.0f;
+    return 1;
+}
+
+/* Once a frame, after every player's own part, with the first player in the globals: the owners of lost balls
+   die, and the free gloves take the free balls they touch. */
+void G64AnyBallStep(void) {
+    s32 i, j;
+    u32 moved = 0;
+    if (!any_ball_on() || swapped || logicSlot || slotCount < 2) {
+        ballKill = 0;
+        return;
+    }
+    for (i = 0; i < slotCount && ballKill; i++) {
+        u32 bit = 1u << g64Member[i];
+        BallRef r;
+        if (!(ballKill & bit) || !ball_ref(i, &r))
+            continue;
+        /* A player who is held (a cameo, a tip) dies when they are free again. One who is dying already dies
+           once. */
+        if (r.held && !r.dying)
+            continue;
+        ballKill &= ~bit;
+        if (r.dying)
+            continue;
+        if (i == 0) {
+            LoseLife();
+        } else if (G64HazardBegin(i)) {
+            LoseLife();
+            G64HazardEnd(i);
+        }
+        moved |= 1u << i;
+    }
+    /* A player who has left dies no more. */
+    for (i = 0; i < G64_MAX_PLAYERS; i++)
+        if ((ballKill & (1u << i)) && slot_of(i) < 0)
+            ballKill &= ~(1u << i);
+    for (i = 0; i < slotCount; i++) {
+        BallRef mine, theirs;
+        if ((moved & (1u << i)) || !ball_ref(i, &mine) || mine.dying || mine.held || !ball_free(&mine)
+            || glove_reaches(&mine, &mine))
+            continue;
+        for (j = 0; j < slotCount; j++) {
+            if (j == i || (moved & (1u << j)) || !ball_ref(j, &theirs) || theirs.dying || theirs.held
+                || !ball_free(&theirs))
+                continue;
+            /* The ball's own player keeps it while their glove is at it. */
+            if (!glove_reaches(&mine, &theirs) || glove_reaches(&theirs, &theirs))
+                continue;
+            exchange_balls(i, j);
+            moved |= 1u << i | 1u << j;
+            break;
+        }
+    }
+}
+
+/* For tests: the real owner of the ball in a player's slot, and a loss of that ball that ends in two frames. */
+s32 G64BallOwner(s32 player) {
+    return player >= 0 && player < G64_MAX_PLAYERS && slot_of(player) >= 0 ? ballOwner[player] : -1;
+}
+
+/* For tests: the frames left of a player's respawn countdown after a death, or 0. */
+s32 G64PlayerRestarting(s32 player) {
+    return player >= 0 && player < G64_MAX_PLAYERS ? restarts[player].timer : 0;
+}
+
+void G64TestLoseBall(s32 player) {
+    s32 i = slot_of(player);
+    if (i == 0)
+        ballControl.loseTimer = 2;
+    else if (i > 0 && slot_used(i))
+        slot_ball_control(i)->loseTimer = 2;
 }
 
 PORT_C_END

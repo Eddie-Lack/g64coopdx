@@ -52,6 +52,11 @@ int netplay_active(void);
  * netplay_start. Every machine plays with the host's choice: netplay_normal_ball gives it after the start. */
 void netplay_set_normal_ball(int on);
 int netplay_normal_ball(void);
+/* The host's option: a glove may take any free ball (1), or only its own (0, the default). A ball that is lost
+ * kills its real owner either way. Call it before netplay_start; netplay_any_ball gives it after the start. */
+void netplay_set_any_ball(int on);
+int netplay_any_ball(void);
+int netplay_host_any_ball(void);
 /* This player's glove and ball colors: G64_COLOR_SET (session.h) plus 0xRRGGBB, or 0 for the color of their player
  * number. Call it before netplay_start. After the start, netplay_apply_colors gives every player's colors to the game
  * (netplay_begin calls it after power-on). */

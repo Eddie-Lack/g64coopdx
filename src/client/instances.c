@@ -76,11 +76,18 @@ typedef struct {
     g64_progress progress;
 } start_record;
 
+/* The host's "any ball" rule (weemitt's g64players.c). Every game that is built starts with it. */
+extern int g64AnyBall;
+static int anyBallRule;
+
+void g64_instances_any_ball(int on) { anyBallRule = on != 0; }
+
 static void build_setup(void *ctx) {
     const start_record *r = ctx;
     G64Save s;
     to_save(&r->progress, &s);
     g64Online = 1;
+    g64AnyBall = anyBallRule;
     G64StartPlayers(r->members);
     G64SetStartRecord(r->world, &s);
     port_game_start_level(r->level);
