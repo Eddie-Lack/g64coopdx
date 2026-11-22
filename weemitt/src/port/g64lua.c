@@ -6,6 +6,7 @@
 
    This file is C, as Lua is, and is built with Lua's options (g64lua_conf.h). */
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -29,8 +30,21 @@ static Block *arenaFree;
 static unsigned int luaLive, luaAllocs, luaFrees;
 static lua_State *luaState;
 
+/* The work that is left to the call into the script that runs now: one for each step of Lua and for each byte the
+   script asks for. At 0 the script is stopped (spent, below).
+   CALL_BUDGET is the work of one call. The script's first run also compiles its text and builds Lua's libraries,
+   so it gets LOAD_BUDGET. The count hook runs every HOOK_EVERY steps of Lua. */
+#define HOOK_EVERY 1000
+#define CALL_BUDGET 2000000
+#define LOAD_BUDGET 50000000
+static long long luaBudget;
+static void spent(void);
+
 static void *arena_alloc(size_t n) {
     Block **p, *b;
+    if (n > G64_LUA_ARENA) {
+        return NULL;
+    }
     n = (n + 15) & ~(size_t)15;
     for (p = &arenaFree; (b = *p) != NULL; p = &b->next) {
         if (b->size >= n) {
@@ -46,7 +60,7 @@ static void *arena_alloc(size_t n) {
             return (unsigned char *)b + HEAD;
         }
     }
-    if (n > G64_LUA_ARENA || arenaTop + HEAD + n > G64_LUA_ARENA) {
+    if (arenaTop + HEAD + n > G64_LUA_ARENA) {
         return NULL;
     }
     b = (Block *)(g64LuaArena + arenaTop);
@@ -55,16 +69,36 @@ static void *arena_alloc(size_t n) {
     return (unsigned char *)b + HEAD;
 }
 
+/* 1 when block b ends where block c starts. */
+static int touches(const Block *b, const Block *c) {
+    return (const unsigned char *)b + HEAD + b->size == (const unsigned char *)c;
+}
+
+/* Puts a block on the free list and joins it with a free block right after it and right before it. Without the
+   joining, a script that asks for ever larger blocks fills the 2 MB with small free ones. */
 static void arena_free(void *q) {
-    Block *b = (Block *)((unsigned char *)q - HEAD), **p;
-    for (p = &arenaFree; *p != NULL && *p < b; p = &(*p)->next) {
+    Block *b = (Block *)((unsigned char *)q - HEAD), *prev = NULL, *next;
+    for (next = arenaFree; next != NULL && next < b; next = next->next) {
+        prev = next;
     }
-    b->next = *p;
-    *p = b;
+    if (next != NULL && touches(b, next)) {
+        b->size += HEAD + next->size;
+        next = next->next;
+    }
+    b->next = next;
+    if (prev == NULL) {
+        arenaFree = b;
+    } else if (touches(prev, b)) {
+        prev->size += HEAD + b->size;
+        prev->next = next;
+    } else {
+        prev->next = b;
+    }
 }
 
 /* Lua's allocator (lua_Alloc). A request the block cannot meet gives NULL, and Lua ends the script's call with a
-   memory error: at the same point on every machine. */
+   memory error: at the same point on every machine. Each new byte also counts as work, so a function of Lua's
+   libraries that builds a large text cannot run past the limit. */
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     void *n;
     (void)ud;
@@ -74,6 +108,30 @@ static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
             luaFrees++;
             luaLive -= (unsigned int)osize;
         }
+        return NULL;
+    }
+    if (ptr != NULL) {
+        /* A block that already has the room stays where it is. Lua relies on this for a block that shrinks: that
+           must not fail. The part that is no longer used goes back to the free list. */
+        Block *b = (Block *)((unsigned char *)ptr - HEAD);
+        size_t want = (nsize + 15) & ~(size_t)15;
+        if (nsize <= G64_LUA_ARENA && want <= b->size) {
+            if (b->size >= want + 2 * HEAD) {
+                Block *rest = (Block *)((unsigned char *)ptr + want);
+                rest->size = b->size - want - HEAD;
+                b->size = want;
+                arena_free((unsigned char *)rest + HEAD);
+            }
+            luaLive = luaLive - (unsigned int)osize + (unsigned int)nsize;
+            return ptr;
+        }
+    }
+    if (luaBudget <= 0) {
+        return NULL;
+    }
+    luaBudget -= (long long)nsize;
+    if (luaBudget <= 0) {
+        spent();
         return NULL;
     }
     n = arena_alloc(nsize);
@@ -96,6 +154,7 @@ void G64LuaReset(void) {
     arenaTop = 0;
     arenaFree = NULL;
     luaLive = luaAllocs = luaFrees = 0;
+    luaBudget = 0;
 }
 
 /* 1 when a script is loaded. */
@@ -115,6 +174,7 @@ void G64LuaCounts(unsigned int out[4]) {
 /* A new, empty state on the block, for the code that loads a script. NULL when the block has no room. */
 lua_State *G64LuaNewState(void) {
     G64LuaReset();
+    luaBudget = LOAD_BUDGET;
     luaState = lua_newstate(lua_alloc, NULL);
     return luaState;
 }
@@ -213,19 +273,7 @@ static int api_place(lua_State *L) {
     return 0;
 }
 
-/* A line for the program's log. It is for the eyes only: nothing in the game reads it. */
-static int api_log(lua_State *L) {
-    size_t n = 0;
-    const char *s = luaL_checklstring(L, 1, &n);
-    char line[200];
-    size_t i;
-    for (i = 0; i < n && i + 1 < sizeof line; i++) {
-        line[i] = s[i] >= 32 && s[i] < 127 ? s[i] : '?';
-    }
-    line[i] = 0;
-    port_log("script: %s", line);
-    return 0;
-}
+static int api_log(lua_State *L);
 
 static const luaL_Reg api[] = {{"frame", api_frame}, {"level", api_level}, {"has_player", api_has_player},
                                {"pos", api_pos},     {"place", api_place}, {"log", api_log},
@@ -246,41 +294,198 @@ static void remove_field(lua_State *L, const char *table, const char *name) {
     lua_pop(L, 1);
 }
 
-/* The work one call into a script may do, in steps of the count hook. A script that takes more is ended. */
-#define HOOK_EVERY 1000
-#define CALL_BUDGET 2000
-static int luaBudget;
+static void count_hook(lua_State *L, lua_Debug *ar);
+
+/* The work is used up. From here the hook runs at every step of Lua and raises an error each time, and nothing
+   new is allocated. A script that catches the error with pcall gets it again at its next step, so the call ends. */
+static void spent(void) {
+    luaBudget = 0;
+    if (luaState != NULL) {
+        lua_sethook(luaState, count_hook, LUA_MASKCOUNT, 1);
+    }
+}
 
 static void count_hook(lua_State *L, lua_Debug *ar) {
     (void)ar;
-    if (--luaBudget <= 0) {
-        luaL_error(L, "the script ran too long");
+    if (luaBudget > HOOK_EVERY) {
+        luaBudget -= HOOK_EVERY;
+        return;
     }
+    spent();
+    luaL_error(L, "the script ran too long");
 }
 
-/* Calls the function on the stack with no arguments. An error ends the scripts for this game: on every machine
-   at the same point, since they all run the same script on the same game. */
-static int call_script(lua_State *L, const char *what) {
-    luaBudget = CALL_BUDGET;
-    if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
-        const char *why = lua_tostring(L, -1);
-        port_log("script: %s failed: %s", what, why != NULL ? why : "(no message)");
-        G64LuaReset();
-        return -1;
+/* Work that a function of this file does outside Lua's steps. */
+static void spend(lua_State *L, unsigned long long cost) {
+    if (luaBudget <= 0 || cost >= (unsigned long long)luaBudget) {
+        spent();
+        luaL_error(L, "the script ran too long");
     }
+    luaBudget -= (long long)cost;
+}
+
+/* A text for the log from a script: its printable characters, cut to one line. */
+static void log_text(const char *what, const char *s, size_t n) {
+    char line[200];
+    size_t i;
+    for (i = 0; i < n && i + 1 < sizeof line; i++) {
+        line[i] = s[i] >= 32 && s[i] < 127 ? s[i] : '?';
+    }
+    line[i] = 0;
+    port_log("script: %s%s", what, line);
+}
+
+/* A line for the program's log. It is for the eyes only: nothing in the game reads it. */
+static int api_log(lua_State *L) {
+    size_t n = 0;
+    const char *s = luaL_checklstring(L, 1, &n);
+    log_text("", s, n);
     return 0;
 }
 
-/* Loads and runs a script's source. Returns 0, or -1 when it does not load or its first run fails. */
-int G64LuaLoad(const char *source, unsigned int size) {
-    static const char *const base_out[] = {"collectgarbage", "dofile", "load", "loadfile", "print", "tostring", NULL};
+/* Calls the wrapped function of Lua's library (this function's first upvalue) with the arguments on the stack. */
+static int call_wrapped(lua_State *L) {
+    lua_pushvalue(L, lua_upvalueindex(1));
+    lua_insert(L, 1);
+    lua_call(L, lua_gettop(L) - 1, LUA_MULTRET);
+    return lua_gettop(L);
+}
+
+/* string.format without the conversions whose text differs between machines: %p gives an address, %a and %q
+   write a number in a form that the Windows and Linux C libraries spell differently, and %s of a table or a
+   function gives its address. */
+static int safe_format(lua_State *L) {
+    size_t n = 0, i;
+    const char *f = luaL_checklstring(L, 1, &n);
+    int arg = 1;
+    for (i = 0; i < n; i++) {
+        if (f[i] != '%') {
+            continue;
+        }
+        i++;
+        if (i < n && f[i] == '%') {
+            continue;
+        }
+        while (i < n && f[i] != 0 && strchr("-+ #0123456789.", f[i]) != NULL) {
+            i++;
+        }
+        if (i >= n) {
+            break;
+        }
+        arg++;
+        if (f[i] == 'p' || f[i] == 'a' || f[i] == 'A' || f[i] == 'q') {
+            return luaL_error(L, "string.format has no %%%c here", f[i]);
+        }
+        if (f[i] == 's' && lua_type(L, arg) != LUA_TSTRING && lua_type(L, arg) != LUA_TNUMBER) {
+            return luaL_argerror(L, arg, "%s takes a text or a number");
+        }
+    }
+    return call_wrapped(L);
+}
+
+/* string.find for plain text only. Lua's patterns can take a time that grows without limit in one call, which the
+   count of steps does not see. The search counts as work. */
+static int safe_find(lua_State *L) {
+    size_t ls = 0, lp = 0;
+    lua_Integer init = luaL_optinteger(L, 3, 1);
+    luaL_checklstring(L, 1, &ls);
+    luaL_checklstring(L, 2, &lp);
+    spend(L, (unsigned long long)ls * (1 + lp / 64));
+    lua_settop(L, 2);
+    lua_pushinteger(L, init);
+    lua_pushboolean(L, 1);
+    return call_wrapped(L);
+}
+
+/* string.rep. Lua's own loops once for each copy even when the text and the separator are both empty. */
+static int safe_rep(lua_State *L) {
+    size_t l = 0, lsep = 0;
+    luaL_checklstring(L, 1, &l);
+    luaL_checkinteger(L, 2);
+    luaL_optlstring(L, 3, "", &lsep);
+    if (l + lsep == 0) {
+        lua_pushliteral(L, "");
+        return 1;
+    }
+    return call_wrapped(L);
+}
+
+/* table.insert and table.remove for plain tables. With a metatable, a table can claim any length, and Lua's own
+   then shifts that many places in one call. */
+static int safe_shift(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    if (lua_getmetatable(L, 1)) {
+        return luaL_argerror(L, 1, "a table with a metatable cannot be used here");
+    }
+    return call_wrapped(L);
+}
+
+/* setmetatable without __gc. Lua runs such a function when it frees the object, with the count of steps off. */
+static int safe_setmetatable(lua_State *L) {
+    if (lua_type(L, 2) == LUA_TTABLE) {
+        lua_pushliteral(L, "__gc");
+        if (lua_rawget(L, 2) != LUA_TNIL) {
+            return luaL_argerror(L, 2, "a metatable cannot have __gc");
+        }
+        lua_pop(L, 1);
+    }
+    return call_wrapped(L);
+}
+
+/* Puts a function of this file around table.name (the global table when table is NULL). */
+static void wrap_field(lua_State *L, const char *table, const char *name, lua_CFunction with) {
+    if (table != NULL) {
+        lua_getglobal(L, table);
+    } else {
+        lua_pushglobaltable(L);
+    }
+    lua_getfield(L, -1, name);
+    lua_pushcclosure(L, with, 1);
+    lua_setfield(L, -2, name);
+    lua_pop(L, 1);
+}
+
+/* Calls the function on the stack with no arguments, with the given work to spend. An error ends the scripts for
+   this game: on every machine at the same point, since they all run the same script on the same game. So does a
+   call that used up its work, also when the script caught that error itself. */
+static int call_script(lua_State *L, const char *what, long long budget) {
+    int failed;
+    luaBudget = budget;
+    failed = lua_pcall(L, 0, 0, 0) != LUA_OK;
+    if (luaBudget <= 0) {
+        port_log("script: %s failed: the script ran too long", what);
+    } else if (failed) {
+        size_t n = 0;
+        const char *why = lua_tolstring(L, -1, &n);
+        char head[64];
+        snprintf(head, sizeof head, "%s failed: ", what);
+        if (why == NULL) {
+            why = "(no message)";
+            n = strlen(why);
+        }
+        log_text(head, why, n);
+    } else {
+        return 0;
+    }
+    G64LuaReset();
+    return -1;
+}
+
+/* The script's source for load_script. */
+static const char *loadSource;
+static unsigned int loadSize;
+
+/* Builds the sandbox, then compiles and runs the script's text. It runs under call_script: an error anywhere in
+   it, a memory error too, ends there. */
+static int load_script(lua_State *L) {
+    static const char *const base_out[] = {"collectgarbage", "dofile", "load",  "loadfile",
+                                           "print",          "tostring", "warn", NULL};
     static const char *const math_out[] = {"random", "randomseed", "sin",  "cos", "tan", "asin",
                                            "acos",   "atan",       "exp",  "log", NULL};
-    lua_State *L = G64LuaNewState();
+    /* dump gives compiled code. pack, unpack and packsize depend on the sizes of the machine's C types. match,
+       gmatch and gsub take patterns (safe_find). */
+    static const char *const string_out[] = {"dump", "pack", "unpack", "packsize", "match", "gmatch", "gsub", NULL};
     int i;
-    if (L == NULL) {
-        return -1;
-    }
     luaL_requiref(L, "_G", luaopen_base, 1);
     luaL_requiref(L, "table", luaopen_table, 1);
     luaL_requiref(L, "string", luaopen_string, 1);
@@ -292,31 +497,66 @@ int G64LuaLoad(const char *source, unsigned int size) {
     for (i = 0; math_out[i] != NULL; i++) {
         remove_field(L, "math", math_out[i]);
     }
-    remove_field(L, "string", "dump");
+    for (i = 0; string_out[i] != NULL; i++) {
+        remove_field(L, "string", string_out[i]);
+    }
+    /* table.move walks a range of any size in one call. */
+    remove_field(L, "table", "move");
+    wrap_field(L, "string", "format", safe_format);
+    wrap_field(L, "string", "find", safe_find);
+    wrap_field(L, "string", "rep", safe_rep);
+    wrap_field(L, "table", "insert", safe_shift);
+    wrap_field(L, "table", "remove", safe_shift);
+    wrap_field(L, NULL, "setmetatable", safe_setmetatable);
     luaL_newlib(L, api);
     lua_setglobal(L, "game");
-    lua_sethook(L, count_hook, LUA_MASKCOUNT, HOOK_EVERY);
     /* Source only: a script's compiled form is never taken. */
-    if (luaL_loadbufferx(L, source, size, "script", "t") != LUA_OK) {
-        const char *why = lua_tostring(L, -1);
-        port_log("script: it does not load: %s", why != NULL ? why : "(no message)");
+    if (luaL_loadbufferx(L, loadSource, loadSize, "script", "t") != LUA_OK) {
+        return lua_error(L);
+    }
+    lua_call(L, 0, 0);
+    return 0;
+}
+
+/* Loads and runs a script's source. Returns 0, or -1 when it does not load or its first run fails. */
+int G64LuaLoad(const char *source, unsigned int size) {
+    lua_State *L;
+    int r;
+    luaBudget = LOAD_BUDGET;
+    L = G64LuaNewState();
+    if (L == NULL) {
         G64LuaReset();
         return -1;
     }
-    return call_script(L, "the script's start");
+    lua_sethook(L, count_hook, LUA_MASKCOUNT, HOOK_EVERY);
+    loadSource = source;
+    loadSize = size;
+    lua_pushcfunction(L, load_script);
+    r = call_script(L, "the script's start", LOAD_BUDGET);
+    loadSource = NULL;
+    loadSize = 0;
+    return r;
 }
 
-/* Once a frame, before the game's own step: the script's on_frame function, if it has one. */
+/* Calls the script's on_frame function, if it has one. The name is looked up without metamethods, and under
+   call_script, so a script cannot run code outside the count of steps. */
+static int frame_call(lua_State *L) {
+    lua_pushglobaltable(L);
+    lua_pushliteral(L, "on_frame");
+    if (lua_rawget(L, -2) == LUA_TFUNCTION) {
+        lua_call(L, 0, 0);
+    }
+    return 0;
+}
+
+/* Once a frame, before the game's own step. */
 void G64LuaFrame(void) {
     lua_State *L = luaState;
     if (L == NULL) {
         return;
     }
-    if (lua_getglobal(L, "on_frame") != LUA_TFUNCTION) {
-        lua_pop(L, 1);
-        return;
-    }
-    call_script(L, "on_frame");
+    lua_pushcfunction(L, frame_call);
+    call_script(L, "on_frame", CALL_BUDGET);
 }
 
 /* ---- A level pack's script */

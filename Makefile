@@ -403,6 +403,21 @@ build/tests/pack_test.exe: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/pack_test.c $(PACK_SRC)
 
+# The scripts' sandbox without the game: Lua, the game's script file, and a test that stands in for the game. Lua's
+# files are built with its options header, as in the game, and without -Werror.
+LUA_DIR := weemitt/third_party/lua
+LUA_TEST_SRC := weemitt/src/port/g64lua.c $(wildcard $(LUA_DIR)/*.c)
+LUA_TEST_DEPS := weemitt/src/port/g64lua_conf.h $(wildcard $(LUA_DIR)/*.h)
+LUA_TEST_FLAGS := -std=gnu99 -O2 -Wall -ffp-contract=off -include weemitt/src/port/g64lua_conf.h
+
+build/tests/lua_test: tests/net/lua_test.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(LUA_TEST_FLAGS) -g $(SANITIZE) -o $@ tests/net/lua_test.c $(LUA_TEST_SRC) -lm
+
+build/tests/lua_test.exe: tests/net/lua_test.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) $(LUA_TEST_FLAGS) -static -o $@ tests/net/lua_test.c $(LUA_TEST_SRC)
+
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/pack_fuzz.c $(PACK_SRC)
@@ -457,12 +472,14 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
-        build/tests/pack_test
+        build/tests/pack_test build/tests/lua_test
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
 	build/tests/seal_test > build/tests/seal_test.out || { cat build/tests/seal_test.out; exit 1; }
 	tail -1 build/tests/seal_test.out
+	build/tests/lua_test > build/tests/lua_test.out || { cat build/tests/lua_test.out; exit 1; }
+	tail -1 build/tests/lua_test.out
 	build/tests/sound_test > build/tests/sound_test.out || { cat build/tests/sound_test.out; exit 1; }
 	tail -1 build/tests/sound_test.out
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
@@ -474,7 +491,7 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
-              build/tests/seal_test.exe build/tests/pack_test.exe test-c
+              build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe test-c
 	@mkdir -p build/tests/pack-windows
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows | tr -d '\r' \
 	    > build/tests/pack_test-windows.out
@@ -484,6 +501,10 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	    > build/tests/seal_test-windows.out
 	tail -1 build/tests/seal_test-windows.out
 	cmp build/tests/seal_test.out build/tests/seal_test-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/lua_test.exe | tr -d '\r' \
+	    > build/tests/lua_test-windows.out
+	tail -1 build/tests/lua_test-windows.out
+	cmp build/tests/lua_test.out build/tests/lua_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/session_test.exe | tr -d '\r' \
 	    > build/tests/session_test-windows.out
 	tail -1 build/tests/session_test-windows.out

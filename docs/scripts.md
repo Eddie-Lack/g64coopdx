@@ -30,7 +30,7 @@ The table `game`:
 | `game.log(text)` | writes a line to the program's log. It is for you to read: nothing in the game reads it |
 
 From Lua's own libraries a script has `table`, `string` and `math`, and the basic functions (`pairs`, `ipairs`,
-`type`, `tonumber`, `select`, `pcall`, `error`, `assert`, `setmetatable` and the like).
+`type`, `tonumber`, `select`, `pcall`, `error`, `assert`, `setmetatable` and the like), without the parts below.
 
 ## What is left out, and why
 
@@ -38,20 +38,29 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
 | --- | --- |
 | `math.random`, `math.randomseed` | each machine would get other numbers |
 | `math.sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `exp`, `log` | their last digit may differ between Windows and Linux. The game's own will take their place |
-| `x ^ y` with an exponent that is not a whole number from -1024 to 1024, or 0.5 | the same reason. Such a power is an error |
+| `x ^ y` with an exponent that is not a whole number from -1024 to 1024, or 0.5 | the same reason. Such a power is an error. Written with two plain numbers (`2 ^ 0.3`), it stops the script from starting |
 | `print`, `tostring` | `tostring` of a table gives its address, which differs between machines. Use `game.log`; a number joins a text with `..` |
+| `string.format` with `%p`, `%a` or `%q`, or with `%s` for anything but a text or a number | an address, or a number in a form that Windows and Linux write differently |
+| `string.match`, `gmatch`, `gsub`, and patterns in `string.find` | one search with a pattern can take longer than any limit. `string.find` looks for plain text only |
+| `string.pack`, `unpack`, `packsize` | their sizes follow the machine |
+| `table.move` | one call can walk a range of any size |
+| `table.insert`, `table.remove` on a table that has a metatable | such a table can claim any length |
+| `__gc` in a metatable | Lua would run it outside the limit on work |
 | `load`, `loadfile`, `dofile`, `require`, `string.dump` | a script is one file of source text |
 | `collectgarbage` | the game runs Lua's memory by itself |
-| `io`, `os`, `debug`, `coroutine`, `utf8` | not there |
+| `warn`, `io`, `os`, `debug`, `coroutine`, `utf8` | not there |
 
 ## Limits
 
-- **Work:** one call into the script may run about two million steps of Lua. A script that takes more is stopped.
-- **Memory:** every script of a game shares 2 MB. A script that asks for more is stopped.
+- **Work:** one call into the script may do about two million units of work. A step of Lua is one unit. Each byte
+  of memory the script asks for is one unit, and so is each byte a `string.find` searches. The script's first run,
+  which also reads its text, may do 50 million.
+- **Memory:** a game's script has 2 MB. A request that does not fit is an error ("not enough memory").
 - **A stopped script** stays stopped for that game: the game goes on without it, the same on every machine. The log
-  says why (`script: ...`). A script with an error in its text does not start.
-- Do not let the game's course depend on a number turned into text, or on the order of `pairs` over keys that are
-  C functions.
+  says why (`script: ...`). A script stops when an error reaches the game, or when a call uses up its work. `pcall`
+  can catch an error, a memory error too. It cannot keep a script going that has used up its work.
+- A script with an error in its text does not start.
+- Do not let the game's course depend on a number turned into text.
 
 ## A first script
 
