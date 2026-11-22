@@ -117,6 +117,8 @@ int g64_session_kick(g64_session *g, int p);
 int g64_session_joined(const g64_session *g);
 /* On the host after the start: 1 when player p stopped answering. The game goes on without them. */
 int g64_session_gone(const g64_session *g, int p);
+/* On a joiner: the milliseconds since a message that only the host could have made last came. 0 on the host. */
+uint32_t g64_session_host_silent(const g64_session *g, uint32_t now);
 /* Why the session failed, in words. */
 const char *g64_session_error(const g64_session *g);
 

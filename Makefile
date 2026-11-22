@@ -383,24 +383,25 @@ NET_SRC := src/net/udp.c
 # The session, its sealed messages, and the cryptography library they use (third_party/monocypher).
 SEAL_SRC := src/session/seal.c third_party/monocypher/monocypher.c
 SESSION_SRC := src/session/session.c $(SEAL_SRC)
-build/tests/seal_test: tests/net/seal_test.c $(SEAL_SRC) src/session/seal.h
+SEAL_DEPS := src/session/seal.h third_party/monocypher/monocypher.h
+build/tests/seal_test: tests/net/seal_test.c $(SEAL_SRC) $(SEAL_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/seal_test.c $(SEAL_SRC)
 
-build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) src/session/seal.h
+build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) $(SEAL_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/seal_test.c $(SEAL_SRC) -lbcrypt
 
-build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
+build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(SEAL_DEPS) $(NET_SRC) $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
 
-build/tests/session_test.exe: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
+build/tests/session_test.exe: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(SEAL_DEPS) $(NET_SRC) $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) \
 	    $(ROLLBACK_SRC) -lws2_32 -lbcrypt
 
-build/tests/relay_test: tests/net/relay_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
+build/tests/relay_test: tests/net/relay_test.c $(SESSION_SRC) src/session/session.h $(SEAL_DEPS) $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/relay_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
 
@@ -419,7 +420,7 @@ test-relay: server build/tests/relay_test
 	    build/tests/relay_test 127.0.0.1:27165 > build/tests/relay_test.out; status=$$?; kill $$pid; \
 	    cat build/tests/relay_test.out | tail -1; exit $$status
 
-build/tests/session_fuzz: tests/fuzz/session_fuzz.c $(SESSION_SRC) src/session/session.h $(NET_SRC)
+build/tests/session_fuzz: tests/fuzz/session_fuzz.c $(SESSION_SRC) src/session/session.h $(SEAL_DEPS) $(NET_SRC)
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/session_fuzz.c $(SESSION_SRC) $(NET_SRC)
 

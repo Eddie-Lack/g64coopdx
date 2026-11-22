@@ -37,6 +37,10 @@ typedef struct {
     g64_seal seal;
     int sealed;
     uint8_t myKey[G64_SEAL_KEY], theirKey[G64_SEAL_KEY];
+    /* On a joiner: a sealed message from the host has opened, so the link is the real host's. */
+    int opened;
+    /* On the host: when a removed player's program was last told, at most every RESEND ms. */
+    uint32_t kickTold;
     int started;    /* the peer has sent a game message, so it has the start */
     int gone;       /* stopped answering after the start */
     char name[NAME_MAX + 1];
@@ -150,7 +154,11 @@ g64_session *g64_session_join(net_socket *s, const net_addr *to, uint32_t rom, c
     return g;
 }
 
-void g64_session_free(g64_session *g) { free(g); }
+void g64_session_free(g64_session *g) {
+    if (g)
+        g64_seal_wipe(g, sizeof *g);
+    free(g);
+}
 
 /* In the clear: a hello, a welcome or a refusal. */
 static void send_bytes(g64_session *g, const net_addr *to, const uint8_t *d, size_t n) { net_send(g->sock, to, d, n); }
@@ -232,7 +240,10 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             /* A removed player's program may have missed the kick. A hello after the start is a newcomer at the
                same address (the relay gives a free place to the next joiner): they get the usual refusal below. */
             uint8_t m = MSG_KICK;
-            send_sealed(g, &g->peers[p], &m, 1);
+            if (g->peers[p].kickTold == 0 || now - g->peers[p].kickTold >= RESEND) {
+                g->peers[p].kickTold = now ? now : 1;
+                send_sealed(g, &g->peers[p], &m, 1);
+            }
             return;
         }
     for (p = 1; p < g->players; p++)
@@ -248,14 +259,11 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             q->heard = now;
             host_inner(g, p, plain, len, now, on_game, user);
         } else if (d[0] == MSG_HELLO && n >= HELLO_SIZE && memcmp(d + HELLO_KEY, q->theirKey, G64_SEAL_KEY) == 0) {
-            /* The welcome or the start was lost: send it again. A hello with another key is someone else at this
-               address. They wait until the place is free: a link's key is never replaced. */
-            if (g->state == G64_SESSION_WAITING) {
-                q->heard = now;
-                send_welcome(g, p);
-            } else {
-                send_start(g, p);
-            }
+            /* The welcome was lost: send it again, also after the start, which the joiner cannot open without it.
+               The start repeats by itself. A hello with another key is someone else at this address. They wait
+               until the place is free: a link's key is never replaced. A hello does not count as heard: anyone
+               can repeat one. */
+            send_welcome(g, p);
         }
         return;
     }
@@ -303,7 +311,7 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         memcpy(welcome + 3, q->myKey, G64_SEAL_KEY);
         memcpy(q->theirKey, d + HELLO_KEY, G64_SEAL_KEY);
         i = g64_seal_keys(&q->seal, 1, secret, q->theirKey, d, (size_t)n, welcome, sizeof welcome);
-        memset(secret, 0, sizeof secret);
+        g64_seal_wipe(secret, sizeof secret);
         if (i != 0) {
             memset(q, 0, sizeof *q);
             refuse[1] = G64_REFUSE_PROTOCOL;
@@ -409,13 +417,18 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         return;
     switch (d[0]) {
     case MSG_WELCOME:
-        /* The first welcome makes the link. A later one changes nothing. */
+        /* A welcome makes the link. Until a sealed message from the host has opened, a welcome with another key
+           makes it anew: a forged welcome that came first must not shut the real host out. A welcome with the
+           same key changes nothing, so no counter is ever used twice with one key. */
         if (n == WELCOME_SIZE && d[2] >= 2 && d[2] <= G64_SESSION_MAX_PLAYERS && d[1] >= 1 && d[1] < d[2] &&
-            g->state == G64_SESSION_WAITING && !h->sealed && g->helloLen) {
-            memcpy(h->theirKey, d + 3, G64_SEAL_KEY);
-            if (g64_seal_keys(&h->seal, 0, g->secret, h->theirKey, g->hello, g->helloLen, d, (size_t)n) != 0)
+            g->state == G64_SESSION_WAITING && !h->opened && g->helloLen &&
+            (!h->sealed || memcmp(h->theirKey, d + 3, G64_SEAL_KEY) != 0)) {
+            g64_seal fresh;
+            if (g64_seal_keys(&fresh, 0, g->secret, d + 3, g->hello, g->helloLen, d, (size_t)n) != 0)
                 break;
-            memset(g->secret, 0, sizeof g->secret);
+            h->seal = fresh;
+            g64_seal_wipe(&fresh, sizeof fresh);
+            memcpy(h->theirKey, d + 3, G64_SEAL_KEY);
             h->sealed = 1;
             h->heard = now;
             g->me = d[1];
@@ -436,6 +449,11 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             int len = g64_seal_unlock(&h->seal, d, (size_t)n, plain, sizeof plain);
             if (len < 1)
                 break;
+            if (!h->opened) {
+                /* The link is the real host's: the secret key has done its work. */
+                h->opened = 1;
+                g64_seal_wipe(g->secret, sizeof g->secret);
+            }
             h->heard = now;
             join_inner(g, plain, len, on_game, user);
         }
@@ -449,10 +467,14 @@ void g64_session_test_inner(g64_session *g, int from, const uint8_t *data, size_
                             g64_game_fn on_game, void *user) {
     if (g->state == G64_SESSION_FAILED || len < 1 || len > NET_MAX_DATAGRAM)
         return;
-    if (!g->host)
+    /* As a datagram that opened would, it counts as heard from its sender. */
+    if (!g->host) {
+        g->peers[0].heard = now;
         join_inner(g, data, (int)len, on_game, user);
-    else if (from >= 1 && from < g->players && g->peers[from].used && !g->peers[from].gone)
+    } else if (from >= 1 && from < g->players && g->peers[from].used && !g->peers[from].gone) {
+        g->peers[from].heard = now;
         host_inner(g, from, data, (int)len, now, on_game, user);
+    }
 }
 
 void g64_session_receive(g64_session *g, const net_addr *from, const uint8_t *data, size_t len, uint32_t now,
@@ -574,6 +596,10 @@ void g64_session_send_game(g64_session *g, int to, const uint8_t *data, size_t l
     m[0] = MSG_GAME;
     memcpy(m + 1, data, len);
     send_sealed(g, &g->peers[to], m, len + 1);
+}
+
+uint32_t g64_session_host_silent(const g64_session *g, uint32_t now) {
+    return g->host || !g->peers[0].heard ? 0 : now - g->peers[0].heard;
 }
 
 int g64_session_gone(const g64_session *g, int p) {

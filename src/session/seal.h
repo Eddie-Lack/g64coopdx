@@ -33,6 +33,9 @@ int g64_seal_random(uint8_t *out, size_t n);
 /* For tests: another source of random bytes, or NULL for the system's. */
 void g64_seal_set_random(int (*fn)(uint8_t *out, size_t n));
 
+/* Clears a secret from memory, in a way the compiler does not remove. */
+void g64_seal_wipe(void *secret, size_t n);
+
 /* A new secret key and its public key. 0, or -1 without random bytes. */
 int g64_seal_keypair(uint8_t secret[G64_SEAL_KEY], uint8_t pub[G64_SEAL_KEY]);
 

@@ -45,6 +45,8 @@ int g64_seal_random(uint8_t *out, size_t n) {
 #endif
 }
 
+void g64_seal_wipe(void *secret, size_t n) { crypto_wipe(secret, n); }
+
 int g64_seal_keypair(uint8_t secret[G64_SEAL_KEY], uint8_t pub[G64_SEAL_KEY]) {
     if (g64_seal_random(secret, G64_SEAL_KEY) != 0) {
         crypto_wipe(secret, G64_SEAL_KEY);
