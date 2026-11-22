@@ -9,6 +9,10 @@
 #ifndef __USE_MINGW_ANSI_STDIO
 #define __USE_MINGW_ANSI_STDIO 1
 
+/* The sign between a number's whole part and its fraction. Lua asks the system's locale; a period is the same on
+   every machine. */
+#define lua_getlocaledecpoint() '.'
+
 /* Lua's power operator calls the C library's pow, whose last bit may differ between systems. The game's own
    (g64lua.c) uses only multiplication, division and the square root, which are exact everywhere. */
 struct lua_State;

@@ -61,7 +61,9 @@ PORT_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/port/o
 LUA_SRCS := $(addprefix third_party/lua/,lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c \
             lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c \
             lbaselib.c ltablib.c lstrlib.c lmathlib.c) src/port/g64lua.c
-LUA_CFLAGS = -std=gnu99 $(filter-out -include src/port/port_pre.h,$(GAME_FLAGS)) -include src/port/g64lua_conf.h
+# -funsigned-char is left out: with it MinGW's <locale.h>, which Lua includes, puts a variable of its own into each
+# object, in a section that a savestate does not hold. Lua does not depend on the sign of char.
+LUA_CFLAGS = -std=gnu99 $(filter-out -funsigned-char -include src/port/port_pre.h,$(GAME_FLAGS)) -include src/port/g64lua_conf.h
 # The host world (docs/host-world.md): in weemitt's programs and the library. The brute forcer reads PORT_SRCS and
 # leaves it out.
 HOSTWORLD_SRCS := src/port/hostworld.c src/port/drawmark.c
