@@ -3,10 +3,18 @@
  * rollback core's messages between the host and each client.
  *
  * Messages, all numbers little-endian. The first byte is the type; the rollback core's own types are 1 to 5.
+ * The first three travel in the clear:
  *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), build (u32: a hash of the program's
- *            build id), glove color (u32), ball color (u32), name (up to 16 bytes)
- *   welcome  0x41, player (u8), players (u8)
+ *            build id), glove color (u32), ball color (u32), the joiner's public key (32 bytes), name (up to 16
+ *            bytes). A joiner's repeats of its hello have the same bytes.
+ *   welcome  0x41, player (u8), players (u8), the host's public key for this player (32 bytes)
  *   refuse   0x42, reason (u8)
+ * The hello and the welcome give the two ends a key (seal.h). Every later message travels sealed with it:
+ *   sealed   0x48, counter (u64), the message below encrypted, check (16 bytes)
+ * Nobody on the path, the relay included, can read a sealed message, and nobody without the key can forge one,
+ * change one or play one back. A message in the clear after the welcome is dropped. The players have no
+ * identities: someone who can change packets on the path during the hello could sit in the middle
+ * (docs/discovery/netcode.md, "Encryption").
  *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_), and for each
  *            player: glove color (u32), ball color (u32), name (16 bytes, padded with zeros)
  * A color is G64_COLOR_SET plus 0xRRGGBB when the player chose it, or 0 for the color of their player number.
@@ -26,7 +34,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 7
+#define G64_PROTOCOL 8
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -68,6 +76,11 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
 /* Handles one datagram (g64_session_poll calls it for each one it reads; the fuzz target calls it directly). */
 void g64_session_receive(g64_session *g, const net_addr *from, const uint8_t *data, size_t len, uint32_t now,
                          g64_game_fn on_game, void *user);
+/* For tests and the fuzz target: handles data as a message that came sealed and was opened. On the host it comes
+ * from player from; on a joiner, from the host. A fuzzer cannot make a sealed datagram that opens, so this is its
+ * way to the code behind the seal. */
+void g64_session_test_inner(g64_session *g, int from, const uint8_t *data, size_t len, uint32_t now,
+                            g64_game_fn on_game, void *user);
 /* After the start: this machine's player number, the number of players, the level and the host's deadline. */
 int g64_session_me(const g64_session *g);
 int g64_session_players(const g64_session *g);

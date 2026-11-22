@@ -15,3 +15,41 @@ the copy are under the same license.
 When a library or another project's code is added, list it here with its source, its version and its full license
 text. The libraries planned so far are named in
 [docs/discovery/repository.md](docs/discovery/repository.md#license).
+
+## Monocypher
+
+`third_party/monocypher/` holds [Monocypher](https://monocypher.org) 4.0.2, unchanged: `monocypher.c`,
+`monocypher.h` and its `LICENCE.md`. It is the cryptography library that seals the session's messages
+(src/session/seal.c). `third_party/monocypher/README.md` names the source and the archive's checksum. Monocypher is
+dual-licensed, BSD 2-Clause or CC0; g64coopdx uses it under BSD 2-Clause:
+
+```
+Copyright (c) 2017-2023, Loup Vaillant
+Copyright (c) 2017-2019, Michael Savage
+Copyright (c) 2017-2023, Fabio Scotoni
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the
+   distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```

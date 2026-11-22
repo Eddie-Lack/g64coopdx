@@ -380,7 +380,17 @@ build/tests/sound_test: tests/net/sound_test.c src/client/sound.c src/client/sou
 	    weemitt/src/port/soundtable.c -lm
 
 NET_SRC := src/net/udp.c
-SESSION_SRC := src/session/session.c
+# The session, its sealed messages, and the cryptography library they use (third_party/monocypher).
+SEAL_SRC := src/session/seal.c third_party/monocypher/monocypher.c
+SESSION_SRC := src/session/session.c $(SEAL_SRC)
+build/tests/seal_test: tests/net/seal_test.c $(SEAL_SRC) src/session/seal.h
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/seal_test.c $(SEAL_SRC)
+
+build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) src/session/seal.h
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/seal_test.c $(SEAL_SRC) -lbcrypt
+
 build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
@@ -388,7 +398,7 @@ build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/se
 build/tests/session_test.exe: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) \
-	    $(ROLLBACK_SRC) -lws2_32
+	    $(ROLLBACK_SRC) -lws2_32 -lbcrypt
 
 build/tests/relay_test: tests/net/relay_test.c $(SESSION_SRC) src/session/session.h $(NET_SRC) src/net/udp.h $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
@@ -430,7 +440,9 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
-test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test
+test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test
+	build/tests/seal_test > build/tests/seal_test.out || { cat build/tests/seal_test.out; exit 1; }
+	tail -1 build/tests/seal_test.out
 	build/tests/sound_test > build/tests/sound_test.out || { cat build/tests/sound_test.out; exit 1; }
 	tail -1 build/tests/sound_test.out
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
@@ -441,7 +453,12 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	tail -1 build/tests/session_test.out
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
-test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe test-c
+test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
+              build/tests/seal_test.exe test-c
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/seal_test.exe | tr -d '\r' \
+	    > build/tests/seal_test-windows.out
+	tail -1 build/tests/seal_test-windows.out
+	cmp build/tests/seal_test.out build/tests/seal_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/session_test.exe | tr -d '\r' \
 	    > build/tests/session_test-windows.out
 	tail -1 build/tests/session_test-windows.out

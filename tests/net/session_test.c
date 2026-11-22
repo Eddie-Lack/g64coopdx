@@ -216,7 +216,30 @@ int main(void) {
     check(chatCount[0] == 1 && chatCount[1] == 1 && chatCount[2] == 2 && chatFrom[1] == 0 && chatFrom[2] == 0 &&
               !strcmp(chatLine[1], "welcome"),
           "the host's line reaches every joiner once, and an empty line is not sent");
-    /* A flood: ten different lines from one joiner at once, as raw datagrams. The host passes on the first and
+    /* A line in the clear, as a raw datagram from a joiner's own address: the host drops it. Only sealed messages
+       count after the welcome. */
+    {
+        int before0 = chatCount[0], before2 = chatCount[2];
+        uint8_t d[8] = {0x46, 0, 99, 'c', 'l', 'e', 'a', 'r'};
+        clock += 1000;
+        net_send(sock[1], &hostAddr, d, sizeof d);
+        for (f = 0; f < 6; f++) {
+            clock += 10;
+            for (i = 0; i < PLAYERS; i++)
+                g64_session_poll(m[i].session, clock, on_game, &m[i]);
+        }
+        check(chatCount[0] == before0 && chatCount[2] == before2, "a chat line in the clear is dropped");
+    }
+    /* A kick in the clear, as if from the host's address: the joiner stays. So does it after a sealed-looking
+       datagram that does not open. */
+    {
+        uint8_t kick = 0x47, junk[40] = {0x48, 1};
+        g64_session_receive(m[1].session, &hostAddr, &kick, 1, clock, on_game, &m[1]);
+        g64_session_receive(m[1].session, &hostAddr, junk, sizeof junk, clock, on_game, &m[1]);
+        check(g64_session_poll(m[1].session, clock, on_game, &m[1]) == G64_SESSION_STARTED,
+              "a kick in the clear and a datagram that does not open change nothing");
+    }
+    /* A flood: ten different lines from one joiner at once, as opened messages. The host passes on the first and
        drops the rest, so no player can bury the others in lines. */
     {
         int before0 = chatCount[0], before2 = chatCount[2], k;
@@ -225,7 +248,7 @@ int main(void) {
             g64_session_poll(m[i].session, clock, on_game, &m[i]);
         for (k = 0; k < 10; k++) {
             uint8_t d[8] = {0x46, 0, (uint8_t)(100 + k), 'f', 'l', 'o', 'o', 'd'};
-            net_send(sock[1], &hostAddr, d, sizeof d);
+            g64_session_test_inner(m[0].session, g64_session_me(m[1].session), d, sizeof d, clock, on_game, &m[0]);
         }
         for (f = 0; f < 6; f++) {
             clock += 10;

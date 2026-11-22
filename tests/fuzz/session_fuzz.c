@@ -1,5 +1,6 @@
-/* A libFuzzer target for the session's message parser (g64_session_receive). The first byte of each input picks
- * the receiver (a host or a joiner) and one of four senders; the rest is the datagram. Both sessions live across
+/* A libFuzzer target for the session's message parsers (g64_session_receive and, behind the seal,
+ * g64_session_test_inner). The first byte of each input picks the receiver (a host or a joiner), one of four
+ * senders, and whether the rest is a raw datagram or an opened message. Both sessions live across
  * inputs and are polled now and then, so messages meet every state.
  *
  * Build and run: make fuzz (clang with -fsanitize=fuzzer). */
@@ -42,11 +43,33 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         join = g64_session_join(sock, &senders[0], 0x1234abcdu, "fuzz");
         g64_session_on_chat(host, chat, NULL);
         g64_session_on_chat(join, chat, NULL);
+        {
+            /* Two players join the host, and the joiner is welcomed: the messages behind the seal need players
+               to come from. The public keys are any bytes that give a secret. */
+            uint8_t hello[53 + 4] = {0x40, 'G', '6', '4', G64_PROTOCOL, 0xcd, 0xab, 0x34, 0x12};
+            uint8_t welcome[35] = {0x41, 1, 4};
+            memset(hello + 21, 9, 32);
+            memcpy(hello + 53, "fuzz", 4);
+            memset(welcome + 3, 7, 32);
+            g64_session_receive(host, &senders[1], hello, sizeof hello, now, game, NULL);
+            hello[21] = 10;
+            g64_session_receive(host, &senders[2], hello, sizeof hello, now, game, NULL);
+            g64_session_poll(join, now, game, NULL);
+            g64_session_receive(join, &senders[0], welcome, sizeof welcome, now, game, NULL);
+            if (g64_session_joined(host) != 3 || g64_session_me(join) != 1)
+                __builtin_trap();
+        }
     }
     if (size < 1)
         return 0;
     now += 7;
-    g64_session_receive(data[0] & 0x80 ? join : host, &senders[data[0] & 3], data + 1, size - 1, now, game, NULL);
+    /* Half of the inputs are raw datagrams: hellos, welcomes, refusals, and sealed datagrams that do not open.
+       The other half are messages as they are after the seal is opened: no fuzzer can make a datagram that opens,
+       and the parser behind the seal must still meet every input. */
+    if (data[0] & 0x40)
+        g64_session_test_inner(data[0] & 0x80 ? join : host, 1 + (data[0] & 3), data + 1, size - 1, now, game, NULL);
+    else
+        g64_session_receive(data[0] & 0x80 ? join : host, &senders[data[0] & 3], data + 1, size - 1, now, game, NULL);
     /* Now and then the host removes a player, or someone says something. */
     if (size > 2 && data[1] == 0xEE)
         g64_session_kick(host, 1 + (data[2] & 3));

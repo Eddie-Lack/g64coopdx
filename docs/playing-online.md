@@ -162,6 +162,9 @@ predicts the frames it has no confirmed input for yet, and goes back and runs th
 differs ([discovery/netcode.md](discovery/netcode.md)). Only inputs cross the network; no game data does. Each machine
 checks the hash of its game against the host's every 10 frames.
 
+The messages between you and the host are encrypted: chat, names and inputs cannot be read on the way, also not by
+the relay. The room code and the version of your program are not secret.
+
 Each level that has players in it runs as its own game, an instance. Your machine runs only the instance you are in.
 The host runs a copy of every instance. When you take an exit, you leave your instance alone. The host puts you in
 the instance of the level the exit leads to, or starts a new one. To join an instance that is already running, your

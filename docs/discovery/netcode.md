@@ -314,6 +314,38 @@ Enhancements and Cheats are session settings that only the host sets; the cheat 
 - NAT traversal for hosts behind home routers, and a relay when traversal fails.
 - Windows first (MinGW cross-builds, as weemitt), Linux too.
 
+### Encryption
+
+Done in phase 4 (src/session/seal.h, src/session/session.h). The session seals its own messages, between the host
+and each joiner. The relay carries them unopened, and the direct mode has the same protection.
+
+- **The exchange.** The joiner's hello carries a new X25519 public key, and the host's welcome carries one made for
+  that joiner alone. Each end makes a shared secret, then two keys from it with BLAKE2b, one for each direction. The
+  bytes of the hello and the welcome go into the keys: both ends get the same keys only if both saw the same two
+  messages. The keys live for one session.
+- **The messages.** Every message after the welcome is sealed with XChaCha20 and Poly1305: the start (with the
+  names), pings, the game's messages (inputs, hashes, session events), chat and the kick. Each has a counter that
+  is never used twice. A receiver drops a message that came before, one older than the last 64, and one in the
+  clear. Messages may still overtake each other. A sealed datagram is 25 bytes longer than its message.
+- **What stays in the clear.** The hello (the version, the ROM's hash, the colors, the name), the welcome, a
+  refusal, and the relay's own envelope with the room code.
+- **Random numbers** come from the operating system (`BCryptGenRandom` on Windows, `/dev/urandom` on Linux).
+  Without them no key is made and no session starts. They never enter the game's state.
+- **The library** is Monocypher 4.0.2, one C file (`third_party/monocypher`). It replaced the libsodium of the
+  first plan: it builds with gcc, MinGW and clang's fuzzer with no build system of its own.
+
+What this protects against: someone who listens on the path, the relay included, cannot read names in the start,
+chat or inputs. Someone who is not on the path cannot forge a message, change one or play one back; that covers a
+forged kick, forged inputs, and a newcomer who gets a former player's place at the relay.
+
+What it does not protect against: the players have no identities and the room code is no secret, so someone who
+can change packets on the path during the hello could put their own keys in and sit in the middle. The relay is
+in that place. A forged refusal or welcome from someone who can send from the host's address can still stop a
+join. Proof of who a player is needs accounts or a shared secret, and is not planned.
+
+The fuzz target reaches the parser behind the seal through `g64_session_test_inner`: a fuzzer cannot make a
+datagram that opens.
+
 ### Candidate libraries (licenses read from each project's LICENSE file; dates from the release feeds)
 
 | Library | License | What it gives | Fit |
@@ -333,7 +365,8 @@ Enhancements and Cheats are session settings that only the host sets; the cheat 
 | Discord Game SDK | proprietary, archived | | Do not build on it |
 | CoopNet (sm64coopdx's lobby) | AGPL-3.0 (VERIFIED: its LICENSE on branch `master`) | Lobby and signaling over libjuice | Another port's code; do not use |
 
-**Recommendation (INFERRED):** ENet for the channels, libsodium for encryption (a key exchange at connect, then
+**Recommendation (INFERRED; encryption has since been built with Monocypher, see "Encryption" above):** ENet for
+the channels, libsodium for encryption (a key exchange at connect, then
 every packet sealed), libjuice for ICE, and a TURN relay. The three libraries are small and written in C. The relay is a
 managed service, with coturn as the fallback ([hosting.md](../hosting.md)). libjuice lists
 Windows among its platforms; a MinGW build of each library was not tried, and phase 2 tries them, with
