@@ -73,7 +73,8 @@ size, which are the same on every machine. It holds no pointer to the pack.
 
 - **A check of the level file.** The game's level parser is the original game's and trusts what it reads. Before a
   pack may come from another player, the reader must check every command of the level file, and the ids it names
-  against the player's ROM.
+  against the player's ROM. [level-file-safety.md](level-file-safety.md) lists what that check must hold: it is a
+  large piece of work, and the owner decides whether to do it or to keep packs to people who trust each other.
 - **Packs from the host.** A joiner without the pack is shown its name and size and asked. The host then sends it in
   pieces, and the joiner checks its id ([mods.md](mods.md#how-mods-reach-other-players)).
 - **More in a pack:** the author's own models and textures in banks of their own, Lua scripts, more than one level.
