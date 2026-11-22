@@ -2128,8 +2128,7 @@ int main(int argc, char **argv) {
         if (opt.netPack) {
             char why[200];
             if (netplay_set_pack(opt.netPack, why, sizeof why) != 0) {
-                fprintf(stderr, "weemitt: %s\n", why);
-                return 1;
+                die("%s", why);
             }
         }
         if (opt.netAnyBall) {

@@ -3,7 +3,8 @@
  * has, by their ids.
  *
  * Files:
- *   pack.txt    the manifest: lines of key=value, in any order, each key once, nothing else:
+ *   pack.txt    the manifest: lines of key=value that end with a line feed alone, in any order, each key once,
+ *               nothing else:
  *                 format=1
  *                 name=NAME      1 to 32 printable ASCII characters
  *                 level=N        the level whose place the pack's level takes (weemitt's enum Level, 0 to 47)

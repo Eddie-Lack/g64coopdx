@@ -57,12 +57,11 @@ int g64_pack_parse_manifest(const uint8_t *d, size_t n, g64_pack *out) {
         size_t end = at, len;
         while (end < n && d[end] != '\n')
             end++;
-        /* Every line ends with a line feed; a carriage return before it is allowed (a file written on Windows). */
+        /* Every line ends with a line feed alone. A carriage return is refused like any other control character:
+           the pack's id is a hash of the file's bytes, so a manifest has one way to be written. */
         if (end == n)
             return -1;
         len = end - at;
-        if (len > 0 && d[end - 1] == '\r')
-            len--;
         if (manifest_line((const char *)d + at, len, &p, &seen) != 0)
             return -1;
         at = end + 1;

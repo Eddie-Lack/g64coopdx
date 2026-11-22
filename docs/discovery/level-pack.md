@@ -24,8 +24,8 @@ supplies them.
 
 ### `pack.txt`
 
-Lines of `key=value`. Each line ends with a line feed; a carriage return before it is allowed. Each key comes once,
-in any order. Nothing else is allowed: no empty line, no comment, no other key.
+Lines of `key=value`. Each line ends with a line feed alone: a carriage return is refused, since the pack's id is a
+hash of the file's bytes and the same pack must not have two ids. Each key comes once, in any order. Nothing else is allowed: no empty line, no comment, no other key.
 
 | Key | Value |
 | --- | --- |

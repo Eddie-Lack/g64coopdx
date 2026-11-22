@@ -829,7 +829,12 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
        ROM from there: the level's loader then finds the file as it finds the ROM's. The host has checked that
        every player has the same pack. */
     g64_instances_pack(-1, 0, 0);
-    if (pack.lev && baseRom && baseRomSize < 0x0F000000u) {
+    if (pack.lev && (!baseRom || baseRomSize >= 0x0F000000u)) {
+        /* The other machines play the pack: this one must not start without it. */
+        snprintf(err, errSize, "the ROM is too large to play a level pack with");
+        return -1;
+    }
+    if (pack.lev) {
         free(packRom);
         packRom = malloc(baseRomSize + pack.levSize);
         if (!packRom) {

@@ -268,6 +268,37 @@ static void test_join_later(uint32_t start) {
     }
     g64_session_free(h);
     net_close(hs);
+    /* A host with a level pack takes a joiner with the same pack, and refuses one with none. */
+    {
+        static const uint8_t packId[G64_PACK_ID_SIZE] = {9, 8, 7, 6};
+        net_socket *hs3 = net_open(0, err, sizeof err), *a = net_open(0, err, sizeof err), *b = net_open(0, err, sizeof err);
+        g64_session *h3, *same, *none;
+        to.port = net_port(hs3);
+        h3 = g64_session_host(hs3, 3, ROM, 0, 3);
+        same = g64_session_join(a, &to, ROM, "same");
+        none = g64_session_join(b, &to, ROM, "none");
+        g64_session_set_build(h3, BUILD);
+        g64_session_set_build(same, BUILD);
+        g64_session_set_build(none, BUILD);
+        g64_session_set_pack(h3, packId);
+        g64_session_set_pack(same, packId);
+        for (i = 0; i < 150; i++) {
+            *clock += 10;
+            g64_session_poll(h3, *clock, NULL, NULL);
+            g64_session_poll(same, *clock, NULL, NULL);
+            g64_session_poll(none, *clock, NULL, NULL);
+        }
+        check(g64_session_me(same) == 1 && g64_session_joined(h3) == 2, "a joiner with the host's level pack gets in");
+        check(g64_session_poll(none, *clock, NULL, NULL) == G64_SESSION_FAILED &&
+                  strstr(g64_session_error(none), "level pack") != NULL,
+              "a joiner without the host's level pack is refused");
+        g64_session_free(same);
+        g64_session_free(none);
+        g64_session_free(h3);
+        net_close(hs3);
+        net_close(a);
+        net_close(b);
+    }
     /* The place of a player of the start, taken by a newcomer after that player is gone: the newcomer is not one of
        the start's players, and must not build the first game. */
     {

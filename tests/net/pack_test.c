@@ -41,8 +41,9 @@ int main(int argc, char **argv) {
 
     memset(&p, 0, sizeof p);
     check(manifest(good, &p) == 0 && !strcmp(p.name, "A test level") && p.level == 10, "a good manifest");
-    check(manifest("level=10\r\nname=x\r\nformat=1\r\n", &p) == 0 && !strcmp(p.name, "x") && p.level == 10,
-          "the keys in another order, with Windows line ends");
+    check(manifest("level=10\nname=x\nformat=1\n", &p) == 0 && !strcmp(p.name, "x") && p.level == 10,
+          "the keys in another order");
+    check(manifest("format=1\r\nname=A\r\nlevel=1\r\n", &p) != 0, "Windows line ends are refused");
     check(manifest("format=1\nname=A\nlevel=47\n", &p) == 0 && p.level == 47, "the last level");
     check(manifest("format=2\nname=A\nlevel=1\n", &p) != 0, "another format is refused");
     check(manifest("format=1\nname=A\nlevel=48\n", &p) != 0, "a level past the last is refused");
