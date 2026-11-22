@@ -42,6 +42,7 @@ extern unsigned int port_rom_size;
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 void G64TipView(int p);
+void G64CannonView(int p);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
 int port_game_draw_view(void *tasks, int max);
 /* weemitt's log (src/port/log.c): the online program has no console on Windows, so its lines go to a file too. */
@@ -1209,6 +1210,8 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     }
     /* The tip that this player reads, in the game's own box. */
     G64TipView(me);
+    /* In the Carnival bonus level the cannon points where this player aims. */
+    G64CannonView(me);
     G64SwapPlayer(me);
     return port_game_draw_view(tasks, max);
 }

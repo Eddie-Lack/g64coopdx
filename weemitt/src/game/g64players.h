@@ -77,6 +77,7 @@ void G64UpdateProxies(void);
    who is not in this game. */
 void G64SwapPlayer(s32 player);
 void G64TipView(s32 player);
+void G64CannonView(s32 player);
 /* 1 for a proxy actor (another player's glove or ball). */
 s32 G64IsProxy(struct Actor *a);
 /* Each player's chosen glove and ball colors, by player number: G64_COLOR_SET plus 0xRRGGBB, or 0 for the color of
@@ -272,10 +273,6 @@ void G64FootprintGone(const void *footprint);
    from that player's own distance. It returns 0 when the quake does not reach them. */
 void G64QuakeAt(const struct Vec3 *pos, f32 maxStrength, f32 minStrength);
 s32 G64QuakeStrength(f32 blend, f32 *str);
-/* For a thing that every player works at once (g64players.c): the farthest-pushed stick value, x (axis 0) or y
-   (axis 1), and whether any player has just pressed a button. */
-f32 G64AnyStick(s32 axis);
-s32 G64AnyPressed(s32 button);
 /* Cameos (g64players.c, "Cameos"). A cameo plays for the player who set it off, or for the first player.
    puzzle.c tells who met a puzzle's conditions (G64PuzzleMetReset, G64PuzzleMet, G64CameoStarter). The cameo's
    player is in the globals while it starts (G64CameoStartBegin) and steps (G64CameoSwapIn); G64CameoSwapOut puts

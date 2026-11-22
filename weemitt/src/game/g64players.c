@@ -2645,6 +2645,14 @@ void G64TipView(s32 player) {
         TipDrawPage(tipLine[player] - 1, tipTime[player]);
 }
 
+void CarnivalView(s32 slot);
+
+/* The client calls this before it draws a player's view: in the Carnival bonus level the cannon points where that
+   player aims (bonus.c). */
+void G64CannonView(s32 player) {
+    CarnivalView(slot_of(player));
+}
+
 s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
     s32 line, end, n = 0;
     if (player < 0 || player >= G64_MAX_PLAYERS || tipLine[player] <= 0)
@@ -2663,34 +2671,6 @@ s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
 s32 G64CameoHeld(void) {
     s32 own = cameo_slot();
     return !swapped && gameInfo.cameoActive && logicSlot != own;
-}
-
-/* For a thing that every player works at once (the Carnival bonus level's cannon): the stick value, x (axis 0) or y
-   (axis 1), of the player who pushes it the farthest, and whether any player has just pressed a button. With one
-   player these are the first player's pad. */
-f32 G64AnyStick(s32 axis) {
-    s32 i;
-    s16 best = axis ? pad[ActiveController].stickY : pad[ActiveController].stickX;
-    for (i = 1; i < G64SlotCount(); i++) {
-        if (slot_used(i)) {
-            const Pad *q = &((G64Slot *)slots[i])->pad;
-            s16 v = axis ? q->stickY : q->stickX;
-            if (abs(v) > abs(best))
-                best = v;
-        }
-    }
-    return best;
-}
-
-s32 G64AnyPressed(s32 button) {
-    s32 i;
-    if (pad[ActiveController].pressed[button])
-        return 1;
-    for (i = 1; i < G64SlotCount(); i++) {
-        if (slot_used(i) && ((G64Slot *)slots[i])->pad.pressed[button])
-            return 1;
-    }
-    return 0;
 }
 
 /* debris.c frees a piece of debris: no player keeps it as their fake ball (the ball a glove throws or whacks

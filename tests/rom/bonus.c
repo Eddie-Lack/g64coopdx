@@ -5,8 +5,8 @@
  *   B. The same level: a player whose ball falls out of the level loses, alone.
  *   C. The Atlantis bonus level: a player whose glove leaves the level's range loses, alone.
  * Each case runs once for player 0 and once for player 1, and both give the same record but for the player.
- *   D. The Carnival bonus level has one cannon. Every player sits on it, either player's stick turns it and either
- *      player's A button fires it.
+ *   D. The Carnival bonus level has one cannon. Every player sits on it with an aim of their own: a player's stick
+ *      turns their own aim and camera, and their own A fires along it.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -203,10 +203,12 @@ static void case_d(void) {
     snprintf(what, sizeof what, "D: the gloves are %.0f apart on the cannon; player 0's stick turns the cameras %.2f "
              "and %.2f, player 1's %.2f and %.2f", apart(still[0], still[1]), turned(y0[0], y[0]),
              turned(y0[1], y[1]), turned(y1[0], y[0]), turned(y1[1], y[1]));
-    check(apart(still[0], still[1]) < 1.0f && apart(g0[0], g0[1]) < 1.0f && apart(g1[0], g1[1]) < 1.0f &&
-          turned(y0[0], y[0]) > 0.3f && turned(y0[1], y[1]) > 0.3f &&
-          fabsf(turned(y1[0], y[0]) - turned(y0[0], y[0])) < 0.05f &&
-          fabsf(turned(y1[1], y[1]) - turned(y0[1], y[1])) < 0.05f, what);
+    /* Each player's stick turns their own aim and camera, and not the other's. Both turn as far. */
+    /* The gloves sit on the one cannon, each turned along its own aim: 13 units from its middle at most. */
+    check(apart(still[0], still[1]) < 1.0f && apart(g0[0], g0[1]) < 27.0f && apart(g1[0], g1[1]) < 27.0f &&
+          turned(y0[0], y[0]) > 0.3f && turned(y0[1], y[1]) < 0.05f &&
+          turned(y1[1], y[1]) > 0.3f && turned(y1[0], y[0]) < 0.05f &&
+          fabsf(turned(y1[1], y[1]) - turned(y0[0], y[0])) < 0.05f, what);
     snprintf(what, sizeof what, "D: with nobody firing %d bullets appear, with player 0 firing %d, with player 1 "
              "firing %d", none, shots0, shots1);
     check(shots0 == none + 1 && shots1 == none + 1, what);
