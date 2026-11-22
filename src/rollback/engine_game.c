@@ -8,6 +8,29 @@
  * pointers to the program as one value, so the Linux and Windows programs give the same hash for the same state. The
  * engine's own hash also covers variables that hold program addresses, which differ between the two. */
 unsigned int port_hash_ram(void);
+int G64LuaActive(void);
+void G64LuaCounts(unsigned int out[4]);
+
+/* The hash that machines compare: the game's memory in the low half. With a script, the high half is a hash of the
+   script's memory counts (the block's high mark, the bytes in use, the allocations and the frees). The scripts'
+   block itself holds addresses and cannot be compared, but two machines whose scripts ran differently soon differ
+   in these counts. The top bit is set, so a machine whose script was stopped differs from one whose script runs.
+   Without a script the hash is the game's memory alone. */
+static uint64_t game_hash(void) {
+    uint64_t h = port_hash_ram();
+    if (G64LuaActive()) {
+        unsigned int c[4], k = 2166136261u;
+        int i, b;
+        G64LuaCounts(c);
+        for (i = 0; i < 4; i++) {
+            for (b = 0; b < 32; b += 8) {
+                k = (k ^ ((c[i] >> b) & 0xFF)) * 16777619u;
+            }
+        }
+        h |= (uint64_t)(k | 0x80000000u) << 32;
+    }
+    return h;
+}
 
 /* The game's side (weemitt's src/port/frame.h and src/game/g64players.h, which use the game's types). */
 typedef struct {
@@ -129,7 +152,7 @@ static void load(void *game, const void *state) {
 static uint64_t hash_state(const void *state) {
     leave();
     engine_load(engine, state);
-    return port_hash_ram();
+    return game_hash();
 }
 
 const rb_game_ops *rb_engine_ops(Engine *e) {
@@ -203,5 +226,5 @@ void rb_engine_game_enter(rb_engine_game *g) {
 
 uint64_t rb_engine_game_hash(rb_engine_game *g) {
     enter(g);
-    return port_hash_ram();
+    return game_hash();
 }

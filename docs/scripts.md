@@ -13,6 +13,8 @@ first version: a script can read a little of the game and move a glove. More com
   runs 20 frames a second.
 - Every machine runs the same script on the same game and must reach the same result. So a script has no clock, no
   random numbers of its own, no files, and no way to load other code.
+- The machines compare their games now and then. The comparison includes how much memory the script uses and how
+  many times it asked for memory. A script that ran differently on one machine shows up as a desync.
 - The online game sometimes goes back a few frames and runs them again with corrected inputs. The script's
   variables go back with the game. A script does not notice.
 
