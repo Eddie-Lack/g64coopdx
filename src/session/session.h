@@ -38,13 +38,14 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 9
+#define G64_PROTOCOL 10
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
 #define G64_FLAG_NORMAL_BALL 0x01 /* the game's normal ball controls; without it, the easy ball controls */
 #define G64_FLAG_ANY_BALL 0x02    /* a glove may take any free ball; without it, only its own */
-#define G64_FLAGS_KNOWN 0x03
+#define G64_FLAG_ANY_WORLD 0x04   /* players may go to different worlds; without it, one world at a time */
+#define G64_FLAGS_KNOWN 0x07
 #define G64_COLOR_SET 0x1000000u
 #define G64_NAME_MAX 16
 #define G64_CHAT_MAX 80

@@ -26,7 +26,7 @@ void G64ApplyProgress(const G64Save *save);
 void port_game_start_level(int level);
 
 /* enum ExitType and enum Level (weemitt/include/enums.h): the exits that lead to the hub, and its last level. */
-enum { WORLD_EXIT = 3, HUB_EXIT = 13, HUB8 = 7 };
+enum { WORLD_EXIT = 3, ATLANTIS_EXIT = 6, SPACE_EXIT = 11, HUB_EXIT = 13, HUB8 = 7 };
 /* weemitt's G64_RAISED_CAVE (g64players.h). */
 #define RAISED_CAVE 0xFF
 
@@ -60,12 +60,17 @@ static int same_progress(const g64_progress *a, const g64_progress *b) {
 /* A session event, in the game that is about to run the event's frame (rb_engine_set_event_fn). The bytes come from
    the network: a malformed event changes nothing. */
 extern unsigned g64PlayerColor[16][2];
+void G64SetSessionWorld(int world);
 
 static void apply_event(const uint8_t *data, size_t len) {
     g64_progress p;
     G64Save s;
     int player;
     uint32_t glove, ball;
+    if (g64_parse_world_event(data, len, &player) == 0) {
+        G64SetSessionWorld(player);
+        return;
+    }
     if (g64_parse_colors_event(data, len, &player, &glove, &ball) == 0) {
         /* The colors are part of the game's state: every machine sets them at this frame. */
         g64PlayerColor[player][0] = glove;
@@ -85,13 +90,18 @@ typedef struct {
     unsigned members;
     g64_progress progress;
     uint32_t colors[16][2]; /* every player's colors at the start */
+    int session_world;      /* the world the session is in at the start, or 0 */
 } start_record;
 
 /* The host's "any ball" rule (weemitt's g64players.c). Every game that is built starts with it. */
 extern int g64AnyBall;
 static int anyBallRule;
+/* The host's "one world at a time" rule (weemitt's g64players.c). */
+extern int g64OneWorld;
+static int oneWorldRule;
 
 void g64_instances_any_ball(int on) { anyBallRule = on != 0; }
+void g64_instances_one_world(int on) { oneWorldRule = on != 0; }
 
 static void build_setup(void *ctx) {
     const start_record *r = ctx;
@@ -100,6 +110,8 @@ static void build_setup(void *ctx) {
     to_save(&r->progress, &s);
     g64Online = 1;
     g64AnyBall = anyBallRule;
+    g64OneWorld = oneWorldRule;
+    G64SetSessionWorld(r->session_world);
     for (p = 0; p < 16; p++) {
         g64PlayerColor[p][0] = r->colors[p][0];
         g64PlayerColor[p][1] = r->colors[p][1];
@@ -131,7 +143,8 @@ typedef struct inst {
     uint32_t colors[16][2]; /* the colors the instance has: its start's, then the colors events' */
     /* The frame the instance's last event went on, plus 1, or 0: one event fits on a frame. */
     uint32_t event_frame;
-    int event_colors; /* that event set colors */
+    int event_colors; /* that event set colors or the session's world, which a progress event must not replace */
+    int world;        /* the session's world as the instance has it */
 } inst;
 
 typedef struct {
@@ -172,6 +185,12 @@ struct g64_ihost {
        to the cave. */
     uint32_t raised;
     int raised_cave;
+    /* A player who waits to come back into the instance they left (take_exit). */
+    struct {
+        int wait, level, world, type, from;
+        int id; /* the instance they wait for, or -1 for any */
+        uint32_t frame;
+    } back[RB_MAX_PLAYERS];
     pending_exit exits[MAX_PENDING];
     int exit_count;
     uint32_t clock;
@@ -238,6 +257,18 @@ static int find_instance(g64_ihost *h, int level, int world) {
     return -1;
 }
 
+static int members_of(const g64_ihost *h, int slot);
+
+/* The world the session is in: the world of an instance that has players, or of one that is about to be made
+   (starting), or 0 while every player is in the hub. */
+static int session_world(const g64_ihost *h, int starting) {
+    int i;
+    for (i = 0; i < G64_MAX_INSTANCES; i++)
+        if (h->inst[i].used && h->inst[i].start.world != 0 && members_of(h, i) > 0)
+            return h->inst[i].start.world;
+    return starting;
+}
+
 static int new_instance(g64_ihost *h, int level, int world, unsigned members) {
     int i, p;
     inst *in = NULL;
@@ -257,6 +288,7 @@ static int new_instance(g64_ihost *h, int level, int world, unsigned members) {
     in->start.progress = h->progress;
     memcpy(in->start.colors, h->colors, sizeof in->start.colors);
     memcpy(in->colors, h->colors, sizeof in->colors);
+    in->start.session_world = in->world = session_world(h, world);
     in->sent = h->progress;
     in->game = build(h->boot, &in->start);
     if (!in->game)
@@ -299,6 +331,7 @@ static void send_move(g64_ihost *h, int p) {
     mv.members = (uint16_t)in->start.members;
     mv.join = m->join;
     mv.progress = in->start.progress;
+    mv.session_world = (uint8_t)in->start.session_world;
     memcpy(mv.colors, in->start.colors, sizeof mv.colors);
     g64_write_move(d, &mv);
     h->send(h->user, p, d, sizeof d);
@@ -437,7 +470,34 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
         level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
     from = h->inst[s].start.level;
     leave_instance(h, p);
-    enter(h, p, level, e->r.world, e->r.type, from);
+    {
+        /* One world at a time: the game shuts the hub's portals to other worlds, but two players may walk into
+           two portals before either's game has heard of the other. The second one comes out in the hub again. */
+        int world = e->r.world, now = session_world(h, 0);
+        if (oneWorldRule && e->r.type >= ATLANTIS_EXIT && e->r.type <= SPACE_EXIT && now != 0 && now != world) {
+            level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
+            world = 0;
+        }
+        /* An exit that leads back into the instance the player has just left: in that game they are gone from
+           the next confirmed frame, and must be absent for a frame before they come again. They enter once the
+           instance has confirmed that frame (g64_ihost_tick). */
+        h->back[p].level = level;
+        h->back[p].world = world;
+        h->back[p].type = e->r.type;
+        h->back[p].from = from;
+        if (h->inst[s].used && find_instance(h, level, world) == s) {
+            h->back[p].wait = 1;
+            h->back[p].id = h->inst[s].id;
+            h->back[p].frame = rb_host_confirmed(h->inst[s].host) + 1;
+            return;
+        }
+        /* No room for the player now (every instance is in use, or the level's log is full): the host tries again
+           on its next frames. */
+        if (enter(h, p, level, world, e->r.type, from) != 0) {
+            h->back[p].wait = 1;
+            h->back[p].id = -1;
+        }
+    }
 }
 
 void g64_ihost_set_colors(g64_ihost *h, int p, uint32_t glove, uint32_t ball) {
@@ -525,6 +585,23 @@ void g64_ihost_tick(g64_ihost *h) {
             merge_progress(h, &h->exits[i].r.save);
     for (i = 0; i < h->exit_count; i++)
         take_exit(h, &h->exits[i]);
+    for (p = 0; p < h->players; p++) {
+        int t;
+        if (!h->back[p].wait)
+            continue;
+        /* The hub's newest stage, as it is now. */
+        if (h->back[p].world == 0 && h->back[p].level <= HUB8)
+            h->back[p].level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
+        t = find_instance(h, h->back[p].level, h->back[p].world);
+        /* They wait only for the instance they left. If it has ended, another one of the level is new to them. */
+        if (t >= 0 && h->inst[t].id == h->back[p].id && rb_host_confirmed(h->inst[t].host) <= h->back[p].frame)
+            continue;
+        if (h->where[p] >= 0 ||
+            enter(h, p, h->back[p].level, h->back[p].world, h->back[p].type, h->back[p].from) == 0)
+            h->back[p].wait = 0;
+        else
+            h->back[p].id = -1;
+    }
     /* Progress made in one instance goes to every other, at its next confirmed frame: the whole progress, so a newer
        event may replace one not yet confirmed. */
     for (i = 0; i < G64_MAX_INSTANCES; i++) {
@@ -546,9 +623,17 @@ void g64_ihost_tick(g64_ihost *h) {
             }
             continue;
         }
-        /* A player's new colors, one player on a frame. */
+        /* The session's world, then a player's new colors: one of them on a frame. */
         if (in->event_frame == next + 1)
             continue;
+        if (in->world != session_world(h, 0)) {
+            if (rb_host_set_event(in->host, ev, g64_write_world_event(ev, session_world(h, 0))) == 0) {
+                in->world = session_world(h, 0);
+                in->event_frame = next + 1;
+                in->event_colors = 1;
+            }
+            continue;
+        }
         for (p = 0; p < h->players; p++)
             if (in->colors[p][0] != h->colors[p][0] || in->colors[p][1] != h->colors[p][1]) {
                 if (rb_host_set_event(in->host, ev,
@@ -584,7 +669,7 @@ int g64_ihost_receive(g64_ihost *h, int from, const uint8_t *data, size_t len) {
     int s;
     /* A player who is in the session and in no instance asks for one. */
     if (data && len == G64_READY_SIZE && data[0] == G64_IMSG_READY && from >= 0 && from < h->players) {
-        if (h->where[from] < 0)
+        if (h->where[from] < 0 && !h->back[from].wait)
             g64_ihost_add(h, from);
         return 0;
     }
@@ -617,6 +702,7 @@ int g64_ihost_receive(g64_ihost *h, int from, const uint8_t *data, size_t len) {
 
 void g64_ihost_drop(g64_ihost *h, int p) {
     if (p >= 0 && p < h->players) {
+        h->back[p].wait = 0;
         h->move[p].active = 0;
         leave_instance(h, p);
     }
@@ -638,6 +724,8 @@ int g64_ihost_instances(const g64_ihost *h) {
         n += h->inst[i].used;
     return n;
 }
+
+int g64_ihost_world(const g64_ihost *h) { return session_world(h, 0); }
 
 int g64_ihost_level_of(const g64_ihost *h, int p) {
     if (p < 0 || p >= h->players || h->where[p] < 0)
@@ -739,6 +827,7 @@ static int finish_move(g64_iclient *c) {
     r.world = c->mv.world;
     r.members = c->mv.members;
     r.progress = c->mv.progress;
+    r.session_world = c->mv.session_world;
     memcpy(r.colors, c->mv.colors, sizeof r.colors);
     c->game = build(c->boot, &r);
     if (!c->game)

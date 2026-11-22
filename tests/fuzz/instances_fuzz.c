@@ -27,7 +27,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             m2.world != m.world || m2.players != m.players || m2.members != m.members || m2.join != m.join ||
             m2.progress.levels != m.progress.levels || m2.progress.all_garibs != m.progress.all_garibs ||
             m2.progress.hub_target != m.progress.hub_target || m2.progress.hub_level != m.progress.hub_level ||
-            m2.progress.worlds_done != m.progress.worlds_done || memcmp(m2.colors, m.colors, sizeof m.colors) != 0)
+            m2.progress.worlds_done != m.progress.worlds_done || memcmp(m2.colors, m.colors, sizeof m.colors) != 0 ||
+            m2.session_world != m.session_world || m.session_world >= G64_NUM_WORLDS)
             abort();
     }
     if (g64_parse_log(data, size, &c) == 0) {
@@ -64,6 +65,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                 g64_write_colors_event(again, player, glove, ball) != size || memcmp(again, data, size) != 0)
                 abort();
         }
+    }
+    {
+        int world;
+        if (g64_parse_world_event(data, size, &world) == 0 && (world < 0 || world >= G64_NUM_WORLDS))
+            abort();
     }
     if (g64_parse_logack(data, size, &id, &join, &have) == 0 && have > join)
         abort();

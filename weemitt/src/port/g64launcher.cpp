@@ -250,6 +250,10 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 if (ImGui::Checkbox("Any glove can take any ball", &anyBall)) {
                     netplay_set_any_ball(anyBall ? 1 : 0);
                 }
+                bool anyWorld = netplay_host_any_world() != 0;
+                if (ImGui::Checkbox("Players can go to different worlds", &anyWorld)) {
+                    netplay_set_any_world(anyWorld ? 1 : 0);
+                }
             }
             /* The host's choice: put the game on the list below for everyone with this build, or keep it to the
                room code (the default). */

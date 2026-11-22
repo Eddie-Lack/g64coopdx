@@ -100,7 +100,12 @@ same hashes on Linux and Windows (Wine), every frame.
   others play by replaying its input log; leaving a level; session events at confirmed frames; the one-world rule at
   the hub's portals ([netcode.md](netcode.md#instances)). Done in part (src/client/instances.c): instances, the
   host's reference copies (in one process), joining by the input log, leaving by an exit, and progress into running
-  instances as session events. Still to come: the one-world rule.
+  instances as session events. The one-world rule is done: the host works out the world the session is in (the
+  world of an instance that has players), every instance gets it as a session event on a confirmed frame and in its
+  start record, and the game shuts the hub's portals to the other worlds (`player_exits` in g64players.c). Two
+  players who walk into two portals before either game has heard of the other both take their exit; the host lets
+  the first go and puts the second back in the hub. The host can turn the rule off (`G64_FLAG_ANY_WORLD`;
+  tests/rom/instances.c, `one_world`).
 - Game change 10: players who join and leave a running level at a frame.
 - Game change 3, first part: the hooks that instances need (level start and end, a player leaving a level, session
   events).

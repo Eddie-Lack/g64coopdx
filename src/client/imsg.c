@@ -27,7 +27,7 @@ size_t g64_write_move(uint8_t *d, const g64_move *m) {
     d[19] = m->progress.hub_target;
     d[20] = m->progress.hub_level;
     d[21] = m->progress.worlds_done;
-    d[22] = 0;
+    d[22] = m->session_world;
     {
         int p;
         for (p = 0; p < 16; p++) {
@@ -53,6 +53,9 @@ int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
     m.progress.hub_target = d[19];
     m.progress.hub_level = d[20];
     m.progress.worlds_done = d[21];
+    m.session_world = d[22];
+    if (m.session_world >= G64_NUM_WORLDS)
+        return -1;
     if (m.level >= G64_NUM_LEVELS || m.world >= G64_NUM_WORLDS || m.players < 1 || m.players > RB_MAX_PLAYERS ||
         m.join > G64_MAX_LOG || (m.players < 16 && (m.members >> m.players) != 0) || m.members == 0 ||
         (m.progress.worlds_done >> G64_NUM_WORLDS) != 0 || m.progress.hub_target > G64_MAX_HUB ||
@@ -72,6 +75,19 @@ int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
 }
 
 int g64_valid_color(uint32_t c) { return (c >> 25) == 0; }
+
+size_t g64_write_world_event(uint8_t *d, int world) {
+    d[0] = G64_EVENT_WORLD;
+    d[1] = (uint8_t)world;
+    return G64_EVENT_WORLD_SIZE;
+}
+
+int g64_parse_world_event(const uint8_t *d, size_t len, int *world) {
+    if (!d || len != G64_EVENT_WORLD_SIZE || d[0] != G64_EVENT_WORLD || d[1] >= G64_NUM_WORLDS)
+        return -1;
+    *world = d[1];
+    return 0;
+}
 
 size_t g64_write_colors_event(uint8_t *d, int player, uint32_t glove, uint32_t ball) {
     d[0] = G64_EVENT_COLORS;

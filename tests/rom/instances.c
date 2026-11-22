@@ -22,7 +22,8 @@
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
  *
- * A second run tests a game that players join after its start (join_later).
+ * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
+ * a time (one_world).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -228,6 +229,133 @@ static void join_later(Engine *e, const void *boot) {
     g64_ihost_free(host);
 }
 
+int G64PortalShut(int player);
+
+/* One world at a time. Three players start in the hub, with a schedule of exits of its own:
+ *   - at frame 100 player 1 walks into the Atlantis portal and player 2 into the Carnival portal. Neither game has
+ *     heard of the other, so both take their exit. The host lets the first one go and puts the second back in the
+ *     hub: the session is in Atlantis now;
+ *   - at frame 300 player 2 walks into the Carnival portal again: it is shut in their game, and they stay;
+ *   - at frame 400 player 2 walks into the Atlantis portal: it is open, and they join player 1's way room;
+ *   - at frame 600 players 1 and 2 choose "Back to the hub": the session is in no world again;
+ *   - at frame 900 player 0 walks into the Carnival portal: everyone is in the hub, so it is open;
+ *   - at frame 1000 player 1 walks into the Atlantis portal: it is shut, since the session is in Carnival. */
+static void one_world(Engine *e, void *boot) {
+    enum { CARNIVAL = 2, CARNIVAL_EXIT = 7, RUN = 1200, THREE = 3 };
+    uint32_t none[16][2];
+    int p, before = failed, shut300 = 0, shut1000 = 0, level250[THREE] = {-1, -1, -1}, world250 = -1;
+    int level500[THREE] = {-1, -1, -1}, world880 = -1;
+    memset(none, 0, sizeof none);
+    /* The schedule goes into the state after power-on, which every game of this run is built from. */
+    engine_load(e, boot);
+    for (p = 0; p < 8; p++)
+        g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
+    g64TestExits[0] = (G64TestExit){HUB1, 100, 1, ATLANTIS_EXIT};
+    g64TestExits[1] = (G64TestExit){HUB1, 100, 2, CARNIVAL_EXIT};
+    g64TestExits[2] = (G64TestExit){HUB1, 300, 2, CARNIVAL_EXIT};
+    g64TestExits[3] = (G64TestExit){HUB1, 400, 2, ATLANTIS_EXIT};
+    g64TestExits[4] = (G64TestExit){HUB1, 900, 0, CARNIVAL_EXIT};
+    g64TestExits[5] = (G64TestExit){HUB1, 1000, 1, ATLANTIS_EXIT};
+    engine_save(e, boot);
+    g64_instances_one_world(1);
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, THREE, 7u, none, HUB1, DEADLINE, host_send, NULL);
+    for (p = 0; p < THREE; p++)
+        player[p] = g64_iclient_new_with(e, boot, THREE, 7u, none, p, HUB1, WINDOW, DEADLINE, player_send, &ids[p]);
+    check(host && player[0] && player[1] && player[2], "a host and two more players start in the hub, one world at a time");
+    if (!host || !player[0] || !player[1] || !player[2])
+        return;
+    for (now = 0; now < RUN; now++) {
+        deliver();
+        g64_ihost_tick(host);
+        for (p = 0; p < THREE; p++) {
+            rb_input in;
+            memset(&in, 0, sizeof in);
+            in.present = 1;
+            /* "Back to the hub" in the pause menu, as netplay.c sends it. It is held for a while: this network
+               is slow for the host's deadline, and a player who joined a running level runs a little behind the
+               host's clock, so their first inputs may come too late. */
+            if (p > 0 && now >= 600 && now < 612) {
+                in.buttons = 0x0080;
+                in.x = 2;
+            }
+            g64_iclient_step(player[p], in);
+        }
+        for (p = 1; p < THREE; p++) {
+            /* The shut portal, in the player's own game. */
+            rb_engine_game *g = g64_iclient_game(player[p]);
+            if (g && now > 280 && now < 340 && p == 2) {
+                rb_engine_game_enter(g);
+                if (G64PortalShut(2))
+                    shut300 = G64PortalShut(2);
+            }
+            if (g && now > 980 && now < 1040 && p == 1) {
+                rb_engine_game_enter(g);
+                if (G64PortalShut(1))
+                    shut1000 = G64PortalShut(1);
+            }
+        }
+        if (now == 250 || now == 520) {
+            for (p = 0; p < THREE; p++)
+                (now == 250 ? level250 : level500)[p] =
+                    g64_iclient_moving(player[p]) ? -1 : g64_iclient_level(player[p]);
+            if (now == 250)
+                world250 = g64_ihost_world(host);
+        }
+        if (now == 880) {
+            world880 = g64_ihost_world(host);
+        }
+        if ((now + 1) % 300 == 0) {
+            printf("frame %u: %d instances, world %d; levels", now + 1, g64_ihost_instances(host), g64_ihost_world(host));
+            for (p = 0; p < THREE; p++)
+                printf(" %d", g64_iclient_moving(player[p]) ? -1 : g64_iclient_level(player[p]));
+            printf("; %u hash checks, %u mismatches\n", g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host));
+        }
+    }
+    {
+        char what[200];
+        snprintf(what, sizeof what, "two portals at once: the levels are %d %d %d and the session's world is %d",
+                 level250[0], level250[1], level250[2], world250);
+        check(level250[0] == HUB1 && level250[1] == WAYROOM && level250[2] == HUB1 && world250 == ATLANTIS, what);
+        snprintf(what, sizeof what, "the Carnival portal is shut for player 2 while the session is in world %d", shut300);
+        check(shut300 == ATLANTIS, what);
+        snprintf(what, sizeof what, "the Atlantis portal is open for player 2: the levels are %d %d %d", level500[0],
+                 level500[1], level500[2]);
+        check(level500[0] == HUB1 && level500[1] == WAYROOM && level500[2] == WAYROOM, what);
+        snprintf(what, sizeof what, "with players 1 and 2 back in the hub the session is in world %d", world880);
+        check(world880 == 0, what);
+        snprintf(what, sizeof what, "with everyone in the hub the Carnival portal is open for player 0: the levels are "
+                 "%d %d %d and the session's world is %d", g64_iclient_level(player[0]), g64_iclient_level(player[1]),
+                 g64_iclient_level(player[2]), g64_ihost_world(host));
+        check(g64_iclient_level(player[0]) == WAYROOM && g64_iclient_level(player[1]) == HUB1 &&
+                  g64_iclient_level(player[2]) == HUB1 && g64_ihost_world(host) == CARNIVAL,
+              what);
+        snprintf(what, sizeof what, "the Atlantis portal is shut for player 1 while the session is in world %d", shut1000);
+        check(shut1000 == CARNIVAL, what);
+    }
+    for (p = 0; p < THREE; p++) {
+        char what[160];
+        snprintf(what, sizeof what, "player %d: not moving, %u frames confirmed, %u desyncs", p,
+                 g64_iclient_confirmed(player[p]), g64_iclient_desyncs(player[p]));
+        check(!g64_iclient_moving(player[p]) && g64_iclient_desyncs(player[p]) == 0 &&
+                  g64_iclient_confirmed(player[p]) > 100,
+              what);
+    }
+    {
+        char what[160];
+        snprintf(what, sizeof what, "%u hash checks, %u mismatches", g64_ihost_hash_matches(host),
+                 g64_ihost_hash_mismatches(host));
+        check(g64_ihost_hash_matches(host) > 100 && g64_ihost_hash_mismatches(host) == 0, what);
+    }
+    printf("%s one world at a time\n", failed != before ? "FAIL" : "ok  ");
+    for (p = 0; p < THREE; p++)
+        g64_iclient_free(player[p]);
+    g64_ihost_free(host);
+    g64_instances_one_world(0);
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     Engine *e;
@@ -336,6 +464,7 @@ int main(int argc, char **argv) {
         g64_iclient_free(player[p]);
     g64_ihost_free(host);
     join_later(e, boot);
+    one_world(e, boot);
     free(boot);
     engine_free(e);
     return failed;
