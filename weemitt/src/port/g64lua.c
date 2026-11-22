@@ -1,8 +1,8 @@
 /* g64coopdx: scripts. One Lua state for the game, on a block of memory that is part of the game's own data: a
    savestate holds the block, and a rollback takes the scripts back with the game. The block holds addresses, so its
    bytes differ between machines. The state hash that machines compare covers the game's memory (port_ram) and not
-   this block; G64LuaCounts gives numbers that are the same on every machine for the same script and inputs, and
-   the online game adds them to the hash it compares (src/rollback/engine_game.c)
+   this block; G64LuaHash gives a number that is the same on every machine for the same script and inputs, and
+   the online game adds it to the hash it compares (src/rollback/engine_game.c)
    (docs/discovery/lua-trial.md in the repository around this copy of weemitt).
 
    This file is C, as Lua is, and is built with Lua's options (g64lua_conf.h). */
@@ -346,7 +346,7 @@ static unsigned long long random_next(void) {
 }
 
 /* game.random(): a number from 0 up to, not including, 1. game.random(n): a whole number from 1 to n.
-   game.random(a, b): a whole number from a to b. A range has at most 2^31 numbers. */
+   game.random(a, b): a whole number from a to b. Both ends are within 31 bits. */
 static int api_random(lua_State *L) {
     lua_Integer lo = 1, hi;
     unsigned long long r = random_next();
@@ -361,7 +361,7 @@ static int api_random(lua_State *L) {
         lo = luaL_checkinteger(L, 1);
         hi = luaL_checkinteger(L, 2);
     }
-    luaL_argcheck(L, lo >= -2147483647 && hi <= 2147483647 && lo <= hi, lua_gettop(L),
+    luaL_argcheck(L, lo >= -2147483647 && hi <= 2147483647 && lo <= hi, 1,
                   "a range goes from a lower to a higher whole number, both within 31 bits");
     lua_pushinteger(L, lo + (lua_Integer)(r % (unsigned long long)(hi - lo + 1)));
     return 1;
@@ -709,7 +709,6 @@ static int frame_call(lua_State *L) {
             now |= 1u << p;
         }
     }
-    /* luaSeen changes before each call: an error in one event must not make the next frame repeat it. */
     for (p = 0; p < 16; p++) {
         if ((luaSeen & ~now) & (1u << p)) {
             luaSeen &= ~(1u << p);
@@ -736,22 +735,25 @@ void G64LuaFrame(void) {
     call_script(L, "on_frame", CALL_BUDGET);
 }
 
-/* For tests: the number in the script's global variable of that name, or -1 when there is none. */
+/* For tests: the number in the script's global variable of that name, or -1 when there is none. It walks the
+   global table and compares the names, which asks Lua for no memory: the script's state and its counts stay as
+   they are. */
 double G64LuaGlobal(const char *name) {
     lua_State *L = luaState;
     double v = -1;
-    if (L == NULL || !lua_checkstack(L, 3)) {
+    if (L == NULL || !lua_checkstack(L, 4)) {
         return v;
     }
     lua_pushglobaltable(L);
-    /* A name the script already made is found again without new memory. */
-    luaBudget = 1000;
-    lua_pushstring(L, name);
-    luaBudget = 0;
-    if (lua_rawget(L, -2) == LUA_TNUMBER) {
-        v = lua_tonumber(L, -1);
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+        if (lua_type(L, -2) == LUA_TSTRING && lua_type(L, -1) == LUA_TNUMBER &&
+            strcmp(lua_tostring(L, -2), name) == 0) {
+            v = lua_tonumber(L, -1);
+        }
+        lua_pop(L, 1);
     }
-    lua_pop(L, 2);
+    lua_pop(L, 1);
     return v;
 }
 

@@ -12,12 +12,13 @@ first version: a script can read the players, move a glove, and draw random numb
 - If the script has a function `on_frame`, the game calls it once a frame, before the game's own step. The game
   runs 20 frames a second.
 - If the script has a function `on_join`, the game calls it with a player's number when that player has come into
-  this level, before that frame's `on_frame`. The players who start the level come in at its first frame.
-  `on_leave` is the same for a player who is gone.
+  this level, before that frame's `on_frame`. The first player of a level comes in at its first frame. The others
+  who start it come in a little later, when the level's opening is over. `on_leave` is the same for a player who
+  is gone. The last player of a level gets no `on_leave`: the level ends with them.
 - Every machine runs the same script on the same game and must reach the same result. So a script has no clock, no
   random numbers of its own, no files, and no way to load other code.
-- The machines compare their games now and then. The comparison includes how much memory the script uses and how
-  many times it asked for memory. A script that ran differently on one machine shows up as a desync.
+- The machines compare their games now and then. The comparison includes how much memory the script uses, how
+  many times it asked for memory, and where its random numbers stand. A script that ran differently on one machine shows up as a desync.
 - The online game sometimes goes back a few frames and runs them again with corrected inputs. The script's
   variables go back with the game. A script does not notice.
 
