@@ -216,6 +216,25 @@ int main(void) {
     check(chatCount[0] == 1 && chatCount[1] == 1 && chatCount[2] == 2 && chatFrom[1] == 0 && chatFrom[2] == 0 &&
               !strcmp(chatLine[1], "welcome"),
           "the host's line reaches every joiner once, and an empty line is not sent");
+    /* A flood: ten different lines from one joiner at once, as raw datagrams. The host passes on the first and
+       drops the rest, so no player can bury the others in lines. */
+    {
+        int before0 = chatCount[0], before2 = chatCount[2], k;
+        clock += 1000;
+        for (i = 0; i < PLAYERS; i++)
+            g64_session_poll(m[i].session, clock, on_game, &m[i]);
+        for (k = 0; k < 10; k++) {
+            uint8_t d[8] = {0x46, 0, (uint8_t)(100 + k), 'f', 'l', 'o', 'o', 'd'};
+            net_send(sock[1], &hostAddr, d, sizeof d);
+        }
+        for (f = 0; f < 6; f++) {
+            clock += 10;
+            for (i = 0; i < PLAYERS; i++)
+                g64_session_poll(m[i].session, clock, on_game, &m[i]);
+        }
+        check(chatCount[0] == before0 + 1 && chatCount[2] == before2 + 1,
+              "ten lines at once from one joiner: the host passes on one");
+    }
     test_refusals(hostAddr, &clock);
     /* A joiner who stops answering: the host's game goes on without it. */
     {

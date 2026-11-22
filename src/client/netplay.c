@@ -137,6 +137,10 @@ static int start_level(void) {
 /* This player's name (netplay_set_name), and the chat's latest lines with the time each came. Names and chat are
  * the players' own words: they stay out of the game's state and out of its inputs. */
 static char myName[G64_NAME_MAX + 1] = "Player";
+/* 1 after netplay_set_name: the start screen then keeps the given name and does not read the saved one. */
+static int nameChosen;
+/* The players whose removal the chat has already said (netplay_kick). */
+static int kickNoted[G64_SESSION_MAX_PLAYERS];
 #define CHAT_LINES 32
 #define CHAT_TEXT (G64_NAME_MAX + G64_CHAT_MAX + 4)
 static char chatLines[CHAT_LINES][CHAT_TEXT];
@@ -150,7 +154,10 @@ void netplay_set_name(const char *name) {
     myName[i] = 0;
     if (!myName[0])
         snprintf(myName, sizeof myName, "Player");
+    nameChosen = 1;
 }
+
+int netplay_name_chosen(void) { return nameChosen; }
 
 const char *netplay_name(void) { return myName; }
 
@@ -182,10 +189,16 @@ static void on_chat(void *user, int from, const char *text) {
 }
 
 void netplay_chat_send(const char *text) {
-    if (!session || !text || !text[0])
+    char line[G64_CHAT_MAX + 1];
+    size_t i;
+    if (!session || failed || !text || !text[0] || g64_session_me(session) < 0)
         return;
-    g64_session_chat(session, text);
-    chat_add(session && g64_session_me(session) >= 0 ? g64_session_me(session) : 0, text);
+    /* The player sees their own line as the others will: with the same characters replaced. */
+    for (i = 0; i < G64_CHAT_MAX && text[i]; i++)
+        line[i] = text[i] >= 32 && text[i] < 127 ? text[i] : '?';
+    line[i] = 0;
+    g64_session_chat(session, line);
+    chat_add(g64_session_me(session), line);
 }
 
 int netplay_chat_count(void) { return chatCount; }
@@ -207,6 +220,7 @@ void netplay_kick(int p) {
     snprintf(note, sizeof note, "%s was removed by the host",
              g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
     g64_session_kick(session, p);
+    kickNoted[p] = 1;
     chat_add(-1, note);
 }
 
@@ -261,6 +275,8 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
     netplay_cancel();
     cerror[0] = 0;
     cjoined = 0;
+    chatCount = 0;
+    memset(kickNoted, 0, sizeof kickNoted);
     romHash = g64_rom_hash(rom, romSize);
     cwanted = wanted;
     cdeadline = deadline;
@@ -850,8 +866,10 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             if (g64_session_gone(session, p) && !dropped[p]) {
                 dropped[p] = 1;
                 g64_ihost_drop(ihost, p);
-                plog_printf("g64coopdx: player %d stopped answering; the game goes on without them", p + 1);
-                {
+                plog_printf(kickNoted[p] ? "g64coopdx: player %d was removed; the game goes on without them"
+                                         : "g64coopdx: player %d stopped answering; the game goes on without them",
+                            p + 1);
+                if (!kickNoted[p]) {
                     char note[64];
                     snprintf(note, sizeof note, "%s left the game",
                              g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");

@@ -97,7 +97,7 @@ A new chat line also shows at the bottom left of the picture for a few seconds. 
 show there too.
 
 A removed player cannot come back into a game that has started. Before the start they can join again with the
-room code: the program has no ban yet.
+room code a few seconds later: the program has no ban yet.
 
 ## Everyone needs the same version
 

@@ -99,6 +99,8 @@ int netplay_tip_more(void);
 /* This player's name, up to 16 printable characters. Call netplay_set_name before netplay_start. */
 void netplay_set_name(const char *name);
 const char *netplay_name(void);
+/* 1 once netplay_set_name was called (the --name option, or the start screen). */
+int netplay_name_chosen(void);
 /* The players of the session (netplay_players gives how many): this machine's number, each one's name ("" when not known: before the start
  * only the host knows the names), and on the host 1 for a player who is gone. netplay_kick removes player p (the
  * host only). */

@@ -117,16 +117,24 @@ static void load_name(void) {
     char path[1024];
     FILE *f;
     nameLoaded = 1;
-    name_path(path, sizeof path);
-    f = fopen(path, "r");
-    if (f) {
-        if (fgets(nameText, sizeof nameText, f))
-            nameText[strcspn(nameText, "\r\n")] = 0;
-        fclose(f);
+    /* A name given on the command line stays. */
+    if (!netplay_name_chosen()) {
+        name_path(path, sizeof path);
+        f = fopen(path, "r");
+        if (f) {
+            if (fgets(nameText, sizeof nameText, f))
+                nameText[strcspn(nameText, "\r\n")] = 0;
+            fclose(f);
+        }
+        if (nameText[0])
+            netplay_set_name(nameText);
     }
-    if (nameText[0])
-        netplay_set_name(nameText);
     snprintf(nameText, sizeof nameText, "%s", netplay_name());
+}
+
+void g64_load_name(void) {
+    if (!nameLoaded)
+        load_name();
 }
 
 static void name_ui(void) {

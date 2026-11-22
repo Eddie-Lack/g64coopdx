@@ -2114,6 +2114,9 @@ int main(int argc, char **argv) {
         }
         if (opt.netName) {
             netplay_set_name(opt.netName);
+        } else {
+            /* The name the player typed on the start screen last time, also when this run skips that screen. */
+            g64_load_name();
         }
         if (opt.netInputDelay >= 0) {
             netplay_set_input_delay(opt.netInputDelay);
@@ -2452,7 +2455,9 @@ int main(int argc, char **argv) {
         gfx_draw_frame((const GfxTask *)tasks, (int)taskCount, w, h);
         menu_draw(window);
 #ifdef PORT_STUDIO
-        if (netplay_active()) {
+        /* With the menu open, the menu's own frame is the only one: a second frame of the same interface would
+           take the menu's windows and its typing away. The menu has the chat's lines in its Chat window. */
+        if (netplay_active() && !menu_is_open()) {
             g64_pause_draw(window);
         }
 #endif
