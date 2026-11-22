@@ -256,6 +256,45 @@ static void test_join_later(uint32_t start) {
     }
     g64_session_free(h);
     net_close(hs);
+    /* The place of a player of the start, taken by a newcomer after that player is gone: the newcomer is not one of
+       the start's players, and must not build the first game. */
+    {
+        net_socket *hs2 = net_open(0, err, sizeof err), *a = net_open(0, err, sizeof err), *b = net_open(0, err, sizeof err);
+        g64_session *h2, *first, *next;
+        to.port = net_port(hs2);
+        h2 = g64_session_host(hs2, 2, ROM, 0, 3);
+        first = g64_session_join(a, &to, ROM, "first");
+        g64_session_set_build(h2, BUILD);
+        g64_session_set_build(first, BUILD);
+        for (i = 0; i < 150; i++) {
+            *clock += 10;
+            g64_session_poll(h2, *clock, NULL, NULL);
+            g64_session_poll(first, *clock, NULL, NULL);
+        }
+        check(g64_session_start_members(h2) == 3 && g64_session_start_members(first) == 3,
+              "a game for two starts with both players");
+        g64_session_free(first);
+        for (i = 0; i < 1100; i++) {
+            *clock += 10;
+            g64_session_poll(h2, *clock, NULL, NULL);
+        }
+        next = g64_session_join(b, &to, ROM, "next");
+        g64_session_set_build(next, BUILD);
+        for (i = 0; i < 150; i++) {
+            *clock += 10;
+            g64_session_poll(h2, *clock, NULL, NULL);
+            g64_session_poll(next, *clock, NULL, NULL);
+        }
+        check(g64_session_poll(next, *clock, NULL, NULL) == G64_SESSION_STARTED && g64_session_me(next) == 1 &&
+                  g64_session_start_members(next) == 1 && g64_session_start_members(h2) == 3 &&
+                  g64_session_present(h2, 1),
+              "a newcomer in the place of a start's player who is gone is not one of the start's players");
+        g64_session_free(next);
+        g64_session_free(h2);
+        net_close(hs2);
+        net_close(a);
+        net_close(b);
+    }
 }
 
 int main(void) {

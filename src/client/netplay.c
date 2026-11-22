@@ -241,13 +241,16 @@ const char *netplay_public_title(void) { return publicTitle; }
 
 /* The host tells the relay about its room: every two seconds while it waits, and once more when the game starts,
    which takes the room off the list. */
+static int announcedOpen;
 static void announce_room(int open) {
     uint32_t t = now_ms();
     if (!publicRoom || !sock || !session || !chost || !crelay[0])
         return;
-    if (open && announced && t - announced < 2000)
+    /* An open room is announced every two seconds. A room that is full or has started is taken off the list once. */
+    if (open ? announced && announcedOpen && t - announced < 2000 : announced && !announcedOpen)
         return;
     announced = t ? t : 1;
+    announcedOpen = open;
     net_relay_announce(sock, build_hash(), cwanted, g64_session_joined(session), g64_session_flags(session), open,
                        publicTitle[0] ? publicTitle : myName);
 }
@@ -816,7 +819,10 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
                 dropped[p] = 0;
             }
         }
-        seenPresent = members;
+        /* Who is in now: a player who comes later is not told of everyone who came before. */
+        seenPresent = 0;
+        for (p = 0; p < players; p++)
+            seenPresent |= (unsigned)g64_session_present(session, p) << p;
         iclient = g64_iclient_new_with(e, boot, players, members, colors, me, clevel, WINDOW, deadline, client_send,
                                        NULL);
     }
@@ -1079,6 +1085,9 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             if (g64_session_gone(session, p) && !dropped[p]) {
                 dropped[p] = 1;
                 g64_ihost_drop(ihost, p);
+                /* A place that only a hello took, with no sealed message after it, had no player. */
+                if (!inNoted[p])
+                    continue;
                 plog_printf(kickNoted[p] ? "g64coopdx: player %d was removed; the game goes on without them"
                                          : "g64coopdx: player %d stopped answering; the game goes on without them",
                             p + 1);

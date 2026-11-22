@@ -13,12 +13,12 @@
  * Messages (the payload of a session game message), all numbers little-endian:
  *   rb      0x01, instance (u8), one rollback message (src/rollback/rollback.h)       both ways
  *   move    0x02, instance (u8), level (u8), world (u8), players (u8), start members (u16), join frame (u32),
- *           progress: levels (u32), all garibs (u32), hub target (u8), hub level (u8), worlds done (u8)
+ *           progress: levels (u32), all garibs (u32), hub target (u8), hub level (u8), worlds done (u8), unused
+ *           (u8); then every player's colors at the instance's start: 16 times glove (u32), ball (u32)
  *                                                                                      host to player
  *   log     0x03, instance (u8), players (u8), first frame (u32), count (u8), unused (u8), count frames: present
  *           (u16, a bit per player), players inputs (buttons u16, x s8, y s8); then the frames' session events
  *           (rb_events_write)                                                          host to player
- *           then every player's colors at the instance's start: 16 times glove (u32), ball (u32)
  *   logack  0x04, instance (u8), join frame (u32), frames received (u32)              player to host
  *   ready   0x05, unused (u8): a player who is in the session and in no instance asks for one. The host puts
  *           them in the instance of the session's first level and answers with a move.   player to host

@@ -46,6 +46,9 @@ typedef struct {
     /* On the host: a sealed message from this peer has opened, so the peer holds the key and the address is its
        own. Only then does the host send it the start, which is long and repeats. */
     int proven;
+    /* On the host: this player took the place after the start. The place may be one of a player of the start who
+       is gone; its new player is not one of the start's. */
+    int late;
     uint32_t lastStart; /* when the host last sent this peer the start or the list of players */
     /* On the host: when a removed player's program was last told, at most every RESEND ms. */
     uint32_t kickTold;
@@ -219,18 +222,22 @@ static void clean_text(char *out, size_t size, const uint8_t *in, size_t n) {
 static void send_start(g64_session *g, int p) {
     uint8_t m[START_HEAD + START_EACH * G64_SESSION_MAX_PLAYERS] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level,
                                                                     (uint8_t)g->deadline, (uint8_t)g->flags};
-    unsigned present = 0;
+    unsigned present = 0, members = g->startMembers;
     int q;
     for (q = 0; q < g->players; q++)
         present |= (unsigned)host_present(g, q) << q;
+    /* A player who came after the start is not one of the start's players, whoever had the place then: their
+       program must not build the first game, but ask for one. */
+    if (g->peers[p].late)
+        members &= ~(1u << p);
     m[5] = (uint8_t)present, m[6] = (uint8_t)(present >> 8);
-    m[7] = (uint8_t)g->startMembers, m[8] = (uint8_t)(g->startMembers >> 8);
+    m[7] = (uint8_t)members, m[8] = (uint8_t)(members >> 8);
     for (q = 0; q < g->players; q++) {
         uint8_t *e = m + START_HEAD + START_EACH * q;
         const char *name = q == 0 ? g->name : g->peers[q].name;
         /* The first message to a player of the start has the start's colors. The list of players after it has
            the colors of now. */
-        int first = !g->peers[p].started && ((g->startMembers >> p) & 1);
+        int first = !g->peers[p].started && ((members >> p) & 1);
         put32(e, first ? g->startColors[q][0] : q == 0 ? g->glove : g->peers[q].glove);
         put32(e + 4, first ? g->startColors[q][1] : q == 0 ? g->ball : g->peers[q].ball);
         memcpy(e + 8, name, strlen(name) < NAME_MAX ? strlen(name) : NAME_MAX);
@@ -373,6 +380,7 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
                 g->peers[i].used = g->peers[i].gone = wasGone;
             }
         g->epoch[free_slot]++;
+        q->late = g->state == G64_SESSION_STARTED;
         q->sealed = 1;
         q->used = 1;
         q->addr = *from;
@@ -815,7 +823,9 @@ int g64_session_joined(const g64_session *g) {
     int n = 1, p;
     if (!g->host)
         return g->me >= 1 ? 2 : 1;
+    /* After the start a player counts once a sealed message from them has opened: a hello alone may be anyone's. */
     for (p = 1; p < g->players; p++)
-        n += g->peers[p].used && !g->peers[p].kicked && !g->peers[p].gone;
+        n += g->peers[p].used && !g->peers[p].kicked && !g->peers[p].gone &&
+             (g->state != G64_SESSION_STARTED || g->peers[p].proven);
     return n;
 }
