@@ -1,7 +1,8 @@
 /* g64coopdx: scripts. One Lua state for the game, on a block of memory that is part of the game's own data: a
    savestate holds the block, and a rollback takes the scripts back with the game. The block holds addresses, so its
    bytes differ between machines. The state hash that machines compare covers the game's memory (port_ram) and not
-   this block; G64LuaCounts gives numbers that are the same on every machine for the same script and inputs
+   this block; G64LuaCounts gives numbers that are the same on every machine for the same script and inputs, and
+   the online game adds them to the hash it compares (src/rollback/engine_game.c)
    (docs/discovery/lua-trial.md in the repository around this copy of weemitt).
 
    This file is C, as Lua is, and is built with Lua's options (g64lua_conf.h). */
