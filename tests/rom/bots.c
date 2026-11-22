@@ -29,6 +29,7 @@ void G64StartPlayers(unsigned present);
 void G64SetPresent(unsigned present);
 void G64SetStartRecord(int world, const G64Save *s);
 int G64PlayerPosition(int p, float *x, float *y, float *z);
+int G64BallOwner(int player);
 void port_game_start_level(int level);
 /* The exits that players took in the last frame (weemitt's g64players.h). */
 typedef struct {
@@ -85,7 +86,7 @@ int main(int argc, char **argv) {
     for (level = 0; level < LEVELS; level++) {
         G64Save s;
         unsigned f;
-        int p, k, gloves = 0, left = 0, wanted = level == CONTROL_ROOM || level >= FIRST_SCENE ? 1 : players;
+        int p, k, gloves = 0, left = 0, others = 0, wanted = level == CONTROL_ROOM || level >= FIRST_SCENE ? 1 : players;
         unsigned leftMask = 0;
         float x, y, z;
         /* Each bot holds its stick and buttons for a while, then picks again. */
@@ -136,8 +137,11 @@ int main(int argc, char **argv) {
             gloves += G64PlayerPosition(p, &x, &y, &z);
             left += (leftMask >> p) & 1;
         }
-        printf("%s level %d: %d of %d players have a glove, %d took an exit, hash %08x\n",
-               gloves + left >= wanted ? "ok  " : "FAIL", level, gloves, players, left, port_hash_ram());
+        /* Under the "any ball" rule: how many players have another player's ball at the end. */
+        for (p = 0; p < players; p++)
+            others += G64BallOwner(p) >= 0 && G64BallOwner(p) != p;
+        printf("%s level %d: %d of %d players have a glove, %d took an exit, %d have another player's ball, hash %08x\n",
+               gloves + left >= wanted ? "ok  " : "FAIL", level, gloves, players, left, others, port_hash_ram());
         fflush(stdout);
         failed |= gloves + left < wanted;
     }

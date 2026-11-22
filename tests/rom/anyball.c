@@ -6,7 +6,7 @@
  *   A. Without the rule nothing changes: each player keeps their own ball.
  *   B. With the rule player 1 has player 0's ball, where it lay, and player 0 has player 1's.
  *   C. Then the ball that player 1 has is lost. Its real owner, player 0, dies: their respawn counts down. Player 1
- *      does not die, and their glove stays where it is. Each player has their own ball again.
+ *      does not die, their glove stays where it is, and they get the ball back whole.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *
@@ -118,7 +118,7 @@ static void case_b_c(void) {
         frame(0);
     dying0 = G64PlayerRestarting(0);
     dying1 = G64PlayerRestarting(1);
-    check(G64BallOwner(0) == 0 && G64BallOwner(1) == 1, "C: the lost ball went back: each player has their own ball");
+    check(G64BallOwner(1) == 0 && G64BallOwner(0) == 1, "C: the ball stays with the player who had it");
     check(before0 == 0 && before1 == 0 && dying0 > 0, "C: the ball's real owner died: their respawn counts down");
     check(dying1 == 0, "C: the player who had the ball did not die");
     for (f = 0; f < 200; f++)
