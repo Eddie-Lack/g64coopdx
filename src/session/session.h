@@ -8,10 +8,16 @@
  *   welcome  0x41, player (u8), players (u8)
  *   refuse   0x42, reason (u8)
  *   start    0x43, players (u8), level (u8), deadline (u8), flags (u8: the host's options, G64_FLAG_), and for each
- *            player: glove color (u32), ball color (u32)
+ *            player: glove color (u32), ball color (u32), name (16 bytes, padded with zeros)
  * A color is G64_COLOR_SET plus 0xRRGGBB when the player chose it, or 0 for the color of their player number.
  *   ping     0x44 (either way; keeps the connection and a router's mapping open)
  *   game     0x45, then one rollback message
+ *   chat     0x46, from (u8: the sender's player number; the host fills it in from the address), line number (u8),
+ *            text (up to G64_CHAT_MAX bytes). A joiner sends its lines to the host, which passes them on. A sender
+ *            repeats a line a few times; a receiver drops a line whose number is that player's last one.
+ *   kick     0x47 (host to a player it removed)
+ * Names and chat lines are text from the network: every byte outside printable ASCII becomes '?'. They never enter
+ * the game's state.
  * Every message from the network is untrusted: lengths, counts and player numbers are checked before use. */
 #ifndef G64_SESSION_H
 #define G64_SESSION_H
@@ -20,7 +26,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 6
+#define G64_PROTOCOL 7
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -28,6 +34,8 @@
 #define G64_FLAG_ANY_BALL 0x02    /* a glove may take any free ball; without it, only its own */
 #define G64_FLAGS_KNOWN 0x03
 #define G64_COLOR_SET 0x1000000u
+#define G64_NAME_MAX 16
+#define G64_CHAT_MAX 80
 
 enum {
     G64_REFUSE_FULL = 1,     /* every player slot is taken */
@@ -76,6 +84,19 @@ void g64_session_set_flags(g64_session *g, int flags);
  * start, every player's, by player number; the host has them as the joiners sent them. */
 void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball);
 void g64_session_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball);
+/* This machine's player's name (up to G64_NAME_MAX characters), before the first poll. A joiner's name given to
+ * g64_session_join stays unless this is called. After the start g64_session_name gives every player's name, by
+ * player number; the host has the names as the joiners sent them, also before the start. */
+void g64_session_set_name(g64_session *g, const char *name);
+const char *g64_session_name(const g64_session *g, int p);
+/* Chat. g64_session_chat sends one line (up to G64_CHAT_MAX characters) to every other player. fn is called once for
+ * each line that arrives, with its sender's player number; the text lives only for the call. */
+typedef void (*g64_chat_fn)(void *user, int from, const char *text);
+void g64_session_on_chat(g64_session *g, g64_chat_fn fn, void *user);
+void g64_session_chat(g64_session *g, const char *text);
+/* On the host: removes player p. Before the start their place is free again. After it they count as gone
+ * (g64_session_gone). Their program is told, and told again if it goes on sending. */
+void g64_session_kick(g64_session *g, int p);
 /* Players who have joined so far, the host included (the host's count; a joiner knows only itself). */
 int g64_session_joined(const g64_session *g);
 /* On the host after the start: 1 when player p stopped answering. The game goes on without them. */

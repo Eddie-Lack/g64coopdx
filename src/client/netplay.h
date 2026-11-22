@@ -96,6 +96,24 @@ int netplay_quit_requested(void);
 int netplay_tip_lines(void);
 const char *netplay_tip_line(int i);
 int netplay_tip_more(void);
+/* This player's name, up to 16 printable characters. Call netplay_set_name before netplay_start. */
+void netplay_set_name(const char *name);
+const char *netplay_name(void);
+/* 1 once netplay_set_name was called (the --name option, or the start screen). */
+int netplay_name_chosen(void);
+/* The players of the session (netplay_players gives how many): this machine's number, each one's name ("" when not known: before the start
+ * only the host knows the names), and on the host 1 for a player who is gone. netplay_kick removes player p (the
+ * host only). */
+int netplay_me(void);
+const char *netplay_player_name(int p);
+int netplay_player_gone(int p);
+void netplay_kick(int p);
+/* Chat. netplay_chat_send sends a line (up to 80 characters) to every other player. The latest lines, oldest first,
+ * each with its sender's name, and the milliseconds since it came. Notices (a player left) are lines too. */
+void netplay_chat_send(const char *text);
+int netplay_chat_count(void);
+const char *netplay_chat_line(int i);
+unsigned netplay_chat_age(int i);
 /* This program's build id: the commit it was built from, or "dev". Only players with the same build can play
  * together. */
 const char *netplay_build(void);

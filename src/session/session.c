@@ -5,9 +5,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME };
+enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME, MSG_CHAT, MSG_KICK };
 /* The hello's bytes before the name. */
 #define HELLO_SIZE 21
+#define CHAT_SENDS 3
+#define CHAT_EVERY 150
+#define CHAT_GAP 400
+#define KICK_HOLD 3000
 
 /* A joiner says hello every RESEND ms until it is welcomed; the host repeats the start every RESEND ms until each
  * player has answered a game message. A peer silent for TIMEOUT ms is gone. */
@@ -24,6 +28,15 @@ typedef struct {
     int gone;       /* stopped answering after the start */
     char name[NAME_MAX + 1];
     uint32_t glove, ball; /* the player's colors (session.h, G64_COLOR_SET) */
+    /* The host removed this player (g64_session_kick). Their program gets the kick again whenever it sends. Before
+       the start the place is held for KICK_HOLD ms from kickTime, then it is free again. */
+    int kicked;
+    uint32_t kickTime;
+    /* The host's limit on this player's chat: the number of their last line, how often it was passed on, and when
+       it first came. A new line within CHAT_GAP ms of the last one is dropped, and so is a fourth copy of a line. */
+    uint8_t chatId;
+    int chatHave, chatCopies;
+    uint32_t chatTime;
 } peer;
 
 struct g64_session {
@@ -42,6 +55,17 @@ struct g64_session {
     uint32_t glove, ball; /* this machine's player's colors */
     /* After the start: every player's colors, by player number. */
     uint32_t colors[G64_SESSION_MAX_PLAYERS][2];
+    /* After the start: every player's name, by player number. */
+    char names[G64_SESSION_MAX_PLAYERS][NAME_MAX + 1];
+    /* Chat. This machine's latest line goes out CHAT_SENDS times, CHAT_EVERY ms apart: a datagram can be lost. Each
+       line has a number, and a line whose number is the player's last one is a repeat. */
+    char chatOut[G64_CHAT_MAX + 1];
+    uint8_t chatId;
+    int chatSends;
+    uint32_t chatLast;
+    uint8_t chatSeen[G64_SESSION_MAX_PLAYERS], chatHave[G64_SESSION_MAX_PLAYERS];
+    g64_chat_fn chatFn;
+    void *chatUser;
 };
 
 /* A color from the network: the chosen bit and 24 bits of color, nothing else. */
@@ -109,15 +133,52 @@ void g64_session_free(g64_session *g) { free(g); }
 
 static void send_bytes(g64_session *g, const net_addr *to, const uint8_t *d, size_t n) { net_send(g->sock, to, d, n); }
 
+/* The start's bytes for each player: two colors and a name. */
+#define START_EACH (8 + NAME_MAX)
+
+/* A name or a chat line from the network or from this machine: printable ASCII, and '?' for anything else. */
+static void clean_text(char *out, size_t size, const uint8_t *in, size_t n) {
+    size_t i;
+    for (i = 0; i + 1 < size && i < n && in[i]; i++)
+        out[i] = in[i] >= 32 && in[i] < 127 ? (char)in[i] : '?';
+    out[i] = 0;
+}
+
 static void send_start(g64_session *g, int p) {
-    uint8_t m[5 + 8 * G64_SESSION_MAX_PLAYERS] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level,
-                                                  (uint8_t)g->deadline, (uint8_t)g->flags};
+    uint8_t m[5 + START_EACH * G64_SESSION_MAX_PLAYERS] = {MSG_START, (uint8_t)g->players, (uint8_t)g->level,
+                                                           (uint8_t)g->deadline, (uint8_t)g->flags};
     int q;
     for (q = 0; q < g->players; q++) {
-        put32(m + 5 + 8 * q, q == 0 ? g->glove : g->peers[q].glove);
-        put32(m + 9 + 8 * q, q == 0 ? g->ball : g->peers[q].ball);
+        uint8_t *e = m + 5 + START_EACH * q;
+        const char *name = q == 0 ? g->name : g->peers[q].name;
+        put32(e, q == 0 ? g->glove : g->peers[q].glove);
+        put32(e + 4, q == 0 ? g->ball : g->peers[q].ball);
+        memcpy(e + 8, name, strlen(name) < NAME_MAX ? strlen(name) : NAME_MAX);
     }
-    send_bytes(g, &g->peers[p].addr, m, 5 + 8 * (size_t)g->players);
+    send_bytes(g, &g->peers[p].addr, m, 5 + START_EACH * (size_t)g->players);
+}
+
+/* A chat line reaches this machine: once per line. */
+static void chat_arrives(g64_session *g, int from, uint8_t id, const uint8_t *text, size_t n) {
+    char line[G64_CHAT_MAX + 1];
+    if (from < 0 || from >= G64_SESSION_MAX_PLAYERS || (g->chatHave[from] && g->chatSeen[from] == id))
+        return;
+    g->chatHave[from] = 1;
+    g->chatSeen[from] = id;
+    clean_text(line, sizeof line, text, n);
+    if (line[0] && g->chatFn)
+        g->chatFn(g->chatUser, from, line);
+}
+
+static void send_chat(g64_session *g, const net_addr *to, int from, uint8_t id, const uint8_t *text, size_t n) {
+    uint8_t m[3 + G64_CHAT_MAX];
+    if (n > G64_CHAT_MAX)
+        n = G64_CHAT_MAX;
+    m[0] = MSG_CHAT;
+    m[1] = (uint8_t)from;
+    m[2] = id;
+    memcpy(m + 3, text, n);
+    send_bytes(g, to, m, 3 + n);
 }
 
 /* The host's handling of one datagram. */
@@ -125,10 +186,44 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
                           g64_game_fn on_game, void *user) {
     int p, free_slot = -1;
     for (p = 1; p < g->players; p++)
+        if (g->peers[p].used && g->peers[p].kicked && net_addr_equal(&g->peers[p].addr, from) &&
+            (d[0] != MSG_HELLO || g->state == G64_SESSION_WAITING)) {
+            /* A removed player's program may have missed the kick. A hello after the start is a newcomer at the
+               same address (the relay gives a free place to the next joiner): they get the usual refusal below. */
+            uint8_t m = MSG_KICK;
+            send_bytes(g, from, &m, 1);
+            return;
+        }
+    for (p = 1; p < g->players; p++)
         if (g->peers[p].used && !g->peers[p].gone && net_addr_equal(&g->peers[p].addr, from))
             break;
     if (p < g->players) {
         g->peers[p].heard = now;
+        if (d[0] == MSG_CHAT && n >= 3 && n <= 3 + G64_CHAT_MAX) {
+            /* A player's line goes to every other player, with its sender's number, which the host knows from the
+               address. The sender's repeats are passed on too, and each receiver drops the ones it has. A player
+               cannot flood the others: a new line too soon after the last one is dropped, and so are more copies
+               of a line than a program sends. */
+            peer *c = &g->peers[p];
+            int q;
+            if (c->chatHave && c->chatId == d[2]) {
+                if (c->chatCopies >= CHAT_SENDS)
+                    return;
+                c->chatCopies++;
+            } else {
+                if (c->chatHave && now - c->chatTime < CHAT_GAP)
+                    return;
+                c->chatHave = 1;
+                c->chatId = d[2];
+                c->chatCopies = 1;
+                c->chatTime = now;
+            }
+            for (q = 1; q < g->players; q++)
+                if (q != p && g->peers[q].used && !g->peers[q].gone)
+                    send_chat(g, &g->peers[q].addr, p, d[2], d + 3, (size_t)(n - 3));
+            chat_arrives(g, p, d[2], d + 3, (size_t)(n - 3));
+            return;
+        }
         if (d[0] == MSG_GAME && n > 1) {
             g->peers[p].started = 1;
             if (g->state == G64_SESSION_STARTED && on_game)
@@ -208,16 +303,17 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         }
         break;
     case MSG_START:
-        if (n >= 5 && g->me >= 1 && d[1] == g->players && n == 5 + 8 * g->players && d[3] >= 1 &&
+        if (n >= 5 && g->me >= 1 && d[1] == g->players && n == 5 + START_EACH * g->players && d[3] >= 1 &&
             (d[4] & ~G64_FLAGS_KNOWN) == 0 && g->state == G64_SESSION_WAITING) {
             int q, ok = 1;
             for (q = 0; q < g->players; q++)
-                ok &= valid_color(get32(d + 5 + 8 * q)) && valid_color(get32(d + 9 + 8 * q));
+                ok &= valid_color(get32(d + 5 + START_EACH * q)) && valid_color(get32(d + 9 + START_EACH * q));
             if (!ok)
                 break;
             for (q = 0; q < g->players; q++) {
-                g->colors[q][0] = get32(d + 5 + 8 * q);
-                g->colors[q][1] = get32(d + 9 + 8 * q);
+                g->colors[q][0] = get32(d + 5 + START_EACH * q);
+                g->colors[q][1] = get32(d + 9 + START_EACH * q);
+                clean_text(g->names[q], sizeof g->names[q], d + 13 + START_EACH * q, NAME_MAX);
             }
             g->level = d[2];
             g->deadline = d[3];
@@ -228,6 +324,15 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
     case MSG_GAME:
         if (n > 1 && g->state == G64_SESSION_STARTED && on_game)
             on_game(user, 0, d + 1, (size_t)(n - 1));
+        break;
+    case MSG_CHAT:
+        /* The host passes on a line with its sender's number. */
+        if (n >= 3 && n <= 3 + G64_CHAT_MAX && g->me >= 1 && d[1] < g->players && d[1] != g->me)
+            chat_arrives(g, d[1], d[2], d + 3, (size_t)(n - 3));
+        break;
+    case MSG_KICK:
+        if (n == 1)
+            fail(g, "the host removed you from the game");
         break;
     default:
         break;
@@ -258,6 +363,14 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
             peer *q = &g->peers[p];
             if (!q->used)
                 continue;
+            if (q->kicked && g->state == G64_SESSION_WAITING) {
+                /* A removed player's place is held for a moment, in which their program is told, then freed. */
+                if (q->kickTime == 0)
+                    q->kickTime = now ? now : 1;
+                else if (now - q->kickTime > KICK_HOLD)
+                    memset(q, 0, sizeof *q);
+                continue;
+            }
             if (q->gone)
                 continue;
             if (now - q->heard > TIMEOUT) {
@@ -286,6 +399,13 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
                 if (g->peers[p].used && !g->peers[p].gone)
                     send_bytes(g, &g->peers[p].addr, &m, 1);
         }
+        if (g->chatSends > 0 && (g->chatLast == 0 || now - g->chatLast >= CHAT_EVERY)) {
+            g->chatLast = now ? now : 1;
+            g->chatSends--;
+            for (p = 1; p < g->players; p++)
+                if (g->peers[p].used && !g->peers[p].gone)
+                    send_chat(g, &g->peers[p].addr, 0, g->chatId, (const uint8_t *)g->chatOut, strlen(g->chatOut));
+        }
     } else {
         if (g->peers[0].heard == 0 && g->lastSend == 0)
             g->peers[0].heard = now ? now : 1;
@@ -307,6 +427,11 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
             uint8_t m = MSG_PING;
             g->lastPing = now;
             send_bytes(g, &g->peers[0].addr, &m, 1);
+        }
+        if (g->chatSends > 0 && g->me >= 1 && (g->chatLast == 0 || now - g->chatLast >= CHAT_EVERY)) {
+            g->chatLast = now ? now : 1;
+            g->chatSends--;
+            send_chat(g, &g->peers[0].addr, g->me, g->chatId, (const uint8_t *)g->chatOut, strlen(g->chatOut));
         }
         if (now - g->peers[0].heard > TIMEOUT)
             fail(g, g->state == G64_SESSION_STARTED ? "the host stopped answering" : "no answer from the host");
@@ -350,6 +475,46 @@ void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball) {
     }
 }
 
+void g64_session_set_name(g64_session *g, const char *name) {
+    clean_text(g->name, sizeof g->name, (const uint8_t *)(name ? name : ""), NAME_MAX);
+}
+
+const char *g64_session_name(const g64_session *g, int p) {
+    if (p < 0 || p >= g->players)
+        return "";
+    if (g->me == 0)
+        return p == 0 ? g->name : g->peers[p].name;
+    return g->names[p];
+}
+
+void g64_session_on_chat(g64_session *g, g64_chat_fn fn, void *user) {
+    g->chatFn = fn;
+    g->chatUser = user;
+}
+
+void g64_session_chat(g64_session *g, const char *text) {
+    char line[G64_CHAT_MAX + 1];
+    clean_text(line, sizeof line, (const uint8_t *)(text ? text : ""), G64_CHAT_MAX);
+    if (!line[0] || g->state == G64_SESSION_FAILED)
+        return;
+    memcpy(g->chatOut, line, sizeof line);
+    g->chatId++;
+    g->chatSends = CHAT_SENDS;
+    g->chatLast = 0;
+}
+
+void g64_session_kick(g64_session *g, int p) {
+    uint8_t m = MSG_KICK;
+    if (g->me != 0 || p < 1 || p >= g->players || !g->peers[p].used || g->peers[p].gone || g->peers[p].kicked)
+        return;
+    send_bytes(g, &g->peers[p].addr, &m, 1);
+    g->peers[p].kicked = 1;
+    g->peers[p].kickTime = 0;
+    /* After the start the player counts as gone for good. Before it the poll frees the place (KICK_HOLD). */
+    if (g->state != G64_SESSION_WAITING)
+        g->peers[p].gone = 1;
+}
+
 void g64_session_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball) {
     *glove = *ball = 0;
     if (p < 0 || p >= g->players)
@@ -374,6 +539,6 @@ int g64_session_joined(const g64_session *g) {
     if (!g->host)
         return g->me >= 1 ? 2 : 1;
     for (p = 1; p < g->players; p++)
-        n += g->peers[p].used;
+        n += g->peers[p].used && !g->peers[p].kicked;
     return n;
 }

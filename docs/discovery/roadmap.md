@@ -244,6 +244,12 @@ wide because each boss and each bonus level has its own code.
   host's settings travel in the start message's flags. Left: packs (phase 5).
 - Host and join screens, the lobby browser, the player list, chat, kick and ban with a confirm step, moderators,
   names and colors.
+  Done in part: names (the start screen, `--name`), the player list, chat and the host's kick with a confirm step
+  (src/session/session.h: the start message carries the names, and the chat and kick messages; src/client/netplay.c;
+  the Players and Chat windows in weemitt/src/port/menu.cpp). Names and chat lines are text from the network: bytes
+  outside printable ASCII become question marks, and they never enter the game's state. Left: a ban (through the
+  relay the host does not see a joiner's address, so only the relay can enforce one), moderators and the lobby
+  browser.
 - Fuzz targets for every parser.
 
 Playable: up to 16 people from home networks (the design limit; the promise stays 8 until phase 3's 16-glove

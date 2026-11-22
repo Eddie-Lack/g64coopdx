@@ -82,6 +82,23 @@ yellow. The
 window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
 The program also prints a status line every 100 frames.
 
+## Names, the player list and chat
+
+Type your name on the start screen (or add `--name NAME`). It can have 16 letters, and the program keeps it for
+next time.
+
+In a game, press Esc and open **Online game**:
+
+- **Players** lists everyone by player number and name. The host has a **Remove** button beside each other player.
+  It asks once more before it removes them. A removed player's program says so, and the game goes on for the rest.
+- **Chat** has the lines everyone wrote and a line to type in. Press Enter or **Send**.
+
+A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
+show there too.
+
+A removed player cannot come back into a game that has started. Before the start they can join again with the
+room code a few seconds later: the program has no ban yet.
+
 ## Everyone needs the same version
 
 Every version of the program plays a slightly different game, and two machines must run the same one. The start

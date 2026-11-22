@@ -34,6 +34,8 @@ char cfgPath[512];
 
 struct Windows {
     bool graphics, audio, controls, enhancements, cheats, developer, log, studioLevel;
+    /* g64coopdx: the online game's player list and chat. */
+    bool players, chat;
 } win;
 
 /* Rebinding: which input and key slot wait for a key press (-1: none). */
@@ -1220,6 +1222,73 @@ void log_window() {
     ImGui::End();
 }
 
+#ifdef PORT_STUDIO
+/* g64coopdx: the online game's players. The host can remove one, after a second click. */
+static int kickAsked = -1;
+
+static void players_window() {
+    if (!ImGui::Begin("Players", &win.players, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::End();
+        return;
+    }
+    int n = netplay_players(), me = netplay_me();
+    for (int p = 0; p < n; p++) {
+        const char *name = netplay_player_name(p);
+        ImGui::PushID(p);
+        ImGui::Text("%2d  %s%s%s", p + 1, name[0] ? name : "(no name)", p == 0 ? "  (host)" : "", p == me ? "  (you)" : "");
+        if (netplay_player_gone(p)) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("gone");
+        } else if (me == 0 && p != 0) {
+            ImGui::SameLine();
+            if (kickAsked == p) {
+                if (ImGui::SmallButton("Really remove?")) {
+                    netplay_kick(p);
+                    kickAsked = -1;
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("No")) {
+                    kickAsked = -1;
+                }
+            } else if (ImGui::SmallButton("Remove")) {
+                kickAsked = p;
+            }
+        }
+        ImGui::PopID();
+    }
+    ImGui::End();
+}
+
+/* g64coopdx: the chat. The lines come from other players: they are shown as text, never as a format. */
+static char chatInput[81];
+
+static void chat_window() {
+    ImGui::SetNextWindowSize(ImVec2(440, 260), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Chat", &win.chat)) {
+        ImGui::End();
+        return;
+    }
+    ImGui::BeginChild("lines", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true);
+    for (int i = 0; i < netplay_chat_count(); i++) {
+        ImGui::TextUnformatted(netplay_chat_line(i));
+    }
+    if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 20.0f) {
+        ImGui::SetScrollHereY(1.0f);
+    }
+    ImGui::EndChild();
+    ImGui::SetNextItemWidth(-60.0f);
+    bool send = ImGui::InputText("##say", chatInput, sizeof(chatInput), ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::SameLine();
+    send |= ImGui::Button("Send");
+    if (send && chatInput[0]) {
+        netplay_chat_send(chatInput);
+        chatInput[0] = 0;
+        ImGui::SetKeyboardFocusHere(-1);
+    }
+    ImGui::End();
+}
+#endif
+
 /* g64coopdx: 1 in an online game. The menu then offers only what is the player's own: the picture, the sound and
    the controls, the log, and the choices of the online pause menu. The studio, the enhancements, the cheats and
    the developer tools would change one machine's game only. */
@@ -1245,6 +1314,9 @@ void menu_bar() {
     if (menu_online()) {
         if (ImGui::BeginMenu("Online game")) {
             /* The same choices as the controller's pause menu (netplay.c), for the mouse. Item 0 is Resume. */
+            ImGui::MenuItem("Players", NULL, &win.players);
+            ImGui::MenuItem("Chat", NULL, &win.chat);
+            ImGui::Separator();
             for (int i = 1; i < netplay_pause_items(); i++) {
                 if (ImGui::MenuItem(netplay_pause_item(i))) {
                     netplay_pause_pick(i);
@@ -1507,6 +1579,7 @@ void menu_draw(SDL_Window *window) {
                 win.developer = true;
             } else {
                 win.graphics = win.audio = win.controls = win.enhancements = win.cheats = win.developer = win.log = true;
+                win.players = win.chat = true;
                 showFps = true;
             }
         }
@@ -1552,6 +1625,12 @@ void menu_draw(SDL_Window *window) {
         if (win.log) log_window();
 #ifdef PORT_STUDIO
         if (win.studioLevel && !menu_online()) studio_level_window();
+        if (menu_online()) {
+            ImGui::SetNextWindowPos(ImVec2(250, 300), ImGuiCond_FirstUseEver);
+            if (win.players) players_window();
+            ImGui::SetNextWindowPos(ImVec2(20, 420), ImGuiCond_FirstUseEver);
+            if (win.chat) chat_window();
+        }
 #endif
     }
 #ifdef PORT_STUDIO

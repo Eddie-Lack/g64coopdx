@@ -37,6 +37,7 @@ typedef struct Options {
     int netInputDelay;       /* g64coopdx: --input-delay FRAMES (-1: the default) */
     int netNormalBall;       /* g64coopdx: --normal-ball (the host plays with the game's normal ball controls) */
     int netAnyBall;          /* g64coopdx: --any-ball (the host lets a glove take any free ball) */
+    const char *netName;     /* g64coopdx: --name NAME (this player's name in the online game) */
     int netOtherArgs;        /* g64coopdx: an option other than the online settings and --rom was given */
     int netOnlineHost;       /* g64coopdx: --online-host (through the relay) */
     const char *netRoom;     /* g64coopdx: --online-join CODE */
@@ -1613,7 +1614,7 @@ static void parse_args(int argc, char **argv) {
         /* g64coopdx: the start screen opens unless an option asks for something else (online settings and the ROM
            do not). */
         if (strcmp(a, "--rom") && strcmp(a, "--input-delay") && strcmp(a, "--deadline") && strcmp(a, "--relay") &&
-            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
+            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--name") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
             opt.netOtherArgs = 1;
         }
         if (!strcmp(a, "--rom") && next) {
@@ -1646,6 +1647,8 @@ static void parse_args(int argc, char **argv) {
             opt.netNormalBall = 1;
         } else if (!strcmp(a, "--any-ball")) {
             opt.netAnyBall = 1;
+        } else if (!strcmp(a, "--name") && next) {
+            opt.netName = argv[++i];
         } else if (!strcmp(a, "--players") && next) {
             /* g64coopdx: more gloves in one game (src/game/g64players.c). The others have no controller here. */
             extern int g64Players;
@@ -2109,6 +2112,12 @@ int main(int argc, char **argv) {
         if (opt.netAnyBall) {
             netplay_set_any_ball(1);
         }
+        if (opt.netName) {
+            netplay_set_name(opt.netName);
+        } else {
+            /* The name the player typed on the start screen last time, also when this run skips that screen. */
+            g64_load_name();
+        }
         if (opt.netInputDelay >= 0) {
             netplay_set_input_delay(opt.netInputDelay);
         }
@@ -2446,7 +2455,9 @@ int main(int argc, char **argv) {
         gfx_draw_frame((const GfxTask *)tasks, (int)taskCount, w, h);
         menu_draw(window);
 #ifdef PORT_STUDIO
-        if (netplay_active()) {
+        /* With the menu open, the menu's own frame is the only one: a second frame of the same interface would
+           take the menu's windows and its typing away. The menu has the chat's lines in its Chat window. */
+        if (netplay_active() && !menu_is_open()) {
             g64_pause_draw(window);
         }
 #endif
