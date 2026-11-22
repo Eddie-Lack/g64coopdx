@@ -72,7 +72,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed
     make test-windows  # the loopback tests as a Windows program under Wine; its hash must equal Linux's
-    make fuzz          # the message parsers under libFuzzer (needs clang)
+    make fuzz          # the message parsers and the scripts' sandbox under libFuzzer (needs clang)
     make image         # the lobby server's container image (needs Docker)
 
 CI (`.github/workflows/ci.yml`) runs the tests, also under Wine, and fuzzes the parsers. It builds the server and the

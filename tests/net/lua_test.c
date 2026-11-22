@@ -98,6 +98,7 @@ int main(void) {
         "game.log(tonumber('0.1e-3') .. ' ' .. tonumber('0x10') .. ' ' .. math.sqrt(2) .. ' ' .. 7 // 2 .. ' ' .. 7.5 % 2)\n"
         "game.log((0x1.000000000000080000000001p0 == 1 and 'hex equal ' or 'hex above ') ..\n"
         "         (tonumber('0x1.000000000000080000000001p0') == 1 and 'equal ' or 'above ') .. 0x.8p1 .. ' ' .. 0xA)\n"
+        "game.log(0x1p99999999999 .. ' ' .. 0x1p-99999999999 .. ' ' .. 0x1p8000000000 .. ' ' .. 1e99999999999)\n"
         "game.log(math.pi .. ' ' .. math.huge .. ' ' .. math.maxinteger .. ' ' .. 3 ^ 40 .. ' ' .. 2 ^ -3)\n",
         1, 1);
 

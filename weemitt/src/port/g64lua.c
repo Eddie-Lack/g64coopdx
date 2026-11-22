@@ -33,8 +33,9 @@ static lua_State *luaState;
 /* The work that is left to the call into the script that runs now: one for each step of Lua and for each byte the
    script asks for. At 0 the script is stopped (spent, below).
    CALL_BUDGET is the work of one call. The script's first run also compiles its text and builds Lua's libraries,
-   so it gets LOAD_BUDGET. The count hook runs every HOOK_EVERY steps of Lua. */
+   so it gets LOAD_BUDGET. The hook runs every HOOK_EVERY steps of Lua, and at every call (CALL_COST). */
 #define HOOK_EVERY 1000
+#define CALL_COST 50
 #define CALL_BUDGET 2000000
 #define LOAD_BUDGET 50000000
 static long long luaBudget;
@@ -301,14 +302,16 @@ static void count_hook(lua_State *L, lua_Debug *ar);
 static void spent(void) {
     luaBudget = 0;
     if (luaState != NULL) {
-        lua_sethook(luaState, count_hook, LUA_MASKCOUNT, 1);
+        lua_sethook(luaState, count_hook, LUA_MASKCOUNT | LUA_MASKCALL, 1);
     }
 }
 
 static void count_hook(lua_State *L, lua_Debug *ar) {
-    (void)ar;
-    if (luaBudget > HOOK_EVERY) {
-        luaBudget -= HOOK_EVERY;
+    /* A call costs CALL_COST units, whether the function is Lua or C. Some calls do much more than one step of Lua:
+       a pcall whose function fails builds an error text each time. */
+    int cost = ar->event == LUA_HOOKCOUNT ? HOOK_EVERY : CALL_COST;
+    if (luaBudget > cost) {
+        luaBudget -= cost;
         return;
     }
     spent();
@@ -532,7 +535,7 @@ int G64LuaLoad(const char *source, unsigned int size) {
         G64LuaReset();
         return -1;
     }
-    lua_sethook(L, count_hook, LUA_MASKCOUNT, HOOK_EVERY);
+    lua_sethook(L, count_hook, LUA_MASKCOUNT | LUA_MASKCALL, HOOK_EVERY);
     loadSource = source;
     loadSize = size;
     lua_pushcfunction(L, load_script);

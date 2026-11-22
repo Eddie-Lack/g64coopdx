@@ -52,8 +52,9 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
 
 ## Limits
 
-- **Work:** one call into the script may do about two million units of work. A step of Lua is one unit. Each byte
-  of memory the script asks for is one unit, and so is each byte a `string.find` searches. The script's first run,
+- **Work:** one call into the script may do about two million units of work. A step of Lua is one unit, and a
+  call of a function is 50. Each byte of memory the script asks for is one unit, and so is each byte a
+  `string.find` searches. The script's first run,
   which also reads its text, may do 50 million.
 - **Memory:** a game's script has 2 MB. A request that does not fit is an error ("not enough memory").
 - **A stopped script** stays stopped for that game: the game goes on without it, the same on every machine. The log

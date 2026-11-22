@@ -404,11 +404,12 @@ build/tests/pack_test.exe: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/pack_test.c $(PACK_SRC)
 
 # The scripts' sandbox without the game: Lua, the game's script file, and a test that stands in for the game. Lua's
-# files are built with its options header, as in the game, and without -Werror.
+# files are built with its options header, as in the game, and without -Werror. -fwrapv is one of the game's flags:
+# Lua's reader of hexadecimal numbers lets a very long exponent overflow, and every build must wrap it the same way.
 LUA_DIR := weemitt/third_party/lua
 LUA_TEST_SRC := weemitt/src/port/g64lua.c $(wildcard $(LUA_DIR)/*.c)
 LUA_TEST_DEPS := weemitt/src/port/g64lua_conf.h $(wildcard $(LUA_DIR)/*.h)
-LUA_TEST_FLAGS := -std=gnu99 -O2 -Wall -ffp-contract=off -include weemitt/src/port/g64lua_conf.h
+LUA_TEST_FLAGS := -std=gnu99 -O2 -Wall -fwrapv -ffp-contract=off -include weemitt/src/port/g64lua_conf.h
 
 build/tests/lua_test: tests/net/lua_test.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
 	@mkdir -p build/tests
@@ -421,6 +422,10 @@ build/tests/lua_test.exe: tests/net/lua_test.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/pack_fuzz.c $(PACK_SRC)
+
+build/tests/lua_fuzz: tests/fuzz/lua_fuzz.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
+	@mkdir -p build/tests
+	clang $(LUA_TEST_FLAGS) -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/lua_fuzz.c $(LUA_TEST_SRC)
 
 build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(SEAL_DEPS) $(NET_SRC) $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
@@ -521,9 +526,11 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
 fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz build/tests/instances_fuzz \
-      build/tests/pack_fuzz
+      build/tests/pack_fuzz build/tests/lua_fuzz
 	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay build/fuzz-corpus-instances \
-	    build/fuzz-corpus-pack
+	    build/fuzz-corpus-pack build/fuzz-corpus-lua
+	build/tests/lua_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 -timeout=20 -dict=tests/fuzz/lua.dict \
+	    build/fuzz-corpus-lua
 	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1100 build/fuzz-corpus-pack
 	build/tests/instances_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1200 build/fuzz-corpus-instances
 	build/tests/relay_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1220 build/fuzz-corpus-relay
