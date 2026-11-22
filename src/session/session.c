@@ -6,6 +6,8 @@
 #include <string.h>
 
 enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME };
+/* The hello's bytes before the name. */
+#define HELLO_SIZE 21
 
 /* A joiner says hello every RESEND ms until it is welcomed; the host repeats the start every RESEND ms until each
  * player has answered a game message. A peer silent for TIMEOUT ms is gone. */
@@ -30,6 +32,8 @@ struct g64_session {
     g64_session_state state;
     char error[96];
     uint32_t rom;
+    /* This program's build (g64_session_set_build). */
+    uint32_t build;
     int players, me, level, deadline, flags;
     uint32_t lastSend, lastPing;
     /* The host: players 1 .. players - 1. A joiner: peer 0 is the host. */
@@ -142,8 +146,10 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         return;
     {
         uint8_t refuse[2] = {MSG_REFUSE, 0};
-        if (n < 17 || memcmp(d + 1, "G64", 3) != 0 || d[4] != G64_PROTOCOL || !valid_color(get32(d + 9)) ||
-            !valid_color(get32(d + 13))) {
+        /* A hello of another protocol has another form, and a program of another build runs another game: both
+           get the same answer. */
+        if (n < HELLO_SIZE || memcmp(d + 1, "G64", 3) != 0 || d[4] != G64_PROTOCOL || get32(d + 9) != g->build
+            || !valid_color(get32(d + 13)) || !valid_color(get32(d + 17))) {
             refuse[1] = G64_REFUSE_PROTOCOL;
         } else if (get32(d + 5) != g->rom) {
             refuse[1] = G64_REFUSE_ROM;
@@ -165,17 +171,17 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
     }
     {
         peer *q = &g->peers[free_slot];
-        int len = n - 17 > NAME_MAX ? NAME_MAX : n - 17, i;
+        int len = n - HELLO_SIZE > NAME_MAX ? NAME_MAX : n - HELLO_SIZE, i;
         uint8_t m[3] = {MSG_WELCOME, (uint8_t)free_slot, (uint8_t)g->players};
         memset(q, 0, sizeof *q);
         q->used = 1;
         q->addr = *from;
         q->heard = now;
-        q->glove = get32(d + 9);
-        q->ball = get32(d + 13);
+        q->glove = get32(d + 13);
+        q->ball = get32(d + 17);
         /* The name: printable ASCII only. */
         for (i = 0; i < len; i++)
-            q->name[i] = d[17 + i] >= 32 && d[17 + i] < 127 ? (char)d[17 + i] : '?';
+            q->name[i] = d[HELLO_SIZE + i] >= 32 && d[HELLO_SIZE + i] < 127 ? (char)d[HELLO_SIZE + i] : '?';
         send_bytes(g, from, m, sizeof m);
     }
 }
@@ -284,17 +290,18 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
         if (g->peers[0].heard == 0 && g->lastSend == 0)
             g->peers[0].heard = now ? now : 1;
         if (g->state == G64_SESSION_WAITING && (g->lastSend == 0 || now - g->lastSend >= RESEND)) {
-            uint8_t m[17 + NAME_MAX];
+            uint8_t m[HELLO_SIZE + NAME_MAX];
             size_t len = strlen(g->name);
             g->lastSend = now ? now : 1;
             m[0] = MSG_HELLO;
             memcpy(m + 1, "G64", 3);
             m[4] = G64_PROTOCOL;
             put32(m + 5, g->rom);
-            put32(m + 9, g->glove);
-            put32(m + 13, g->ball);
-            memcpy(m + 17, g->name, len);
-            send_bytes(g, &g->peers[0].addr, m, 17 + len);
+            put32(m + 9, g->build);
+            put32(m + 13, g->glove);
+            put32(m + 17, g->ball);
+            memcpy(m + HELLO_SIZE, g->name, len);
+            send_bytes(g, &g->peers[0].addr, m, HELLO_SIZE + len);
         }
         if (now - g->lastPing >= PING_EVERY) {
             uint8_t m = MSG_PING;
@@ -332,6 +339,8 @@ int g64_session_me(const g64_session *g) { return g->host ? 0 : g->me; }
 int g64_session_players(const g64_session *g) { return g->players; }
 int g64_session_level(const g64_session *g) { return g->level; }
 int g64_session_deadline(const g64_session *g) { return g->deadline; }
+void g64_session_set_build(g64_session *g, uint32_t build) { g->build = build; }
+
 int g64_session_flags(const g64_session *g) { return g->flags; }
 
 void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball) {

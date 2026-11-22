@@ -96,6 +96,9 @@ int netplay_quit_requested(void);
 int netplay_tip_lines(void);
 const char *netplay_tip_line(int i);
 int netplay_tip_more(void);
+/* This program's build id: the commit it was built from, or "dev". Only players with the same build can play
+ * together. */
+const char *netplay_build(void);
 /* A line for the window's title: the player number, the level, the frames ahead of the confirmed ones, desyncs. */
 const char *netplay_status(void);
 /* 1 when the session has failed; netplay_status says why. */

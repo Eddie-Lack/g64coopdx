@@ -66,6 +66,18 @@ $(BUILD)/g64/%.o: $(G64_ROOT)/src/%.c $(wildcard $(G64_ROOT)/src/*/*.h)
 	@mkdir -p $(dir $@)
 	$(CC) $(BF_CFLAGS) -c $< -o $@
 
+# The build id: the commit the program is built from. The session's hello carries it, and a host refuses a joiner
+# of another build (src/session/session.h). The header is written again only when the commit changes, and the online
+# mode's code is compiled again then. G64_BUILD overrides it (a release can pass its own).
+G64_BUILD ?= $(shell git -C $(G64_ROOT) rev-parse --short=12 HEAD 2>/dev/null || echo dev)
+G64_BUILD_H := $(BUILD)/g64/g64build.h
+G64_BUILD_LINE := \#define G64_BUILD_ID "$(G64_BUILD)"
+$(shell mkdir -p $(BUILD)/g64 && { echo '$(G64_BUILD_LINE)' | cmp -s - $(G64_BUILD_H) || echo '$(G64_BUILD_LINE)' > $(G64_BUILD_H); })
+
+$(BUILD)/g64/client/netplay.o: $(G64_ROOT)/src/client/netplay.c $(wildcard $(G64_ROOT)/src/*/*.h) $(G64_BUILD_H)
+	@mkdir -p $(dir $@)
+	$(CC) $(BF_CFLAGS) -DG64_BUILD_HEADER -I$(BUILD)/g64 -c $< -o $@
+
 # The sound output talks to SDL.
 $(BUILD)/g64/client/soundout.o: $(G64_ROOT)/src/client/soundout.c $(wildcard $(G64_ROOT)/src/*/*.h) src/lib/glover.h
 	@mkdir -p $(dir $@)

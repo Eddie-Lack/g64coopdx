@@ -82,6 +82,12 @@ yellow. The
 window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
 The program also prints a status line every 100 frames.
 
+## Everyone needs the same version
+
+Every version of the program plays a slightly different game, and two machines must run the same one. The start
+screen shows your build (a short code such as `3f5352f67584`). A host refuses a player whose build is another:
+that player sees "the host has another version". Download the same release as the host.
+
 ## Controls
 
 A gamepad works as an N64 controller. On the keyboard:
