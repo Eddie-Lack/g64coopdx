@@ -23,7 +23,7 @@
  * compares the outputs.
  *
  * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
- * a time (one_world), and a fourth a level pack (pack_level).
+ * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -460,6 +460,113 @@ static void pack_level(Engine *e, void *boot) {
     printf("%s a level pack's level takes a level's place\n", failed != before ? "FAIL" : "ok  ");
 }
 
+int G64LuaActive(void);
+void G64LuaCounts(unsigned out[4]);
+
+/* Two players in Atlantis 1 for 320 frames over the slow, lossy network, which makes their games go back and run
+   frames again. Returns where player 0's glove is in their own game at the end, and prints the hash checks. */
+static void two_players(Engine *e, void *boot, float at[3], unsigned counts[4], int *active) {
+    uint32_t none[16][2];
+    rb_engine_game *g;
+    int p;
+    memset(none, 0, sizeof none);
+    at[0] = at[1] = at[2] = 0;
+    memset(counts, 0, 4 * sizeof counts[0]);
+    *active = 0;
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, 2, 3u, none, ATLANTIS1, DEADLINE, host_send, NULL);
+    for (p = 0; p < 2; p++)
+        player[p] = g64_iclient_new_with(e, boot, 2, 3u, none, p, ATLANTIS1, WINDOW, DEADLINE, player_send, &ids[p]);
+    if (!host || !player[0] || !player[1])
+        return;
+    for (now = 0; now < 320; now++) {
+        deliver();
+        g64_ihost_tick(host);
+        for (p = 0; p < 2; p++) {
+            rb_input in;
+            memset(&in, 0, sizeof in);
+            in.present = 1;
+            /* Player 1 walks, so player 0's guesses about them are sometimes wrong. */
+            if (p == 1)
+                in.x = (int8_t)((now / 13) % 2 ? 60 : -60);
+            g64_iclient_step(player[p], in);
+        }
+    }
+    g = g64_iclient_game(player[0]);
+    if (g) {
+        rb_engine_game_enter(g);
+        G64PlayerPosition(0, &at[0], &at[1], &at[2]);
+        *active = G64LuaActive();
+        G64LuaCounts(counts);
+    }
+    printf("two players: %u hash checks, %u mismatches, desyncs %u and %u, %llu and %llu frames run again\n",
+           g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
+           g64_iclient_desyncs(player[1]), (unsigned long long)g64_iclient_rollback_frames(player[0]),
+           (unsigned long long)g64_iclient_rollback_frames(player[1]));
+    failed |= g64_ihost_hash_mismatches(host) != 0 || g64_iclient_desyncs(player[0]) != 0 ||
+              g64_iclient_desyncs(player[1]) != 0;
+    for (p = 0; p < 2; p++) {
+        g64_iclient_free(player[p]);
+        player[p] = NULL;
+    }
+    g64_ihost_free(host);
+}
+
+/* A level pack's script. It counts its frames and, every 50 frames, moves player 0's glove 5 units along x. Its
+   state is in the game's savestate: the games go back and run frames again, and the script's count must go back
+   with them. The test: with the script the glove ends 30 units from where it ends without (6 moves), no machine
+   disagrees, and the script's memory counts are the same on Linux and Windows (the outputs are compared). A second
+   script runs without end: it is stopped, the same on every machine, and the game goes on. */
+static void script_run(Engine *e, void *boot) {
+    static const char script[] =
+        "local moves = 0\n"
+        "local seen = {}\n"
+        "function on_frame()\n"
+        "  local f = game.frame()\n"
+        "  seen[#seen + 1] = {f}\n"
+        "  if f > 0 and f % 50 == 0 and game.has_player(0) then\n"
+        "    local x, y, z = game.pos(0)\n"
+        "    game.place(0, x + 5, y, z)\n"
+        "    moves = moves + 1\n"
+        "  end\n"
+        "end\n";
+    static const char endless[] = "function on_frame() while true do end end\n";
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    uint8_t *with = malloc(romSize + sizeof script + sizeof endless);
+    float plain[3], moved[3], after[3];
+    unsigned counts[4], none[4];
+    int active = 0, before = failed;
+    char what[240];
+    if (!with)
+        return;
+    g64_instances_pack_script(0, 0);
+    two_players(e, boot, plain, none, &active);
+    check(!active && none[2] == 0, "without a script no script runs");
+    memcpy(with, rom, romSize);
+    memcpy(with + romSize, script, sizeof script - 1);
+    memcpy(with + romSize + sizeof script, endless, sizeof endless - 1);
+    engine_set_rom(e, with, romSize + sizeof script + sizeof endless);
+    g64_instances_pack_script((unsigned)romSize, sizeof script - 1);
+    two_players(e, boot, moved, counts, &active);
+    snprintf(what, sizeof what, "the glove ends at x %.1f without the script and at x %.1f with it", plain[0], moved[0]);
+    check(active && moved[0] > plain[0] + 29.0f && moved[0] < plain[0] + 31.0f, what);
+    printf("script: its memory: high mark %u, in use %u, %u allocations, %u frees\n", counts[0], counts[1], counts[2],
+           counts[3]);
+    check(counts[2] > 300 && counts[1] > 0 && counts[1] < counts[0], "the script's memory is in use");
+    g64_instances_pack_script((unsigned)(romSize + sizeof script), sizeof endless - 1);
+    two_players(e, boot, after, counts, &active);
+    snprintf(what, sizeof what, "a script without end is stopped: the glove ends at x %.1f, as without a script",
+             after[0]);
+    check(!active && after[0] == plain[0], what);
+    g64_instances_pack_script(0, 0);
+    engine_set_rom(e, rom, romSize);
+    free(with);
+    printf("%s a level pack's script runs with the game\n", failed != before ? "FAIL" : "ok  ");
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     Engine *e;
@@ -570,6 +677,7 @@ int main(int argc, char **argv) {
     join_later(e, boot);
     one_world(e, boot);
     pack_level(e, boot);
+    script_run(e, boot);
     free(boot);
     engine_free(e);
     return failed;

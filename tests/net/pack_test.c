@@ -31,6 +31,12 @@ static void write_file(const char *dir, const char *name, const void *d, size_t 
     }
 }
 
+static void remove_file(const char *dir, const char *name) {
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    remove(path);
+}
+
 int main(int argc, char **argv) {
     static const uint8_t lev[12] = {0, 0, 0, 12, 't', 'e', 's', 't', '.', 'l', 'n', 0};
     static const char good[] = "format=1\nname=A test level\nlevel=10\n";
@@ -66,14 +72,38 @@ int main(int argc, char **argv) {
     check(g64_pack_check_level(lev, sizeof lev - 1) != 0, "a level file that is shorter than it says is refused");
     check(g64_pack_check_level(lev, 4) != 0, "a level file of four bytes is refused");
 
-    g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev, id);
-    g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev, other);
+    g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev, NULL, 0, id);
+    g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev, NULL, 0, other);
     check(memcmp(id, other, sizeof id) == 0, "the id is the same each time");
-    g64_pack_make_id((const uint8_t *)good, strlen(good) - 1, lev, sizeof lev, other);
+    g64_pack_make_id((const uint8_t *)good, strlen(good) - 1, lev, sizeof lev, NULL, 0, other);
     check(memcmp(id, other, sizeof id) != 0, "another manifest gives another id");
-    g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev - 1, other);
+    g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev - 1, NULL, 0, other);
     check(memcmp(id, other, sizeof id) != 0, "another level file gives another id");
     printf("pack: id %02x%02x%02x%02x%02x%02x%02x%02x\n", id[0], id[1], id[2], id[3], id[4], id[5], id[6], id[7]);
+    {
+        /* A script is part of the pack's id. */
+        static const char script[] = "function on_frame() end\n";
+        uint8_t withScript[G64_PACK_ID];
+        g64_pack_make_id((const uint8_t *)good, strlen(good), lev, sizeof lev, (const uint8_t *)script, sizeof script - 1,
+                         withScript);
+        check(memcmp(id, withScript, sizeof id) != 0, "a pack with a script has another id");
+        printf("pack: id with a script %02x%02x%02x%02x%02x%02x%02x%02x\n", withScript[0], withScript[1], withScript[2],
+               withScript[3], withScript[4], withScript[5], withScript[6], withScript[7]);
+        check(g64_pack_check_script((const uint8_t *)script, sizeof script - 1) == 0, "a script of source text");
+        check(g64_pack_check_script((const uint8_t *)script, sizeof script) != 0, "a script with a zero byte is refused");
+        check(g64_pack_check_script((const uint8_t *)"\x1bLua", 4) != 0, "Lua's compiled form is refused");
+        check(g64_pack_check_script((const uint8_t *)"", 0) != 0, "an empty script is refused");
+        write_file(dir, "pack.txt", good, strlen(good));
+        write_file(dir, "level.lev", lev, sizeof lev);
+        write_file(dir, "script.lua", script, sizeof script - 1);
+        check(g64_pack_load(dir, &p, err, sizeof err) == 0 && p.script && p.scriptSize == sizeof script - 1 &&
+                  memcmp(p.id, withScript, sizeof withScript) == 0,
+              "a pack with a script loads, with the script's id");
+        g64_pack_free(&p);
+        write_file(dir, "script.lua", "\x1bLua", 4);
+        check(g64_pack_load(dir, &p, err, sizeof err) != 0, "a pack whose script is compiled Lua is refused");
+        remove_file(dir, "script.lua");
+    }
 
     /* A pack from a folder. */
     write_file(dir, "pack.txt", good, strlen(good));

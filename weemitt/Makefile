@@ -55,6 +55,13 @@ PORT_CXX_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/po
 PORT_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/port/os.c src/port/inputlatch.c src/port/gu.c src/port/sprite.c \
              src/port/libultra.c src/port/devview.c src/port/debugpad.c src/port/portmath.c src/port/soundtable.c gen/ramtab.c gen/romsyms.c \
              gen/layouts.c
+# g64coopdx: Lua 5.4.8 (third_party/lua) and the scripts' own file. They are part of the game's code and data: a
+# savestate holds the scripts' memory. They are C, built with the game's machine flags and Lua's own options
+# (src/port/g64lua_conf.h), and without the header that the game's files start with.
+LUA_SRCS := $(addprefix third_party/lua/,lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c \
+            lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c \
+            lbaselib.c ltablib.c lstrlib.c lmathlib.c) src/port/g64lua.c
+LUA_CFLAGS = -std=gnu99 $(filter-out -include src/port/port_pre.h,$(GAME_FLAGS)) -include src/port/g64lua_conf.h
 # The host world (docs/host-world.md): in weemitt's programs and the library. The brute forcer reads PORT_SRCS and
 # leaves it out.
 HOSTWORLD_SRCS := src/port/hostworld.c src/port/drawmark.c
@@ -184,7 +191,7 @@ ifeq ($(SPACE_DEMO),1)
 HOST_CFLAGS += -DPORT_SPACE_DEMO
 endif
 
-GAME_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(GAME_SRCS) $(PORT_SRCS) $(HOSTWORLD_SRCS) $(AUDIO_SRCS)) $(patsubst %.S,$(BUILD)/%.o,$(ASM_SRCS))
+GAME_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(GAME_SRCS) $(PORT_SRCS) $(HOSTWORLD_SRCS) $(AUDIO_SRCS) $(LUA_SRCS)) $(patsubst %.S,$(BUILD)/%.o,$(ASM_SRCS))
 HOST_OBJS := $(patsubst %.c,$(BUILD)/%.o,$(PLATFORM_SRCS) $(GFX_SRCS)) $(patsubst %.cpp,$(BUILD)/%.o,$(CXX_SRCS))
 # The menu and Dear ImGui are C++ for the host: they do not get the game's flags.
 HOST_CXXFLAGS := $(ARCH_FLAGS) -std=gnu++14 -O2 -g $(PIC_FLAGS) -fno-exceptions -fno-rtti -Isrc/port -Ithird_party/imgui \
@@ -501,6 +508,10 @@ $(BUILD)/src/gfx/%.o: src/gfx/%.c $(wildcard src/gfx/*.h)
 $(patsubst %.c,$(BUILD)/%.o,$(PORT_CXX_SRCS)): $(BUILD)/%.o: %.c src/port/port.h src/port/port_pre.h src/port/ptr32.h src/port/hostworld.h src/port/porthooks.h
 	@mkdir -p $(dir $@)
 	$(CXX) $(GAME_CXXFLAGS) -MMD -MP -c $< -o $@
+
+$(patsubst %.c,$(BUILD)/%.o,$(LUA_SRCS)): $(BUILD)/%.o: %.c src/port/g64lua_conf.h $(wildcard third_party/lua/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(LUA_CFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD)/src/port/%.o: src/port/%.c src/port/port.h src/port/port_pre.h src/port/ptr32.h
 	@mkdir -p $(dir $@)

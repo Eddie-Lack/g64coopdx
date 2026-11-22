@@ -98,4 +98,5 @@ run locally: set `GLOVER_ROM`.
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
 | Level packs: the reader and the format | src/client (`pack.h`), docs/discovery/level-pack.md |
+| Scripts: Lua in the game, and what a script may call | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md |
 | How players host and join | docs/playing-online.md |

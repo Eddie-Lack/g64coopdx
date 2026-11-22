@@ -52,8 +52,8 @@ endif
 # file list leaves out devview.c: it only draws the Developer menu's views and keeps a large buffer of lines.
 WVARS := $(BUILD)/weemitt.mk
 $(shell mkdir -p $(BUILD) && $(MAKE) -s --no-print-directory -C $(W) -pn TARGET=$(TARGET) BITS=$(BITS) RENDERER=null AUDIO=stub nothing 2>/dev/null \
-	| grep -E '^(GAME_CFLAGS|GAME_CXXFLAGS|GAME_SRCS|PORT_SRCS|PORT_CXX_SRCS|AUDIO_SRCS|ASM_SRCS|ARCH_FLAGS) :=' \
-	| sed -e 's| -I| -I$(W)/|g' -e 's|-include src/|-include $(W)/src/|' -e 's|^\([A-Z_]*\) :=|W_\1 :=|' > $(WVARS).tmp \
+	| grep -E '^(GAME_CFLAGS|GAME_CXXFLAGS|GAME_SRCS|PORT_SRCS|PORT_CXX_SRCS|AUDIO_SRCS|ASM_SRCS|ARCH_FLAGS|LUA_SRCS|LUA_CFLAGS) :?=' \
+	| sed -e 's| -I| -I$(W)/|g' -e 's|-include src/|-include $(W)/src/|' -e 's|-include src/|-include $(W)/src/|' -e 's|^\([A-Z_]*\) :*=|W_\1 :=|' > $(WVARS).tmp \
 	&& (cmp -s $(WVARS).tmp $(WVARS) || mv $(WVARS).tmp $(WVARS)); rm -f $(WVARS).tmp)
 include $(WVARS)
 ifeq ($(and $(W_GAME_CFLAGS),$(W_GAME_CXXFLAGS)),)
@@ -81,7 +81,8 @@ endif
 
 GAME_CFLAGS := $(W_GAME_CFLAGS) $(GAME_OPT)
 GAME_CXXFLAGS := $(W_GAME_CXXFLAGS) $(GAME_OPT)
-GAME_SRCS := $(addprefix $(W)/,$(W_GAME_SRCS) $(filter-out src/port/devview.c,$(W_PORT_SRCS)) $(W_AUDIO_SRCS))
+GAME_SRCS := $(addprefix $(W)/,$(W_GAME_SRCS) $(filter-out src/port/devview.c,$(W_PORT_SRCS)) $(W_AUDIO_SRCS) \
+             $(W_LUA_SRCS))
 GAME_OBJS := $(patsubst $(W)/%.c,$(BUILD)/game/%.o,$(GAME_SRCS))
 RAM_OBJ := $(BUILD)/game/gen/ram.o
 
@@ -135,6 +136,11 @@ $(LIB): $(BUILD)/game.o $(RAM_OBJ) $(ENGINE_OBJS)
 $(BUILD)/game/%.o: $(W)/%.c $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(GAME_CFLAGS) -MMD -MP -c $< -o $@
+
+# g64coopdx: Lua and the scripts' own file, with Lua's options (weemitt's Makefile, LUA_CFLAGS).
+$(patsubst %.c,$(BUILD)/game/%.o,$(W_LUA_SRCS)): $(BUILD)/game/%.o: $(W)/%.c $(FLAGS_STAMP)
+	@mkdir -p $(dir $@)
+	$(CC) $(W_LUA_CFLAGS) $(GAME_OPT) -MMD -MP -c $< -o $@
 
 # The game's files (src/game) and the runtime's files in PORT_CXX_SRCS are C compiled as C++, as in weemitt's build.
 $(BUILD)/game/src/game/%.o: $(W)/src/game/%.c $(FLAGS_STAMP)

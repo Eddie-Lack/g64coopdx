@@ -18,6 +18,7 @@ A level pack is a folder with a custom level for a session. This file is the for
 | --- | --- |
 | `pack.txt` | the manifest |
 | `level.lev` | the level, in the game's own format, as Glovebox writes it |
+| `script.lua` | a script, as Lua source text. A pack may have none ([scripts.md](../scripts.md)) |
 
 A pack holds no game data. The level file names models and textures by their ids, and each player's own ROM
 supplies them.
@@ -48,13 +49,18 @@ The game's level file: a length (4 bytes, big-endian), the name of the level's l
 commands. The length is the file's whole size, and the reader checks it. The file is 1 MB at most. The game's largest
 level file is about 150 KB.
 
+### `script.lua`
+
+Lua source text: 1 byte to 256 KB, with no zero byte. Lua's compiled form is refused. The script runs in every game
+of the session, not only in the pack's level ([scripts.md](../scripts.md)).
+
 ## The pack's id
 
 The id is the first 16 bytes of the BLAKE2b hash (32 bytes of output, no key) of the pack's canonical form:
 
 1. the text `g64pack 1` and a zero byte;
-2. for `pack.txt`, then `level.lev`: the file's name and a zero byte, the file's length (4 bytes, little-endian),
-   and the file's bytes.
+2. for `pack.txt`, then `level.lev`, then `script.lua` if the pack has one: the file's name and a zero byte, the
+   file's length (4 bytes, little-endian), and the file's bytes.
 
 BLAKE2b comes with the cryptography library that g64coopdx already holds (`third_party/monocypher`). Glovebox must
 compute the same when it exports a pack.
@@ -64,7 +70,7 @@ the same one.
 
 ## How the game reads it
 
-The client puts the level file after the ROM's bytes in a buffer of its own, and the game reads its ROM from that
+The client puts the level file, and the script after it, after the ROM's bytes in a buffer of its own, and the game reads its ROM from that
 buffer (`engine_set_rom`). The level's loader then reads the pack's file as it reads the ROM's (`LoadLandscapeFile`
 in `weemitt/src/port/loaders.c`). The game's state holds only the borrowed level's number and the file's offset and
 size, which are the same on every machine. It holds no pointer to the pack.
@@ -77,5 +83,6 @@ size, which are the same on every machine. It holds no pointer to the pack.
   large piece of work, and the owner decides whether to do it or to keep packs to people who trust each other.
 - **Packs from the host.** A joiner without the pack is shown its name and size and asked. The host then sends it in
   pieces, and the joiner checks its id ([mods.md](mods.md#how-mods-reach-other-players)).
-- **More in a pack:** the author's own models and textures in banks of their own, Lua scripts, more than one level.
+- **More in a pack:** the author's own models and textures in banks of their own, more than one level, and more
+  for a script to call.
 - **Glovebox's "Export level pack".**

@@ -1464,6 +1464,17 @@ G64TestExit g64TestExits[G64_TEST_EXITS] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0
 /* Frames this game has run since its level started (G64SetPresent counts them). */
 static u32 framesRun;
 
+/* For scripts (src/port/g64lua.c). */
+s32 G64FramesRun(void) {
+    return (s32)framesRun;
+}
+
+s32 G64Level(void) {
+    return gameInfo.level;
+}
+
+void G64LuaFrame(void);
+
 void G64SetPresent(u32 present) {
     s32 p, i;
     g64ExitCount = 0;
@@ -1489,6 +1500,9 @@ void G64SetPresent(u32 present) {
         }
     }
     lastPresent = present;
+    /* A level pack's script runs once a frame, here: after the players of this frame are in, before the game's
+       own step (src/port/g64lua.c). Without a script it does nothing. */
+    G64LuaFrame();
 }
 
 static void forget_tips(void);

@@ -104,7 +104,8 @@ The program also prints a status line every 100 frames.
 A level pack is a folder with a custom level that takes the place of one of the game's levels
 ([discovery/level-pack.md](discovery/level-pack.md)). Every player needs the same folder and starts the program with
 `--pack FOLDER`. The level shows when you enter the level it replaces. A host refuses a player who has another pack,
-or none. The program cannot send a pack to another player yet, and Glovebox cannot export one yet.
+or none. The program cannot send a pack to another player yet, and Glovebox cannot export one yet. A pack may also
+hold a script ([scripts.md](scripts.md)).
 
 ## Names, the player list and chat
 
