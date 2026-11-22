@@ -102,11 +102,55 @@ static int color_picker(const char *label, unsigned *c) {
     return 1;
 }
 
+/* The player's name, kept in name.txt in the program's own folder. */
+static char nameText[17];
+static int nameLoaded;
+
+static void name_path(char *out, size_t size) {
+    char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
+    snprintf(out, size, "%sname.txt", pref ? pref : "");
+    if (pref)
+        SDL_free(pref);
+}
+
+static void load_name(void) {
+    char path[1024];
+    FILE *f;
+    nameLoaded = 1;
+    name_path(path, sizeof path);
+    f = fopen(path, "r");
+    if (f) {
+        if (fgets(nameText, sizeof nameText, f))
+            nameText[strcspn(nameText, "\r\n")] = 0;
+        fclose(f);
+    }
+    if (nameText[0])
+        netplay_set_name(nameText);
+    snprintf(nameText, sizeof nameText, "%s", netplay_name());
+}
+
+static void name_ui(void) {
+    if (!nameLoaded)
+        load_name();
+    if (ImGui::InputText("Name", nameText, sizeof nameText)) {
+        char path[1024];
+        FILE *f;
+        netplay_set_name(nameText);
+        name_path(path, sizeof path);
+        f = fopen(path, "w");
+        if (f) {
+            fprintf(f, "%s\n", netplay_name());
+            fclose(f);
+        }
+    }
+}
+
 /* The colors' part of the start screen. */
 static void colors_ui(void) {
     int changed = 0, i;
     if (!colorsLoaded)
         load_colors();
+    name_ui();
     if (ImGui::BeginCombo("Colors", choice == CUSTOM ? "Custom" : palettes[choice].name)) {
         for (i = 0; i <= CUSTOM; i++)
             if (ImGui::Selectable(i == CUSTOM ? "Custom" : palettes[i].name, i == choice)) {
@@ -137,6 +181,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
 
     if (!colorsLoaded)
         load_colors();
+    if (!nameLoaded)
+        load_name();
     if (autoPress && !strncmp(autoPress, "join:", 5)) {
         snprintf(code, sizeof code, "%s", autoPress + 5);
     }
@@ -279,14 +325,50 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
 
 /* g64coopdx: the player's own pause menu in the online game (netplay.c): the choices in the middle of the screen, the
    chosen one highlighted. The controller drives it; the game goes on behind it. */
+/* The chat's newest lines at the bottom left of the picture, each for a few seconds after it came. The menu's Chat
+   window has the whole list and the line to type in (menu.cpp). */
+#define CHAT_SHOWN_MS 8000u
+#define CHAT_SHOWN_LINES 6
+
+static int chat_overlay_lines(void) {
+    int i, n = 0;
+    for (i = netplay_chat_count() - 1; i >= 0 && n < CHAT_SHOWN_LINES; i--) {
+        if (netplay_chat_age(i) > CHAT_SHOWN_MS)
+            break;
+        n++;
+    }
+    return n;
+}
+
+static void chat_overlay(int h) {
+    int n = chat_overlay_lines(), i, count = netplay_chat_count();
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    float y = (float)h - 110.0f - 18.0f * n;
+    for (i = count - n; i < count; i++) {
+        const char *line = netplay_chat_line(i);
+        ImVec2 size = ImGui::CalcTextSize(line);
+        dl->AddRectFilled(ImVec2(8, y - 1), ImVec2(16 + size.x, y + size.y + 1), IM_COL32(0, 0, 0, 150), 3.0f);
+        dl->AddText(ImVec2(12, y), line[0] == '*' ? IM_COL32(255, 220, 120, 255) : IM_COL32(255, 255, 255, 255), line);
+        y += 18.0f;
+    }
+}
+
 void g64_pause_draw(SDL_Window *window) {
     int w, h, i;
-    if (!netplay_pause_open() && netplay_tip_lines() == 0)
+    int chat = chat_overlay_lines();
+    if (!netplay_pause_open() && netplay_tip_lines() == 0 && chat == 0)
         return;
     SDL_GetWindowSize(window, &w, &h);
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+    if (chat)
+        chat_overlay(h);
+    if (!netplay_pause_open() && netplay_tip_lines() == 0) {
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        return;
+    }
     if (!netplay_pause_open()) {
         /* The tip that this player reads. The level goes on behind it; the game holds the reader's glove. */
         ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));

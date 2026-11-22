@@ -34,6 +34,16 @@ typedef struct {
 } machine;
 
 static machine m[PLAYERS];
+
+/* The chat lines each machine got: how many, and the last one with its sender. */
+static int chatCount[PLAYERS], chatFrom[PLAYERS];
+static char chatLine[PLAYERS][128];
+static void on_chat(void *user, int from, const char *text) {
+    int i = (int)((machine *)user - m);
+    chatCount[i]++;
+    chatFrom[i] = from;
+    snprintf(chatLine[i], sizeof chatLine[i], "%s", text);
+}
 static toy_game hostRef;
 
 static void on_game(void *user, int from, const uint8_t *data, size_t len) {
@@ -126,6 +136,7 @@ int main(void) {
     net_resolve("127.0.0.1", net_port(sock[0]), &hostAddr, err, sizeof err);
     m[0].session = g64_session_host(sock[0], PLAYERS, ROM, 0, 3);
     g64_session_set_build(m[0].session, BUILD);
+    g64_session_set_name(m[0].session, "Hosty\x01");
     for (i = 1; i < PLAYERS; i++) {
         m[i].session = g64_session_join(sock[i], &hostAddr, ROM, "friend");
         if (m[i].session)
@@ -176,6 +187,35 @@ int main(void) {
     }
     check(ok && wrong == 0 && rb_host_hash_mismatches(m[0].host) == 0 && rb_host_hash_matches(m[0].host) > 0,
           "the toy game through the session: every machine has the same state on every frame");
+    /* Names: every machine has every player's, and a byte that is not printable ASCII is a question mark. */
+    check(!strcmp(g64_session_name(m[1].session, 0), "Hosty?") &&
+              !strcmp(g64_session_name(m[1].session, g64_session_me(m[2].session)), "friend") &&
+              !strcmp(g64_session_name(m[0].session, g64_session_me(m[1].session)), "friend") &&
+              !strcmp(g64_session_name(m[0].session, 0), "Hosty?") && !strcmp(g64_session_name(m[1].session, 99), ""),
+          "every machine has every player's name");
+    /* Chat: a joiner's line reaches the host and the other joiner once each, with its sender's number. */
+    for (i = 0; i < PLAYERS; i++)
+        g64_session_on_chat(m[i].session, on_chat, &m[i]);
+    g64_session_chat(m[1].session, "hi\tthere");
+    for (f = 0; f < 40; f++) {
+        clock += 50;
+        for (i = 0; i < PLAYERS; i++)
+            g64_session_poll(m[i].session, clock, on_game, &m[i]);
+    }
+    check(chatCount[0] == 1 && chatCount[2] == 1 && chatCount[1] == 0 && chatFrom[0] == g64_session_me(m[1].session) &&
+              chatFrom[2] == g64_session_me(m[1].session) && !strcmp(chatLine[0], "hi?there") &&
+              !strcmp(chatLine[2], "hi?there"),
+          "a joiner's chat line reaches every other machine once");
+    g64_session_chat(m[0].session, "welcome");
+    g64_session_chat(m[1].session, "");
+    for (f = 0; f < 40; f++) {
+        clock += 50;
+        for (i = 0; i < PLAYERS; i++)
+            g64_session_poll(m[i].session, clock, on_game, &m[i]);
+    }
+    check(chatCount[0] == 1 && chatCount[1] == 1 && chatCount[2] == 2 && chatFrom[1] == 0 && chatFrom[2] == 0 &&
+              !strcmp(chatLine[1], "welcome"),
+          "the host's line reaches every joiner once, and an empty line is not sent");
     test_refusals(hostAddr, &clock);
     /* A joiner who stops answering: the host's game goes on without it. */
     {
@@ -189,6 +229,20 @@ int main(void) {
                   g64_session_gone(m[0].session, g64_session_me(m[2].session)) &&
                   !g64_session_gone(m[0].session, g64_session_me(m[1].session)),
               "a joiner who stops answering is gone, and the game goes on");
+    }
+    /* The host removes the other joiner: that program is told, and the host counts the player as gone. */
+    {
+        int k, kicked = g64_session_me(m[1].session);
+        g64_session_kick(m[0].session, kicked);
+        for (k = 0; k < 20; k++) {
+            clock += 50;
+            g64_session_poll(m[0].session, clock, on_game, &m[0]);
+            g64_session_poll(m[1].session, clock, on_game, &m[1]);
+        }
+        check(g64_session_poll(m[1].session, clock, on_game, &m[1]) == G64_SESSION_FAILED &&
+                  strstr(g64_session_error(m[1].session), "removed") != NULL && g64_session_gone(m[0].session, kicked) &&
+                  g64_session_poll(m[0].session, clock, on_game, &m[0]) == G64_SESSION_STARTED,
+              "a player the host removes is told and is gone");
     }
     for (i = 0; i < PLAYERS; i++) {
         g64_session_free(m[i].session);
