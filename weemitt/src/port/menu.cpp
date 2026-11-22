@@ -17,6 +17,11 @@ extern "C" {
 #include "settings.h"
 #ifdef PORT_STUDIO
 #include "studio.h"
+#ifdef PORT_STUDIO
+extern "C" {
+#include "../../../src/client/netplay.h"
+}
+#endif
 #endif
 
 namespace {
@@ -1215,6 +1220,17 @@ void log_window() {
     ImGui::End();
 }
 
+/* g64coopdx: 1 in an online game. The menu then offers only what is the player's own: the picture, the sound and
+   the controls, the log, and the choices of the online pause menu. The studio, the enhancements, the cheats and
+   the developer tools would change one machine's game only. */
+static bool menu_online() {
+#ifdef PORT_STUDIO
+    return netplay_active() != 0;
+#else
+    return false;
+#endif
+}
+
 void menu_bar() {
     if (!ImGui::BeginMainMenuBar()) {
         return;
@@ -1225,6 +1241,27 @@ void menu_bar() {
         ImGui::MenuItem("Controls", NULL, &win.controls);
         ImGui::EndMenu();
     }
+#ifdef PORT_STUDIO
+    if (menu_online()) {
+        if (ImGui::BeginMenu("Online game")) {
+            /* The same choices as the controller's pause menu (netplay.c), for the mouse. Item 0 is Resume. */
+            for (int i = 1; i < netplay_pause_items(); i++) {
+                if (ImGui::MenuItem(netplay_pause_item(i))) {
+                    netplay_pause_pick(i);
+                    set_open(false);
+                }
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Log")) {
+            ImGui::MenuItem("Log window", NULL, &win.log);
+            ImGui::EndMenu();
+        }
+        ImGui::TextDisabled("   Esc: close the menu. The game goes on for everyone.");
+        ImGui::EndMainMenuBar();
+        return;
+    }
+#endif
 #ifdef PORT_STUDIO
     /* The Enhancements and Cheats change the game's logic, which the timeline's recorded input would not replay. */
     if (ImGui::BeginMenu("Studio")) {
@@ -1503,19 +1540,22 @@ void menu_draw(SDL_Window *window) {
         if (win.audio) audio_window();
         ImGui::SetNextWindowPos(ImVec2(480, 40), ImGuiCond_FirstUseEver);
         if (win.controls) controls_window();
-        ImGui::SetNextWindowPos(ImVec2(20, 410), ImGuiCond_FirstUseEver);
-        if (win.enhancements) enhancements_window();
-        ImGui::SetNextWindowPos(ImVec2(20, 560), ImGuiCond_FirstUseEver);
-        if (win.cheats) cheats_window();
-        ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
-        if (win.developer) developer_window();
+        /* g64coopdx: not in an online game (menu_online). */
+        if (!menu_online()) {
+            ImGui::SetNextWindowPos(ImVec2(20, 410), ImGuiCond_FirstUseEver);
+            if (win.enhancements) enhancements_window();
+            ImGui::SetNextWindowPos(ImVec2(20, 560), ImGuiCond_FirstUseEver);
+            if (win.cheats) cheats_window();
+            ImGui::SetNextWindowPos(ImVec2(250, 40), ImGuiCond_FirstUseEver);
+            if (win.developer) developer_window();
+        }
         if (win.log) log_window();
 #ifdef PORT_STUDIO
-        if (win.studioLevel) studio_level_window();
+        if (win.studioLevel && !menu_online()) studio_level_window();
 #endif
     }
 #ifdef PORT_STUDIO
-    if (menuOpen || studio_paused()) {
+    if ((menuOpen || studio_paused()) && !menu_online()) {
         studio_bar();
         studio_search_window();
     }
