@@ -76,6 +76,7 @@ void G64UpdateProxies(void);
    the globals then hold the player, and the proxies show the others. Nothing for the player in the globals or one
    who is not in this game. */
 void G64SwapPlayer(s32 player);
+void G64TipView(s32 player);
 /* 1 for a proxy actor (another player's glove or ball). */
 s32 G64IsProxy(struct Actor *a);
 /* Each player's chosen glove and ball colors, by player number: G64_COLOR_SET plus 0xRRGGBB, or 0 for the color of

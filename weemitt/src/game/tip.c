@@ -95,6 +95,52 @@ const char *TipLineText(s32 line) {
     return tipText[line].str;
 }
 
+/* g64coopdx: puts the game's own tip box and text into the frame that is drawn next, for the player whose view
+   it is (G64TipView). The page starts at `line`; `time` counts the frames since the tip opened, and the box grows
+   and fades in over them as in UpdateTip. The client loads the state again after the view, so nothing here stays. */
+void TipDrawPage(s32 line, s32 time) {
+    s32 grown = time < 6 ? time + 1 : 6;
+    s32 alpha = time < 6 ? 0 : (time - 5) * 42;
+    s32 row = 1;
+
+    if (alpha > 252) {
+        alpha = 252;
+    }
+    tipOverlay.x = 80.0f;
+    tipOverlay.y = 60.0f;
+    tipOverlay.scaleX = 0x400;
+    tipOverlay.scaleY = 0x400;
+    tipOverlay.alpha = alpha;
+    if (time < 6) {
+        tipOverlay2.x = grown * 26.0f;
+        tipOverlay2.y = grown * 20.0f;
+        tipOverlay2.scaleX = grown * 0x42A;
+        tipOverlay2.scaleY = grown * 0x341;
+    } else {
+        tipOverlay2.x = 160.0f;
+        tipOverlay2.y = 120.0f;
+        tipOverlay2.scaleX = 0x1900;
+        tipOverlay2.scaleY = 0x1388;
+    }
+    tipOverlay2.alpha = 200;
+    tipOverlay2.r = 255;
+    tipOverlay2.g = 200;
+    tipOverlay2.b = 255;
+    AddOverlay(&tipOverlay2);
+    AddOverlay(&tipOverlay);
+    SetFont(1);
+    NEW_TEXT(160, 65, 170, 170, 255, alpha, 1.0f, 1.0f, 1, mrTipString[gameInfo.language], 1);
+    while (tipText[line].type == 0) {
+        NEW_TEXT(160, row++ * 15 + 70, 255, 255, 255, alpha, 1.0f, 1.0f, 1, tipText[line].str, 1);
+        line++;
+    }
+    NEW_TEXT(160, row * 15 + 70, 255, 255, 255, alpha, 1.0f, 1.0f, 1, tipText[line].str, 1);
+    if (frameCount & 8) {
+        NEW_TEXT(245, 190, 255, 255, 255, alpha, 1.0f, 1.0f, 1, "\xA3", 1);
+    }
+    SetFont(0);
+}
+
 void UpdateTips(void) {
     Tip *tip;
     Vec3 tempVect2;
