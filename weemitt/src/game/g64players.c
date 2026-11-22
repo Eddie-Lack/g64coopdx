@@ -2458,6 +2458,17 @@ s32 G64AnyPressed(s32 button) {
     return 0;
 }
 
+/* debris.c frees a piece of debris: no player keeps it as their fake ball (the ball a glove throws or whacks
+   away). The slots are read where they are: with a player swapped in, their slot holds the first player. */
+void G64FakeballGone(const void *debris) {
+    s32 i;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (s && (const void *)(Debris *)slot_control(s)->fakeball == debris)
+            slot_control(s)->fakeball = NULL;
+    }
+}
+
 void G64FootprintGone(const void *footprint) {
     s32 i;
     for (i = 1; i < slotCount; i++) {

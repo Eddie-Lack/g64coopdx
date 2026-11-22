@@ -1649,6 +1649,11 @@ void RestartPlayer(void) {
             ballControl.state = BALL_NORMAL;
             ZERO_VECTOR(&hand.scale);
             if (ballWithHand) {
+                /* g64coopdx: a respawn after a death does not start the level again, so a snowball would live
+                   on with a ball of size 0, and MoveBall divides by that size. The snowball ends here. */
+                if (G64PerPlayerRestart() && ballControl.snow != 0.0f) {
+                    DeactivateCollectable(SNOWBALL);
+                }
                 ball.obj->spheres[0].radius = ball.obj->spheres[0].targetRadius = 0.0f;
                 ball.radius = 0.0f;
                 ball.pos = handControl.checkpoint->actor.pos;
@@ -1756,6 +1761,10 @@ void RestartPlayer(void) {
             } else {
                 handControl.actionLock = 2;
                 if (ballWithHand) {
+                    /* g64coopdx: as above, the snowball ends with the respawn. */
+                    if (G64PerPlayerRestart() && ballControl.snow != 0.0f) {
+                        DeactivateCollectable(SNOWBALL);
+                    }
                     ball.obj->spheres[0].radius = ball.obj->spheres[0].targetRadius = 0.0f;
                     ball.pos = handControl.checkpoint->actor.pos;
                     ZERO_VECTOR(&ball.vel);

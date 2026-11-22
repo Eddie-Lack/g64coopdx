@@ -202,6 +202,13 @@ harness at N players and by the determinism tests:
 Playable: the whole game, start to end, with 8 players. Test: a scripted run of each level by N bots in the harness;
 the matrix and list peaks measured with 16 players.
 
+The test is `make bots` (tests/rom/bots.c): each of the 48 levels runs 1500 frames with 8 and with 16 players whose
+sticks and buttons come from a seeded generator, on Linux and under Wine, and the two must print the same hashes. Its
+first runs found two faults, both fixed. A player who died with a snowball came back with the snowball still
+counted and a ball of size 0, and the ball's code divided by that size (platform.c). A player's thrown ball could be
+freed while another player was in the globals, and its owner kept the pointer (debris.c, G64FakeballGone). The peaks
+are in item 9.
+
 Risk: the size. 225 functions and about 140 identity tests ([state-inventory.md](state-inventory.md)). The range is
 wide because each boss and each bonus level has its own code.
 
