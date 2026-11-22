@@ -1465,6 +1465,15 @@ G64TestExit g64TestExits[G64_TEST_EXITS] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0
 static u32 framesRun;
 
 /* For scripts (src/port/g64lua.c). */
+static s32 slot_used(s32 i);
+
+/* 1 when the player has a glove in this level. A player who has just come has none for a frame (G64HasPlayer is
+   already 1 then), and a script that asked for their place would get nothing. */
+s32 G64PlayerInLevel(s32 player) {
+    s32 i = slot_of(player);
+    return i >= 0 && slot_used(i);
+}
+
 s32 G64FramesRun(void) {
     return (s32)framesRun;
 }

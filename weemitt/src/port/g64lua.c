@@ -1,8 +1,8 @@
 /* g64coopdx: scripts. One Lua state for the game, on a block of memory that is part of the game's own data: a
    savestate holds the block, and a rollback takes the scripts back with the game. The block holds addresses, so its
    bytes differ between machines. The state hash that machines compare covers the game's memory (port_ram) and not
-   this block; G64LuaCounts gives numbers that are the same on every machine for the same script and inputs, and
-   the online game adds them to the hash it compares (src/rollback/engine_game.c)
+   this block; G64LuaHash gives a number that is the same on every machine for the same script and inputs, and
+   the online game adds it to the hash it compares (src/rollback/engine_game.c)
    (docs/discovery/lua-trial.md in the repository around this copy of weemitt).
 
    This file is C, as Lua is, and is built with Lua's options (g64lua_conf.h). */
@@ -30,6 +30,10 @@ static Block *arenaFree;
 /* Bytes in use, and the allocations and frees so far. */
 static unsigned int luaLive, luaAllocs, luaFrees;
 static lua_State *luaState;
+/* The state of the scripts' random numbers (game.random), and the players the script has been told about
+   (on_join, on_leave), one bit each. Both are part of the game's saved state. */
+static unsigned long long luaRandom;
+static unsigned int luaSeen;
 
 /* The work that is left to the call into the script that runs now: one for each step of Lua and for each byte the
    script asks for. At 0 the script is stopped (spent, below).
@@ -157,6 +161,8 @@ void G64LuaReset(void) {
     arenaFree = NULL;
     luaLive = luaAllocs = luaFrees = 0;
     luaBudget = 0;
+    luaRandom = 0;
+    luaSeen = 0;
 }
 
 /* 1 when a script is loaded. */
@@ -171,6 +177,23 @@ void G64LuaCounts(unsigned int out[4]) {
     out[1] = luaLive;
     out[2] = luaAllocs;
     out[3] = luaFrees;
+}
+
+/* One number for the comparison between machines: a hash of the counts above, of the state of the random numbers
+   and of the players the script has seen. The block itself holds addresses and cannot be compared. */
+unsigned int G64LuaHash(void) {
+    unsigned int c[7], k = 2166136261u;
+    int i, b;
+    G64LuaCounts(c);
+    c[4] = (unsigned int)luaRandom;
+    c[5] = (unsigned int)(luaRandom >> 32);
+    c[6] = luaSeen;
+    for (i = 0; i < 7; i++) {
+        for (b = 0; b < 32; b += 8) {
+            k = (k ^ ((c[i] >> b) & 0xFF)) * 16777619u;
+        }
+    }
+    return k;
 }
 
 /* A new, empty state on the block, for the code that loads a script. NULL when the block has no room. */
@@ -219,8 +242,15 @@ double g64_lua_pow(lua_State *L, double a, double b) {
 /* ---- What a script may call */
 
 int G64PlayerPosition(int p, float *x, float *y, float *z);
+int G64BallPosition(int p, float *x, float *y, float *z);
+int G64PlayerBallType(int p);
+int G64PlayerGaribs(int p);
+int G64PlayerHealth(int p);
+int G64PlayerLives(int p);
+float port_sinf(float x);
+float port_cosf(float x);
 void G64PlacePlayer(int p, float x, float y, float z);
-int G64HasPlayer(int p);
+int G64PlayerInLevel(int p);
 int G64FramesRun(void);
 int G64Level(void);
 void port_log(const char *fmt, ...);
@@ -251,7 +281,7 @@ static int api_level(lua_State *L) {
 }
 
 static int api_has_player(lua_State *L) {
-    lua_pushboolean(L, G64HasPlayer(player_arg(L, 1)));
+    lua_pushboolean(L, G64PlayerInLevel(player_arg(L, 1)));
     return 1;
 }
 
@@ -266,10 +296,99 @@ static int api_pos(lua_State *L) {
     return 3;
 }
 
+static int api_ball_pos(lua_State *L) {
+    float x = 0, y = 0, z = 0;
+    if (!G64BallPosition(player_arg(L, 1), &x, &y, &z)) {
+        return 0;
+    }
+    lua_pushnumber(L, x);
+    lua_pushnumber(L, y);
+    lua_pushnumber(L, z);
+    return 3;
+}
+
+/* A count of a player's: nothing when the player is not in this level. */
+static int count_result(lua_State *L, int p, int v) {
+    if (!G64PlayerInLevel(p)) {
+        return 0;
+    }
+    lua_pushinteger(L, v);
+    return 1;
+}
+
+static int api_ball_type(lua_State *L) {
+    int p = player_arg(L, 1);
+    return count_result(L, p, G64PlayerBallType(p));
+}
+
+static int api_garibs(lua_State *L) {
+    int p = player_arg(L, 1);
+    return count_result(L, p, G64PlayerGaribs(p));
+}
+
+static int api_health(lua_State *L) {
+    int p = player_arg(L, 1);
+    return count_result(L, p, G64PlayerHealth(p));
+}
+
+static int api_lives(lua_State *L) {
+    int p = player_arg(L, 1);
+    return count_result(L, p, G64PlayerLives(p));
+}
+
+/* The next random number: 64 bits (splitmix64). The state starts from the script's text and the level
+   (G64LuaLoad), so every machine draws the same numbers. The game's own random numbers are not touched. */
+static unsigned long long random_next(void) {
+    unsigned long long z = (luaRandom += 0x9E3779B97F4A7C15ull);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+    return z ^ (z >> 31);
+}
+
+/* game.random(): a number from 0 up to, not including, 1. game.random(n): a whole number from 1 to n.
+   game.random(a, b): a whole number from a to b. Both ends are within 31 bits. */
+static int api_random(lua_State *L) {
+    lua_Integer lo = 1, hi;
+    unsigned long long r = random_next();
+    if (lua_gettop(L) == 0) {
+        /* 53 bits, as many as a number holds exactly. */
+        lua_pushnumber(L, (lua_Number)(r >> 11) * (1.0 / 9007199254740992.0));
+        return 1;
+    }
+    if (lua_gettop(L) == 1) {
+        hi = luaL_checkinteger(L, 1);
+    } else {
+        lo = luaL_checkinteger(L, 1);
+        hi = luaL_checkinteger(L, 2);
+    }
+    luaL_argcheck(L, lo >= -2147483647 && hi <= 2147483647 && lo <= hi, 1,
+                  "a range goes from a lower to a higher whole number, both within 31 bits");
+    lua_pushinteger(L, lo + (lua_Integer)(r % (unsigned long long)(hi - lo + 1)));
+    return 1;
+}
+
+/* math.sin and math.cos: the game's own, which every machine computes to the same bits. They work in single
+   precision, as the game does. */
+static float angle_arg(lua_State *L) {
+    lua_Number v = luaL_checknumber(L, 1);
+    luaL_argcheck(L, v >= -1000000.0 && v <= 1000000.0, 1, "an angle is from -1000000 to 1000000");
+    return (float)v;
+}
+
+static int api_sin(lua_State *L) {
+    lua_pushnumber(L, port_sinf(angle_arg(L)));
+    return 1;
+}
+
+static int api_cos(lua_State *L) {
+    lua_pushnumber(L, port_cosf(angle_arg(L)));
+    return 1;
+}
+
 static int api_place(lua_State *L) {
     int p = player_arg(L, 1);
     float x = coord_arg(L, 2), y = coord_arg(L, 3), z = coord_arg(L, 4);
-    if (G64HasPlayer(p)) {
+    if (G64PlayerInLevel(p)) {
         G64PlacePlayer(p, x, y, z);
     }
     return 0;
@@ -277,9 +396,11 @@ static int api_place(lua_State *L) {
 
 static int api_log(lua_State *L);
 
-static const luaL_Reg api[] = {{"frame", api_frame}, {"level", api_level}, {"has_player", api_has_player},
-                               {"pos", api_pos},     {"place", api_place}, {"log", api_log},
-                               {NULL, NULL}};
+static const luaL_Reg api[] = {{"frame", api_frame},         {"level", api_level},   {"has_player", api_has_player},
+                               {"pos", api_pos},             {"place", api_place},   {"log", api_log},
+                               {"ball_pos", api_ball_pos},   {"ball_type", api_ball_type},
+                               {"garibs", api_garibs},       {"health", api_health}, {"lives", api_lives},
+                               {"random", api_random},       {NULL, NULL}};
 
 /* ---- The sandbox */
 
@@ -449,20 +570,24 @@ static void wrap_field(lua_State *L, const char *table, const char *name, lua_CF
     lua_pop(L, 1);
 }
 
+/* The part of the script that runs now, for the log. */
+static const char *luaWhat;
+
 /* Calls the function on the stack with no arguments, with the given work to spend. An error ends the scripts for
    this game: on every machine at the same point, since they all run the same script on the same game. So does a
    call that used up its work, also when the script caught that error itself. */
 static int call_script(lua_State *L, const char *what, long long budget) {
     int failed;
     luaBudget = budget;
+    luaWhat = what;
     failed = lua_pcall(L, 0, 0, 0) != LUA_OK;
     if (luaBudget <= 0) {
-        port_log("script: %s failed: the script ran too long", what);
+        port_log("script: %s failed: the script ran too long", luaWhat);
     } else if (failed) {
         size_t n = 0;
         const char *why = lua_tolstring(L, -1, &n);
         char head[64];
-        snprintf(head, sizeof head, "%s failed: ", what);
+        snprintf(head, sizeof head, "%s failed: ", luaWhat);
         if (why == NULL) {
             why = "(no message)";
             n = strlen(why);
@@ -518,6 +643,12 @@ static int load_script(lua_State *L) {
     wrap_field(L, NULL, "setmetatable", safe_setmetatable);
     luaL_newlib(L, api);
     lua_setglobal(L, "game");
+    lua_getglobal(L, "math");
+    lua_pushcfunction(L, api_sin);
+    lua_setfield(L, -2, "sin");
+    lua_pushcfunction(L, api_cos);
+    lua_setfield(L, -2, "cos");
+    lua_pop(L, 1);
     /* Source only: a script's compiled form is never taken. */
     if (luaL_loadbufferx(L, loadSource, loadSize, "script", "t") != LUA_OK) {
         return lua_error(L);
@@ -529,6 +660,7 @@ static int load_script(lua_State *L) {
 /* Loads and runs a script's source. Returns 0, or -1 when it does not load or its first run fails. */
 int G64LuaLoad(const char *source, unsigned int size) {
     lua_State *L;
+    unsigned int i;
     int r;
     luaBudget = LOAD_BUDGET;
     L = G64LuaNewState();
@@ -537,6 +669,12 @@ int G64LuaLoad(const char *source, unsigned int size) {
         return -1;
     }
     lua_sethook(L, count_hook, LUA_MASKCOUNT | LUA_MASKCALL, HOOK_EVERY);
+    /* The random numbers start from the script's text and the level. */
+    luaRandom = 14695981039346656037ull;
+    for (i = 0; i < size; i++) {
+        luaRandom = (luaRandom ^ (unsigned char)source[i]) * 1099511628211ull;
+    }
+    luaRandom ^= (unsigned long long)(unsigned int)G64Level() << 32;
     loadSource = source;
     loadSize = size;
     lua_pushcfunction(L, load_script);
@@ -546,14 +684,44 @@ int G64LuaLoad(const char *source, unsigned int size) {
     return r;
 }
 
-/* Calls the script's on_frame function, if it has one. The name is looked up without metamethods, and under
-   call_script, so a script cannot run code outside the count of steps. */
-static int frame_call(lua_State *L) {
+/* Calls the script's global function of that name with a player's number, if the script has it. The name is
+   looked up without metamethods. */
+static void call_event(lua_State *L, const char *name, int p) {
     lua_pushglobaltable(L);
-    lua_pushliteral(L, "on_frame");
+    lua_pushstring(L, name);
     if (lua_rawget(L, -2) == LUA_TFUNCTION) {
-        lua_call(L, 0, 0);
+        luaWhat = name;
+        if (p >= 0) {
+            lua_pushinteger(L, p);
+        }
+        lua_call(L, p >= 0 ? 1 : 0, 0);
     }
+    lua_settop(L, 0);
+}
+
+/* One frame of the script: on_leave for each player who is gone since the last frame, on_join for each who is
+   new, then on_frame. All of it runs under one call_script, and so within one frame's work. */
+static int frame_call(lua_State *L) {
+    unsigned int now = 0;
+    int p;
+    for (p = 0; p < 16; p++) {
+        if (G64PlayerInLevel(p)) {
+            now |= 1u << p;
+        }
+    }
+    for (p = 0; p < 16; p++) {
+        if ((luaSeen & ~now) & (1u << p)) {
+            luaSeen &= ~(1u << p);
+            call_event(L, "on_leave", p);
+        }
+    }
+    for (p = 0; p < 16; p++) {
+        if ((now & ~luaSeen) & (1u << p)) {
+            luaSeen |= 1u << p;
+            call_event(L, "on_join", p);
+        }
+    }
+    call_event(L, "on_frame", -1);
     return 0;
 }
 
@@ -565,6 +733,28 @@ void G64LuaFrame(void) {
     }
     lua_pushcfunction(L, frame_call);
     call_script(L, "on_frame", CALL_BUDGET);
+}
+
+/* For tests: the number in the script's global variable of that name, or -1 when there is none. It walks the
+   global table and compares the names, which asks Lua for no memory: the script's state and its counts stay as
+   they are. */
+double G64LuaGlobal(const char *name) {
+    lua_State *L = luaState;
+    double v = -1;
+    if (L == NULL || !lua_checkstack(L, 4)) {
+        return v;
+    }
+    lua_pushglobaltable(L);
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+        if (lua_type(L, -2) == LUA_TSTRING && lua_type(L, -1) == LUA_TNUMBER &&
+            strcmp(lua_tostring(L, -2), name) == 0) {
+            v = lua_tonumber(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    return v;
 }
 
 /* ---- A level pack's script */

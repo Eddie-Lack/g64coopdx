@@ -2,7 +2,7 @@
 
 A level pack may hold a script: a file `script.lua` of Lua source text
 ([discovery/level-pack.md](discovery/level-pack.md)). This page is for someone who writes one. The scripting is a
-first version: a script can read a little of the game and move a glove. More comes later.
+first version: a script can read the players, move a glove, and draw random numbers. More comes later.
 
 ## How a script runs
 
@@ -11,10 +11,14 @@ first version: a script can read a little of the game and move a glove. More com
 - The script's text runs once when a game starts, before its first frame.
 - If the script has a function `on_frame`, the game calls it once a frame, before the game's own step. The game
   runs 20 frames a second.
+- If the script has a function `on_join`, the game calls it with a player's number when that player has come into
+  this level, before that frame's `on_frame`. The first player of a level comes in at its first frame. The others
+  who start it come in a little later, when the level's opening is over. `on_leave` is the same for a player who
+  is gone. The last player of a level gets no `on_leave`: the level ends with them.
 - Every machine runs the same script on the same game and must reach the same result. So a script has no clock, no
   random numbers of its own, no files, and no way to load other code.
-- The machines compare their games now and then. The comparison includes how much memory the script uses and how
-  many times it asked for memory. A script that ran differently on one machine shows up as a desync.
+- The machines compare their games now and then. The comparison includes how much memory the script uses, how
+  many times it asked for memory, and where its random numbers stand. A script that ran differently on one machine shows up as a desync.
 - The online game sometimes goes back a few frames and runs them again with corrected inputs. The script's
   variables go back with the game. A script does not notice.
 
@@ -27,9 +31,20 @@ The table `game`:
 | `game.frame()` | the number of frames this game has run |
 | `game.level()` | the level's number, 0 to 47 |
 | `game.has_player(p)` | `true` when player `p` is in this level. Players are numbered 0 to 15, the same on every machine; the host is 0 |
-| `game.pos(p)` | the place of player `p`'s glove: three numbers `x, y, z`, or nothing when the player is not in this level |
+| `game.pos(p)` | the place of player `p`'s glove: three numbers `x, y, z` |
+| `game.ball_pos(p)` | the place of player `p`'s ball: three numbers `x, y, z` |
+| `game.ball_type(p)` | the kind of player `p`'s ball, as the game numbers it |
+| `game.garibs(p)`, `game.health(p)`, `game.lives(p)` | player `p`'s garibs, health and lives |
+| `game.random()` | a random number from 0 up to, not including, 1 |
+| `game.random(n)`, `game.random(a, b)` | a random whole number from 1 to `n`, or from `a` to `b`. The numbers stay within 31 bits |
+| `math.sin(x)`, `math.cos(x)` | the game's own sine and cosine, in single precision. `x` is from -1000000 to 1000000 |
 | `game.place(p, x, y, z)` | puts player `p`'s glove at a place. Each coordinate is from -100000 to 100000 |
 | `game.log(text)` | writes a line to the program's log. It is for you to read: nothing in the game reads it |
+
+A call that asks about a player gives nothing (`nil`) when that player is not in this level.
+
+The random numbers start from the script's text and the level's number. Every machine draws the same ones, and a
+level gives the same ones each time it starts. They do not touch the game's own random numbers.
 
 From Lua's own libraries a script has `table`, `string` and `math`, and the basic functions (`pairs`, `ipairs`,
 `type`, `tonumber`, `select`, `pcall`, `error`, `assert`, `setmetatable` and the like), without the parts below.
@@ -38,8 +53,8 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
 
 | Left out | Why |
 | --- | --- |
-| `math.random`, `math.randomseed` | each machine would get other numbers |
-| `math.sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `exp`, `log` | their last digit may differ between Windows and Linux. The game's own will take their place |
+| `math.random`, `math.randomseed` | each machine would get other numbers. Use `game.random` |
+| `math.tan`, `asin`, `acos`, `atan`, `exp`, `log` | their last digit may differ between Windows and Linux. `math.sin` and `math.cos` are the game's own |
 | `x ^ y` with an exponent that is not a whole number from -1024 to 1024, or 0.5 | the same reason. Such a power is an error. Written with two plain numbers (`2 ^ 0.3`), it stops the script from starting |
 | `print`, `tostring` | `tostring` of a table gives its address, which differs between machines. Use `game.log`; a number joins a text with `..` |
 | `string.format` with `%p`, `%a` or `%q`, or with `%s` for anything but a text or a number | an address, or a number in a form that Windows and Linux write differently |
@@ -54,7 +69,7 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
 
 ## Limits
 
-- **Work:** one call into the script may do about two million units of work. A step of Lua is one unit, and a
+- **Work:** in one frame the script may do about two million units of work, over all the functions the game calls. A step of Lua is one unit, and a
   call of a function is 50. Each byte of memory the script asks for is one unit, and so is each byte a
   `string.find` searches. The script's first run,
   which also reads its text, may do 50 million.
