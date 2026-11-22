@@ -422,7 +422,8 @@ static void chat_overlay(int h) {
 void g64_pause_draw(SDL_Window *window) {
     int w, h, i;
     int chat = chat_overlay_lines();
-    if (!netplay_pause_open() && netplay_tip_lines() == 0 && chat == 0)
+    /* A tip is not drawn here: the game draws it in its own box (G64TipView). */
+    if (!netplay_pause_open() && chat == 0)
         return;
     SDL_GetWindowSize(window, &w, &h);
     ImGui_ImplOpenGL3_NewFrame();
@@ -430,26 +431,7 @@ void g64_pause_draw(SDL_Window *window) {
     ImGui::NewFrame();
     if (chat)
         chat_overlay(h);
-    if (!netplay_pause_open() && netplay_tip_lines() == 0) {
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        return;
-    }
     if (!netplay_pause_open()) {
-        /* The tip that this player reads. The level goes on behind it; the game holds the reader's glove. */
-        ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-        ImGui::SetNextWindowSize(ImVec2(520, 0), ImGuiCond_Always);
-        ImGui::Begin("Mr. Tip", NULL,
-                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
-                         | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
-        ImGui::SetWindowFontScale(1.4f);
-        for (i = 0; i < netplay_tip_lines(); i++)
-            ImGui::TextUnformatted(netplay_tip_line(i));
-        ImGui::Spacing();
-        ImGui::SetWindowFontScale(1.0f);
-        ImGui::TextDisabled(netplay_tip_more() ? "The game goes on for everyone. A turns the page."
-                                               : "The game goes on for everyone. A closes the tip.");
-        ImGui::End();
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         return;

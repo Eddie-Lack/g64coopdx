@@ -2636,6 +2636,15 @@ s32 G64TipHeld(void) {
     return g64Online && !swapped && tipLine[g64Member[logicSlot] & (G64_MAX_PLAYERS - 1)] != 0;
 }
 
+void TipDrawPage(s32 line, s32 time);
+
+/* The client calls this before it draws a player's view: the tip that the player reads goes into the picture, in
+   the game's own box. */
+void G64TipView(s32 player) {
+    if (player >= 0 && player < G64_MAX_PLAYERS && tipLine[player] > 0)
+        TipDrawPage(tipLine[player] - 1, tipTime[player]);
+}
+
 s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
     s32 line, end, n = 0;
     if (player < 0 || player >= G64_MAX_PLAYERS || tipLine[player] <= 0)
