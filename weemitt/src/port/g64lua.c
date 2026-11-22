@@ -53,6 +53,9 @@ static unsigned int luaSession[SESSION_KEYS];
 static unsigned int startSession[SESSION_KEYS];
 static int luaRequests[REQUEST_MAX][2];
 static int luaRequestCount;
+/* 1 while the script's text runs for the first time. A request made then would never reach the host, which reads
+   requests after a frame's step. */
+static int luaLoading;
 #define SHOW_TEXT 60
 #define SHOW_FRAMES_MAX 1200
 static char luaShown[16][SHOW_TEXT + 1];
@@ -444,12 +447,12 @@ static int api_session(lua_State *L) {
 
 /* game.add_session(k, n): asks for n to be added to the session's value number k. The value changes a few frames
    later, in every level of the session, and on_session tells of it. Returns false when the frame's 8 requests are
-   used up. */
+   used up, and in the script's first run, before the game's first frame. */
 static int api_add_session(lua_State *L) {
     int k = key_arg(L, 1);
     lua_Integer n = luaL_checkinteger(L, 2);
     luaL_argcheck(L, n >= -2147483647 && n <= 2147483647, 2, "an amount is within 31 bits");
-    if (luaRequestCount >= REQUEST_MAX) {
+    if (luaRequestCount >= REQUEST_MAX || luaLoading) {
         lua_pushboolean(L, 0);
         return 1;
     }
@@ -832,7 +835,9 @@ int G64LuaLoad(const char *source, unsigned int size) {
     loadSource = source;
     loadSize = size;
     lua_pushcfunction(L, load_script);
+    luaLoading = 1;
     r = call_script(L, "the script's start", LOAD_BUDGET);
+    luaLoading = 0;
     loadSource = NULL;
     loadSize = 0;
     return r;

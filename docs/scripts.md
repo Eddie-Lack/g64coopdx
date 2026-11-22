@@ -63,13 +63,15 @@ starts. Every level's script reads the same values, and a level that starts late
 | Call | What it gives or does |
 | --- | --- |
 | `game.session(k)` | the session's value number `k`, as this level has it now |
-| `game.add_session(k, n)` | asks for `n` to be added to value `k`. `n` may be negative. A frame takes 8 such requests; the call gives `false` for one more |
+| `game.add_session(k, n)` | asks for `n` to be added to value `k`. `n` may be negative. A frame takes 8 such requests; the call gives `false` for one more. It also gives `false` in the script's first run, before the level's first frame: ask from `on_frame` or from an event |
 
 - A script cannot set a value. Two levels may ask in the same moment, and with amounts both count.
 - The value does not change at once. The host adds the amount, and the new value comes to every level of the session
   a few frames later. Until then `game.session(k)` gives the old value.
 - If the script has a function `on_session`, the game calls it with the key when a value has changed, before that
-  frame's `on_frame`.
+  frame's `on_frame`. It shares the list of 64 events a frame with `on_garib` and `on_death`: in a frame with more,
+  the value still changes and the call is left out.
+- The requests of a frame in which the script is stopped do not count.
 - A value that passes 2147483647 wraps to the negative numbers.
 
 The random numbers start from the script's text and the level's number. Every machine draws the same ones, and a

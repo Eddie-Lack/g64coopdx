@@ -332,7 +332,7 @@ int main(void) {
         G64LuaEvent(1, 3);
         G64LuaEvent(2, 15);
         G64LuaEvent(0, 0);
-        G64LuaEvent(3, 0);
+        G64LuaEvent(4, 0);
         G64LuaEvent(1, 16);
         G64LuaEvent(1, -1);
         frames = 1;
@@ -387,6 +387,7 @@ int main(void) {
     {
         static const char script[] =
             "local s = game.session(2) .. ' ' .. game.session(15)\n"
+            "s = s .. (game.add_session(0, 1) and ', ASKED AT THE START' or ', no request at the start')\n"
             "function on_session(k) s = s .. ', heard ' .. k .. ' = ' .. game.session(k) end\n"
             "function on_frame()\n"
             "  if game.frame() == 0 then\n"
