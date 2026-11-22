@@ -180,6 +180,10 @@ void UpdateGaribs(void) {
     if (deltaTick && (garibTimer == 0 || --garibTimer == 0)) {
         garibCount = 0;
     }
+    /* g64coopdx: each player has a run of their own. */
+    if (deltaTick) {
+        G64GaribRuns();
+    }
     for (garibGroup = garibGroupList.head.prev; garibGroup != &garibGroupList.head; garibGroup = garibGroup->prev) {
         first = TRUE;
         for (garib = garibGroup->garibs.head.prev; garib != &garibGroup->garibs.head; garib = garib->prev) {

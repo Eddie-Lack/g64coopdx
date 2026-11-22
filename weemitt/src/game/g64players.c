@@ -88,7 +88,57 @@ typedef struct G64Cave {
     s32 target;
 } G64Cave;
 
+extern s16 garibTimer;
+extern s16 garibCount;
+
+/* The words in the glove's and the ball's display lists that name their textures and palettes. The game writes
+   them when a power-up or a spell changes the look (ball.c, collect.c). They are each player's own: a swap
+   exchanges them, and another player's glove and ball are drawn with that player's words (G64ActorTextures). */
+#define G64_TEX_WORDS 10
+extern PTR32(u32) ballTextureData;
+extern PTR32(u32) ballTexturePalette;
+extern PTR32(u32) ballTextureData2;
+extern PTR32(u32) ballTexturePalette2;
+extern PTR32(u32) ballBitTextureData;
+extern PTR32(u32) ballBitTexturePalette;
+extern PTR32(u32) handTextureData[2];
+extern PTR32(u32) handTexturePalette[2];
+/* The ball's other model: the crystal ball's, or the usual one while the ball is crystal (ChangeBallInto). */
+extern PTR32(ObjectInstance) crystalBall;
+
+/* The words that this level's models have (a bit each). The loader sets a bit when it finds the word
+   (src/port/loaders.c), and a level load starts from none (G64ExtraPlayersFree). The game's own pointer to a word
+   that this level lacks is left over from an earlier level, and nothing may be read or written through it. */
+static u32 texLoaded;
+
+void G64TexWordLoaded(s32 k) {
+    texLoaded |= 1u << k;
+}
+
+/* Word k's place in the game's memory, or NULL when the level has none. 0 to 5 are the ball's, 6 to 9 the glove's. */
+static u32 *tex_word(s32 k) {
+    if (!(texLoaded & (1u << k)))
+        return NULL;
+    switch (k) {
+        case 0: return ballTextureData;
+        case 1: return ballTexturePalette;
+        case 2: return ballTextureData2;
+        case 3: return ballTexturePalette2;
+        case 4: return ballBitTextureData;
+        case 5: return ballBitTexturePalette;
+        case 6: return handTextureData[0];
+        case 7: return handTextureData[1];
+        case 8: return handTexturePalette[0];
+        default: return handTexturePalette[1];
+    }
+}
+
 typedef struct G64Slot {
+    u32 texWords[G64_TEX_WORDS];
+    PTR32(ObjectInstance) crystalBall;
+    /* The run of garibs taken in quick succession: the frames left to add to it, and its length (collect.c). */
+    s16 garibTimer;
+    s16 garibCount;
     Actor hand;
     Actor ball;
     Actor camera;
@@ -325,6 +375,17 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&spaceBossReload, &s->spaceBossReload, sizeof(s32));
     swap_bytes(&spbCrosshairAlpha, &s->spbCrosshairAlpha, 1);
     swap_bytes(&ballPain, &s->ballPain, 1);
+    {
+        s32 k;
+        for (k = 0; k < G64_TEX_WORDS; k++) {
+            u32 *w = tex_word(k);
+            if (w)
+                swap_bytes(w, &s->texWords[k], sizeof(u32));
+        }
+        swap_bytes(&crystalBall, &s->crystalBall, sizeof(crystalBall));
+    }
+    swap_bytes(&garibTimer, &s->garibTimer, sizeof(s16));
+    swap_bytes(&garibCount, &s->garibCount, sizeof(s16));
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
     /* Online the globals' part of the cave exists before the first slot does (global_cave). */
@@ -433,6 +494,16 @@ static G64Slot *copy_globals(void) {
     if (world_orbiter3())
         slot_orbiter3(s)->inst = NULL;
     memcpy(&s->ballControl, &ballControl, sizeof(BallControl));
+    {
+        s32 k;
+        for (k = 0; k < G64_TEX_WORDS; k++) {
+            u32 *w = tex_word(k);
+            s->texWords[k] = w ? *w : 0;
+        }
+        s->crystalBall = crystalBall;
+    }
+    /* A new player starts no run of garibs. */
+    s->garibTimer = s->garibCount = 0;
     memcpy(&s->pad, &pad[ActiveController], sizeof(Pad));
     s->oldHandPos = oldHandPos;
     s->ballWithHand = ballWithHand;
@@ -636,14 +707,41 @@ s32 G64OrbitersByProxy(void) {
     return 1;
 }
 
+/* 1 after G64SwapPlayer: the frame that is drawn next is a player's view, and the client loads the state again
+   after it. What the draw changes in the globals then does not reach the game. */
+static s32 viewDraw;
+
+static void forget_cameo(void);
+static s32 cameo_slot(void);
+
+/* An actor that is not drawn: no size, no shadow. */
+static void hide_actor(Actor *a) {
+    ZERO_VECTOR(&a->scale);
+    a->flags &= ~0x100;
+}
+
 void G64UpdateProxies(void) {
     s32 i, k;
+    /* While a cameo plays, only its player's glove and ball are drawn. cameoOwn is that player's slot. */
+    s32 hide = gameInfo.cameoActive && slotCount > 1;
+    s32 cameoOwn = hide ? cameo_slot() : 0;
     for (i = 1; i < slotCount; i++) {
         G64Slot *s = slots[i];
         if (s && proxyHand[i] && proxyBall[i]) {
             copy_to_proxy(proxyHand[i], &s->hand);
             copy_to_proxy(proxyBall[i], &s->ball);
+            /* With slot `swapped` in the globals for a view, that slot holds the first player. */
+            if (hide && (i == swapped ? 0 : i) != cameoOwn) {
+                hide_actor(proxyHand[i]);
+                hide_actor(proxyBall[i]);
+            }
         }
+    }
+    /* The viewer's own glove and ball are the globals' in their view. Only a view may hide them: the frame the
+       game draws for itself must leave the globals as they are. */
+    if (hide && viewDraw && swapped != cameoOwn) {
+        hide_actor(&hand);
+        hide_actor(&ball);
     }
     sync_orbiters();
     for (i = 0; i < slotCount; i++) {
@@ -651,15 +749,18 @@ void G64UpdateProxies(void) {
         s32 store = !swapped ? i : i == 0 ? swapped : i == swapped ? 0 : i;
         for (k = 0; k < G64_ORBITERS; k++) {
             Actor *p = proxyOrbiter[i][k];
-            if (p && !(k == 2 && world_orbiter3()) && (store == 0 || slots[store]) && orbiter_in(store, k)->inst)
+            if (p && !(k == 2 && world_orbiter3()) && (store == 0 || slots[store]) && orbiter_in(store, k)->inst) {
                 copy_to_proxy(p, orbiter_in(store, k));
+                /* A hidden player's orbiters are hidden too. Slot i's orbiters are player i's in every view. */
+                if (hide && i != cameoOwn)
+                    hide_actor(p);
+            }
         }
     }
 }
 
 static void forget_tips(void);
 
-static void forget_cameo(void);
 /* Cameos (below): cameoStarter is the number plus 1 of the player who set the cameo off, or 0 for the first player.
    cameoMet is the player, plus 1, who last met a puzzle's condition on a player in the puzzle that is being run.
    cameoPending is that player for a puzzle whose conditions are met, until its cameo starts. cameoUsed: a cameo
@@ -667,6 +768,7 @@ static void forget_cameo(void);
 static s32 cameoStarter, cameoMet, cameoUsed, cameoPending, cameoHolding;
 
 void G64ExtraPlayersFree(void) {
+    texLoaded = 0;
     forget_tips();
     forget_cameo();
     free_slots();
@@ -811,6 +913,8 @@ static s32 slot_of(s32 player) {
 
 void G64SwapPlayer(s32 player) {
     s32 i = slot_of(player);
+    /* The client draws this player's view next, and loads the state again after it (G64UpdateProxies). */
+    viewDraw = 1;
     if (i >= 1 && i < slotCount && slots[i]) {
         swap_slot(slots[i]);
         swapped = swapped == i ? 0 : i;
@@ -823,6 +927,88 @@ s32 G64IsProxy(Actor *a) {
         if (a == proxyHand[i] || a == proxyBall[i])
             return 1;
     return 0;
+}
+
+/* For tests: the length of a player's run of garibs taken in quick succession, or -1. */
+s32 G64PlayerGaribRun(s32 player) {
+    s32 i = slot_of(player);
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return -1;
+    return i ? ((G64Slot *)slots[i])->garibCount : garibCount;
+}
+
+/* collect.c counts the first player's run of garibs down once a frame. This does the same for the other players,
+   each of whom has a run of their own. */
+void G64GaribRuns(void) {
+    s32 i;
+    if (swapped || logicSlot)
+        return;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (s && (s->garibTimer == 0 || --s->garibTimer == 0))
+            s->garibCount = 0;
+    }
+}
+
+/* For the draw of another player's glove or ball (a proxy): the texture words that differ from the ones in the
+   game's memory now, which are the viewer's. from[] gets the words the display list holds, to[] that player's own.
+   It returns how many, at most max. The renderer puts one for the other while the actor is drawn (object.c). */
+s32 G64ActorTextures(Actor *a, u32 *from, u32 *to, s32 max) {
+    s32 i, k, first, last, n = 0;
+    for (i = 1; i < slotCount; i++) {
+        G64Slot *s = slots[i];
+        if (!s || (a != proxyHand[i] && a != proxyBall[i]))
+            continue;
+        /* The ball has two models with a word pair each: the crystal ball's (2 and 3) and the usual one's (0 and
+           1). Only the words of the model that is drawn are passed: the two pairs can hold the same value. */
+        if (a == proxyBall[i]) {
+            first = s->ballControl.type == BALL_MODE_CRYSTAL ? 2 : 0;
+            last = first + 1;
+        } else {
+            first = 6;
+            last = 9;
+        }
+        for (k = first; k <= last && n < max; k++) {
+            u32 *w = tex_word(k);
+            if (w && *w && s->texWords[k] && *w != s->texWords[k]) {
+                from[n] = *w;
+                to[n] = s->texWords[k];
+                n++;
+            }
+        }
+        return n;
+    }
+    return 0;
+}
+
+/* For tests: a player's texture word k (tex_word), and the type of their ball. -1 when the player has no glove. */
+s32 G64PlayerTexture(s32 player, s32 k) {
+    s32 i = slot_of(player);
+    u32 *w;
+    if (k < 0 || k >= G64_TEX_WORDS || i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return -1;
+    w = tex_word(k);
+    return (s32)((i ? ((G64Slot *)slots[i])->texWords[k] : w ? *w : 0) & 0x7FFFFFFF);
+}
+
+/* For tests: the player's ball starts to change into the next kind, as the R button makes it (HandTransformBall),
+   with that player in the globals. */
+void HandTransformBall(void);
+void G64TestChangeBall(s32 player) {
+    s32 i = slot_of(player);
+    if (i == 0) {
+        HandTransformBall();
+    } else if (i > 0 && G64HazardBegin(i)) {
+        HandTransformBall();
+        G64HazardEnd(i);
+    }
+}
+
+s32 G64PlayerBallType(s32 player) {
+    s32 i = slot_of(player);
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i])))
+        return -1;
+    return i ? ((G64Slot *)slots[i])->ballControl.type : ballControl.type;
 }
 
 /* Each player's color as 0xRRGGBB, multiplied into the glove's and ball's colors. Player 1 keeps the game's own. */
@@ -2264,6 +2450,17 @@ void G64CameoView(void) {
         s->cameraInfo.actor.pos = cameraInfo.actor.pos;
         s->cameraUpVect = cameraUpVect;
     }
+}
+
+/* For tests: 1 when the glove of a player who is not in the globals is drawn (its proxy has a size), 0 when it is
+   hidden, -1 when the player has no proxy. */
+s32 G64ProxyShown(s32 player) {
+    s32 i = slot_of(player);
+    Actor *a;
+    if (i < 1 || i >= slotCount || !proxyHand[i])
+        return -1;
+    a = proxyHand[i];
+    return a->scale.x != 0.0f || a->scale.y != 0.0f || a->scale.z != 0.0f;
 }
 
 /* For tests: the number of the player a cameo plays for, or -1 when none plays. */

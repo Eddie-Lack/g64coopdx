@@ -131,9 +131,13 @@ harness at N players and by the determinism tests:
    Done: the player whose glove or ball reaches a garib from the nearest takes it, and the players of a level share
    one count of garibs. The score, the health a garib gives and a power-up are the taker's own. The first player
    whose glove touches a pick-up takes it. A power-up's orbiters are drawn as proxies
-   (weemitt/src/game/g64players.c, "Garibs and pick-ups"; tests/rom/collect.c). Left: the ball's and the glove's
-   textures are shared, so a power-up that changes the ball's look changes every ball. The combo of garibs taken in
-   quick succession is one for all players.
+   (weemitt/src/game/g64players.c, "Garibs and pick-ups"; tests/rom/collect.c). The ball's and the glove's textures are each player's own: the words in their display lists that name the
+   texture and the palette go with the player in a swap, with the crystal ball's model, and the renderer draws
+   another player's glove and ball with that player's words (G64ActorTextures; gfx_dl.c; tests/rom/textures.c).
+   Left: the drawn result has not been looked at in the window program. Two players with the same kind of ball
+   share its palette, so a blend (a ball that is changing, a snowball) shows on both. The bits of a burst ball are
+   drawn with the viewer's own ball texture. The run of garibs taken in
+   quick succession is each player's own.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
    Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with
@@ -176,8 +180,9 @@ harness at N players and by the determinism tests:
    script moves their glove and camera. The other players are held and cannot be hurt while it plays, and they
    see its camera (cameo.c, puzzle.c, g64players.c, "Cameos"; tests/rom/cameos.c). The other players are made only
    when no cameo plays. In the control room, whose scene plays from a recording of the first player, the other
-   players have no glove and watch through the first player's camera. Left: hiding the other gloves during a
-   cameo. A cameo whose player leaves goes on with the first player's glove.
+   players have no glove and watch through the first player's camera. While a cameo plays, only its player's
+   glove and ball are drawn: the others have no size and no shadow in the frame (G64UpdateProxies). Left: a cameo
+   whose player leaves goes on with the first player's glove.
 8. Pause and tips as local overlays. Pause is done: each player has their own menu. The look-around mode is each
    player's own too: their view turns, and it goes back to where it looked (tests/rom/lookaround.c).
    Tips are done: online a tip does not stop the level. Any player opens one with B at the tip, and the two tips
