@@ -35,6 +35,11 @@ size_t g64_write_move(uint8_t *d, const g64_move *m) {
             put32(d + G64_MOVE_HEAD + 8 * p + 4, m->colors[p][1]);
         }
     }
+    {
+        int k;
+        for (k = 0; k < G64_SCRIPT_KEYS; k++)
+            put32(d + G64_MOVE_VALUES + 4 * k, m->values[k]);
+    }
     return G64_MOVE_SIZE;
 }
 
@@ -70,11 +75,32 @@ int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
                 return -1;
         }
     }
+    {
+        /* Any 32 bits are a value. */
+        int k;
+        for (k = 0; k < G64_SCRIPT_KEYS; k++)
+            m.values[k] = get32(d + G64_MOVE_VALUES + 4 * k);
+    }
     *out = m;
     return 0;
 }
 
 int g64_valid_color(uint32_t c) { return (c >> 25) == 0; }
+
+size_t g64_write_script_event(uint8_t *d, int key, uint32_t value) {
+    d[0] = G64_EVENT_SCRIPT;
+    d[1] = (uint8_t)key;
+    put32(d + 2, value);
+    return G64_EVENT_SCRIPT_SIZE;
+}
+
+int g64_parse_script_event(const uint8_t *d, size_t len, int *key, uint32_t *value) {
+    if (!d || len != G64_EVENT_SCRIPT_SIZE || d[0] != G64_EVENT_SCRIPT || d[1] >= G64_SCRIPT_KEYS)
+        return -1;
+    *key = d[1];
+    *value = get32(d + 2);
+    return 0;
+}
 
 size_t g64_write_world_event(uint8_t *d, int world) {
     d[0] = G64_EVENT_WORLD;

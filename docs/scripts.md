@@ -2,13 +2,14 @@
 
 A level pack may hold a script: a file `script.lua` of Lua source text
 ([discovery/level-pack.md](discovery/level-pack.md)). This page is for someone who writes one. The scripting is a
-first version: a script can read the players, move, hurt and heal a glove, show text, and draw random numbers.
-More comes later.
+first version: a script can read the players, move, hurt and heal a glove, show text, draw random numbers, and
+keep values from level to level. More comes later.
 
 ## How a script runs
 
 - Every game of the session runs the script: one game for each level that has players in it. Each game has its own
-  copy of the script's variables. A script in one level does not see another level's.
+  copy of the script's variables. A script in one level does not see another level's. What must last from level to
+  level goes into the session's values (below).
 - The script's text runs once when a game starts, before its first frame.
 - If the script has a function `on_frame`, the game calls it once a frame, before the game's own step. The game
   runs 20 frames a second.
@@ -52,8 +53,24 @@ The table `game`:
 A call that asks about a player gives nothing (`nil`) when that player is not in this level. A call that acts on
 such a player does nothing.
 
-A script cannot change garibs or lives. The game carries them from level to level, and a script's own state does
-not last across levels yet.
+A script cannot change garibs or lives. The game carries them from level to level.
+
+## Values that last from level to level
+
+The session has 16 values, numbered 0 to 15. Each is a whole number of 32 bits, and all are 0 when the session
+starts. Every level's script reads the same values, and a level that starts later starts with them.
+
+| Call | What it gives or does |
+| --- | --- |
+| `game.session(k)` | the session's value number `k`, as this level has it now |
+| `game.add_session(k, n)` | asks for `n` to be added to value `k`. `n` may be negative. A frame takes 8 such requests; the call gives `false` for one more |
+
+- A script cannot set a value. Two levels may ask in the same moment, and with amounts both count.
+- The value does not change at once. The host adds the amount, and the new value comes to every level of the session
+  a few frames later. Until then `game.session(k)` gives the old value.
+- If the script has a function `on_session`, the game calls it with the key when a value has changed, before that
+  frame's `on_frame`.
+- A value that passes 2147483647 wraps to the negative numbers.
 
 The random numbers start from the script's text and the level's number. Every machine draws the same ones, and a
 level gives the same ones each time it starts. They do not touch the game's own random numbers.

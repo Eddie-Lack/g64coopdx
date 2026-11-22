@@ -42,6 +42,17 @@ static unsigned char luaEvents[EVENT_MAX][2];
 static unsigned int luaEventCount;
 /* The line of text that the script shows to each player (game.show), and the frame at which it goes away. It is
    part of the game's saved state: after a rollback the screen shows what the script of the corrected frames set. */
+/* The session's values for scripts: SESSION_KEYS whole numbers of 32 bits that every level's script reads, and that
+   last from level to level. luaSession is this game's copy. A script does not write it: it asks for an amount to be
+   added (luaRequests, the key and the amount), the host adds it to the session's value, and the new value comes
+   back to every game of the session as a session event at a frame (G64LuaSetSession). startSession is what a game
+   starts with: the client sets it the same on every machine before the game is built, and nothing resets it. */
+#define SESSION_KEYS 16
+#define REQUEST_MAX 8
+static unsigned int luaSession[SESSION_KEYS];
+static unsigned int startSession[SESSION_KEYS];
+static int luaRequests[REQUEST_MAX][2];
+static int luaRequestCount;
 #define SHOW_TEXT 60
 #define SHOW_FRAMES_MAX 1200
 static char luaShown[16][SHOW_TEXT + 1];
@@ -178,6 +189,8 @@ void G64LuaReset(void) {
     luaEventCount = 0;
     memset(luaShown, 0, sizeof luaShown);
     memset(luaShownUntil, 0, sizeof luaShownUntil);
+    memset(luaSession, 0, sizeof luaSession);
+    luaRequestCount = 0;
 }
 
 /* 1 when a script is loaded. */
@@ -195,7 +208,8 @@ void G64LuaCounts(unsigned int out[4]) {
 }
 
 /* One number for the comparison between machines: a hash of the counts above, of the state of the random numbers
-   of the players the script has seen, of the events that wait for it and of the text it shows. The block itself holds addresses and cannot be compared. */
+   of the players the script has seen, of the events that wait for it, of the text it shows, and of the
+   session's values and what the script asked to add to them. The block itself holds addresses and cannot be compared. */
 unsigned int G64LuaHash(void) {
     unsigned int c[7], k = 2166136261u;
     int i, b;
@@ -211,6 +225,15 @@ unsigned int G64LuaHash(void) {
     for (i = 0; i < (int)luaEventCount; i++) {
         k = (k ^ luaEvents[i][0]) * 16777619u;
         k = (k ^ luaEvents[i][1]) * 16777619u;
+    }
+    for (i = 0; i < SESSION_KEYS; i++) {
+        for (b = 0; b < 32; b += 8) {
+            k = (k ^ ((luaSession[i] >> b) & 0xFF)) * 16777619u;
+        }
+    }
+    for (i = 0; i < luaRequestCount; i++) {
+        k = (k ^ (unsigned int)luaRequests[i][0]) * 16777619u;
+        k = (k ^ (unsigned int)luaRequests[i][1]) * 16777619u;
     }
     for (i = 0; i < 16; i++) {
         const char *t = luaShown[i];
@@ -229,6 +252,8 @@ lua_State *G64LuaNewState(void) {
     G64LuaReset();
     luaBudget = LOAD_BUDGET;
     luaState = lua_newstate(lua_alloc, NULL);
+    /* The session's values as they are when this game starts: the script's first run reads them. */
+    memcpy(luaSession, startSession, sizeof luaSession);
     return luaState;
 }
 
@@ -404,6 +429,56 @@ static int api_show(lua_State *L) {
     return 0;
 }
 
+/* A key of the session's values from a script: 0 to 15. */
+static int key_arg(lua_State *L, int i) {
+    lua_Integer k = luaL_checkinteger(L, i);
+    luaL_argcheck(L, k >= 0 && k < SESSION_KEYS, i, "a key of the session's values is 0 to 15");
+    return (int)k;
+}
+
+/* game.session(k): the session's value number k, as this game has it. */
+static int api_session(lua_State *L) {
+    lua_pushinteger(L, (lua_Integer)(int)luaSession[key_arg(L, 1)]);
+    return 1;
+}
+
+/* game.add_session(k, n): asks for n to be added to the session's value number k. The value changes a few frames
+   later, in every level of the session, and on_session tells of it. Returns false when the frame's 8 requests are
+   used up. */
+static int api_add_session(lua_State *L) {
+    int k = key_arg(L, 1);
+    lua_Integer n = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, n >= -2147483647 && n <= 2147483647, 2, "an amount is within 31 bits");
+    if (luaRequestCount >= REQUEST_MAX) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    luaRequests[luaRequestCount][0] = k;
+    luaRequests[luaRequestCount][1] = (int)n;
+    luaRequestCount++;
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* For the host of a session: what this game's script asked to add in its last frame, as pairs of key and amount.
+   Returns their count, max at most. */
+int G64LuaRequests(int out[][2], int max) {
+    int i, n = luaState != NULL ? luaRequestCount : 0;
+    if (n > max) {
+        n = max;
+    }
+    for (i = 0; i < n; i++) {
+        out[i][0] = luaRequests[i][0];
+        out[i][1] = luaRequests[i][1];
+    }
+    return n;
+}
+
+/* The values a game starts with. The client sets them before it builds a game, the same on every machine. */
+void G64SetScriptSession(const unsigned int *values) {
+    memcpy(startSession, values, sizeof startSession);
+}
+
 /* For the program that draws the picture: the text the script shows to a player now, or an empty text. */
 const char *G64LuaShown(int player) {
     if (luaState == NULL || player < 0 || player > 15 || G64FramesRun() >= luaShownUntil[player]) {
@@ -478,6 +553,7 @@ static const luaL_Reg api[] = {{"frame", api_frame},         {"level", api_level
                                {"garibs", api_garibs},       {"health", api_health}, {"lives", api_lives},
                                {"random", api_random},       {"hurt", api_hurt},
                                {"set_health", api_set_health}, {"show", api_show},
+                               {"session", api_session},     {"add_session", api_add_session},
                                {NULL, NULL}};
 
 /* ---- The sandbox */
@@ -777,8 +853,9 @@ static void call_event(lua_State *L, const char *name, int p) {
     lua_settop(L, 0);
 }
 
-/* The script's functions for the events of the game's step, by kind (G64LuaEvent). Kind 0 is unused. */
-static const char *const eventName[] = {NULL, "on_garib", "on_death"};
+/* The script's functions for the events of the game's step, by kind (G64LuaEvent). Kind 0 is unused. Kind 3 is a
+   session event, and carries a key in the place of a player. */
+static const char *const eventName[] = {NULL, "on_garib", "on_death", "on_session"};
 #define EVENT_KINDS ((int)(sizeof eventName / sizeof eventName[0]))
 
 /* From the game, inside its step: something happened to a player. The script must not run here, since one
@@ -791,6 +868,16 @@ void G64LuaEvent(int kind, int player) {
     luaEvents[luaEventCount][0] = (unsigned char)kind;
     luaEvents[luaEventCount][1] = (unsigned char)player;
     luaEventCount++;
+}
+
+/* A session event, before a frame's step: the session's value number key is now value. The script hears of it in
+   this frame, through on_session with the key. */
+void G64LuaSetSession(int key, unsigned int value) {
+    if (key < 0 || key >= SESSION_KEYS || luaState == NULL) {
+        return;
+    }
+    luaSession[key] = value;
+    G64LuaEvent(3, key);
 }
 
 /* One frame of the script: on_leave for each player who is gone since the last frame, on_join for each who is
@@ -836,6 +923,8 @@ void G64LuaFrame(void) {
     if (L == NULL) {
         return;
     }
+    /* The last frame's requests have been read by now (the host reads them after each confirmed frame). */
+    luaRequestCount = 0;
     lua_pushcfunction(L, frame_call);
     call_script(L, "on_frame", CALL_BUDGET);
 }

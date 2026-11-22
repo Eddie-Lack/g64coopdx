@@ -89,3 +89,6 @@
 "game.hurt"
 "game.set_health"
 "game.show"
+"game.session"
+"game.add_session"
+"on_session"
