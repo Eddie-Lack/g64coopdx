@@ -9,6 +9,7 @@ PORT_C_BEGIN
 #include "game.h"
 #include "jalloc.h"
 #include "port_romsyms.h"
+#include "g64players.h"
 
 /* ---- The game's data: copy the main segment from the ROM, then swap and relocate (tables from gen_ram.py). */
 
@@ -210,17 +211,41 @@ static u32 file_offset(u32 rom, u32 end, s32 num, const char *what) {
     return rom;
 }
 
-void *LoadLandscapeFile(s32 num) {
+/* g64coopdx: where a level's file is in the ROM, and its size, or 0. For tests and tools. */
+u32 G64LevelFileRom(s32 num, u32 *size) {
     u32 rom = file_offset(PORT_ROM_ADDR(landscapeFilesRomStart), PORT_ROM_ADDR(landscapeFilesRomEnd), num, "LEV");
+    u8 word[4];
+
+    if (rom == 0) {
+        return 0;
+    }
+    port_dma(word, rom, 4);
+    *size = port_be32(word);
+    /* The offset in the ROM, without the device's address bits. */
+    return rom & 0x0FFFFFFF;
+}
+
+void *LoadLandscapeFile(s32 num) {
+    u32 rom;
     u8 word[4];
     u32 size;
     void *buf;
 
+    /* g64coopdx: a level pack's level file takes this level's place. It is after the ROM's own bytes in the ROM
+       buffer, and starts with its size as a ROM's level file does. The client has checked that size. */
+    if (g64PackLevel == num && g64PackSize >= 4) {
+        rom = g64PackRom;
+    } else {
+        rom = file_offset(PORT_ROM_ADDR(landscapeFilesRomStart), PORT_ROM_ADDR(landscapeFilesRomEnd), num, "LEV");
+    }
     if (rom == 0) {
         return NULL;
     }
     port_dma(word, rom, 4);
     size = port_be32(word);
+    if (g64PackLevel == num && g64PackSize >= 4 && size != g64PackSize) {
+        return NULL;
+    }
     buf = JallocAlloc(DMAGetSize(rom, rom + size), 1, "LandData");
     DMAMemory(buf, rom, rom + size);
     return buf;

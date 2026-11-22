@@ -62,6 +62,12 @@ void engine_free(Engine *e);
    program then counts the game frames it runs with engine_count_logic. */
 Engine *engine_attach(const uint8_t *rom, unsigned long romSize, char *err, size_t errSize);
 void engine_count_logic(Engine *e);
+/* g64coopdx: the game reads its ROM from another buffer from now on: the same ROM with more bytes after it (a level
+   pack's files, which the game's own loader then reads as if they were in the ROM). The buffer must stay in memory.
+   A state holds neither the ROM nor its address, so states saved before still load. */
+void engine_set_rom(Engine *e, const uint8_t *rom, unsigned long romSize);
+/* The ROM the game reads now, and its size. */
+const uint8_t *engine_rom(const Engine *e, unsigned long *romSize);
 
 /* One game frame with this controller input: the game reads the controller once, then builds the frame's display
    lists and runs its logic, as on the N64. */

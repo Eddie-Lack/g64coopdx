@@ -30,6 +30,7 @@ static uint32_t now_ms(void) {
 #include "../rollback/rollback.h"
 #include "../session/session.h"
 #include "instances.h"
+#include "pack.h"
 #include "sound.h"
 #include "soundout.h"
 #include "../../weemitt/src/port/soundtable.h"
@@ -106,6 +107,23 @@ void netplay_set_normal_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_NOR
 int netplay_normal_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_NORMAL_BALL) != 0; }
 
 void netplay_set_any_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_BALL : hostFlags & ~G64_FLAG_ANY_BALL; }
+
+/* The level pack for the session (pack.h), the ROM this program was started with, and the buffer that holds that
+   ROM with the pack's level file after it, which the game reads from once the session has begun. */
+static g64_pack pack = {"", -1, {0}, NULL, 0};
+static const uint8_t *baseRom;
+static size_t baseRomSize;
+static uint8_t *packRom;
+
+int netplay_set_pack(const char *dir, char *err, size_t errSize) {
+    g64_pack_free(&pack);
+    if (!dir || !dir[0])
+        return 0;
+    return g64_pack_load(dir, &pack, err, errSize);
+}
+
+const char *netplay_pack_name(void) { return pack.lev ? pack.name : ""; }
+int netplay_pack_level(void) { return pack.lev ? pack.level : -1; }
 
 void netplay_set_any_world(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_WORLD : hostFlags & ~G64_FLAG_ANY_WORLD; }
 int netplay_host_any_world(void) { return (hostFlags & G64_FLAG_ANY_WORLD) != 0; }
@@ -406,6 +424,7 @@ static int make_session(void) {
         g64_session_set_flags(session, hostFlags);
         g64_session_set_colors(session, myGlove, myBall);
         g64_session_set_build(session, build_hash());
+        g64_session_set_pack(session, pack.lev ? pack.id : NULL);
         g64_session_set_name(session, myName);
         g64_session_on_chat(session, on_chat, NULL);
     }
@@ -429,6 +448,8 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
     announced = 0;
     netplay_rooms_close();
     romHash = g64_rom_hash(rom, romSize);
+    baseRom = rom;
+    baseRomSize = romSize;
     cwanted = wanted;
     cdeadline = deadline;
     chost = !join && !room;
@@ -804,6 +825,23 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     /* The host's rule for the ball, before any game is built. */
     g64_instances_any_ball(netplay_any_ball());
     g64_instances_one_world(!netplay_any_world());
+    /* The pack's level file goes after the ROM's bytes in a buffer of this program's own, and the game reads its
+       ROM from there: the level's loader then finds the file as it finds the ROM's. The host has checked that
+       every player has the same pack. */
+    g64_instances_pack(-1, 0, 0);
+    if (pack.lev && baseRom && baseRomSize < 0x0F000000u) {
+        free(packRom);
+        packRom = malloc(baseRomSize + pack.levSize);
+        if (!packRom) {
+            snprintf(err, errSize, "out of memory");
+            return -1;
+        }
+        memcpy(packRom, baseRom, baseRomSize);
+        memcpy(packRom + baseRomSize, pack.lev, pack.levSize);
+        engine_set_rom(e, packRom, (unsigned long)(baseRomSize + pack.levSize));
+        g64_instances_pack(pack.level, (unsigned)baseRomSize, (unsigned)pack.levSize);
+        plog_printf("g64coopdx: level pack \"%s\" takes the place of level %d", pack.name, pack.level);
+    }
     {
         /* The first game has the players who were in at the start, with their colors. A player who comes later
            has no game at first: the host's move brings it. */

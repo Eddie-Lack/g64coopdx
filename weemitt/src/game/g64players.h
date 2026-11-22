@@ -309,6 +309,10 @@ s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more);
 extern s32 g64AnyBall;
 /* One world at a time (g64players.c, "One world at a time"): the host's rule that a portal from the hub to another
    world is shut while players are in a world. */
+/* A level pack's level file (g64players.c, "A level pack"). */
+extern s32 g64PackLevel;
+extern u32 g64PackRom, g64PackSize;
+void G64SetPack(s32 level, u32 rom, u32 size);
 extern s32 g64OneWorld;
 void G64SetSessionWorld(s32 world);
 s32 G64SessionWorld(void);

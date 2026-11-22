@@ -96,7 +96,13 @@ static void test_refusals(net_addr hostAddr, uint32_t *clock) {
     g64_session *wrong = g64_session_join(s1, &hostAddr, ROM + 1, "wrong"), *late = g64_session_join(s2, &hostAddr, ROM, "late");
     /* A joiner with the right ROM whose program is another build. */
     g64_session *other = g64_session_join(s3, &hostAddr, ROM, "other");
+    /* A joiner with a level pack, where the host has none. */
+    static const uint8_t packId[G64_PACK_ID_SIZE] = {1, 2, 3};
+    net_socket *s4 = net_open(0, err, sizeof err);
+    g64_session *packed = g64_session_join(s4, &hostAddr, ROM, "packed");
     int i;
+    g64_session_set_build(packed, BUILD);
+    g64_session_set_pack(packed, packId);
     g64_session_set_build(late, BUILD);
     g64_session_set_build(wrong, BUILD);
     g64_session_set_build(other, BUILD + 1);
@@ -105,6 +111,7 @@ static void test_refusals(net_addr hostAddr, uint32_t *clock) {
         g64_session_poll(wrong, *clock, NULL, NULL);
         g64_session_poll(late, *clock, NULL, NULL);
         g64_session_poll(other, *clock, NULL, NULL);
+        g64_session_poll(packed, *clock, NULL, NULL);
         g64_session_poll(m[0].session, *clock, on_game, &m[0]);
     }
     check(g64_session_poll(other, *clock, NULL, NULL) == G64_SESSION_FAILED &&
@@ -112,6 +119,11 @@ static void test_refusals(net_addr hostAddr, uint32_t *clock) {
           "a joiner with another build of the program is refused");
     g64_session_free(other);
     net_close(s3);
+    check(g64_session_poll(packed, *clock, NULL, NULL) == G64_SESSION_FAILED &&
+              strstr(g64_session_error(packed), "level pack") != NULL,
+          "a joiner with another level pack than the host's is refused");
+    g64_session_free(packed);
+    net_close(s4);
     check(g64_session_poll(wrong, *clock, NULL, NULL) == G64_SESSION_FAILED &&
               strstr(g64_session_error(wrong), "ROM") != NULL,
           "a joiner with another ROM is refused");

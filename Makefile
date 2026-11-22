@@ -392,6 +392,21 @@ build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) $(SEAL_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/seal_test.c $(SEAL_SRC) -lbcrypt
 
+# The level pack reader (src/client/pack.h), with the hash it takes from the cryptography library.
+PACK_SRC := src/client/pack.c third_party/monocypher/monocypher.c
+PACK_DEPS := src/client/pack.h third_party/monocypher/monocypher.h
+build/tests/pack_test: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/pack_test.c $(PACK_SRC)
+
+build/tests/pack_test.exe: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/pack_test.c $(PACK_SRC)
+
+build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
+	@mkdir -p build/tests
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/pack_fuzz.c $(PACK_SRC)
+
 build/tests/session_test: tests/net/session_test.c $(SESSION_SRC) src/session/session.h $(SEAL_DEPS) $(NET_SRC) $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/session_test.c $(SESSION_SRC) $(NET_SRC) $(ROLLBACK_SRC)
@@ -441,7 +456,11 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
-test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test
+test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
+        build/tests/pack_test
+	@mkdir -p build/tests/pack-linux
+	build/tests/pack_test build/tests/pack-linux > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
+	tail -1 build/tests/pack_test.out
 	build/tests/seal_test > build/tests/seal_test.out || { cat build/tests/seal_test.out; exit 1; }
 	tail -1 build/tests/seal_test.out
 	build/tests/sound_test > build/tests/sound_test.out || { cat build/tests/sound_test.out; exit 1; }
@@ -455,7 +474,12 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
-              build/tests/seal_test.exe test-c
+              build/tests/seal_test.exe build/tests/pack_test.exe test-c
+	@mkdir -p build/tests/pack-windows
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows | tr -d '\r' \
+	    > build/tests/pack_test-windows.out
+	tail -1 build/tests/pack_test-windows.out
+	cmp build/tests/pack_test.out build/tests/pack_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/seal_test.exe | tr -d '\r' \
 	    > build/tests/seal_test-windows.out
 	tail -1 build/tests/seal_test-windows.out
@@ -475,8 +499,11 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	cmp build/tests/hash-linux.txt build/tests/hash-windows.txt
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
-fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz build/tests/instances_fuzz
-	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay build/fuzz-corpus-instances
+fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz build/tests/instances_fuzz \
+      build/tests/pack_fuzz
+	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay build/fuzz-corpus-instances \
+	    build/fuzz-corpus-pack
+	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1100 build/fuzz-corpus-pack
 	build/tests/instances_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1200 build/fuzz-corpus-instances
 	build/tests/relay_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1220 build/fuzz-corpus-relay
 	cd server && go test -run=^$$ -fuzz=FuzzRelayHandle -fuzztime=$(FUZZ_TIME)s .

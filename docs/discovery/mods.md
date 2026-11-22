@@ -114,6 +114,9 @@ the picture, so a player's look can be local: other players need the bank to see
 
 ## The level pack
 
+[level-pack.md](level-pack.md) has the format as g64coopdx reads it today: a folder with a manifest and one level
+file. The plan below is the first one, and holds what is still to come.
+
 A level pack is a zip file or a folder:
 
 | File | What it holds |

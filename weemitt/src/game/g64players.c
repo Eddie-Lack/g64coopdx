@@ -1321,6 +1321,19 @@ void G64WriteSave(s32 world, const G64Save *save);
    event on a confirmed frame (G64SetSessionWorld). A portal from the hub to another world is shut: a player who
    walks into it stays in the hub, and portalShut holds the session's world for them for that frame, which the
    client reads to tell them why (G64PortalShut). */
+/* A level pack (src/client/pack.h): the level that the pack's level file takes the place of, or -1, and where that
+   file is: its offset from the start of the ROM buffer, where the client put it after the ROM's own bytes, and its
+   size. Every machine of a session has the same pack, so these are the same in every game. The level's loader
+   reads the file from there (LoadLandscapeFile, src/port/loaders.c). */
+s32 g64PackLevel = -1;
+u32 g64PackRom, g64PackSize;
+
+void G64SetPack(s32 level, u32 rom, u32 size) {
+    g64PackLevel = size ? level : -1;
+    g64PackRom = rom;
+    g64PackSize = size;
+}
+
 s32 g64OneWorld;
 static u8 g64SessionWorld;
 static u8 portalShut[G64_MAX_PLAYERS];

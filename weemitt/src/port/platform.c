@@ -38,6 +38,7 @@ typedef struct Options {
     int netNormalBall;       /* g64coopdx: --normal-ball (the host plays with the game's normal ball controls) */
     int netAnyBall;          /* g64coopdx: --any-ball (the host lets a glove take any free ball) */
     int netAnyWorld;         /* g64coopdx: --any-world (the host lets players go to different worlds) */
+    const char *netPack;     /* g64coopdx: --pack DIR (a level pack's folder, the same for every player) */
     const char *netName;     /* g64coopdx: --name NAME (this player's name in the online game) */
     const char *netPublic;   /* g64coopdx: --public TITLE (the host lists its room on the relay, with this title) */
     int netStartAlone;       /* g64coopdx: --start-alone (the host starts at once; the others join the running game) */
@@ -1617,7 +1618,7 @@ static void parse_args(int argc, char **argv) {
         /* g64coopdx: the start screen opens unless an option asks for something else (online settings and the ROM
            do not). */
         if (strcmp(a, "--rom") && strcmp(a, "--input-delay") && strcmp(a, "--deadline") && strcmp(a, "--relay") &&
-            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--any-world") && strcmp(a, "--name") && strcmp(a, "--public") && strcmp(a, "--start-alone") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
+            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--any-world") && strcmp(a, "--pack") && strcmp(a, "--name") && strcmp(a, "--public") && strcmp(a, "--start-alone") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
             opt.netOtherArgs = 1;
         }
         if (!strcmp(a, "--rom") && next) {
@@ -1652,6 +1653,8 @@ static void parse_args(int argc, char **argv) {
             opt.netAnyBall = 1;
         } else if (!strcmp(a, "--any-world")) {
             opt.netAnyWorld = 1;
+        } else if (!strcmp(a, "--pack") && next) {
+            opt.netPack = argv[++i];
         } else if (!strcmp(a, "--name") && next) {
             opt.netName = argv[++i];
         } else if (!strcmp(a, "--start-alone")) {
@@ -2121,6 +2124,13 @@ int main(int argc, char **argv) {
         netplay_set_normal_ball(opt.netNormalBall);
         if (opt.netAnyWorld) {
             netplay_set_any_world(1);
+        }
+        if (opt.netPack) {
+            char why[200];
+            if (netplay_set_pack(opt.netPack, why, sizeof why) != 0) {
+                fprintf(stderr, "weemitt: %s\n", why);
+                return 1;
+            }
         }
         if (opt.netAnyBall) {
             netplay_set_any_ball(1);

@@ -23,7 +23,7 @@
  * compares the outputs.
  *
  * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
- * a time (one_world).
+ * a time (one_world), and a fourth a level pack (pack_level).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -356,6 +356,110 @@ static void one_world(Engine *e, void *boot) {
     g64_instances_one_world(0);
 }
 
+unsigned G64LevelFileRom(int num, unsigned *size);
+int G64PlayerPosition(int p, float *x, float *y, float *z);
+
+/* Where player 0's glove stands 60 frames into a game of level that the host's player starts alone. */
+static void start_place(Engine *e, void *boot, int level, float at[3]) {
+    uint32_t none[16][2];
+    rb_engine_game *g;
+    memset(none, 0, sizeof none);
+    at[0] = at[1] = at[2] = 0;
+    count = 0;
+    for (int p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, 2, 1u, none, level, DEADLINE, host_send, NULL);
+    player[0] = g64_iclient_new_with(e, boot, 2, 1u, none, 0, level, WINDOW, DEADLINE, player_send, &ids[0]);
+    if (!host || !player[0])
+        return;
+    for (now = 0; now < 60; now++) {
+        rb_input in;
+        memset(&in, 0, sizeof in);
+        in.present = 1;
+        deliver();
+        g64_ihost_tick(host);
+        g64_iclient_step(player[0], in);
+    }
+    g = g64_iclient_game(player[0]);
+    if (g) {
+        rb_engine_game_enter(g);
+        G64PlayerPosition(0, &at[0], &at[1], &at[2]);
+    }
+    printf("level %d: %u hash checks, %u mismatches, %u desyncs\n", level, g64_ihost_hash_matches(host),
+           g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]));
+    failed |= g64_ihost_hash_mismatches(host) != 0 || g64_iclient_desyncs(player[0]) != 0;
+    g64_iclient_free(player[0]);
+    player[0] = NULL;
+    g64_ihost_free(host);
+}
+
+static float be_float(const uint8_t *p) {
+    uint32_t v = (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+    float f;
+    memcpy(&f, &v, sizeof f);
+    return f;
+}
+
+static void put_be_float(uint8_t *p, float f) {
+    uint32_t v;
+    memcpy(&v, &f, sizeof v);
+    p[0] = (uint8_t)(v >> 24), p[1] = (uint8_t)(v >> 16), p[2] = (uint8_t)(v >> 8), p[3] = (uint8_t)v;
+}
+
+/* A level pack: a level file that takes the place of one of the game's levels. The test has no level of its own to
+ * put in a pack, and may not hold one made from the ROM. So it takes Atlantis 1's file from the ROM that is in
+ * memory, moves the glove's start point in the copy 40 units along x, and puts the copy after the ROM's bytes as a pack's file. The glove must then start 40 units from where
+ * the ROM's level puts it. */
+static void pack_level(Engine *e, void *boot) {
+    enum { SHIFT = 40 };
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    unsigned size = 0, at, i, found = 0;
+    uint8_t *with;
+    float one[3], packed[3];
+    char what[200];
+    int before = failed;
+    engine_load(e, boot);
+    at = G64LevelFileRom(ATLANTIS1, &size);
+    check(at != 0 && size > 8 && at + size <= romSize, "the ROM has Atlantis 1's level file");
+    if (at == 0 || size <= 8 || at + size > romSize)
+        return;
+    start_place(e, boot, ATLANTIS1, one);
+    with = malloc(romSize + size);
+    if (!with)
+        return;
+    memcpy(with, rom, romSize);
+    memcpy(with + romSize, rom + at, size);
+    /* The start point: three numbers, of which x and z are where the glove stands in the ROM's level. */
+    for (i = 4; i + 12 <= size && !found; i++) {
+        const uint8_t *c = with + romSize + i;
+        if (be_float(c) > one[0] - 1 && be_float(c) < one[0] + 1 && be_float(c + 8) > one[2] - 1 &&
+            be_float(c + 8) < one[2] + 1) {
+            put_be_float(with + romSize + i, be_float(c) + SHIFT);
+            found = 1;
+        }
+    }
+    check(found, "the level file has the glove's start point");
+    if (found) {
+        engine_set_rom(e, with, romSize + size);
+        g64_instances_pack(ATLANTIS1, (unsigned)romSize, size);
+        start_place(e, boot, ATLANTIS1, packed);
+        snprintf(what, sizeof what, "the glove starts at x %.0f in Atlantis 1, and at x %.0f with the pack", one[0],
+                 packed[0]);
+        check(packed[0] > one[0] + SHIFT - 2 && packed[0] < one[0] + SHIFT + 2 && packed[2] > one[2] - 2 &&
+                  packed[2] < one[2] + 2,
+              what);
+        /* Without the pack again, the level is the ROM's own. */
+        g64_instances_pack(-1, 0, 0);
+        engine_set_rom(e, rom, romSize);
+        start_place(e, boot, ATLANTIS1, packed);
+        check(packed[0] == one[0] && packed[1] == one[1] && packed[2] == one[2],
+              "without the pack Atlantis 1 is the ROM's own");
+    }
+    free(with);
+    printf("%s a level pack's level takes a level's place\n", failed != before ? "FAIL" : "ok  ");
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     Engine *e;
@@ -465,6 +569,7 @@ int main(int argc, char **argv) {
     g64_ihost_free(host);
     join_later(e, boot);
     one_world(e, boot);
+    pack_level(e, boot);
     free(boot);
     engine_free(e);
     return failed;

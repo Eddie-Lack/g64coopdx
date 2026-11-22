@@ -99,6 +99,13 @@ yellow. The
 window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any desyncs.
 The program also prints a status line every 100 frames.
 
+## A custom level
+
+A level pack is a folder with a custom level that takes the place of one of the game's levels
+([discovery/level-pack.md](discovery/level-pack.md)). Every player needs the same folder and starts the program with
+`--pack FOLDER`. The level shows when you enter the level it replaces. A host refuses a player who has another pack,
+or none. The program cannot send a pack to another player yet, and Glovebox cannot export one yet.
+
 ## Names, the player list and chat
 
 Type your name on the start screen (or add `--name NAME`). It can have 16 letters, and the program keeps it for

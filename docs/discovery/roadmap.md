@@ -288,6 +288,11 @@ machines on two networks.
 - Glovebox: Export level pack; imported models in banks of their own.
 - Packs by hash, a prompt before download, path checks, a cache.
 
+Done so far: a level pack from a folder that every player has (`--pack FOLDER`). Its level file takes the place of
+one of the game's levels, the session's hello carries the pack's id, and a host refuses a joiner whose pack differs
+([level-pack.md](level-pack.md); src/client/pack.h; `pack_level` in tests/rom/instances.c; tests/net/pack_test.c;
+tests/fuzz/pack_fuzz.c). The protocol is 11.
+
 Playable: a session on a custom Glovebox level with a script, joined by players who did not have the pack. Test: the
 pack reader's fuzz target; a script's state equal on every client after rollbacks; a level built from scratch loads
 and plays.

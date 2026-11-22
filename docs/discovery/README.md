@@ -66,6 +66,7 @@ playable or testable. [roadmap.md](roadmap.md).
 | [state-inventory.md](state-inventory.md) | 4 | Every single-player assumption in the game's code; the size of the refactor; the frame's limits |
 | [netcode.md](netcode.md) | 6, 7 | The network models, the measurements, the recommendation; transport, services, the handshake |
 | [mods.md](mods.md) | 8 | Lua, custom levels and models from Glovebox, sharing mods without game data |
+| [level-pack.md](level-pack.md) | 8 | The level pack's format as g64coopdx reads it today |
 | [repository.md](repository.md) | 12 | The layout, build, CI, license, ROM rules, a draft CLAUDE.md, names |
 | [roadmap.md](roadmap.md) | | Phases, sizes and dependencies |
 | [open-questions.md](open-questions.md) | | The owner's decisions |

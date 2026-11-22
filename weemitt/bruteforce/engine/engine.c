@@ -266,6 +266,20 @@ Engine *engine_attach(const uint8_t *rom, unsigned long romSize, char *err, size
     return e;
 }
 
+void engine_set_rom(Engine *e, const uint8_t *rom, unsigned long romSize) {
+    e->rom = (uint8_t *)rom;
+    e->romSize = romSize;
+    port_rom = e->rom;
+    port_rom_size = e->romSize;
+}
+
+const uint8_t *engine_rom(const Engine *e, unsigned long *romSize) {
+    if (romSize != NULL) {
+        *romSize = e->romSize;
+    }
+    return e->rom;
+}
+
 void engine_free(Engine *e) {
     /* The game cannot be stopped and started again in one process. */
     (void)e;

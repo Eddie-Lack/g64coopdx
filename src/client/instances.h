@@ -57,6 +57,10 @@ void g64_instances_any_ball(int on);
  * Every machine of a session must set the same before its first game is built. The host tells every instance which
  * world the session is in, as an event on a confirmed frame. */
 void g64_instances_one_world(int on);
+/* The session's level pack for every game that is built from now on: its level file takes the place of level's,
+ * and is size bytes at offset rom of the ROM buffer, after the ROM's own bytes (engine_set_rom). A size of 0 means
+ * no pack. Every machine of a session must set the same before its first game is built. */
+void g64_instances_pack(int level, unsigned rom, unsigned size);
 /* The same for a session that players may join later: members has a bit for each player who is there at the start
  * (at least one), and colors has every player's colors (NULL: the game's own now). */
 g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned members,

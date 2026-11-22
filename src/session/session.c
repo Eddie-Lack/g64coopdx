@@ -13,7 +13,8 @@ enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME,
 /* The hello's bytes before the name: the type, "G64", the protocol, the ROM, the build, two colors, and the
    joiner's public key. */
 #define HELLO_KEY 21
-#define HELLO_SIZE (HELLO_KEY + G64_SEAL_KEY)
+#define HELLO_PACK (HELLO_KEY + G64_SEAL_KEY)
+#define HELLO_SIZE (HELLO_PACK + G64_PACK_ID_SIZE)
 /* The welcome: the type, the player's number, the number of players, and the host's public key for this player. */
 #define WELCOME_SIZE (3 + G64_SEAL_KEY)
 #define CHAT_SENDS 3
@@ -75,6 +76,8 @@ struct g64_session {
     uint32_t rom;
     /* This program's build (g64_session_set_build). */
     uint32_t build;
+    /* The id of this machine's level pack, or zeros (g64_session_set_pack). */
+    uint8_t pack[G64_PACK_ID_SIZE];
     int players, me, level, deadline, flags;
     uint32_t lastSend, lastPing;
     /* The host: players 1 .. players - 1. A joiner: peer 0 is the host. */
@@ -329,6 +332,8 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             refuse[1] = G64_REFUSE_PROTOCOL;
         } else if (get32(d + 5) != g->rom) {
             refuse[1] = G64_REFUSE_ROM;
+        } else if (memcmp(d + HELLO_PACK, g->pack, G64_PACK_ID_SIZE) != 0) {
+            refuse[1] = G64_REFUSE_PACK;
         } else if (is_banned(g, from)) {
             refuse[1] = G64_REFUSE_REMOVED;
         } else {
@@ -525,8 +530,9 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
                                         "the host has another ROM",
                                         "the host has another version",
                                         "the game has started",
-                                        "the host removed you from this game"};
-            fail(g, why[n == 2 && d[1] <= 5 ? d[1] : 0]);
+                                        "the host removed you from this game",
+                                        "the host plays with another level pack, or with none"};
+            fail(g, why[n == 2 && d[1] <= 6 ? d[1] : 0]);
         }
         break;
     case G64_SEAL_TYPE:
@@ -653,6 +659,7 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
                 put32(m + 13, g->glove);
                 put32(m + 17, g->ball);
                 memcpy(m + HELLO_KEY, g->peers[0].myKey, G64_SEAL_KEY);
+                memcpy(m + HELLO_PACK, g->pack, G64_PACK_ID_SIZE);
                 memcpy(m + HELLO_SIZE, g->name, len);
                 g->helloLen = HELLO_SIZE + len;
             }
@@ -739,6 +746,12 @@ int g64_session_players(const g64_session *g) { return g->players; }
 int g64_session_level(const g64_session *g) { return g->level; }
 int g64_session_deadline(const g64_session *g) { return g->deadline; }
 void g64_session_set_build(g64_session *g, uint32_t build) { g->build = build; }
+void g64_session_set_pack(g64_session *g, const uint8_t *id) {
+    if (id)
+        memcpy(g->pack, id, G64_PACK_ID_SIZE);
+    else
+        memset(g->pack, 0, G64_PACK_ID_SIZE);
+}
 
 int g64_session_flags(const g64_session *g) { return g->flags; }
 

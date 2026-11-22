@@ -46,7 +46,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         g64_session_poll(join, now, game, NULL) == G64_SESSION_FAILED) {
         /* Two players join the host, and the joiner is welcomed: the messages behind the seal need players
            to come from. The public keys are any bytes that give a secret. */
-        uint8_t hello[53 + 4] = {0x40, 'G', '6', '4', G64_PROTOCOL, 0xcd, 0xab, 0x34, 0x12};
+        uint8_t hello[69 + 4] = {0x40, 'G', '6', '4', G64_PROTOCOL, 0xcd, 0xab, 0x34, 0x12};
         uint8_t welcome[35] = {0x41, 1, 4};
         if (host)
             g64_session_free(host), g64_session_free(join);
@@ -55,7 +55,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         g64_session_on_chat(host, chat, NULL);
         g64_session_on_chat(join, chat, NULL);
         memset(hello + 21, 9, 32);
-        memcpy(hello + 53, "fuzz", 4);
+        memcpy(hello + 69, "fuzz", 4);
         memset(welcome + 3, 7, 32);
         g64_session_receive(host, &senders[1], hello, sizeof hello, now, game, NULL);
         hello[21] = 10;

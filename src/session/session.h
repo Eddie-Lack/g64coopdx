@@ -5,8 +5,8 @@
  * Messages, all numbers little-endian. The first byte is the type; the rollback core's own types are 1 to 5.
  * The first three travel in the clear:
  *   hello    0x40, "G64", protocol (u8), rom (u32: a hash of the player's ROM), build (u32: a hash of the program's
- *            build id), glove color (u32), ball color (u32), the joiner's public key (32 bytes), name (up to 16
- *            bytes). A joiner's repeats of its hello have the same bytes.
+ *            build id), glove color (u32), ball color (u32), the joiner's public key (32 bytes), the id of the
+ *            joiner's level pack (16 bytes, zeros for none), name (up to 16 bytes). A joiner's repeats of its hello have the same bytes.
  *   welcome  0x41, player (u8), players (u8), the host's public key for this player (32 bytes)
  *   refuse   0x42, reason (u8)
  * The hello and the welcome give the two ends a key (seal.h). Every later message travels sealed with it:
@@ -38,7 +38,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 10
+#define G64_PROTOCOL 11
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -49,6 +49,8 @@
 #define G64_COLOR_SET 0x1000000u
 #define G64_NAME_MAX 16
 #define G64_CHAT_MAX 80
+/* The bytes of a level pack's id (src/client/pack.h). */
+#define G64_PACK_ID_SIZE 16
 
 enum {
     G64_REFUSE_FULL = 1,     /* every player slot is taken */
@@ -56,6 +58,7 @@ enum {
     G64_REFUSE_PROTOCOL = 3, /* another version of g64coopdx: another protocol or another build */
     G64_REFUSE_STARTED = 4,  /* the game has started (not sent any more: a started game takes new players) */
     G64_REFUSE_REMOVED = 5,  /* the host removed a player at this address from the game */
+    G64_REFUSE_PACK = 6,     /* the host plays with another level pack, or with none */
 };
 
 typedef enum {
@@ -96,6 +99,9 @@ int g64_session_deadline(const g64_session *g);
  * refuses a joiner whose build differs (G64_REFUSE_PROTOCOL). Set it on both sides before the first poll. It is 0
  * until set. */
 void g64_session_set_build(g64_session *g, uint32_t build);
+/* This machine's level pack, by its id (G64_PACK_ID_SIZE bytes; NULL or zeros: none). A pack changes the game, so a
+ * host refuses a joiner whose pack differs (G64_REFUSE_PACK). Set it on both sides before the first poll. */
+void g64_session_set_pack(g64_session *g, const uint8_t *id);
 /* The host's options (G64_FLAG_): the host sets them before the start; a joiner gets them with the start. */
 int g64_session_flags(const g64_session *g);
 void g64_session_set_flags(g64_session *g, int flags);
