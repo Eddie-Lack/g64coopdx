@@ -582,6 +582,7 @@ static void script_run(Engine *e, void *boot) {
         "  if f == 101 then healths = game.health(0) * 10 end\n"
         "  if f == 102 then game.set_health(0, 3) end\n"
         "  if f == 103 then healths = healths + game.health(0) end\n"
+        "  if f %% 7 == 0 then game.show(f %% 2, 'frame ' .. f, 5) end\n"
         "end\n";
     char events[sizeof eventsText + 200];
     uint8_t *with = malloc(romSize + sizeof script + sizeof endless + sizeof calls + sizeof events);

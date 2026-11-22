@@ -43,6 +43,7 @@ extern unsigned int port_rom_size;
 int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 void G64TipView(int p);
+const char *G64LuaShown(int player);
 void G64CannonView(int p);
 int G64PortalShut(int player);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
@@ -244,6 +245,10 @@ void netplay_chat_send(const char *text) {
     g64_session_chat(session, line);
     chat_add(g64_session_me(session), line);
 }
+
+/* The script's line for this player, as of the last picture. */
+static char scriptLine[64];
+const char *netplay_script_line(void) { return scriptLine; }
 
 int netplay_chat_count(void) { return chatCount; }
 const char *netplay_chat_line(int i) { return i >= 0 && i < chatCount ? chatLines[i] : ""; }
@@ -1287,6 +1292,9 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             chat_add(-1, note);
         }
     }
+    /* The line of text that a level pack's script shows to this player, if any (weemitt's g64lua.c). It is read from
+       the game that is about to be drawn, so it follows rollbacks. */
+    snprintf(scriptLine, sizeof scriptLine, "%s", G64LuaShown(me));
     /* The tip that this player reads, in the game's own box. */
     G64TipView(me);
     /* In the Carnival bonus level the cannon points where this player aims. */

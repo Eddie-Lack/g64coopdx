@@ -2,8 +2,8 @@
 
 A level pack may hold a script: a file `script.lua` of Lua source text
 ([discovery/level-pack.md](discovery/level-pack.md)). This page is for someone who writes one. The scripting is a
-first version: a script can read the players, move, hurt and heal a glove, and draw random numbers. More comes
-later.
+first version: a script can read the players, move, hurt and heal a glove, show text, and draw random numbers.
+More comes later.
 
 ## How a script runs
 
@@ -42,6 +42,7 @@ The table `game`:
 | `game.garibs(p)`, `game.health(p)`, `game.lives(p)` | player `p`'s garibs, health and lives |
 | `game.hurt(p)` | hurts player `p`'s glove by one point, by the game's own rules: a glove that was just hurt is not hurt again, and a glove at its last point dies |
 | `game.set_health(p, n)` | sets player `p`'s health to `n`, 1 to 3 |
+| `game.show(p, text)` | shows a line of text on player `p`'s screen for three seconds. `game.show(p, text, frames)` shows it for that many frames, 1 to 1200. A new text takes the old one's place, and an empty text takes the line away. The text is cut to 60 characters of plain ASCII |
 | `game.random()` | a random number from 0 up to, not including, 1 |
 | `game.random(n)`, `game.random(a, b)` | a random whole number from 1 to `n`, or from `a` to `b`. The numbers stay within 31 bits |
 | `math.sin(x)`, `math.cos(x)` | the game's own sine and cosine, in single precision. `x` is from -1000000 to 1000000 |

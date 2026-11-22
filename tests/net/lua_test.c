@@ -11,6 +11,7 @@ int G64LuaActive(void);
 void G64LuaCounts(unsigned int out[4]);
 void G64LuaReset(void);
 void G64LuaEvent(int kind, int player);
+const char *G64LuaShown(int player);
 
 /* The game's side of the scripts' calls: one player at a place that the script can move. */
 static int frames;
@@ -345,6 +346,37 @@ int main(void) {
             failed++;
         }
         G64LuaReset();
+    }
+
+    /* Text on a player's screen: it shows for its frames and then goes; a new text takes the old one's place. */
+    {
+        static const char script[] =
+            "game.show(0, 'for three frames', 3)\n"
+            "game.show(2, 'a line that is much too long for the screen, so the game cuts it to sixty characters')\n"
+            "game.show(3, 'tab\\there')\n"
+            "function on_frame()\n"
+            "  if game.frame() == 5 then game.show(0, 'second') end\n"
+            "  if game.frame() == 6 then game.show(0, '') end\n"
+            "  if game.frame() == 7 then\n"
+            "    game.log((pcall(game.show, 16, 'x') or pcall(game.show, 0, 'x', 0) or pcall(game.show, 0, 'x', 1201)\n"
+            "              or pcall(game.show, 0)) and 'ALLOWED' or 'refused')\n"
+            "  end\n"
+            "end\n";
+        printf("text on a player's screen\n");
+        frames = 0;
+        G64LuaLoad(script, (unsigned int)strlen(script));
+        printf("    [%s] [%s] [%s] [%s]\n", G64LuaShown(0), G64LuaShown(1), G64LuaShown(2), G64LuaShown(3));
+        for (frames = 0; frames < 8; frames++) {
+            G64LuaFrame();
+            printf("    frame %d: [%s]\n", frames, G64LuaShown(0));
+        }
+        printf("    [%s] [%s]\n", G64LuaShown(-1), G64LuaShown(16));
+        if (!G64LuaActive()) {
+            printf("FAIL text on a player's screen: the script stopped\n");
+            failed++;
+        }
+        G64LuaReset();
+        printf("    after the script: [%s]\n", G64LuaShown(2));
     }
 
     printf("%s: %d failures\n", failed ? "FAIL" : "ok", failed);

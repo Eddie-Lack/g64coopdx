@@ -430,11 +430,24 @@ static void chat_overlay(int h) {
     }
 }
 
+/* The line of text that a level pack's script shows to this player: in the upper middle of the picture. */
+static void script_overlay(int w, int h) {
+    const char *line = netplay_script_line();
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    ImFont *font = ImGui::GetFont();
+    float size = ImGui::GetFontSize() * 1.5f;
+    ImVec2 text = font->CalcTextSizeA(size, 10000.0f, 0.0f, line);
+    float x = ((float)w - text.x) * 0.5f, y = (float)h * 0.18f;
+    dl->AddRectFilled(ImVec2(x - 10, y - 5), ImVec2(x + text.x + 10, y + text.y + 5), IM_COL32(0, 0, 0, 160), 5.0f);
+    dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 255, 255, 255), line);
+}
+
 void g64_pause_draw(SDL_Window *window) {
     int w, h, i;
     int chat = chat_overlay_lines();
+    int script = netplay_script_line()[0] != 0;
     /* A tip is not drawn here: the game draws it in its own box (G64TipView). */
-    if (!netplay_pause_open() && chat == 0)
+    if (!netplay_pause_open() && chat == 0 && !script)
         return;
     SDL_GetWindowSize(window, &w, &h);
     ImGui_ImplOpenGL3_NewFrame();
@@ -442,6 +455,8 @@ void g64_pause_draw(SDL_Window *window) {
     ImGui::NewFrame();
     if (chat)
         chat_overlay(h);
+    if (script)
+        script_overlay(w, h);
     if (!netplay_pause_open()) {
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

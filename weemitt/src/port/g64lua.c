@@ -40,6 +40,12 @@ static unsigned int luaSeen;
 #define EVENT_MAX 64
 static unsigned char luaEvents[EVENT_MAX][2];
 static unsigned int luaEventCount;
+/* The line of text that the script shows to each player (game.show), and the frame at which it goes away. It is
+   part of the game's saved state: after a rollback the screen shows what the script of the corrected frames set. */
+#define SHOW_TEXT 60
+#define SHOW_FRAMES_MAX 1200
+static char luaShown[16][SHOW_TEXT + 1];
+static int luaShownUntil[16];
 
 /* The work that is left to the call into the script that runs now: one for each step of Lua and for each byte the
    script asks for. At 0 the script is stopped (spent, below).
@@ -170,6 +176,8 @@ void G64LuaReset(void) {
     luaRandom = 0;
     luaSeen = 0;
     luaEventCount = 0;
+    memset(luaShown, 0, sizeof luaShown);
+    memset(luaShownUntil, 0, sizeof luaShownUntil);
 }
 
 /* 1 when a script is loaded. */
@@ -187,7 +195,7 @@ void G64LuaCounts(unsigned int out[4]) {
 }
 
 /* One number for the comparison between machines: a hash of the counts above, of the state of the random numbers
-   of the players the script has seen and of the events that wait for it. The block itself holds addresses and cannot be compared. */
+   of the players the script has seen, of the events that wait for it and of the text it shows. The block itself holds addresses and cannot be compared. */
 unsigned int G64LuaHash(void) {
     unsigned int c[7], k = 2166136261u;
     int i, b;
@@ -203,6 +211,15 @@ unsigned int G64LuaHash(void) {
     for (i = 0; i < (int)luaEventCount; i++) {
         k = (k ^ luaEvents[i][0]) * 16777619u;
         k = (k ^ luaEvents[i][1]) * 16777619u;
+    }
+    for (i = 0; i < 16; i++) {
+        const char *t = luaShown[i];
+        if (t[0] != 0) {
+            k = (k ^ (unsigned int)luaShownUntil[i]) * 16777619u;
+            for (; *t != 0; t++) {
+                k = (k ^ (unsigned char)*t) * 16777619u;
+            }
+        }
     }
     return k;
 }
@@ -370,6 +387,31 @@ static int api_set_health(lua_State *L) {
     return 0;
 }
 
+/* game.show(p, text): a line of text on player p's screen for three seconds. game.show(p, text, frames): for that
+   many frames, 1 to 1200. An empty text takes the line away. The text is cut to 60 characters, and a character
+   that is not plain printable ASCII becomes a question mark. */
+static int api_show(lua_State *L) {
+    int p = player_arg(L, 1);
+    size_t n = 0, i;
+    const char *s = luaL_checklstring(L, 2, &n);
+    lua_Integer frames = luaL_optinteger(L, 3, 60);
+    luaL_argcheck(L, frames >= 1 && frames <= SHOW_FRAMES_MAX, 3, "a text shows for 1 to 1200 frames");
+    for (i = 0; i < n && i < SHOW_TEXT; i++) {
+        luaShown[p][i] = s[i] >= 32 && s[i] < 127 ? s[i] : '?';
+    }
+    luaShown[p][i] = 0;
+    luaShownUntil[p] = G64FramesRun() + (int)frames;
+    return 0;
+}
+
+/* For the program that draws the picture: the text the script shows to a player now, or an empty text. */
+const char *G64LuaShown(int player) {
+    if (luaState == NULL || player < 0 || player > 15 || G64FramesRun() >= luaShownUntil[player]) {
+        return "";
+    }
+    return luaShown[player];
+}
+
 /* The next random number: 64 bits (splitmix64). The state starts from the script's text and the level
    (G64LuaLoad), so every machine draws the same numbers. The game's own random numbers are not touched. */
 static unsigned long long random_next(void) {
@@ -435,7 +477,8 @@ static const luaL_Reg api[] = {{"frame", api_frame},         {"level", api_level
                                {"ball_pos", api_ball_pos},   {"ball_type", api_ball_type},
                                {"garibs", api_garibs},       {"health", api_health}, {"lives", api_lives},
                                {"random", api_random},       {"hurt", api_hurt},
-                               {"set_health", api_set_health}, {NULL, NULL}};
+                               {"set_health", api_set_health}, {"show", api_show},
+                               {NULL, NULL}};
 
 /* ---- The sandbox */
 

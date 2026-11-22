@@ -144,6 +144,8 @@ void netplay_kick(int p);
 /* Chat. netplay_chat_send sends a line (up to 80 characters) to every other player. The latest lines, oldest first,
  * each with its sender's name, and the milliseconds since it came. Notices (a player left) are lines too. */
 void netplay_chat_send(const char *text);
+/* The line of text that a level pack's script shows to this player now, or an empty text (docs/scripts.md). */
+const char *netplay_script_line(void);
 int netplay_chat_count(void);
 const char *netplay_chat_line(int i);
 unsigned netplay_chat_age(int i);
