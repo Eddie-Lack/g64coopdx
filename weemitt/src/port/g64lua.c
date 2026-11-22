@@ -258,6 +258,8 @@ int G64PlayerBallType(int p);
 int G64PlayerGaribs(int p);
 int G64PlayerHealth(int p);
 int G64PlayerLives(int p);
+void G64HurtPlayer(int p);
+void G64SetPlayerHealth(int p, int health);
 float port_sinf(float x);
 float port_cosf(float x);
 void G64PlacePlayer(int p, float x, float y, float z);
@@ -347,6 +349,27 @@ static int api_lives(lua_State *L) {
     return count_result(L, p, G64PlayerLives(p));
 }
 
+/* game.hurt(p): one point of harm to the player's glove, by the game's own rules. A glove at its last point dies,
+   and on_death follows at the next frame. */
+static int api_hurt(lua_State *L) {
+    int p = player_arg(L, 1);
+    if (G64PlayerInLevel(p)) {
+        G64HurtPlayer(p);
+    }
+    return 0;
+}
+
+/* game.set_health(p, n): the player's health, 1 to 3. */
+static int api_set_health(lua_State *L) {
+    int p = player_arg(L, 1);
+    lua_Integer n = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, n >= 1 && n <= 3, 2, "health is 1 to 3");
+    if (G64PlayerInLevel(p)) {
+        G64SetPlayerHealth(p, (int)n);
+    }
+    return 0;
+}
+
 /* The next random number: 64 bits (splitmix64). The state starts from the script's text and the level
    (G64LuaLoad), so every machine draws the same numbers. The game's own random numbers are not touched. */
 static unsigned long long random_next(void) {
@@ -411,7 +434,8 @@ static const luaL_Reg api[] = {{"frame", api_frame},         {"level", api_level
                                {"pos", api_pos},             {"place", api_place},   {"log", api_log},
                                {"ball_pos", api_ball_pos},   {"ball_type", api_ball_type},
                                {"garibs", api_garibs},       {"health", api_health}, {"lives", api_lives},
-                               {"random", api_random},       {NULL, NULL}};
+                               {"random", api_random},       {"hurt", api_hurt},
+                               {"set_health", api_set_health}, {NULL, NULL}};
 
 /* ---- The sandbox */
 

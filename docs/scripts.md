@@ -2,7 +2,8 @@
 
 A level pack may hold a script: a file `script.lua` of Lua source text
 ([discovery/level-pack.md](discovery/level-pack.md)). This page is for someone who writes one. The scripting is a
-first version: a script can read the players, move a glove, and draw random numbers. More comes later.
+first version: a script can read the players, move, hurt and heal a glove, and draw random numbers. More comes
+later.
 
 ## How a script runs
 
@@ -39,13 +40,19 @@ The table `game`:
 | `game.ball_pos(p)` | the place of player `p`'s ball: three numbers `x, y, z` |
 | `game.ball_type(p)` | the kind of player `p`'s ball, as the game numbers it |
 | `game.garibs(p)`, `game.health(p)`, `game.lives(p)` | player `p`'s garibs, health and lives |
+| `game.hurt(p)` | hurts player `p`'s glove by one point, by the game's own rules: a glove that was just hurt is not hurt again, and a glove at its last point dies |
+| `game.set_health(p, n)` | sets player `p`'s health to `n`, 1 to 3 |
 | `game.random()` | a random number from 0 up to, not including, 1 |
 | `game.random(n)`, `game.random(a, b)` | a random whole number from 1 to `n`, or from `a` to `b`. The numbers stay within 31 bits |
 | `math.sin(x)`, `math.cos(x)` | the game's own sine and cosine, in single precision. `x` is from -1000000 to 1000000 |
 | `game.place(p, x, y, z)` | puts player `p`'s glove at a place. Each coordinate is from -100000 to 100000 |
 | `game.log(text)` | writes a line to the program's log. It is for you to read: nothing in the game reads it |
 
-A call that asks about a player gives nothing (`nil`) when that player is not in this level.
+A call that asks about a player gives nothing (`nil`) when that player is not in this level. A call that acts on
+such a player does nothing.
+
+A script cannot change garibs or lives. The game carries them from level to level, and a script's own state does
+not last across levels yet.
 
 The random numbers start from the script's text and the level's number. Every machine draws the same ones, and a
 level gives the same ones each time it starts. They do not touch the game's own random numbers.
