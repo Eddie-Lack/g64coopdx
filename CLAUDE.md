@@ -66,6 +66,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make sound         # the online game's sound through rollbacks, on Linux and under Wine (needs the ROM)
     make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips and cameos with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
+    make bots          # every level with 8 and with 16 players who play at random, on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)

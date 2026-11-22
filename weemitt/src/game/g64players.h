@@ -301,6 +301,8 @@ s32 G64TipHeld(void);
    lines and fills lines with them (at most max), or 0 when the player reads no tip. more is 1 when another page
    follows. The lines are in the game's memory: they hold the game's text and stay on this machine. */
 s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more);
+/* debris.c: a piece of debris is freed, and no player who is not in the globals keeps it as their fake ball. */
+void G64FakeballGone(const void *debris);
 /* DisableControl(time) for every player who is not in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are

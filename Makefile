@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -275,6 +275,26 @@ levelstart: levelstart-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/levelstart.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/levelstart-windows.out
 	cmp build/tests/levelstart.out build/tests/levelstart-windows.out
+
+# Every level with 8 and with 16 players who press buttons and push sticks at random (tests/rom/bots.c), on Linux
+# and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
+BOTS_SRC := tests/rom/bots.c weemitt/src/port/statehash.c
+bots-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/bots $(BOTS_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/bots.exe $(BOTS_SRC) $(ENGINE_WINDOWS) -lm
+
+bots: bots-build
+	build/tests/bots "$$GLOVER_ROM" 8 1500 > build/tests/bots.out
+	build/tests/bots "$$GLOVER_ROM" 16 1500 >> build/tests/bots.out
+	grep "every level" build/tests/bots.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1500 | tr -d '\r' \
+	    > build/tests/bots-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 16 1500 | tr -d '\r' \
+	    >> build/tests/bots-windows.out
+	cmp build/tests/bots.out build/tests/bots-windows.out
 
 # Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
 # be equal (needs the ROM in GLOVER_ROM).

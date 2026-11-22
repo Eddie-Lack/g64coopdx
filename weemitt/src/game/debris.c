@@ -1,5 +1,6 @@
 PORT_C_BEGIN
 #include "common.h"
+#include "g64players.h"
 #include "ident.h"
 #include "debris.h"
 #include "actor.h"
@@ -197,6 +198,8 @@ void KillDebris(Debris *index) {
         if (index == handControl.fakeball) {
             handControl.fakeball = NULL;
         }
+        /* g64coopdx: the same for the players who are not in the globals. */
+        G64FakeballGone(index);
         ReleaseActor((Actor *)index, 0x1E);
     }
 }
