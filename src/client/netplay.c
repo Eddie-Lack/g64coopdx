@@ -640,6 +640,24 @@ int netplay_pause_items(void) { return PAUSE_ITEMS; }
 const char *netplay_pause_item(int i) { return i >= 0 && i < PAUSE_ITEMS ? pauseItems[i] : ""; }
 int netplay_quit_requested(void) { return pauseQuit; }
 
+void netplay_pause_pick(int item) {
+    switch (item) {
+    case PAUSE_CHECKPOINT:
+        action = 1;
+        actionFrames = ACTION_FRAMES;
+        break;
+    case PAUSE_HUB:
+        action = 2;
+        actionFrames = ACTION_FRAMES;
+        break;
+    case PAUSE_LEAVE:
+        pauseQuit = 1;
+        break;
+    default:
+        break;
+    }
+}
+
 /* The menu, driven by the local controller: Start opens it; up and down choose; A picks; B or Start closes it. */
 static void pause_menu(uint16_t buttons, int8_t stickY) {
     uint16_t pressed = (uint16_t)(buttons & ~lastButtons);
@@ -662,21 +680,7 @@ static void pause_menu(uint16_t buttons, int8_t stickY) {
         pauseSelection = (pauseSelection + 1) % PAUSE_ITEMS;
     if (!(pressed & 0x8000))
         return;
-    switch (pauseSelection) {
-    case PAUSE_CHECKPOINT:
-        action = 1;
-        actionFrames = ACTION_FRAMES;
-        break;
-    case PAUSE_HUB:
-        action = 2;
-        actionFrames = ACTION_FRAMES;
-        break;
-    case PAUSE_LEAVE:
-        pauseQuit = 1;
-        break;
-    default:
-        break;
-    }
+    netplay_pause_pick(pauseSelection);
     netplay_pause_toggle();
 }
 

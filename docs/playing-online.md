@@ -95,13 +95,20 @@ A gamepad works as an N64 controller. On the keyboard:
 | Q, E | L, R |
 | I, K, J, L | C buttons |
 | Enter | Start |
-| Esc | Your pause menu |
+| Esc | The menu |
 
-The studio's menu is off in the online game: its cheats, level jumps and tools would change one player's game only.
+Esc opens the menu at the top of the window, as in weemitt. **Settings** has **Graphics**, **Audio** and
+**Controls**: in Controls you set your keys and your controller's buttons, also in the middle of an online game.
+**Online game** has the pause menu's choices for the mouse. The game goes on for everyone while the menu is open,
+and your keyboard goes to the menu.
+
+The studio's tools, the enhancements and the cheats are not in the menu in an online game: they would change one
+player's game only.
 
 ## Your pause menu
 
-Start or Esc opens your own pause menu. It does not stop the game: the others play on, and your glove waits.
+Start (Enter on the keyboard) opens your own pause menu. It does not stop the game: the others play on, and your
+glove waits.
 
 | Choice | What it does |
 | --- | --- |
@@ -110,7 +117,8 @@ Start or Esc opens your own pause menu. It does not stop the game: the others pl
 | Back to the hub | Takes you out of the level, the same way the hub exit does |
 | Leave the online game | Closes the program; the others play on |
 
-Up and down choose, A picks, and B, Start or Esc closes it. The choices act for you alone.
+Up and down choose, A picks, and B or Start closes it. The choices act for you alone. The Esc menu has the same
+choices under **Online game**.
 
 ## Tips
 

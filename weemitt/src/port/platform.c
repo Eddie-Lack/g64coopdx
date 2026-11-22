@@ -2207,26 +2207,14 @@ int main(int argc, char **argv) {
             unsigned short pressed = input_event_buttons(&settings, &e, !menu_is_open(), pad != NULL,
                                                          pad == NULL && joy != NULL);
 
-#ifdef PORT_STUDIO
-            /* g64coopdx: no menu in the online game. Its cheats, level jumps and the studio's timeline would change
-               one machine's game only. */
-            if (!netplay_active() && menu_handle_event(&e)) {
-                continue;
-            }
-#else
+            /* g64coopdx: Escape opens the menu in the online game too. There it offers only the player's own
+               settings (the picture, the sound, the controls) and the online pause menu's choices (menu.cpp). */
             if (menu_handle_event(&e)) {
                 continue;
             }
-#endif
             tapPending |= pressed;
             if (e.type == SDL_QUIT) {
                 running = 0;
-#ifdef PORT_STUDIO
-            } else if (netplay_active() && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE
-                       && !e.key.repeat) {
-                /* g64coopdx: Escape opens or closes the player's own pause menu. */
-                netplay_pause_toggle();
-#endif
             } else if (e.type == SDL_KEYDOWN && settings.pauseKey != 0 && (int)e.key.keysym.scancode == settings.pauseKey
                        && !e.key.repeat) {
                 /* Developer, Pause game logic. */
