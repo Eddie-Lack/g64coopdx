@@ -1,5 +1,5 @@
-/* A libFuzzer target for the level pack's parsers (src/client/pack.h): the manifest and the level file's outside
- * check. A manifest that parses has a name of printable characters and a level in range.
+/* A libFuzzer target for the level pack's parsers (src/client/pack.h): the manifest, the level file's outside
+ * check, the script's check and the reader of a ROM's level files. A manifest that parses has a name of printable characters and a level in range.
  *
  * Build and run: make fuzz (clang with -fsanitize=fuzzer). */
 #include <stddef.h>
@@ -24,5 +24,30 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (g64_pack_check_script(data, size) == 0 && (size < 1 || size > G64_PACK_SCRIPT_MAX || data[0] == 0x1B ||
                                                     memchr(data, 0, size)))
         __builtin_trap();
+    /* The reader of a ROM's level files: the input stands for a ROM, with its first word and its two code pointers
+       put right so the walk over the files is reached. A file it finds lies inside the input. */
+    if (size >= 4) {
+        static uint8_t rom[0x60000];
+        size_t at = 0, n = 0, len = size < sizeof rom - 0x54000 ? size : sizeof rom - 0x54000;
+        int num = data[0] % 50;
+        memset(rom, 0, sizeof rom);
+        memcpy(rom + 0x54000, data, len);
+        rom[0] = 0x80, rom[1] = 0x37, rom[2] = 0x12, rom[3] = 0x40;
+        /* lui v0, 0xB005; ori v0, v0, 0x4000 and lui v1, 0xB005; ori v1, v1, 0x4000 + len, or the input's own words. */
+        if (data[1] & 1) {
+            static const uint8_t start[8] = {0x3C, 0x02, 0xB0, 0x05, 0x34, 0x42, 0x40, 0x00};
+            uint8_t end[8] = {0x3C, 0x03, 0xB0, 0x05, 0x34, 0x63, 0, 0};
+            end[6] = (uint8_t)((0x4000 + len) >> 8);
+            end[7] = (uint8_t)(0x4000 + len);
+            memcpy(rom + 341164, start, 8);
+            memcpy(rom + 341348, end, 8);
+        } else {
+            memcpy(rom + 341164, data, len < 8 ? len : 8);
+            memcpy(rom + 341348, data + (len > 8 ? 8 : 0), len < 16 ? (len > 8 ? len - 8 : 0) : 8);
+        }
+        if (g64_pack_level_from_rom(rom, 0x54000 + len, num, &at, &n) == NULL &&
+            (n < 8 || n > G64_PACK_LEVEL_MAX || at > 0x54000 + len || n > 0x54000 + len - at))
+            __builtin_trap();
+    }
     return 0;
 }

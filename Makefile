@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -419,6 +419,18 @@ build/tests/lua_test.exe: tests/net/lua_test.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) $(LUA_TEST_FLAGS) -static -o $@ tests/net/lua_test.c $(LUA_TEST_SRC)
 
+# The tool that makes and checks level packs (tools/g64pack.c).
+packtool: build/g64pack
+packtool-windows: build/g64pack.exe
+
+build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS)
+	@mkdir -p build
+	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC)
+
+build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS)
+	@mkdir -p build
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC)
+
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/pack_fuzz.c $(PACK_SRC)
@@ -477,7 +489,7 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
-        build/tests/pack_test build/tests/lua_test
+        build/tests/pack_test build/tests/lua_test build/g64pack
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
@@ -485,6 +497,9 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	tail -1 build/tests/seal_test.out
 	build/tests/lua_test > build/tests/lua_test.out || { cat build/tests/lua_test.out; exit 1; }
 	tail -1 build/tests/lua_test.out
+	sh tests/net/packtool_test.sh build/tests/packtool-linux build/g64pack > build/tests/packtool.out \
+	    || { cat build/tests/packtool.out; exit 1; }
+	tail -1 build/tests/packtool.out
 	build/tests/sound_test > build/tests/sound_test.out || { cat build/tests/sound_test.out; exit 1; }
 	tail -1 build/tests/sound_test.out
 	build/tests/loopback > build/tests/loopback.out || { cat build/tests/loopback.out; exit 1; }
@@ -496,7 +511,7 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
-              build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe test-c
+              build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe test-c
 	@mkdir -p build/tests/pack-windows
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows | tr -d '\r' \
 	    > build/tests/pack_test-windows.out
@@ -510,6 +525,10 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	    > build/tests/lua_test-windows.out
 	tail -1 build/tests/lua_test-windows.out
 	cmp build/tests/lua_test.out build/tests/lua_test-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) sh tests/net/packtool_test.sh build/tests/packtool-windows \
+	    $(WINE64) build/g64pack.exe > build/tests/packtool-windows.out || { cat build/tests/packtool-windows.out; exit 1; }
+	tail -1 build/tests/packtool-windows.out
+	cmp build/tests/packtool.out build/tests/packtool-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/session_test.exe | tr -d '\r' \
 	    > build/tests/session_test-windows.out
 	tail -1 build/tests/session_test-windows.out
@@ -531,7 +550,7 @@ fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz 
 	    build/fuzz-corpus-pack build/fuzz-corpus-lua
 	build/tests/lua_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 -timeout=20 -dict=tests/fuzz/lua.dict \
 	    build/fuzz-corpus-lua
-	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1100 build/fuzz-corpus-pack
+	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-pack
 	build/tests/instances_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1200 build/fuzz-corpus-instances
 	build/tests/relay_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1220 build/fuzz-corpus-relay
 	cd server && go test -run=^$$ -fuzz=FuzzRelayHandle -fuzztime=$(FUZZ_TIME)s .

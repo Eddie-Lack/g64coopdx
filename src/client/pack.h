@@ -28,7 +28,7 @@
 #define G64_PACK_NAME 32
 #define G64_PACK_ID 16
 #define G64_PACK_LEVELS 48
-/* The most bytes of a manifest and of a level file. The game's largest level file is about 150 KB. */
+/* The most bytes of a manifest and of a level file. The game's largest level file is about 15 KB. */
 #define G64_PACK_MANIFEST_MAX 1024
 #define G64_PACK_LEVEL_MAX (1024 * 1024)
 #define G64_PACK_SCRIPT_MAX (256 * 1024)
@@ -51,6 +51,11 @@ int g64_pack_check_level(const uint8_t *lev, size_t n);
 /* 0 when script may be a script by its outside: 1 byte to G64_PACK_SCRIPT_MAX, with no zero byte, and not Lua's
  * compiled form, which starts with an escape character. The game takes source text only. */
 int g64_pack_check_script(const uint8_t *script, size_t n);
+/* Finds level number num's file in a ROM: the game's own, or one that Glovebox built with an edited level. The
+ * level files lie one after another, each starting with its size; the game's code says where they start and end.
+ * Returns NULL and sets at (the file's offset in rom) and levSize, or a message. Every byte of the ROM is untrusted
+ * here: the tool that makes packs reads it from a file the user names (tools/g64pack.c). */
+const char *g64_pack_level_from_rom(const uint8_t *rom, size_t size, int num, size_t *at, size_t *levSize);
 /* The pack's id from its files' bytes. script is NULL for a pack without one. */
 void g64_pack_make_id(const uint8_t *manifest, size_t manifestSize, const uint8_t *lev, size_t levSize,
                       const uint8_t *script, size_t scriptSize, uint8_t id[G64_PACK_ID]);

@@ -49,6 +49,14 @@ The game's level file: a length (4 bytes, big-endian), the name of the level's l
 commands. The length is the file's whole size, and the reader checks it. The file is 1 MB at most. The game's largest
 level file is about 150 KB.
 
+### Making a pack
+
+`g64pack` (`tools/g64pack.c`, `make packtool`, and in each release) writes a pack's three files and reads the pack
+back with the game's own reader. The level file comes from Glovebox: the `.lev` file its `.lev` button saves, or one
+level of a ROM it built. For a ROM, the tool finds the level files through the two code pointers of the game's
+loader, which Glovebox changes when it moves the files (`g64_pack_level_from_rom` in `src/client/pack.c`). For the
+same level, the tool's pack has the same bytes and the same id as a pack made by Glovebox's own builder.
+
 ### `script.lua`
 
 Lua source text: 1 byte to 256 KB, with no zero byte. Lua's compiled form is refused. The script runs in every game
@@ -62,8 +70,7 @@ The id is the first 16 bytes of the BLAKE2b hash (32 bytes of output, no key) of
 2. for `pack.txt`, then `level.lev`, then `script.lua` if the pack has one: the file's name and a zero byte, the
    file's length (4 bytes, little-endian), and the file's bytes.
 
-BLAKE2b comes with the cryptography library that g64coopdx already holds (`third_party/monocypher`). Glovebox must
-compute the same when it exports a pack.
+BLAKE2b comes with the cryptography library that g64coopdx already holds (`third_party/monocypher`).
 
 The session's hello carries the id (`src/session/session.h`). A pack changes the game, so both machines must have
 the same one.
@@ -85,4 +92,3 @@ size, which are the same on every machine. It holds no pointer to the pack.
   pieces, and the joiner checks its id ([mods.md](mods.md#how-mods-reach-other-players)).
 - **More in a pack:** the author's own models and textures in banks of their own, more than one level, and more
   for a script to call.
-- **Glovebox's "Export level pack".**

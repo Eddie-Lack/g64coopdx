@@ -104,8 +104,36 @@ The program also prints a status line every 100 frames.
 A level pack is a folder with a custom level that takes the place of one of the game's levels
 ([discovery/level-pack.md](discovery/level-pack.md)). Every player needs the same folder and starts the program with
 `--pack FOLDER`. The level shows when you enter the level it replaces. A host refuses a player who has another pack,
-or none. The program cannot send a pack to another player yet, and Glovebox cannot export one yet. A pack may also
-hold a script ([scripts.md](scripts.md)).
+or none. The program cannot send a pack to another player yet. A pack may also hold a script
+([scripts.md](scripts.md)).
+
+### Making a pack
+
+The program `g64pack` comes with the game. It makes a pack from a level you edited in Glovebox, the level editor.
+Run it from a command prompt in the game's folder.
+
+1. In Glovebox, open the level and edit it.
+2. Get the level out of Glovebox, one of two ways:
+   - press the `.lev` button, which saves the level as a `.lev` file
+   - or build a ROM with your level in it
+3. Find the number of the level you edited: `g64pack levels` lists them.
+4. Make the pack:
+
+       g64pack make MyLevel --name "My level" --level 10 --lev mylevel.lev
+       g64pack make MyLevel --name "My level" --level 10 --rom built.z64
+
+   Add `--script script.lua` for a pack with a script.
+5. Give the folder `MyLevel` to every player. Each starts the game with `--pack MyLevel`.
+
+`g64pack check MyLevel` reads a pack as the game does and prints its id. Two players have the same pack when their
+ids are the same.
+
+What a pack cannot hold yet:
+
+- A level that uses what Glovebox's game mod adds: rotation and scale on enemies, platforms and pick-ups, more
+  bank slots, and the extra level slots. Glovebox says when a level needs the mod.
+- Models you imported into Glovebox.
+- Objects of another level. A pack's level uses the objects of the level whose place it takes.
 
 ## Names, the player list and chat
 
