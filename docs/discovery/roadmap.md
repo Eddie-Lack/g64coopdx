@@ -302,8 +302,8 @@ tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). A script reads 
 counts, moves, hurts and heals a glove, shows a line of text to a player, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
 comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory, and a number made of the script's memory
 counts and random state in place of the scripts' block. Left: more events from inside the game's step, writes to garibs and
-lives, spawns, puzzle conditions and actions, the HUD, and session state that a
-script keeps across levels.
+lives, spawns, and puzzle conditions and actions. A script keeps 16 values across levels: a level's script asks
+the host to add to one, and the new value reaches every instance as a session event.
 
 Playable: a session on a custom Glovebox level with a script, joined by players who did not have the pack. Test: the
 pack reader's fuzz target; a script's state equal on every client after rollbacks; a level built from scratch loads

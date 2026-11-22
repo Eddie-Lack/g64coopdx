@@ -61,12 +61,21 @@ static int same_progress(const g64_progress *a, const g64_progress *b) {
    the network: a malformed event changes nothing. */
 extern unsigned g64PlayerColor[16][2];
 void G64SetSessionWorld(int world);
+/* The session's values for scripts (weemitt's g64lua.c): one value into a running game, all of them for a game
+   that starts, and what a game's script asked for in its last frame. */
+void G64LuaSetSession(int key, unsigned value);
+void G64SetScriptSession(const unsigned *values);
+int G64LuaRequests(int out[][2], int max);
 
 static void apply_event(const uint8_t *data, size_t len) {
     g64_progress p;
     G64Save s;
     int player;
     uint32_t glove, ball;
+    if (g64_parse_script_event(data, len, &player, &glove) == 0) {
+        G64LuaSetSession(player, glove);
+        return;
+    }
     if (g64_parse_world_event(data, len, &player) == 0) {
         G64SetSessionWorld(player);
         return;
@@ -91,6 +100,7 @@ typedef struct {
     g64_progress progress;
     uint32_t colors[16][2]; /* every player's colors at the start */
     int session_world;      /* the world the session is in at the start, or 0 */
+    uint32_t values[G64_SCRIPT_KEYS]; /* the session's values for scripts at the start */
 } start_record;
 
 /* The host's "any ball" rule (weemitt's g64players.c). Every game that is built starts with it. */
@@ -132,6 +142,12 @@ static void build_setup(void *ctx) {
     G64SetPack(packLevel, packRom, packSize);
     G64SetPackScript(packScriptRom, packScriptSize);
     G64SetSessionWorld(r->session_world);
+    {
+        unsigned values[G64_SCRIPT_KEYS];
+        for (p = 0; p < G64_SCRIPT_KEYS; p++)
+            values[p] = r->values[p];
+        G64SetScriptSession(values);
+    }
     for (p = 0; p < 16; p++) {
         g64PlayerColor[p][0] = r->colors[p][0];
         g64PlayerColor[p][1] = r->colors[p][1];
@@ -165,7 +181,10 @@ typedef struct inst {
     uint32_t colors[16][2]; /* the colors the instance has: its start's, then the colors events' */
     /* The frame the instance's last event went on, plus 1, or 0: one event fits on a frame. */
     uint32_t event_frame;
-    int event_colors; /* that event set colors or the session's world, which a progress event must not replace */
+    int event_colors; /* that event set colors, the session's world or a script's value, which a progress event must
+                         not replace */
+    uint32_t values[G64_SCRIPT_KEYS]; /* the scripts' values the instance has: its start's, then the events' */
+    int next_key;                     /* the key the next script event starts looking at */
     int world;        /* the session's world as the instance has it */
 } inst;
 
@@ -190,6 +209,7 @@ typedef struct {
 
 struct g64_ihost {
     Engine *e;
+    uint32_t values[G64_SCRIPT_KEYS]; /* the session's values for scripts: 0 at the session's start */
     const void *boot;
     const rb_game_ops *ops;
     int players;
@@ -269,6 +289,14 @@ static void host_on_final(void *user, uint32_t frame, const void *state) {
         h->exits[h->exit_count].r = g64Exits[k];
         h->exit_count++;
     }
+    {
+        /* What the instance's script asked to add to the session's values in this frame. The sum is taken here, once
+           for each confirmed frame, in whole numbers of 32 bits that wrap. */
+        int req[8][2], n = G64LuaRequests(req, 8);
+        for (k = 0; k < n; k++)
+            if (req[k][0] >= 0 && req[k][0] < G64_SCRIPT_KEYS)
+                h->values[req[k][0]] += (uint32_t)req[k][1];
+    }
 }
 
 static int find_instance(g64_ihost *h, int level, int world) {
@@ -311,6 +339,9 @@ static int new_instance(g64_ihost *h, int level, int world, unsigned members) {
     memcpy(in->start.colors, h->colors, sizeof in->start.colors);
     memcpy(in->colors, h->colors, sizeof in->colors);
     in->start.session_world = in->world = session_world(h, world);
+    memcpy(in->start.values, h->values, sizeof in->start.values);
+    memcpy(in->values, h->values, sizeof in->values);
+    in->next_key = 0;
     in->sent = h->progress;
     in->game = build(h->boot, &in->start);
     if (!in->game)
@@ -355,6 +386,7 @@ static void send_move(g64_ihost *h, int p) {
     mv.progress = in->start.progress;
     mv.session_world = (uint8_t)in->start.session_world;
     memcpy(mv.colors, in->start.colors, sizeof mv.colors);
+    memcpy(mv.values, in->start.values, sizeof mv.values);
     g64_write_move(d, &mv);
     h->send(h->user, p, d, sizeof d);
 }
@@ -667,6 +699,22 @@ void g64_ihost_tick(g64_ihost *h) {
                 }
                 break;
             }
+        if (p < h->players)
+            continue;
+        /* A script's value that the instance does not have yet: one on a frame, the keys in turn, so a key that
+           changes often does not hold the others back. The event carries the value as it is now. */
+        for (p = 0; p < G64_SCRIPT_KEYS; p++) {
+            int k = (in->next_key + p) % G64_SCRIPT_KEYS;
+            if (in->values[k] == h->values[k])
+                continue;
+            if (rb_host_set_event(in->host, ev, g64_write_script_event(ev, k, h->values[k])) == 0) {
+                in->values[k] = h->values[k];
+                in->next_key = (k + 1) % G64_SCRIPT_KEYS;
+                in->event_frame = next + 1;
+                in->event_colors = 1;
+            }
+            break;
+        }
     }
     for (p = 0; p < h->players; p++) {
         move_state *m = &h->move[p];
@@ -851,6 +899,7 @@ static int finish_move(g64_iclient *c) {
     r.progress = c->mv.progress;
     r.session_world = c->mv.session_world;
     memcpy(r.colors, c->mv.colors, sizeof r.colors);
+    memcpy(r.values, c->mv.values, sizeof r.values);
     c->game = build(c->boot, &r);
     if (!c->game)
         return -1;

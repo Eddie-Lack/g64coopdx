@@ -12,6 +12,9 @@ void G64LuaCounts(unsigned int out[4]);
 void G64LuaReset(void);
 void G64LuaEvent(int kind, int player);
 const char *G64LuaShown(int player);
+void G64LuaSetSession(int key, unsigned value);
+void G64SetScriptSession(const unsigned *values);
+int G64LuaRequests(int out[][2], int max);
 
 /* The game's side of the scripts' calls: one player at a place that the script can move. */
 static int frames;
@@ -329,7 +332,7 @@ int main(void) {
         G64LuaEvent(1, 3);
         G64LuaEvent(2, 15);
         G64LuaEvent(0, 0);
-        G64LuaEvent(3, 0);
+        G64LuaEvent(4, 0);
         G64LuaEvent(1, 16);
         G64LuaEvent(1, -1);
         frames = 1;
@@ -377,6 +380,58 @@ int main(void) {
         }
         G64LuaReset();
         printf("    after the script: [%s]\n", G64LuaShown(2));
+    }
+
+    /* The session's values: a script reads the values the game started with, asks for amounts to be added (8 in a
+       frame), and hears of a value that comes in. The host's part, which adds, is not here. */
+    {
+        static const char script[] =
+            "local s = game.session(2) .. ' ' .. game.session(15)\n"
+            "s = s .. (game.add_session(0, 1) and ', ASKED AT THE START' or ', no request at the start')\n"
+            "function on_session(k) s = s .. ', heard ' .. k .. ' = ' .. game.session(k) end\n"
+            "function on_frame()\n"
+            "  if game.frame() == 0 then\n"
+            "    local ok = 0\n"
+            "    for i = 1, 10 do if game.add_session(i, i * 100) then ok = ok + 1 end end\n"
+            "    s = s .. ', ' .. ok .. ' asked'\n"
+            "  end\n"
+            "  if game.frame() == 1 then game.add_session(0, -7) end\n"
+            "  if game.frame() == 3 then\n"
+            "    game.log(s .. ', ' .. ((pcall(game.session, 16) or pcall(game.session, -1) or\n"
+            "             pcall(game.add_session, 16, 1) or pcall(game.add_session, 0, 2 ^ 40) or\n"
+            "             pcall(game.add_session, 0, 1.5)) and 'ALLOWED' or 'refused'))\n"
+            "  end\n"
+            "end\n";
+        unsigned values[16] = {0};
+        int req[8][2], n, i;
+        printf("the session's values\n");
+        values[2] = 42;
+        values[15] = 0xFFFFFFFFu;
+        G64SetScriptSession(values);
+        frames = 0;
+        G64LuaLoad(script, (unsigned int)strlen(script));
+        for (frames = 0; frames < 4; frames++) {
+            G64LuaFrame();
+            n = G64LuaRequests(req, 8);
+            printf("    frame %d: %d requests:", frames, n);
+            for (i = 0; i < n; i++) {
+                printf(" %d+%d", req[i][0], req[i][1]);
+            }
+            printf("\n");
+            if (frames == 1) {
+                G64LuaSetSession(2, 50);
+                G64LuaSetSession(16, 1);
+                G64LuaSetSession(-1, 1);
+            }
+        }
+        if (!G64LuaActive()) {
+            printf("FAIL the session's values: the script stopped\n");
+            failed++;
+        }
+        G64LuaReset();
+        memset(values, 0, sizeof values);
+        G64SetScriptSession(values);
+        printf("    without a script: %d requests\n", G64LuaRequests(req, 8));
     }
 
     printf("%s: %d failures\n", failed ? "FAIL" : "ok", failed);

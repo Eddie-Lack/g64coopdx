@@ -638,6 +638,108 @@ static void script_run(Engine *e, void *boot) {
     printf("%s a level pack's script runs with the game\n", failed != before ? "FAIL" : "ok  ");
 }
 
+/* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's
+   script asks for 5 more of value 3 at its frame 50, for 1 more of value 7 twelve times at its frame 60 (a frame
+   takes 8 requests), and for 1 more of value 5 at its frame 100. Player 1 leaves the hub for the way room at the
+   hub's frame 100, the frame of a request, and player 2 follows at frame 300 into the level that is already running.
+   At the end every player's game must have 10, 16 and 2: both levels counted once each, also through the frames
+   that ran again. The way room's script must have read 5 as value 3 in its first run, and each script must have
+   heard of the changes. */
+static void script_session(Engine *e, void *boot) {
+    enum { RUN = 700, THREE = 3 };
+    static const char script[] =
+        "start3 = game.session(3)\n"
+        "v3, v5, v7, heard, refused = 0, 0, 0, 0, 0\n"
+        "function on_session(k) heard = heard + 1 end\n"
+        "function on_frame()\n"
+        "  local f = game.frame()\n"
+        "  if f == 50 then game.add_session(3, 5) end\n"
+        "  if f == 60 then for i = 1, 12 do if not game.add_session(7, 1) then refused = refused + 1 end end end\n"
+        "  if f == 100 then game.add_session(5, 1) end\n"
+        "  v3, v5, v7 = game.session(3), game.session(5), game.session(7)\n"
+        "end\n";
+    static const char *const names[] = {"v3", "v5", "v7", "start3", "heard", "refused"};
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    uint8_t *with = malloc(romSize + sizeof script);
+    uint32_t none[16][2];
+    int p, k, before = failed;
+    if (!with)
+        return;
+    memset(none, 0, sizeof none);
+    engine_load(e, boot);
+    for (p = 0; p < 8; p++)
+        g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
+    g64TestExits[0] = (G64TestExit){HUB1, 100, 1, ATLANTIS_EXIT};
+    g64TestExits[1] = (G64TestExit){HUB1, 300, 2, ATLANTIS_EXIT};
+    engine_save(e, boot);
+    g64_instances_one_world(0);
+    memcpy(with, rom, romSize);
+    memcpy(with + romSize, script, sizeof script - 1);
+    engine_set_rom(e, with, romSize + sizeof script);
+    g64_instances_pack_script((unsigned)romSize, sizeof script - 1);
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, THREE, 7u, none, HUB1, DEADLINE, host_send, NULL);
+    for (p = 0; p < THREE; p++)
+        player[p] = g64_iclient_new_with(e, boot, THREE, 7u, none, p, HUB1, WINDOW, DEADLINE, player_send, &ids[p]);
+    if (host && player[0] && player[1] && player[2]) {
+        for (now = 0; now < RUN; now++) {
+            deliver();
+            g64_ihost_tick(host);
+            for (p = 0; p < THREE; p++) {
+                rb_input in;
+                memset(&in, 0, sizeof in);
+                in.present = 1;
+                /* Player 0 walks, so the others' guesses about them are sometimes wrong and frames run again. */
+                if (p == 0)
+                    in.x = (int8_t)((now / 13) % 2 ? 60 : -60);
+                g64_iclient_step(player[p], in);
+            }
+        }
+        for (p = 0; p < THREE; p++) {
+            double v[6] = {-1, -1, -1, -1, -1, -1};
+            char what[240];
+            rb_engine_game *g = g64_iclient_game(player[p]);
+            int level = g ? g64_iclient_level(player[p]) : -1;
+            if (g) {
+                rb_engine_game_enter(g);
+                for (k = 0; k < 6; k++)
+                    v[k] = G64LuaGlobal(names[k]);
+            }
+            snprintf(what, sizeof what,
+                     "player %d in level %d: values 3, 5 and 7 are %.0f, %.0f and %.0f; value 3 was %.0f at the "
+                     "script's start; %.0f changes heard, %.0f requests refused; %u desyncs",
+                     p, level, v[0], v[1], v[2], v[3], v[4], v[5], g64_iclient_desyncs(player[p]));
+            check(g && level == (p == 0 ? HUB1 : WAYROOM) && v[0] == 10 && v[1] == 2 && v[2] == 16 &&
+                      v[3] == (p == 0 ? 0 : 5) && v[4] >= 3 && v[5] == 4 && g64_iclient_desyncs(player[p]) == 0,
+                  what);
+        }
+        {
+            char what[160];
+            snprintf(what, sizeof what, "%d instances, %u hash checks, %u mismatches, %llu frames run again",
+                     g64_ihost_instances(host), g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host),
+                     (unsigned long long)(g64_iclient_rollback_frames(player[0]) + g64_iclient_rollback_frames(player[1]) +
+                                          g64_iclient_rollback_frames(player[2])));
+            check(g64_ihost_instances(host) == 2 && g64_ihost_hash_matches(host) > 100 &&
+                      g64_ihost_hash_mismatches(host) == 0,
+                  what);
+        }
+    } else {
+        check(0, "a host and two more players start in the hub with a script");
+    }
+    for (p = 0; p < PLAYERS; p++) {
+        g64_iclient_free(player[p]);
+        player[p] = NULL;
+    }
+    g64_ihost_free(host);
+    g64_instances_pack_script(0, 0);
+    engine_set_rom(e, rom, romSize);
+    free(with);
+    printf("%s a script's values last from level to level\n", failed != before ? "FAIL" : "ok  ");
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     Engine *e;
@@ -749,6 +851,7 @@ int main(int argc, char **argv) {
     one_world(e, boot);
     pack_level(e, boot);
     script_run(e, boot);
+    script_session(e, boot);
     free(boot);
     engine_free(e);
     return failed;

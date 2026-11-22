@@ -261,6 +261,11 @@ done, or the hub's stage after a crystal goes in the fountain.
   player who joins later runs it at the same frame. Every machine gives it to the game right before that frame's
   step. The game joins it with its own progress (`G64ApplyProgress`: the bits joined, the hub counts at the larger
   value, the world kept), so progress a level has made and not yet reported stays.
+- Done for a script's values (`G64_EVENT_SCRIPT`; docs/scripts.md, "Values that last from level to level"). A
+  script's request to add to a value stays in its game's saved state for one frame. The host reads it from its
+  reference game after that frame is confirmed, adds it to the session's value, and sends the new value into every
+  instance that has an older one: one key on a frame, the keys in turn. A game that starts gets all 16 values with
+  its start (the move message).
 - Few things in a level read the progress while it runs. A way room door that new progress opens moves away at
   once. The rest (the way room's pedestals, the cave's crystals, which hub stage is loaded) shows at the level's next
   start.

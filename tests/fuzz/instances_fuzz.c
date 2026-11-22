@@ -28,7 +28,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             m2.progress.levels != m.progress.levels || m2.progress.all_garibs != m.progress.all_garibs ||
             m2.progress.hub_target != m.progress.hub_target || m2.progress.hub_level != m.progress.hub_level ||
             m2.progress.worlds_done != m.progress.worlds_done || memcmp(m2.colors, m.colors, sizeof m.colors) != 0 ||
-            m2.session_world != m.session_world || m.session_world >= G64_NUM_WORLDS)
+            m2.session_world != m.session_world || m.session_world >= G64_NUM_WORLDS ||
+            memcmp(m2.values, m.values, sizeof m.values) != 0)
             abort();
     }
     if (g64_parse_log(data, size, &c) == 0) {
@@ -47,6 +48,16 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             size_t frames = G64_LOG_HEAD + (size_t)c.count * (2 + 4 * (size_t)c.players);
             size_t n = rb_events_write(again, c.events, c.count);
             if (n != size - frames || memcmp(again, data + frames, n) != 0)
+                abort();
+        }
+    }
+    {
+        int key;
+        uint32_t value;
+        if (g64_parse_script_event(data, size, &key, &value) == 0) {
+            uint8_t again[G64_EVENT_SCRIPT_SIZE];
+            if (key < 0 || key >= G64_SCRIPT_KEYS || g64_write_script_event(again, key, value) != size ||
+                memcmp(again, data, size) != 0)
                 abort();
         }
     }

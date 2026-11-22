@@ -18,9 +18,13 @@
 #define G64_IMSG_LOGACK 0x04
 #define G64_IMSG_READY 0x05
 
-/* A move's bytes before the colors, and with them: two colors (u32) for each of 16 players. */
+/* The session's values for scripts: G64_SCRIPT_KEYS whole numbers of 32 bits (docs/scripts.md). */
+#define G64_SCRIPT_KEYS 16
+/* A move's bytes before the colors, and with them: two colors (u32) for each of 16 players, then the scripts'
+   values (u32 each). */
 #define G64_MOVE_HEAD 23
-#define G64_MOVE_SIZE (G64_MOVE_HEAD + 16 * 8)
+#define G64_MOVE_VALUES (G64_MOVE_HEAD + 16 * 8)
+#define G64_MOVE_SIZE (G64_MOVE_VALUES + G64_SCRIPT_KEYS * 4)
 #define G64_READY_SIZE 2
 #define G64_LOG_HEAD 9
 #define G64_LOGACK_SIZE 10
@@ -49,6 +53,8 @@ typedef struct {
     uint8_t session_world;
     /* Every player's glove and ball color at the instance's start (session.h, G64_COLOR_SET). */
     uint32_t colors[16][2];
+    /* The session's values for scripts at the instance's start (G64_EVENT_SCRIPT). */
+    uint32_t values[G64_SCRIPT_KEYS];
 } g64_move;
 
 /* The parsers (also the fuzz targets' way in). Each returns 0, or -1 for a malformed message. */
@@ -82,6 +88,12 @@ int g64_parse_logack(const uint8_t *d, size_t len, uint8_t *instance, uint32_t *
  *             the hub (weemitt's G64SetSessionWorld) */
 #define G64_EVENT_WORLD 0x03
 #define G64_EVENT_WORLD_SIZE 2
+/*   script    0x04, key (u8, below G64_SCRIPT_KEYS), value (u32): one of the session's values for scripts, as it is
+ *             now (weemitt's G64LuaSetSession) */
+#define G64_EVENT_SCRIPT 0x04
+#define G64_EVENT_SCRIPT_SIZE 6
+size_t g64_write_script_event(uint8_t *d, int key, uint32_t value);
+int g64_parse_script_event(const uint8_t *d, size_t len, int *key, uint32_t *value);
 size_t g64_write_world_event(uint8_t *d, int world);
 int g64_parse_world_event(const uint8_t *d, size_t len, int *world);
 size_t g64_write_colors_event(uint8_t *d, int player, uint32_t glove, uint32_t ball);
