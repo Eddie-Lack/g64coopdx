@@ -1347,6 +1347,16 @@ void menu_bar() {
         return;
     }
 #endif
+    if (menu_tools_hidden()) {
+        /* Playing alone: the settings and the log only. */
+        if (ImGui::BeginMenu("Log")) {
+            ImGui::MenuItem("Log window", NULL, &win.log);
+            ImGui::EndMenu();
+        }
+        ImGui::TextDisabled("   Esc: close the menu");
+        ImGui::EndMainMenuBar();
+        return;
+    }
 #ifdef PORT_STUDIO
     /* The Enhancements and Cheats change the game's logic, which the timeline's recorded input would not replay. */
     if (ImGui::BeginMenu("Studio")) {
@@ -1467,6 +1477,16 @@ void save_test_shot(int w, int h) {
 
 }  // namespace
 
+/* g64coopdx: the one switch for the developer tools and the studio tools (menu.h). The studio build, which is the
+   online program, has them off: the menu does not show them, and their keys and variables do nothing. */
+extern "C" int menu_tools_hidden(void) {
+#ifdef PORT_STUDIO
+    return 1;
+#else
+    return 0;
+#endif
+}
+
 extern "C" {
 
 void menu_init(SDL_Window *window, SDL_GLContext gl, Settings *st) {
@@ -1558,7 +1578,7 @@ int menu_handle_event(const SDL_Event *e) {
         }
     }
 #ifdef PORT_STUDIO
-    if (!menuOpen && studio_paused()) {
+    if (!menuOpen && studio_paused() && !menu_tools_hidden()) {
         /* The studio bar shows while paused: the mouse works on it. */
         ImGui_ImplSDL2_ProcessEvent(e);
         return (e->type == SDL_MOUSEBUTTONDOWN || e->type == SDL_MOUSEBUTTONUP || e->type == SDL_MOUSEMOTION
@@ -1580,15 +1600,22 @@ int menu_is_open(void) {
 
 void menu_draw(SDL_Window *window) {
     frameCount++;
+    if (menu_tools_hidden()) {
+        cfg->showCollision = cfg->collisionDepth = cfg->showNames = cfg->pauseLogic = 0;
+        cfg->debugPad = DEBUGPAD_OFF;
+    }
     if (testFrames >= 0 && frameCount == testFrames) {
         /* WEEMITT_MENU_WINDOWS=none keeps the menu closed and =developer opens only the Developer window. */
         const char *which = getenv("WEEMITT_MENU_WINDOWS");
         /* WEEMITT_OVERLAYS=collision,depth,names,pause turns the Developer window's tools on. */
         const char *tools = getenv("WEEMITT_OVERLAYS");
 
+        if (menu_tools_hidden()) {
+            tools = NULL;
+        }
         if (which == NULL || strcmp(which, "none") != 0) {
             set_open(true);
-            if (which != NULL && !strcmp(which, "developer")) {
+            if (which != NULL && !strcmp(which, "developer") && !menu_tools_hidden()) {
                 win.developer = true;
             } else {
                 win.graphics = win.audio = win.controls = win.enhancements = win.cheats = win.developer = win.log = true;
@@ -1626,8 +1653,8 @@ void menu_draw(SDL_Window *window) {
         if (win.audio) audio_window();
         ImGui::SetNextWindowPos(ImVec2(480, 40), ImGuiCond_FirstUseEver);
         if (win.controls) controls_window();
-        /* g64coopdx: not in an online game (menu_online). */
-        if (!menu_online()) {
+        /* g64coopdx: not in an online game (menu_online), and not where the tools are hidden. */
+        if (!menu_online() && !menu_tools_hidden()) {
             ImGui::SetNextWindowPos(ImVec2(20, 410), ImGuiCond_FirstUseEver);
             if (win.enhancements) enhancements_window();
             ImGui::SetNextWindowPos(ImVec2(20, 560), ImGuiCond_FirstUseEver);
@@ -1637,7 +1664,7 @@ void menu_draw(SDL_Window *window) {
         }
         if (win.log) log_window();
 #ifdef PORT_STUDIO
-        if (win.studioLevel && !menu_online()) studio_level_window();
+        if (win.studioLevel && !menu_online() && !menu_tools_hidden()) studio_level_window();
         if (menu_online()) {
             ImGui::SetNextWindowPos(ImVec2(250, 300), ImGuiCond_FirstUseEver);
             if (win.players) players_window();
@@ -1647,7 +1674,7 @@ void menu_draw(SDL_Window *window) {
 #endif
     }
 #ifdef PORT_STUDIO
-    if ((menuOpen || studio_paused()) && !menu_online()) {
+    if ((menuOpen || studio_paused()) && !menu_online() && !menu_tools_hidden()) {
         studio_bar();
         studio_search_window();
     }

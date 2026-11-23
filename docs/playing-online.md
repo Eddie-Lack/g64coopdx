@@ -198,8 +198,8 @@ Esc opens the menu at the top of the window, as in weemitt. **Settings** has **G
 **Online game** has the pause menu's choices for the mouse. The game goes on for everyone while the menu is open,
 and your keyboard goes to the menu.
 
-The studio's tools, the enhancements and the cheats are not in the menu in an online game: they would change one
-player's game only.
+The menu has no cheats, enhancements, developer tools or studio tools, online or alone. Only the **Log** window is
+there besides the settings. The keys that pause or step the game do nothing.
 
 ## Your pause menu
 

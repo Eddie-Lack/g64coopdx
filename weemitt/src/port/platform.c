@@ -2216,7 +2216,7 @@ int main(int argc, char **argv) {
     menu_init(window, gl, &settings);
     load_pad_mappings();
     make_virtual_pads();
-    if (getenv("WEEMITT_DEBUG_PAD") != NULL) {
+    if (getenv("WEEMITT_DEBUG_PAD") != NULL && !menu_tools_hidden()) {
         settings.debugPad = !strcmp(getenv("WEEMITT_DEBUG_PAD"), "second") ? DEBUGPAD_SECOND : DEBUGPAD_KEYBOARD;
     }
     parse_taps();
@@ -2386,6 +2386,10 @@ int main(int argc, char **argv) {
             tapPending |= pressed;
             if (e.type == SDL_QUIT) {
                 running = 0;
+            } else if (menu_tools_hidden() && e.type == SDL_KEYDOWN && !e.key.repeat
+                       && ((settings.pauseKey != 0 && (int)e.key.keysym.scancode == settings.pauseKey)
+                           || (settings.stepKey != 0 && (int)e.key.keysym.scancode == settings.stepKey))) {
+                /* g64coopdx: the pause and step keys do nothing (menu_tools_hidden). */
             } else if (e.type == SDL_KEYDOWN && settings.pauseKey != 0 && (int)e.key.keysym.scancode == settings.pauseKey
                        && !e.key.repeat) {
                 /* Developer, Pause game logic. */
@@ -2438,7 +2442,8 @@ int main(int argc, char **argv) {
         }
         scripted_debug(windowTicks);
 #ifdef PORT_STUDIO
-        if (!netplay_active()) {
+        /* g64coopdx: the studio's pause chord and timeline keys are off (menu_tools_hidden). */
+        if (!netplay_active() && !menu_tools_hidden()) {
             studio_poll(&port_buttons, &port_stick_x, &port_stick_y);
         }
         tapPending &= ~studio_input_mask();
