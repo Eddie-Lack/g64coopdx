@@ -340,7 +340,7 @@ bots: bots-build
 # Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
 # be equal (needs the ROM in GLOVER_ROM).
 INSTANCES_SRC := tests/rom/instances.c src/client/instances.c src/client/imsg.c src/rollback/engine_game.c \
-                 src/rollback/rollback.c \
+                 src/rollback/rollback.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
                  weemitt/src/port/statehash.c
 instances-build: savestates
 	@mkdir -p build/tests

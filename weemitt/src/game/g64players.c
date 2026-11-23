@@ -1465,6 +1465,24 @@ G64TestExit g64TestExits[G64_TEST_EXITS] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0
 static u32 framesRun;
 
 /* For scripts (src/port/g64lua.c). */
+void StopDrawing(char *name);
+
+/* Marks the level as one that cannot be played: the game's own state for a level without its file (mode 13). The
+   game then shows its error screen and runs none of the level's logic. The level parser calls this where a level
+   file names something the game does not have. */
+void G64Unplayable(const char *what) {
+    if (gameInfo.mode == 13)
+        return;
+    sprintf(gameInfo.message, "LEVEL UNPLAYABLE - %.24s", what);
+    StopDrawing("unplayable");
+    gameInfo.mode = 13;
+}
+
+/* For the program that draws the picture: 1 while the level cannot be played. */
+s32 G64LevelUnplayable(void) {
+    return gameInfo.mode == 13;
+}
+
 s32 g64ParseLogOn, g64ParseLogCount;
 s32 g64ParseLog[G64_PARSE_LOG][2];
 
@@ -1553,6 +1571,10 @@ void G64SetPresent(u32 present) {
             player_exits(t->player, t->type, 1);
     }
     framesRun++;
+    /* A level that cannot be played sends its players back to the hub, online. A hub level that cannot be played
+       keeps them: the hub is where the exit leads. */
+    if (gameInfo.mode == 13 && g64Online && gameInfo.level > HUB8)
+        G64EveryoneExits(HUB_EXIT, 0);
     for (p = 0; p < G64_MAX_PLAYERS; p++)
         if (leaving & (1u << p))
             G64RemovePlayer(p);

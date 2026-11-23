@@ -48,6 +48,24 @@ What it does not check: the other values (points 4 to 11 below, and the rest of 
 the level's objects are in the banks of the level whose place it takes. The numbered list below still holds for a file that passes. `g64pack`
 prints the check's result for a pack's maker. The game does not refuse a pack on it yet.
 
+## What the game itself guards
+
+The check above runs before a level loads. The game's parser also tests some values where it uses them, so a rule
+the check lacks does less harm:
+
+- An object's lookup that finds nothing, or an object without a mesh, no longer gives the parser a null pointer:
+  PLATFORM, the three bridges, LANDSCAPE, BACKGROUND, CAMEO_OBJ and WATER. The same for a backdrop's texture and for a
+  cameo camera's part, and a cameo has at most 10 extra spheres.
+- The level is then marked as one that cannot be played (`G64Unplayable`), which is the game's own state for a
+  level without its file. The game shows its error screen and runs none of the level's logic.
+- Online, the players of such a level go back to the hub, and each is told why. A hub level that cannot be played
+  keeps its players.
+- `pack_unplayable` in tests/rom/instances.c plays a level whose first platform names a missing object: both
+  players end in the hub, and no machine disagrees.
+
+Not guarded yet: objects that enemies, pick-ups and puzzle actions look up after the parser; tokens that use a
+landscape piece or a platform without an object (TERRAIN, MODGE, POS on a DUMMY); and the rest of the list below.
+
 ## How the parser reads
 
 - The file is: a size (4 bytes), a name that ends with a zero byte, then 16-bit tokens with their fields, until

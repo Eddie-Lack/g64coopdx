@@ -31,6 +31,8 @@
 #include <string.h>
 
 #include "../../src/client/instances.h"
+#include "../../src/client/levcheck.h"
+#include "../../src/client/pack.h"
 
 typedef struct {
     int level, frame, player, type;
@@ -641,6 +643,86 @@ static void script_run(Engine *e, void *boot) {
     printf("%s a level pack's script runs with the game\n", failed != before ? "FAIL" : "ok  ");
 }
 
+/* A level pack whose level names an object the game does not have. The level file is Atlantis 1's from the ROM with
+   the id of its first platform's object changed. The game's parser used what its lookup gave without a test, and
+   such a file made it use a null pointer. Now the level is marked as one that cannot be played, and its players
+   go back to the hub: two players start in it, and both must end in the hub, with no machine disagreeing. */
+static size_t firstPlatform;
+static void find_platform(void *user, size_t offset, int token) {
+    (void)user;
+    if (token == 98 && firstPlatform == 0)
+        firstPlatform = offset;
+}
+
+static void pack_unplayable(Engine *e, void *boot) {
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    size_t at = 0, size = 0, bad = 0;
+    uint8_t *with;
+    uint32_t none[16][2];
+    int p, before = failed, levels[2] = {-1, -1};
+    char what[200];
+    if (g64_pack_level_from_rom(rom, romSize, ATLANTIS1, &at, &size) != NULL)
+        return;
+    with = malloc(romSize + size);
+    if (!with)
+        return;
+    memset(none, 0, sizeof none);
+    memcpy(with, rom, romSize);
+    memcpy(with + romSize, rom + at, size);
+    firstPlatform = 0;
+    g64_lev_check(with + romSize, size, find_platform, NULL, &bad);
+    check(firstPlatform != 0, "Atlantis 1 has a platform");
+    /* The object's id is the four bytes after the token. */
+    with[romSize + firstPlatform + 2] ^= 0x5A;
+    with[romSize + firstPlatform + 3] ^= 0xA5;
+    engine_load(e, boot);
+    for (p = 0; p < 8; p++)
+        g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
+    engine_save(e, boot);
+    engine_set_rom(e, with, romSize + size);
+    g64_instances_pack(ATLANTIS1, (unsigned)romSize, (unsigned)size);
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, 2, 3u, none, ATLANTIS1, DEADLINE, host_send, NULL);
+    for (p = 0; p < 2; p++)
+        player[p] = g64_iclient_new_with(e, boot, 2, 3u, none, p, ATLANTIS1, WINDOW, DEADLINE, player_send, &ids[p]);
+    if (host && player[0] && player[1]) {
+        for (now = 0; now < 400; now++) {
+            deliver();
+            g64_ihost_tick(host);
+            for (p = 0; p < 2; p++) {
+                rb_input in;
+                memset(&in, 0, sizeof in);
+                in.present = 1;
+                g64_iclient_step(player[p], in);
+            }
+        }
+        for (p = 0; p < 2; p++)
+            levels[p] = g64_iclient_moving(player[p]) ? -1 : g64_iclient_level(player[p]);
+        snprintf(what, sizeof what,
+                 "a level that names a missing object sends its players to the hub: levels %d and %d, %u mismatches, "
+                 "desyncs %u and %u",
+                 levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
+                 g64_iclient_desyncs(player[1]));
+        check(levels[0] == HUB1 && levels[1] == HUB1 && g64_ihost_hash_mismatches(host) == 0 &&
+                  g64_iclient_desyncs(player[0]) == 0 && g64_iclient_desyncs(player[1]) == 0,
+              what);
+    } else {
+        check(0, "a host and a player start in a pack's level");
+    }
+    for (p = 0; p < PLAYERS; p++) {
+        g64_iclient_free(player[p]);
+        player[p] = NULL;
+    }
+    g64_ihost_free(host);
+    g64_instances_pack(-1, 0, 0);
+    engine_set_rom(e, rom, romSize);
+    free(with);
+    printf("%s a level that cannot be played does not stop the session\n", failed != before ? "FAIL" : "ok  ");
+}
+
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's
    script asks for 5 more of value 3 at its frame 50, for 1 more of value 7 twelve times at its frame 60 (a frame
    takes 8 requests), and for 1 more of value 5 at its frame 100. Player 1 leaves the hub for the way room at the
@@ -855,6 +937,7 @@ int main(int argc, char **argv) {
     pack_level(e, boot);
     script_run(e, boot);
     script_session(e, boot);
+    pack_unplayable(e, boot);
     free(boot);
     engine_free(e);
     return failed;
