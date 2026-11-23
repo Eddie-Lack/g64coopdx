@@ -44,6 +44,7 @@ int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 void G64TipView(int p);
 const char *G64LuaShown(int player);
+int G64LevelUnplayable(void);
 void G64CannonView(int p);
 int G64PortalShut(int player);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
@@ -1290,6 +1291,15 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             snprintf(note, sizeof note, "That way is shut: players are in %s. It opens when everyone is in the hub.",
                      worlds[w]);
             chat_add(-1, note);
+        }
+    }
+    {
+        /* The level this player is in cannot be played (a level pack's level names something the game does not
+           have): they are told once, and the game sends them back to the hub. */
+        static uint32_t told;
+        if (G64LevelUnplayable() && (told == 0 || now_ms() - told > 5000)) {
+            told = now_ms() ? now_ms() : 1;
+            chat_add(-1, "This level could not be loaded. You go back to the hub.");
         }
     }
     /* The line of text that a level pack's script shows to this player, if any (weemitt's g64lua.c). It is read from

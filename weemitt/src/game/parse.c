@@ -93,6 +93,12 @@ void NMEGetNewInstruction(Enemy *enemy, s32 instructionNum, s32 overrideConditio
 void DestroyAndFreeActor(Actor *actor);
 /* g64coopdx: a test's record of the tokens read (g64players.c). */
 void G64ParseTrace(s32 offset, s32 token);
+/* g64coopdx: marks the level as one that cannot be played (g64players.c). The parser's loop stops at its next
+   token. */
+void G64Unplayable(const char *what);
+/* g64coopdx: 1 when an object's instance is there and has a mesh. The parser used what the lookup gave without a
+   test; a level file that names an object the level's banks do not hold made it use a null pointer. */
+#define G64_USABLE(inst) ((inst) != NULL && (inst)->obj != NULL && (inst)->obj->mesh != NULL)
 
 void ParseLandscapeFile(s32 num) {
     s16 tag[4]; // an 8-byte buffer: it is given the first stack slot, as in the original
@@ -243,6 +249,10 @@ void ParseLandscapeFile(s32 num) {
             PORT_COPY(&ival, &data, 4);
             PORT_COPY(tempName, &data, 8);
             FindObject(&platform->actor.inst, ival, tempName, 1);
+            if (!G64_USABLE(platform->actor.inst)) {
+                G64Unplayable("PLATFORM OBJECT");
+                continue;
+            }
             if (ival == UpdateCRC("exitpost.ndo")) {
                 platform->actor.radius = 20.0f;
                 InitActorStructures(&platform->actor, 4);
@@ -422,6 +432,11 @@ void CopyFromData(void *dst, u8 **src, s32 size) {
 
 void InitActor2(Actor *tempActor, u32 obj, f32 x, f32 y, f32 z, s32 initFlags) {
     FindObject(&tempActor->inst, obj, tempName, 1);
+    if (!G64_USABLE(tempActor->inst)) {
+        /* g64coopdx */
+        G64Unplayable("OBJECT");
+        tempActor->inst = NULL;
+    }
     if (tempActor->inst) {
         InitActorStructures(tempActor, initFlags);
         tempActor->pos.x = x;
@@ -614,7 +629,16 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
     if (token == TOKEN_CAMEO_CAM) {
         PORT_COPY(buf, data, 2);
         PORT_COPY(&crc2, data, 4);
+        /* g64coopdx: the camera's part must be there, and the cameo holds 10 extra spheres. */
+        if (lastLandscape == NULL || !G64_USABLE(lastLandscape->inst)) {
+            G64Unplayable("CAMEO OBJECT");
+            return TRUE;
+        }
         tempObj = FindSubObjectFromObject(lastLandscape->inst->obj, crc2);
+        if (tempObj == NULL || (buf[0] > 1 && (cameoExtraSphere == NULL || numCamExtraSpheres >= 10))) {
+            G64Unplayable("CAMEO CAMERA");
+            return TRUE;
+        }
         if (buf[0] == 0) {
             cameoExtraSphere = (CollSphere *)JallocAlloc(sizeof(CollSphere) * 10, 1, "CamColSph");
             numCamExtraSpheres = 0;
@@ -714,6 +738,10 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
         InitActor2(tempActor, crc, x, y, z, 0);
         AddActor(tempActor);
         water->actor = tempActor;
+        if (tempActor->inst == NULL) {
+            /* g64coopdx: InitActor2 has marked the level as one that cannot be played. */
+            return TRUE;
+        }
         tempActor->inst->obj->flags |= 0x20;
         return TRUE;
     }
@@ -722,6 +750,11 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
         AddBackdrop(backdrop);
         PORT_COPY(&crc2, data, 4);
         FindTexture(&backdrop->tex, crc2, 1);
+        if (backdrop->tex == NULL) {
+            /* g64coopdx */
+            G64Unplayable("BACKDROP TEXTURE");
+            return TRUE;
+        }
         backdrop->tex->height--;
         PORT_COPY(buf, data, 6);
         backdrop->offsetX = buf[0];
@@ -1114,6 +1147,11 @@ s32 ParseTokenBridge(s16 token, u8 **data) {
             platform->actor.type = PLAT_ACTOR;
             InitActorStructures(&platform->actor, 0);
             FindObject(&platform->actor.inst, ival, tempName, 1);
+            if (!G64_USABLE(platform->actor.inst)) {
+                /* g64coopdx */
+                G64Unplayable("BRIDGE OBJECT");
+                return TRUE;
+            }
             platform->actor.faces = (CollFace *)JallocAlloc(platform->actor.inst->obj->mesh->numFaces * sizeof(CollFace), 1, "Plat_Plane");
             platform->actor.flags = 4;
             AddActor(&platform->actor);
@@ -1169,6 +1207,11 @@ s32 ParseTokenBridge(s16 token, u8 **data) {
             platform->actor.type = PLAT_ACTOR;
             InitActorStructures(&platform->actor, 0);
             FindObject(&platform->actor.inst, ival, tempName, 1);
+            if (!G64_USABLE(platform->actor.inst)) {
+                /* g64coopdx */
+                G64Unplayable("BRIDGE OBJECT");
+                return TRUE;
+            }
             platform->actor.faces = (CollFace *)JallocAlloc(platform->actor.inst->obj->mesh->numFaces * sizeof(CollFace), 1, "Plat_Plane");
             platform->actor.flags = 4;
             AddActor(&platform->actor);
@@ -1209,6 +1252,11 @@ s32 ParseTokenBridge(s16 token, u8 **data) {
             platform->actor.type = PLAT_ACTOR;
             InitActorStructures(&platform->actor, 0);
             FindObject(&platform->actor.inst, ival, tempName, 1);
+            if (!G64_USABLE(platform->actor.inst)) {
+                /* g64coopdx */
+                G64Unplayable("BRIDGE OBJECT");
+                return TRUE;
+            }
             platform->actor.faces = (CollFace *)JallocAlloc(platform->actor.inst->obj->mesh->numFaces * sizeof(CollFace), 1, "Plat_Plane");
             platform->actor.flags = 4;
             AddActor(&platform->actor);

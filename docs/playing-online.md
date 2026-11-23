@@ -129,6 +129,9 @@ Run it from a command prompt in the game's folder.
 ids are the same. It also prints a line on the level file's structure. A warning there names a part of the file
 that the game may read wrongly.
 
+If a pack's level names something the game does not have, the level cannot be played: the game tells you, and
+sends everyone in it back to the hub.
+
 What a pack cannot hold yet:
 
 - A level that uses what Glovebox's game mod adds: rotation and scale on enemies, platforms and pick-ups, more
