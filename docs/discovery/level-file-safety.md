@@ -35,6 +35,7 @@ rules:
 - a STARTPOINT names a point the platform's path has
 - a puzzle condition (27 to 30) and a puzzle action (56 to 58) name only the level's 100 variables, in both of
   their operands
+- a puzzle condition's number is 9 to 44 and an action's 45 to 87; a confine condition names limit 0 to 5
 
 Every rule passes on all 48 levels of the ROM. Of "The most dangerous" below, these cover points 1, 2 and 3 but for
 a cameo's extra camera spheres, and the plank count of point 9.
@@ -64,6 +65,14 @@ the check lacks does less harm:
 - An ENEMY must be of one of the game's 59 kinds, the level holds 30 enemies, and an enemy whose object is not in
   the level's banks is not made. A pick-up must be one of the game's 15 and have its object, both from a PICKUP
   token and from a puzzle's action while the level runs.
+- A puzzle condition's and action's number must be one the game has, and their puzzle variables among the level's
+  100: the parser tests them as it reads them.
+- While the level runs, a condition or an action whose tag meets a platform without the part it needs (a path, a
+  spin, an orbit, a confine) is not met, or does nothing for that platform. The same for a spin or an orbit without
+  a pause, whose count of pauses the game divided by. An action with a tag that no platform has does nothing.
+- An enemy's list of instructions has an end (`NMEGetNewInstruction`): an enemy without instructions, a puzzle's
+  action that names an instruction the enemy does not have, and a list whose last instruction's conditions are not
+  met leave the enemy with the instruction it has.
 - The level is then marked as one that cannot be played (`G64Unplayable`), which is the game's own state for a
   level without its file. The game shows its error screen and runs none of the level's logic.
 - Online, the players of such a level go back to the hub, and each is told why. A hub level that cannot be played

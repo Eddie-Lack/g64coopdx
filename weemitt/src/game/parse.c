@@ -992,6 +992,16 @@ s32 ParseTokenPuzzle(s16 token, u8 **data) {
                 parseCondition->tag = sval[0];
                 PORT_COPY(&parseCondition->value, data, 2);
             }
+            /* g64coopdx: the game has conditions 9 to 44. Another number, cut to a byte, became a camera's condition
+               without a camera's box. A condition on a puzzle variable names one or two of the level's 100. */
+            if (id < 9 || id > 44) {
+                G64Unplayable("PUZZLE CONDITION");
+            } else if (type >= CONDITION_VAR_EQUAL && type <= CONDITION_VAR_LESS_THAN) {
+                if (parseCondition->tag >= 100 ? (parseCondition->tag > 199 || parseCondition->value < 0 || parseCondition->value > 99)
+                                               : parseCondition->tag < 0) {
+                    G64Unplayable("PUZZLE VARIABLE");
+                }
+            }
         } else {
             PRINTF("WARNING!! Cannot have a CONDITION without a PUZZLE\n");
         }
@@ -1053,6 +1063,16 @@ s32 ParseTokenPuzzle(s16 token, u8 **data) {
                 PORT_COPY(&parseAction->tag, data, 2);
                 PORT_COPY(&parseAction->delay, data, 2);
                 PORT_COPY(&parseAction->flags, data, 4);
+            }
+            /* g64coopdx: the game has actions 45 to 87. An action on a puzzle variable names one of the level's 100,
+               and a second one when its flag 0x80 is set. */
+            if (id < 45 || id > 87) {
+                G64Unplayable("PUZZLE ACTION");
+            } else if (type >= ACTION_SET_VAR && type <= ACTION_SUBFROM_VAR) {
+                if (parseAction->tag < 0 || parseAction->tag > 99
+                    || ((parseAction->flags & 0x80) && !(parseAction->value >= 0.0f && parseAction->value < 100.0f))) {
+                    G64Unplayable("PUZZLE VARIABLE");
+                }
             }
         } else {
             PRINTF("WARNING!! Cannot have an ACTION without a PUZZLE\n");

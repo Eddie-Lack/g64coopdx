@@ -51,8 +51,12 @@ int main(void) {
     token(111, 2);  /* TAG */
     token(107, 14); /* POINT */
     token(4, 0);    /* PUZZLE */
-    token(149, 6);  /* CONDITION, id 0 */
-    token(150, 14); /* ACTION, id 0 */
+    word(149); /* CONDITION 15: the glove is on the platform with tag 0 */
+    word(15);
+    len += 4;
+    word(150); /* ACTION 45: start the move of the platform with tag 0 */
+    word(45);
+    len += 12;
     token(131, 20); /* ENEMY */
     token(154, 34); /* NORMAL_INSTRUCTION, type 0 */
     token(132, 0);  /* END_ENEMY */
@@ -283,6 +287,20 @@ int main(void) {
     word(0);
     word(0x80);
     end("an action that reads variable 50", 1);
+
+    begin();
+    token(4, 0);
+    word(149);
+    word(8);
+    len += 4;
+    end("a condition with a number below the game's first", 0);
+
+    begin();
+    token(4, 0);
+    word(150);
+    word(88);
+    len += 12;
+    end("an action with a number past the game's last", 0);
 
     begin();
     word(189);

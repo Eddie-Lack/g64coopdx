@@ -497,6 +497,8 @@ void PuzzleStartActionList(PuzzleActionList *actionList) {
     }
 }
 
+static s32 ActionPartThere(PuzzleAction *action, Platform *platform);
+
 void PuzzleExecuteAction(PuzzleAction *action) {
     Vec3 tempVect;
     Vec3 tempVect2;
@@ -521,6 +523,10 @@ void PuzzleExecuteAction(PuzzleAction *action) {
     }
     if (action->type == ACTION_START_MOVE && action->tag < 0) {
         platform = TagToFirstPlatform(-action->tag);
+        if (platform == NULL) {
+            /* g64coopdx: no platform has the tag. */
+            return;
+        }
         platform->actor.vel.y = action->value;
         platform->actor.pos.y += platform->actor.vel.y;
         return;
@@ -571,6 +577,10 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             return;
         case ACTION_SET_BACKDROP:
             FindTexture(&backdropList.head.next->tex, *(u32 *)action->cam, 1);
+            if (backdropList.head.next->tex == NULL) {
+                /* g64coopdx: the level's banks do not hold the texture. FindTexture has stopped the level. */
+                return;
+            }
             backdropList.head.next->tex->height--;
             return;
         case ACTION_START_SOUND:
@@ -585,6 +595,10 @@ void PuzzleExecuteAction(PuzzleAction *action) {
                 }
                 if (action->value != 0.0f) {
                     platform = TagToFirstPlatform(action->value);
+                    if (platform == NULL) {
+                        /* g64coopdx: no platform has the tag. */
+                        return;
+                    }
                     RotateVectorByQuaternion(&tempVect, (Vec3 *)action->cam, &platform->actor.rotQuat);
                     ADD_TO_VECTOR(&tempVect, &platform->actor.pos);
                     PlaySample(action->data[0], &tempVect, -action->data[1], action->data[2]);
@@ -797,6 +811,9 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             break;
         }
         platform = platPtr;
+        if (!ActionPartThere(action, platform)) {
+            continue;
+        }
         if (action->type == ACTION_START_MOVE || action->type == ACTION_SET_NEXT_POINT) {
             platform->pathStopFlags = 0;
             if (action->flags & 2) {
@@ -1078,6 +1095,48 @@ s32 PuzzleEvaluateCondition(PuzzleCond *condition) {
     return EveryPlayer(condition);
 }
 
+/* g64coopdx: 1 when a tagged platform has the part that a condition tests. The game tested a path, a spin, an
+   orbit or a confine without asking whether the platform has one, and divided by a spin's or an orbit's count of
+   pauses, which is 0 without a pause. A level file can give any tag to any condition. */
+static s32 ConditionPartThere(PuzzleCond *condition, Platform *platPtr) {
+    switch (condition->type) {
+        case CONDITION_AT_POINT:
+        case CONDITION_JUST_AT_POINT:
+            return platPtr->path != NULL && platPtr->path->numPoints > 0;
+        case CONDITION_AT_SPIN:
+            return platPtr->motion != NULL && (condition->value == -1 || platPtr->motion->pauseType != 0);
+        case CONDITION_JUST_AT_SPIN:
+            return platPtr->motion != NULL && platPtr->motion->pauseType != 0;
+        case CONDITION_AT_ORBIT:
+        case CONDITION_JUST_AT_ORBIT:
+            return platPtr->orbit != NULL && platPtr->orbit->pauseType != 0;
+        case CONDITION_CONFINED:
+        case CONDITION_JUST_CONFINED:
+            return platPtr->confine != NULL && condition->value >= 0 && condition->value <= 5;
+    }
+    return TRUE;
+}
+
+/* g64coopdx: the same for an action. */
+static s32 ActionPartThere(PuzzleAction *action, Platform *platform) {
+    switch (action->type) {
+        case ACTION_SET_PLAT_DIR:
+        case ACTION_START_MOVE:
+            return platform->path != NULL;
+        case ACTION_SET_NEXT_POINT:
+            return platform->path != NULL && platform->path->numPoints > 0;
+        case ACTION_START_SPIN:
+        case ACTION_SET_SPIN_WAIT:
+        case ACTION_SET_NEXT_SPIN:
+            return platform->motion != NULL;
+        case ACTION_SET_SPIN_AXIS:
+            return platform->motion != NULL && action->value >= 0.0f && action->value < 3.0f;
+        case ACTION_START_ORBIT:
+            return platform->orbit != NULL;
+    }
+    return TRUE;
+}
+
 static s32 EvaluateConditionHere(PuzzleCond *condition) {
     Collectable *collectable;
     GaribGroup *gGroup;
@@ -1197,6 +1256,9 @@ static s32 EvaluateConditionHere(PuzzleCond *condition) {
                     return TRUE;
                 }
                 platPtr = next;
+                if (!ConditionPartThere(condition, platPtr)) {
+                    return FALSE;
+                }
                 switch (condition->type) {
                     case CONDITION_AT_POINT:
                         if (platPtr->path->current != condition->value || platPtr->actor.speed != 0.0f) {

@@ -139,12 +139,24 @@ void NMEAddAttackInstruction(u8 **data) {
 void NMEGetNewInstruction(Enemy *enemy, s16 instructionNum, s32 overrideConditions) {
     NMEBrain *br = &enemy->brain;
 
+    /* g64coopdx: the most instructions the enemy's current list holds. The game walked the list without an end and
+       used an entry that was not set: an enemy without instructions, a puzzle's action that names an instruction
+       the enemy does not have, or a list whose last instruction's conditions are not met. Such an enemy now keeps
+       the instruction it has. */
+    s32 limit = br->curList == br->conditionalList ? 10 : 30;
+
     if (br->instr.type == NME_CIRCLE) {
         enemy->actor.rotAim.x = 0.0f;
+    }
+    if (instructionNum < 0 || instructionNum >= limit || br->curList[instructionNum] == NULL) {
+        return;
     }
     if (!overrideConditions) {
         while (!NMEConditionsMet(enemy, br->curList[instructionNum])) {
             instructionNum++;
+            if (instructionNum >= limit || br->curList[instructionNum] == NULL) {
+                return;
+            }
         }
     }
     br->instrIndex = instructionNum;
