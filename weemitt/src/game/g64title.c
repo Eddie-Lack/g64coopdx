@@ -100,17 +100,23 @@ static Actor *bar(s32 i) {
 }
 
 /* Copies the program's text into the page. The game's fonts have capitals, digits and a few marks only. A
-   character they lack is drawn as a space; the percent sign would be read as a format. */
-static void copy_text(char *out, s32 size, const char *text) {
+   character they lack is drawn as a space; the percent sign would be read as a format. The small font draws the
+   controller's buttons for the bytes from 0xA3 up: only the program's own button line may have them, not a name or
+   a title that another player typed. */
+static void copy_text_icons(char *out, s32 size, const char *text, s32 icons) {
     s32 n = 0;
     for (; text != NULL && *text != 0 && n < size - 1; text++) {
         char c = *text;
         if (c >= 'a' && c <= 'z')
             c = c - 'a' + 'A';
-        if ((c >= 32 && c < 127 && c != '%') || (u8)c >= 0xA3)
+        if ((c >= 32 && c < 127 && c != '%') || (icons && (u8)c >= 0xA3))
             out[n++] = c;
     }
     out[n] = 0;
+}
+
+static void copy_text(char *out, s32 size, const char *text) {
+    copy_text_icons(out, size, text, 0);
 }
 
 void G64TitleOn(int on) {
@@ -152,7 +158,7 @@ void G64TitleBig(const char *text) {
 }
 
 void G64TitleHints(const char *text) {
-    copy_text(page.hints, sizeof page.hints, text);
+    copy_text_icons(page.hints, sizeof page.hints, text, 1);
 }
 
 void G64TitleColors(unsigned glove, unsigned ball) {
@@ -200,10 +206,14 @@ static void row_layout(s32 count, f32 *top, f32 *step, f32 *size) {
     }
 }
 
-/* Draws one line of text. The game keeps 63 characters of a text. */
+/* Draws one line of the page's text, which copy_text has already made safe. The game keeps 63 characters of a
+   text. */
 static void text(s32 x, s32 y, u32 rgb, s32 alpha, f32 scale, s32 font, const char *s, s32 centre) {
     char line[64];
-    copy_text(line, sizeof line, s);
+    s32 n;
+    for (n = 0; s[n] != 0 && n < 63; n++)
+        line[n] = s[n];
+    line[n] = 0;
     SetFont(font);
     NEW_TEXT(x, y, (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, alpha, scale, scale, 1, line, centre);
 }

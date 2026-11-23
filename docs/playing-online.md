@@ -35,7 +35,8 @@ On the start screen:
 | Letters | | Type on a bar with a blinking mark: a name, a title or a room code |
 | Backspace | | Takes back a letter; on other bars it goes back |
 
-The game's letters have capitals only, so names and titles show in capitals. They keep the letters you typed.
+The controller's buttons are the ones you set under Esc, **Settings**, **Controls**. The game's letters have capitals
+only, so names and titles show in capitals. They keep the letters you typed.
 
 The number of players is the most the game takes. Players can join a game that has started, while it has a free
 place: they come into the game's first level, or the hub's newest stage if it started in the hub. A player who

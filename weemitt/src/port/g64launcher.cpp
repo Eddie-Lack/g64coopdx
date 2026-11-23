@@ -219,11 +219,15 @@ static void note(const char *text, unsigned rgb) {
 #define YELLOW 0xFFD278u
 #define TIP 0xAAAAFFu
 
+/* The open games that the join page shows at once, below the code and Join. */
+#define ROOMS_SHOWN (G64_TITLE_ROWS - 2)
+
 /* The start screen's state. */
 typedef struct {
     int page, back, selected;
     int connecting, hosting, copied;
     int wanted;
+    int roomTop; /* the first open game that the join page shows */
     char code[NETPLAY_ROOM_CODE + 1];
     char title[33];
     char error[320];
@@ -281,11 +285,17 @@ static void build_page(launcher *L) {
             break;
         }
         case PAGE_JOIN: {
+            /* The open games below the code: as many as fit, from roomTop on. Moving past the last one shows the
+               next. */
             int n = netplay_rooms_count();
+            if (L->roomTop > n - ROOMS_SHOWN)
+                L->roomTop = n - ROOMS_SHOWN;
+            if (L->roomTop < 0)
+                L->roomTop = 0;
             G64TitlePage("Join a game");
             add_row(R_CODE, "Code", L->code, G64_TITLE_TEXT);
             add_row(R_JOIN, "Join", "", strlen(L->code) == NETPLAY_ROOM_CODE ? 0 : G64_TITLE_OFF);
-            for (i = 0; i < n && rowCount < G64_TITLE_ROWS; i++) {
+            for (i = L->roomTop; i < n && rowCount < G64_TITLE_ROWS; i++) {
                 const net_room *r = netplay_room(i);
                 char who[16];
                 snprintf(who, sizeof who, "%d/%d", r->joined, r->wanted);
@@ -366,6 +376,11 @@ static void build_page(launcher *L) {
                 note("Open games: asking the lobby...", GRAY);
             else if (n == 0)
                 note("Open games: none right now", GRAY);
+            else if (n > ROOMS_SHOWN) {
+                char line[64];
+                snprintf(line, sizeof line, "Open games %d to %d of %d", L->roomTop + 1, L->roomTop + ROOMS_SHOWN, n);
+                note(line, GRAY);
+            }
         }
         if (help)
             note(help, TIP);
@@ -410,8 +425,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
        down, left, right, a, b, back (backspace) or a word to type (t:WORD). */
     const char *keys = getenv("G64_LAUNCHER_KEYS");
     int keyFrame = 0;
-    Uint32 stickAt = 0;
-    int stickDir = 0;
+    Uint32 padAt = 0;
+    int padHeld = 0;
 
     if (!colorsLoaded)
         load_colors();
@@ -470,17 +485,6 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             } else if (e.type == SDL_TEXTINPUT) {
                 size_t n = strlen(typed);
                 snprintf(typed + n, sizeof typed - n, "%s", e.text.text);
-            } else if (e.type == SDL_CONTROLLERBUTTONDOWN) {
-                switch (e.cbutton.button) {
-                    case SDL_CONTROLLER_BUTTON_DPAD_UP: move = -1; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_DOWN: move = 1; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: change = -1; break;
-                    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: change = 1; break;
-                    case SDL_CONTROLLER_BUTTON_A:
-                    case SDL_CONTROLLER_BUTTON_START: pressA = 1; break;
-                    case SDL_CONTROLLER_BUTTON_B: pressB = 1; break;
-                    default: break;
-                }
             }
         }
         if (keys && *keys && ++keyFrame % 15 == 0) {
@@ -504,26 +508,25 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 snprintf(typed, sizeof typed, "%.*s", (int)(n - 2), keys + 2);
             keys = end ? end + 1 : keys + n;
         }
-        /* The controller's stick moves as the d-pad does, again every quarter second while it is held. */
+        /* The controller, as the game reads it. A move repeats every quarter second while it is held; A and B act
+           once for each press. */
         {
-            SDL_GameController *pad = NULL;
-            int i, dir = 0;
-            for (i = 0; i < SDL_NumJoysticks() && pad == NULL; i++)
-                if (SDL_IsGameController(i))
-                    pad = SDL_GameControllerFromInstanceID(SDL_JoystickGetDeviceInstanceID(i));
-            if (pad) {
-                int x = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX);
-                int y = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTY);
-                dir = y < -16000 ? 1 : y > 16000 ? 2 : x < -16000 ? 3 : x > 16000 ? 4 : 0;
-            }
-            if (dir != 0 && (dir != stickDir || SDL_GetTicks() - stickAt > 250)) {
-                if (dir <= 2)
-                    move = dir == 1 ? -1 : 1;
+            int held = g64_title_pad(), dir = held & (G64_PAD_UP | G64_PAD_DOWN | G64_PAD_LEFT | G64_PAD_RIGHT);
+            int now = held & ~padHeld;
+            if (dir != 0 && ((now & dir) || SDL_GetTicks() - padAt > 250)) {
+                if (dir & G64_PAD_UP)
+                    move = -1;
+                else if (dir & G64_PAD_DOWN)
+                    move = 1;
                 else
-                    change = dir == 3 ? -1 : 1;
-                stickAt = SDL_GetTicks();
+                    change = (dir & G64_PAD_LEFT) ? -1 : 1;
+                padAt = SDL_GetTicks();
             }
-            stickDir = dir;
+            if (now & G64_PAD_A)
+                pressA = 1;
+            if (now & G64_PAD_B)
+                pressB = 1;
+            padHeld = held;
         }
 
         if (L.connecting) {
@@ -581,6 +584,17 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             accept = NULL;
         }
 
+        /* On the list of open games, moving past its first or last shown game shows the one before or after. */
+        if (move != 0 && L.page == PAGE_JOIN && rowCount > 2 && rows[L.selected].what == R_ROOM) {
+            int n = netplay_rooms_count();
+            if (move > 0 && L.selected == rowCount - 1 && L.roomTop + ROOMS_SHOWN < n) {
+                L.roomTop++;
+                move = 0;
+            } else if (move < 0 && L.selected == 2 && L.roomTop > 0) {
+                L.roomTop--;
+                move = 0;
+            }
+        }
         /* Up and down skip rows that are grayed out. */
         if (move != 0 && rowCount > 0) {
             int i, s = L.selected;

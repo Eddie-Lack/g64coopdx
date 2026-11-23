@@ -19,6 +19,11 @@
 #include "hostscene.h"
 #ifdef PORT_STUDIO
 #include "studio.h"
+/* The engine's savestates (bruteforce/engine/engine.h, whose button names this file has too), for the start screen. */
+struct Engine;
+size_t engine_state_size(const struct Engine *e);
+size_t engine_save(struct Engine *e, void *buffer);
+int engine_load(struct Engine *e, const void *buffer);
 /* g64coopdx: the online mode (g64coopdx's src/client/netplay.c). */
 #include "../../../src/client/netplay.h"
 #include "g64launcher.h"
@@ -27,14 +32,9 @@
 #include "settings.h"
 
 #ifdef PORT_STUDIO
-/* g64coopdx: 1 while the start screen runs the game's title screen (g64_title_begin). The title plays no sound: the
-   game's state is set back to before the title afterwards, and a sound device would go on reading it. */
-static int titleSilent;
-#define TITLE_SILENT titleSilent
 /* g64coopdx: the developer tools and the studio's tools are off in the online program (menu.h). */
 #define TOOLS_HIDDEN() menu_tools_hidden()
 #else
-#define TITLE_SILENT 0
 #define TOOLS_HIDDEN() 0
 #endif
 
@@ -409,32 +409,12 @@ static void load_pad_mappings(void) {
     }
 }
 
-static void read_input(const Settings *st) {
-    const Uint8 *k = SDL_GetKeyboardState(NULL);
-    unsigned short b = 0;
-    int x = 0;
-    int y = 0;
+/* The controller's part of read_input: its buttons and stick, through the player's Controls settings. */
+static void read_pad(const Settings *st, unsigned short *buttons, int *stickX, int *stickY) {
+    unsigned short b = *buttons;
+    int x = *stickX;
+    int y = *stickY;
 
-    if (!menu_is_open()) {
-        if (settings_input_down(st, k, IN_STICK_LEFT)) x -= STICK_MAX;
-        if (settings_input_down(st, k, IN_STICK_RIGHT)) x += STICK_MAX;
-        if (settings_input_down(st, k, IN_STICK_UP)) y += STICK_MAX;
-        if (settings_input_down(st, k, IN_STICK_DOWN)) y -= STICK_MAX;
-        if (settings_input_down(st, k, IN_A)) b |= BTN_A;
-        if (settings_input_down(st, k, IN_B)) b |= BTN_B;
-        if (settings_input_down(st, k, IN_Z)) b |= BTN_Z;
-        if (settings_input_down(st, k, IN_START)) b |= BTN_START;
-        if (settings_input_down(st, k, IN_L)) b |= BTN_L;
-        if (settings_input_down(st, k, IN_R)) b |= BTN_R;
-        if (settings_input_down(st, k, IN_CUP)) b |= BTN_CUP;
-        if (settings_input_down(st, k, IN_CDOWN)) b |= BTN_CDOWN;
-        if (settings_input_down(st, k, IN_CLEFT)) b |= BTN_CLEFT;
-        if (settings_input_down(st, k, IN_CRIGHT)) b |= BTN_CRIGHT;
-        if (settings_input_down(st, k, IN_DUP)) b |= BTN_DUP;
-        if (settings_input_down(st, k, IN_DDOWN)) b |= BTN_DDOWN;
-        if (settings_input_down(st, k, IN_DLEFT)) b |= BTN_DLEFT;
-        if (settings_input_down(st, k, IN_DRIGHT)) b |= BTN_DRIGHT;
-    }
     if (pad != NULL || joy != NULL) {
         int (*down)(const Settings *, void *, int) = pad != NULL ? settings_pad_down : settings_joy_down;
         void *dev = pad != NULL ? (void *)pad : (void *)joy;
@@ -470,6 +450,38 @@ static void read_input(const Settings *st) {
         if (down(st, dev, IN_DLEFT)) b |= BTN_DLEFT;
         if (down(st, dev, IN_DRIGHT)) b |= BTN_DRIGHT;
     }
+    *buttons = b;
+    *stickX = x;
+    *stickY = y;
+}
+
+static void read_input(const Settings *st) {
+    const Uint8 *k = SDL_GetKeyboardState(NULL);
+    unsigned short b = 0;
+    int x = 0;
+    int y = 0;
+
+    if (!menu_is_open()) {
+        if (settings_input_down(st, k, IN_STICK_LEFT)) x -= STICK_MAX;
+        if (settings_input_down(st, k, IN_STICK_RIGHT)) x += STICK_MAX;
+        if (settings_input_down(st, k, IN_STICK_UP)) y += STICK_MAX;
+        if (settings_input_down(st, k, IN_STICK_DOWN)) y -= STICK_MAX;
+        if (settings_input_down(st, k, IN_A)) b |= BTN_A;
+        if (settings_input_down(st, k, IN_B)) b |= BTN_B;
+        if (settings_input_down(st, k, IN_Z)) b |= BTN_Z;
+        if (settings_input_down(st, k, IN_START)) b |= BTN_START;
+        if (settings_input_down(st, k, IN_L)) b |= BTN_L;
+        if (settings_input_down(st, k, IN_R)) b |= BTN_R;
+        if (settings_input_down(st, k, IN_CUP)) b |= BTN_CUP;
+        if (settings_input_down(st, k, IN_CDOWN)) b |= BTN_CDOWN;
+        if (settings_input_down(st, k, IN_CLEFT)) b |= BTN_CLEFT;
+        if (settings_input_down(st, k, IN_CRIGHT)) b |= BTN_CRIGHT;
+        if (settings_input_down(st, k, IN_DUP)) b |= BTN_DUP;
+        if (settings_input_down(st, k, IN_DDOWN)) b |= BTN_DDOWN;
+        if (settings_input_down(st, k, IN_DLEFT)) b |= BTN_DLEFT;
+        if (settings_input_down(st, k, IN_DRIGHT)) b |= BTN_DRIGHT;
+    }
+    read_pad(st, &b, &x, &y);
     port_buttons = b;
     port_stick_x = (signed char)x;
     port_stick_y = (signed char)y;
@@ -657,7 +669,7 @@ int port_audio_open(int rate, void (*render)(short *out, int frames)) {
     SDL_AudioSpec want;
     SDL_AudioSpec have;
 
-    if (opt.headlessFrames || opt.noSound || TITLE_SILENT) {
+    if (opt.headlessFrames || opt.noSound) {
         return 0;
     }
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
@@ -685,49 +697,28 @@ int port_audio_open(int rate, void (*render)(short *out, int frames)) {
 #ifdef PORT_STUDIO
 /* g64coopdx: the start screen (g64launcher.cpp) runs the game's own title screen behind its menu. The game then
    runs before the online game or the game alone starts, and both must start from the state the program has before
-   the game first runs. g64_title_begin keeps a copy of all of the game's variables: the writable data of the game's
-   code (the sections gstate_data and gstate_bss, as in a savestate, bruteforce/engine/engine.c) and the game's
-   memory with the hardware's registers (the section gram_bss). g64_title_end puts the copy back. */
-extern unsigned char __start_gstate_data[], __stop_gstate_data[];
-extern unsigned char __start_gstate_bss[], __stop_gstate_bss[];
-extern unsigned char __start_gram_bss[], __stop_gram_bss[];
+   the game first runs. g64_title_begin saves that state with the engine's savestate (bruteforce/engine): all of the
+   game's variables and its memory. g64_title_end loads it again. The engine's load also gives back the heap's
+   untouched part, which later savestates leave out; a plain copy of the memory would write every page of it. */
 static unsigned char *titleSaved;
 static PortFrameTask titleTasks[16];
 static long titleTaskCount;
 static double titleAcc;
 static Uint64 titleLast;
 static const Settings *titleSettings;
+static int titleFast; /* the frames run fast before the title menu */
 static void set_interp_volatile(void);
-
-static size_t title_part(int i, unsigned char **start) {
-    unsigned char *s[3] = {__start_gstate_data, __start_gstate_bss, __start_gram_bss};
-    unsigned char *e[3] = {__stop_gstate_data, __stop_gstate_bss, __stop_gram_bss};
-
-    *start = s[i];
-    return (size_t)(e[i] - s[i]);
-}
+static void virtual_press(long frame);
 
 void g64_title_begin(const Settings *st) {
-    size_t total = 0, at = 0;
-    unsigned char *p;
     unsigned cfbA, cfbB;
-    int i;
 
-    for (i = 0; i < 3; i++) {
-        total += title_part(i, &p);
-    }
-    titleSaved = malloc(total);
+    titleSaved = malloc(engine_state_size(studio_engine()));
     if (titleSaved == NULL) {
         die("%s", "no memory for the start screen");
     }
-    for (i = 0; i < 3; i++) {
-        size_t n = title_part(i, &p);
-
-        memcpy(titleSaved + at, p, n);
-        at += n;
-    }
+    engine_save(studio_engine(), titleSaved);
     titleSettings = st;
-    titleSilent = 1;
     /* The title menu at once, without the logos and the fly-through. */
     port_set_skip_intro(1);
     port_game_init(-1);
@@ -748,23 +739,31 @@ void g64_title_frame(SDL_Window *window) {
     Uint64 now = SDL_GetPerformanceCounter();
     int w, h;
 
+    static long titleFrames;
+
+    /* A test's virtual pad (WEEMITT_VIRTUAL_PRESS) presses during the start screen too. */
+    virtual_press(titleFrames++);
     titleAcc += (double)(now - titleLast) / SDL_GetPerformanceFrequency();
     titleLast = now;
     if (titleAcc > 0.25) {
         titleAcc = 0.25;
     }
     /* Up to the title menu the game runs as fast as it can, with the window black: the logos would take 15
-       seconds. */
-    if (!G64TitleReady()) {
+       seconds. It takes about 300 frames. After 3000 the game runs at its own rate, so that the window shows what
+       happens instead. */
+    if (!G64TitleReady() && titleFast < 3000) {
         int k;
 
-        for (k = 0; k < 120 && !G64TitleReady(); k++) {
+        for (k = 0; k < 120 && !G64TitleReady(); k++, titleFast++) {
             port_buttons = 0;
             port_stick_x = port_stick_y = 0;
             port_game_frame(titleTasks, 16);
         }
         titleAcc = 0.0;
         titleTaskCount = 0;
+        if (titleFast >= 3000) {
+            plog_printf("g64coopdx: the title menu did not start; the start screen shows the game as it is");
+        }
     }
     while (titleAcc >= port_game_retraces() / 60.0) {
         long n;
@@ -783,23 +782,37 @@ void g64_title_frame(SDL_Window *window) {
     gfx_draw_frame((const GfxTask *)titleTasks, (int)titleTaskCount, w, h);
 }
 
-void g64_title_end(void) {
-    size_t at = 0;
-    unsigned char *p;
-    int i;
+/* The controller for the start screen, as the game reads it (the player's Controls settings): which of up, down,
+   left, right, A and B are held. The stick counts as the d-pad. Start counts as A. */
+int g64_title_pad(void) {
+    unsigned short b = 0;
+    int x = 0, y = 0, held = 0;
 
+    read_pad(titleSettings, &b, &x, &y);
+    if ((b & BTN_DUP) || y > STICK_MAX / 2)
+        held |= G64_PAD_UP;
+    if ((b & BTN_DDOWN) || y < -STICK_MAX / 2)
+        held |= G64_PAD_DOWN;
+    if ((b & BTN_DLEFT) || x < -STICK_MAX / 2)
+        held |= G64_PAD_LEFT;
+    if ((b & BTN_DRIGHT) || x > STICK_MAX / 2)
+        held |= G64_PAD_RIGHT;
+    if (b & (BTN_A | BTN_START))
+        held |= G64_PAD_A;
+    if (b & BTN_B)
+        held |= G64_PAD_B;
+    return held;
+}
+
+void g64_title_end(void) {
     if (titleSaved == NULL) {
         return;
     }
-    for (i = 0; i < 3; i++) {
-        size_t n = title_part(i, &p);
-
-        memcpy(p, titleSaved + at, n);
-        at += n;
+    if (engine_load(studio_engine(), titleSaved) != 0) {
+        die("%s", "the game's state from before the start screen does not load");
     }
     free(titleSaved);
     titleSaved = NULL;
-    titleSilent = 0;
 }
 #endif
 

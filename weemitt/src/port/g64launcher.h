@@ -18,6 +18,14 @@ void g64_pause_draw(SDL_Window *window);
 /* The game's own title screen behind the start screen (platform.c): runs its frames for the time that has passed
    and draws the newest one into the window. */
 void g64_title_frame(SDL_Window *window);
+/* The controller's d-pad (or stick), A (or Start) and B as the game reads them: the G64_PAD bits that are held. */
+int g64_title_pad(void);
+#define G64_PAD_UP 1
+#define G64_PAD_DOWN 2
+#define G64_PAD_LEFT 4
+#define G64_PAD_RIGHT 8
+#define G64_PAD_A 16
+#define G64_PAD_B 32
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);
 
