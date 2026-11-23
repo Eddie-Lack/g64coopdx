@@ -300,7 +300,8 @@ void DeformTextures(void) {
         }
     }
     for (platform = platformList.head.next; platform != &platformList.head; platform = platform->next) {
-        if ((platform->flags & 0x200) && platform->pullSpeed == 0.0f &&
+        /* g64coopdx: a conveyor without an object (a DUMMY) has no texture to slide. */
+        if ((platform->flags & 0x200) && platform->pullSpeed == 0.0f && platform->actor.inst != NULL &&
             (frameCount < 12 || (s32)platform->actor.inst->obj->crc < frameCount)) {
             SlideTextureCoords(&platform->actor, -platform->conveyorVel.z, -platform->conveyorVel.x);
             platform->actor.inst->obj->crc = frameCount;

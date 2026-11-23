@@ -2576,7 +2576,8 @@ void CheckForExit(Platform *platform) {
     }
     if (ballStatic == 0 && gameInfo.world == HUB && gameInfo.level != CAVE && gameInfo.level != ACOURSE
         && saveSlot[currentSaveSlot].hubTarget != saveSlot[currentSaveSlot].hubLevel && platform->exitType != 12 && platform->exitType != 21
-        && gameInfo.worldComplete[platform->exitType - 5] == 0) {
+        /* g64coopdx: the list has the 7 worlds, for the exit types 5 to 11. */
+        && platform->exitType >= 5 && platform->exitType <= 11 && gameInfo.worldComplete[platform->exitType - 5] == 0) {
         return;
     }
     if (g64Online) {

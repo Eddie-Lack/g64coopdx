@@ -147,6 +147,21 @@ int main(int argc, char **argv) {
         check(g64_pack_from_bytes(m, mn, whole, sizeof whole, (const uint8_t *)"\x1bLua", 4, 1, &q, err, sizeof err) != 0,
               "a compiled script is refused");
         check(g64_pack_from_bytes(NULL, 0, NULL, 0, NULL, 0, 1, &q, err, sizeof err) != 0, "no bytes are refused");
+        {
+            /* A pack from another player takes the place of an ordinary level only. */
+            static const char boss[] = "format=1\nname=A boss\nlevel=13\n", hub[] = "format=1\nname=A hub\nlevel=0\n";
+            check(g64_pack_from_bytes((const uint8_t *)boss, sizeof boss - 1, whole, sizeof whole, NULL, 0, 1, &q, err,
+                                      sizeof err) != 0,
+                  "the strict form refuses a pack for a boss level");
+            check(g64_pack_from_bytes((const uint8_t *)hub, sizeof hub - 1, whole, sizeof whole, NULL, 0, 0, &q, err,
+                                      sizeof err) == 0 && g64_pack_check_strict(&q, NULL) != NULL,
+                  "a pack for a hub loads from a folder and does not pass the strict check");
+            g64_pack_free(&q);
+            check(g64_pack_level_plain(10) && g64_pack_level_plain(12) && !g64_pack_level_plain(13) &&
+                      !g64_pack_level_plain(14) && g64_pack_level_plain(37) && !g64_pack_level_plain(38) &&
+                      !g64_pack_level_plain(9) && !g64_pack_level_plain(42),
+                  "the ordinary levels are the first three of each world");
+        }
 
         /* The cache: a folder named by the id alone. */
         {

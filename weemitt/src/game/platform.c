@@ -792,7 +792,8 @@ void SpinPlatform(Platform *platform) {
 }
 
 void OrbitPlatform(Platform *platform) {
-    f32 d[2];
+    /* g64coopdx: three, not two. An orbit whose axis was never set takes all three coordinates. */
+    f32 d[3];
     Platform *plat = platform->parent;
     s32 k;
     f32 dist;

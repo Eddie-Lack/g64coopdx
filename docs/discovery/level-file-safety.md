@@ -78,6 +78,18 @@ the check lacks does less harm:
 - A level file may not fill the game's memory. The game stops the program when its heap or its list of 1,280 memory
   blocks is full. Before each token the parser asks for 4 MB of free heap and for fewer than 1,100 blocks in use; the
   largest of the game's levels uses 957 blocks and about 1 MB of 22 while it is read.
+- A CAMEO_CAM of a type below 0 takes one of the 10 extra spheres, as every type but 0 and 1 does.
+- An ORBITBRIDGE's axis is 0 to 2 or 0x58 to 0x5A. An orbit whose axis was never set moved a platform through a
+  list of two numbers with three; the list has three now.
+- A WATER whose object has no faces stops the level: the game freed the object and kept a pointer to it.
+- A platform's TERRAIN comes before the tokens that free its faces (NOCOLLISION, SPIKE, an EXITDOOR that is not
+  shown).
+- A FOG whose near end equals its far end stops the level, and a puzzle's action cannot set it so: the game divides
+  by the difference when it draws.
+- A BACKDROP's two scales are above 0, and its parent is a backdrop the level has.
+- A wind makes at most 1,000 particles a frame. A hub's exit asks the list of finished worlds only for the exit
+  types 5 to 11. A puzzle's action that sets the level of a water no tag names does nothing. A conveyor on a
+  DUMMY slides no texture.
 - A TIP's number is 0 to 32. An animation's number below 0 plays the object's first.
 - A cameo starts only when every one of its instructions names things that are there (`CameoUsable` in cameo.c): an
   enemy of the level by its number, another instruction of the cameo as its trigger, one of an actor's 8 spheres.
@@ -102,6 +114,12 @@ the check lacks does less harm:
 POS and the tokens that free a platform's faces are safe on a DUMMY as the game is: the first returns before it
 uses the object, and the game's free does nothing for a list that is not there. A head start runs at most 32,767
 updates.
+
+The game's code for the hubs, the boss levels, the bonus levels and the scenes expects fixed things in those
+levels: platforms by tag, enemies by order, a water by tag. It uses them without a test (boss.c, nmeprocess2.c).
+None of that is guarded. A pack that comes from a host may therefore take the place of an ordinary level only,
+one of a world's three (`g64_pack_level_plain` in src/client/pack.c). A pack for another level needs its folder on
+every machine.
 
 Not guarded in the game yet: the short forms, which the check before loading refuses; memory that fills after the
 level is read, while it runs (the program then stops); and what the last section says was not read.

@@ -149,9 +149,12 @@ static s32 TokenAllowed(s16 token, Platform *platform) {
         case TOKEN_TERRAIN:
         case TOKEN_MODGE:
             /* A platform's or a landscape piece's, by what was made last. Both handlers use the object. */
-            return spikeOrPlatformOrVent == 0x62 ? platform != NULL && G64_USABLE(platform->actor.inst)
-                                                 : madeLandscape && lastLandscape != NULL
-                                                       && G64_USABLE(lastLandscape->inst);
+            /* A platform's TERRAIN writes into its list of faces, which NOCOLLISION, SPIKE and an EXITDOOR that
+               is not shown have freed. */
+            return spikeOrPlatformOrVent == 0x62
+                       ? platform != NULL && G64_USABLE(platform->actor.inst)
+                             && (token != TOKEN_TERRAIN || platform->actor.faces != NULL)
+                       : madeLandscape && lastLandscape != NULL && G64_USABLE(lastLandscape->inst);
         case TOKEN_SPARKLY:
         case TOKEN_NOCAMCOLLIDE:
             return spikeOrPlatformOrVent == 0x62 ? platform != NULL
@@ -214,8 +217,10 @@ static s32 ValuesAllowed(s16 token, u8 *data, Platform *platform) {
         case TOKEN_SINEBRIDGE:
             return a >= 1 && a <= 100;
         case TOKEN_ORBITBRIDGE:
-            /* The axis, then the planks. */
-            return a >= 0 && a <= 2 && port_read_token(data + 2) >= 1 && port_read_token(data + 2) <= 100;
+            /* The axis, then the planks. The handler knows the axes 0x58, 0x59 and 0x5A; with any other value the
+               planks orbit around no axis, which OrbitPlatform has room for now. */
+            return ((a >= 0 && a <= 2) || (a >= 0x58 && a <= 0x5A)) && port_read_token(data + 2) >= 1
+                   && port_read_token(data + 2) <= 100;
         case TOKEN_GARIB:
             a = port_read_token(data + 12);
             return a >= 0 && a <= 3;
@@ -522,6 +527,11 @@ void ParseLandscapeFile(s32 num) {
                 }
             } else {
                 PRINTF("WARNING - zero poly object %s\n\n", actor->inst->obj->name);
+                /* g64coopdx: a water's record keeps its pointer to this actor, and the game writes through it
+                   when the water's level changes. */
+                if (actor->type == WATER_ACTOR) {
+                    G64Unplayable("WATER OBJECT");
+                }
                 DestroyAndFreeActor(actor);
             }
         }
@@ -824,6 +834,10 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
         PORT_COPY(&fog.b, data, 1);
         PORT_COPY(&fog.min, data, 2);
         PORT_COPY(&farPlaneDist, data, 2);
+        /* g64coopdx: the game divides by the fog's far end less its near end when it draws. */
+        if (fog.min == fog.max) {
+            G64Unplayable("FOG");
+        }
         AdjustColours(&fog.r, &fog.g, &fog.b);
         originalFog = fog;
         return TRUE;
@@ -837,7 +851,9 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
             return TRUE;
         }
         tempObj = FindSubObjectFromObject(lastLandscape->inst->obj, crc2);
-        if (tempObj == NULL || (buf[0] > 1 && (cameoExtraSphere == NULL || numCamExtraSpheres >= 10))) {
+        /* g64coopdx: every type but 0 and 1 takes one of the 10 extra spheres, a type below 0 too. */
+        if (tempObj == NULL
+            || (buf[0] != 0 && buf[0] != 1 && (cameoExtraSphere == NULL || numCamExtraSpheres >= 10))) {
             G64Unplayable("CAMEO CAMERA");
             return TRUE;
         }
@@ -986,6 +1002,17 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
             for (crc = 0; crc < buf[0]; crc++) {
                 backdrop->parent = backdrop->parent->next;
             }
+            /* g64coopdx: a number that names no backdrop left the parent at the list's own head, which has no
+               texture. The game drew with it. */
+            if (backdrop->parent == &backdropList.head) {
+                backdrop->parent = NULL;
+                G64Unplayable("BACKDROP PARENT");
+            }
+        }
+        /* g64coopdx: the game divides by both scales when it draws, and a scale below 0 with the wrap set made its
+           drawing loop run without end. */
+        if (backdrop->scaleX <= 0 || backdrop->scaleY <= 0) {
+            G64Unplayable("BACKDROP SCALE");
         }
         return TRUE;
     }

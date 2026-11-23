@@ -99,7 +99,9 @@ offers its pack over the sealed link (`src/session/session.h`: offer, want, piec
   game, get no start and no chat, and their place is free again after five minutes.
 - A host without a pack offers "none", and a joiner who came with a pack plays without it.
 - The host's pack is the joiner's for that session only. The joiner's next session starts with its own pack.
-- The host does not offer a pack whose level file is a level of the ROM, or one that fails the check. It then
+- The host does not offer a pack whose level file is a level of the ROM, one that fails the check, or one that
+  takes the place of a hub, a boss level, a bonus level or a scene. The game's code for those levels expects fixed
+  things in them ([level-file-safety.md](level-file-safety.md)). It then
   refuses a joiner who lacks the pack, as before.
 
 A pack whose level file is a shipped level with small changes does travel. The comparison catches exact copies
