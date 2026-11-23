@@ -1465,6 +1465,23 @@ G64TestExit g64TestExits[G64_TEST_EXITS] = {{-1, 0, 0, 0}, {-1, 0, 0, 0}, {-1, 0
 static u32 framesRun;
 
 /* For scripts (src/port/g64lua.c). */
+s32 g64ParseLogOn, g64ParseLogCount;
+s32 g64ParseLog[G64_PARSE_LOG][2];
+
+void G64ParseTrace(s32 offset, s32 token) {
+    if (!g64ParseLogOn)
+        return;
+    /* The level's name comes right after the file's size: the first token is the first thing after it. A record
+       that starts again is one whose offset went back. */
+    if (g64ParseLogCount > 0 && offset <= g64ParseLog[g64ParseLogCount - 1][0])
+        g64ParseLogCount = 0;
+    if (g64ParseLogCount < G64_PARSE_LOG) {
+        g64ParseLog[g64ParseLogCount][0] = offset;
+        g64ParseLog[g64ParseLogCount][1] = token;
+        g64ParseLogCount++;
+    }
+}
+
 void G64LuaEvent(int kind, int player);
 void HurtHand(s32 type, s16 damage);
 static s32 slot_used(s32 i);

@@ -57,6 +57,9 @@ level of a ROM it built. For a ROM, the tool finds the level files through the t
 loader, which Glovebox changes when it moves the files (`g64_pack_level_from_rom` in `src/client/pack.c`). For the
 same level, the tool's pack has the same bytes and the same id as a pack made by Glovebox's own builder.
 
+`g64pack` also prints whether the level file's structure is as the game reads it
+([level-file-safety.md](level-file-safety.md), "What is checked today").
+
 ### `script.lua`
 
 Lua source text: 1 byte to 256 KB, with no zero byte. Lua's compiled form is refused. The script runs in every game

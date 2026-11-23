@@ -345,6 +345,14 @@ s32 G64GaribGroupNear(const struct Vec3 *pos, f32 radius);
 s32 G64GaribTaker(const struct Vec3 *pos);
 void G64GaribGained(void);
 
+/* For tests of the level file check (the repository's src/client/levcheck.c): while g64ParseLogOn is set, the level
+   parser records each token it reads, with the token's offset in the level file. The record starts again with each
+   level. Entry k is g64ParseLog[k]: the offset, then the token. */
+#define G64_PARSE_LOG 8192
+extern s32 g64ParseLogOn, g64ParseLogCount;
+extern s32 g64ParseLog[G64_PARSE_LOG][2];
+void G64ParseTrace(s32 offset, s32 token);
+
 /* Tells a level pack's script that something happened to the player whose state is in the game's variables now:
    1 a garib taken, 2 a death (src/port/g64lua.c, G64LuaEvent). The script hears of it at the next frame. */
 void G64ScriptEvent(s32 kind);

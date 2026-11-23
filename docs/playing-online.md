@@ -126,7 +126,8 @@ Run it from a command prompt in the game's folder.
 5. Give the folder `MyLevel` to every player. Each starts the game with `--pack MyLevel`.
 
 `g64pack check MyLevel` reads a pack as the game does and prints its id. Two players have the same pack when their
-ids are the same.
+ids are the same. It also prints a line on the level file's structure. A warning there names a part of the file
+that the game may read wrongly.
 
 What a pack cannot hold yet:
 

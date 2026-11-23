@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -279,6 +279,24 @@ twoplayers: twoplayers-build
 	    > build/tests/anyball-windows.out
 	cmp build/tests/anyball.out build/tests/anyball-windows.out
 
+# The level file check against the game's own parser, on every level of the ROM, on Linux and under Wine
+# (tests/rom/levcheck.c); the two outputs must be equal (needs the ROM in GLOVER_ROM).
+LEVCHECK_SRC := tests/rom/levcheck.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
+    weemitt/src/port/statehash.c
+levcheck-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/levcheck $(LEVCHECK_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/levcheck.exe $(LEVCHECK_SRC) $(ENGINE_WINDOWS) -lm
+
+levcheck: levcheck-build
+	build/tests/levcheck "$$GLOVER_ROM" > build/tests/levcheck.out || { cat build/tests/levcheck.out; exit 1; }
+	tail -1 build/tests/levcheck.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/levcheck.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/levcheck-windows.out
+	cmp build/tests/levcheck.out build/tests/levcheck-windows.out
+
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
 # must be equal (needs the ROM in GLOVER_ROM).
 LEVELSTART_SRC := tests/rom/levelstart.c weemitt/src/port/statehash.c
@@ -419,17 +437,30 @@ build/tests/lua_test.exe: tests/net/lua_test.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) $(LUA_TEST_FLAGS) -static -o $@ tests/net/lua_test.c $(LUA_TEST_SRC)
 
+# The level file's structure check (src/client/levcheck.c): its test without the game, and its fuzz target.
+build/tests/levcheck_test: tests/net/levcheck_test.c src/client/levcheck.c src/client/levcheck.h
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/levcheck_test.c src/client/levcheck.c
+
+build/tests/levcheck_test.exe: tests/net/levcheck_test.c src/client/levcheck.c src/client/levcheck.h
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/levcheck_test.c src/client/levcheck.c
+
+build/tests/levcheck_fuzz: tests/fuzz/levcheck_fuzz.c src/client/levcheck.c src/client/levcheck.h
+	@mkdir -p build/tests
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/levcheck_fuzz.c src/client/levcheck.c
+
 # The tool that makes and checks level packs (tools/g64pack.c).
 packtool: build/g64pack
 packtool-windows: build/g64pack.exe
 
-build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS)
+build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
 	@mkdir -p build
-	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC)
+	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC) src/client/levcheck.c
 
-build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS)
+build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
 	@mkdir -p build
-	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC)
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC) src/client/levcheck.c
 
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
@@ -489,7 +520,7 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
-        build/tests/pack_test build/tests/lua_test build/g64pack
+        build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
@@ -497,6 +528,8 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	tail -1 build/tests/seal_test.out
 	build/tests/lua_test > build/tests/lua_test.out || { cat build/tests/lua_test.out; exit 1; }
 	tail -1 build/tests/lua_test.out
+	build/tests/levcheck_test > build/tests/levcheck_test.out || { cat build/tests/levcheck_test.out; exit 1; }
+	tail -1 build/tests/levcheck_test.out
 	sh tests/net/packtool_test.sh build/tests/packtool-linux build/g64pack > build/tests/packtool.out \
 	    || { cat build/tests/packtool.out; exit 1; }
 	tail -1 build/tests/packtool.out
@@ -511,7 +544,8 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
-              build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe test-c
+              build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
+              build/tests/levcheck_test.exe test-c
 	@mkdir -p build/tests/pack-windows
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows | tr -d '\r' \
 	    > build/tests/pack_test-windows.out
@@ -525,6 +559,10 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	    > build/tests/lua_test-windows.out
 	tail -1 build/tests/lua_test-windows.out
 	cmp build/tests/lua_test.out build/tests/lua_test-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/levcheck_test.exe | tr -d '\r' \
+	    > build/tests/levcheck_test-windows.out
+	tail -1 build/tests/levcheck_test-windows.out
+	cmp build/tests/levcheck_test.out build/tests/levcheck_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) sh tests/net/packtool_test.sh build/tests/packtool-windows \
 	    $(WINE64) build/g64pack.exe > build/tests/packtool-windows.out || { cat build/tests/packtool-windows.out; exit 1; }
 	tail -1 build/tests/packtool-windows.out
@@ -545,9 +583,10 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
 fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz build/tests/instances_fuzz \
-      build/tests/pack_fuzz build/tests/lua_fuzz
+      build/tests/pack_fuzz build/tests/lua_fuzz build/tests/levcheck_fuzz
 	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay build/fuzz-corpus-instances \
-	    build/fuzz-corpus-pack build/fuzz-corpus-lua
+	    build/fuzz-corpus-pack build/fuzz-corpus-lua build/fuzz-corpus-levcheck
+	build/tests/levcheck_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 build/fuzz-corpus-levcheck
 	build/tests/lua_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 -timeout=20 -dict=tests/fuzz/lua.dict \
 	    build/fuzz-corpus-lua
 	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-pack
