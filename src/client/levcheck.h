@@ -23,7 +23,8 @@
  *
  * What it does not do: check the other values (level-file-safety.md lists them), or whether the level's objects
  * are in the banks of the level whose place it takes. A file that passes can still make the game read or write
- * outside its memory. Until those checks exist too, a level file comes only from a folder the player chose.
+ * outside its memory. A level file that comes from a host must pass this check, and the player is asked first and
+ * told to take a pack only from a host they trust.
  *
  * The check's token lengths are compared with the game's own parser on every level of the ROM
  * (tests/rom/levcheck.c). */

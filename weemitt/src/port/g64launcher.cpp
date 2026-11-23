@@ -362,6 +362,29 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             const char *room = netplay_room_code();
 
             ImGui::TextWrapped("%s", netplay_wait_status());
+            if (netplay_pack_asking()) {
+                /* The host's level pack: nothing is downloaded or used before the player says yes. */
+                const char *accept = getenv("G64_LAUNCHER_PACK");
+
+                ImGui::Spacing();
+                ImGui::TextWrapped("Level pack: %s (%u KB%s)", netplay_offer_name(),
+                                   (unsigned)((netplay_offer_size() + 1023) / 1024),
+                                   netplay_offer_script() ? ", with a script" : "");
+                ImGui::TextWrapped(netplay_pack_kept()
+                                       ? "You downloaded this pack before. Play with it?"
+                                       : "You do not have it. Download it from the host?");
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 210, 120, 255));
+                ImGui::TextWrapped("A pack changes the game on your computer. The program checks it before use, but "
+                                   "the check does not catch everything. Take a pack only from a host you trust.");
+                ImGui::PopStyleColor();
+                if (ImGui::Button(netplay_pack_kept() ? "Play with the pack" : "Download and play", ImVec2(-1, 0))
+                    || (accept && !strcmp(accept, "yes"))) {
+                    netplay_pack_answer(1);
+                }
+                if (ImGui::Button("No, leave", ImVec2(-1, 0)) || (accept && !strcmp(accept, "no"))) {
+                    netplay_pack_answer(0);
+                }
+            }
             if (hosting && room[0] && !printed) {
                 printf("g64coopdx: Room code: %s\n", room);
                 fflush(stdout);
