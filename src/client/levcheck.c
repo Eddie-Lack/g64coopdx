@@ -63,6 +63,9 @@ typedef struct {
     /* What the parser's "last thing made" switch stands at: T_PLATFORM, T_VENT, T_LANDSCAPE, T_BACKGROUND,
        T_CAMEO_OBJ, or 0. */
     int mode;
+    /* Counts that the game keeps in lists of a fixed size: the level's enemies and rope bridges, the last enemy's
+       three lists of instructions, the last vent's and buzzer's patterns, the last cameo's instructions. */
+    int enemies, bridges, normal, conditional, attack, ventPatterns, buzzerPatterns, cameoSteps;
     /* Each platform's tag, for TELEPORT's lookup. tags[platforms - 1] is the current platform's. */
     int16_t tags[MAX_PLATFORMS];
     int platforms;
@@ -262,12 +265,98 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         w->puzzle = 1;
         break;
     case T_ENEMY:
+        /* The type picks an entry of the game's table of 59 enemy kinds. The level's list holds 30 enemies. */
+        if (be16(d) < 0 || be16(d) > 58)
+            return "an ENEMY has a type the game does not have";
+        if (++w->enemies > 30)
+            return "the level has more than 30 enemies";
         w->enemy = 1;
+        w->normal = w->conditional = w->attack = 0;
+        break;
+    case T_NORMAL_INSTRUCTION:
+        if (++w->normal > 30)
+            return "an enemy has more than 30 instructions";
+        break;
+    case T_CONDITIONAL_INSTRUCTION:
+        if (++w->conditional > 10)
+            return "an enemy has more than 10 conditional instructions";
+        break;
+    case T_ATTACK_INSTRUCTION:
+        if (++w->attack > 30)
+            return "an enemy has more than 30 attack instructions";
         break;
     case T_VENT:
         w->vent = 1;
         w->mode = T_VENT;
+        w->ventPatterns = 0;
         break;
+    case T_VENT_PATTERN:
+        if (++w->ventPatterns > 6)
+            return "a vent has more than 6 patterns";
+        break;
+    case T_BUZZER_PATTERN:
+        if (++w->buzzerPatterns > 6)
+            return "a buzzer has more than 6 patterns";
+        break;
+    case T_CAMEO_INSTRUCTION:
+        if (++w->cameoSteps > 20)
+            return "a cameo has more than 20 instructions";
+        break;
+    case T_GARIB:
+        if (be16(d + 12) < 0 || be16(d + 12) > 3)
+            return "a GARIB has a type the game does not have";
+        break;
+    case 135: /* PICKUP */
+        if (be16(d) < 0 || be16(d) > 14)
+            return "a PICKUP has a type the game does not have";
+        break;
+    case 141: /* ROPEBRIDGE: its planks, the planks' inertia, the axis they turn on */
+        if (be16(d) < 1 || be16(d) > 100)
+            return "a rope bridge has 1 to 100 planks";
+        if (be16(d + 4) < 0 || be16(d + 4) > 2)
+            return "a rope bridge's axis is 0, 1 or 2";
+        if (++w->bridges > 10)
+            return "the level has more than 10 rope bridges";
+        break;
+    case 189: case 190: /* AMBIENT_SOUND, SOUND */
+    case 193: case 194: case 195: case 196: case 197: case 198: case 199: case 200: /* a platform's sounds */
+        /* The first field is a sound's number in the game's table of 420. */
+        if (be16(d) < 0 || be16(d) > 419)
+            return "a sound's number is 0 to 419";
+        break;
+    case T_STARTPOINT:
+        if (be16(d) < 0 || be16(d) >= w->points)
+            return "a STARTPOINT names a point the platform's path does not have";
+        break;
+    case T_CONDITION: {
+        /* Conditions 27 to 30 compare a puzzle variable, of which the level has 100, with a number, or with
+           another variable when the first one's number is 100 or more. */
+        int id = be16(d), tag = be16(d + 2), value = be16(d + 4);
+        if (id >= 27 && id <= 30) {
+            if (tag >= 100 ? (tag > 199 || value < 0 || value > 99) : tag < 0)
+                return "a puzzle condition names a variable the level does not have";
+        }
+        break;
+    }
+    case T_ACTION: {
+        /* Actions 56 to 58 set a puzzle variable, add to it or take from it: from a number, or from another
+           variable when the action's flag 0x80 is set. The fields are the id, the number (a float), the
+           variable, a delay and the flags. */
+        int id = be16(d);
+        if (id >= 56 && id <= 58) {
+            int tag = be16(d + 6);
+            uint32_t bits = ((uint32_t)d[2] << 24) | ((uint32_t)d[3] << 16) | ((uint32_t)d[4] << 8) | d[5];
+            if (tag < 0 || tag > 99)
+                return "a puzzle action names a variable the level does not have";
+            if (d[13] & 0x80) {
+                /* The number is then a variable's: a float from 0 up to, not including, 100. As bits, such a
+                   float is zero, or positive and below 100.0 (0x42C80000). */
+                if (bits != 0 && bits != 0x80000000u && (bits >= 0x42C80000u || bits < 0x00800000u))
+                    return "a puzzle action reads a variable the level does not have";
+            }
+        }
+        break;
+    }
     case T_LANDSCAPE: case T_BACKGROUND: case T_CAMEO_OBJ:
         w->land = 1;
         w->mode = token;
@@ -277,9 +366,11 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         break;
     case T_CAMEO:
         w->cameo = 1;
+        w->cameoSteps = 0;
         break;
     case T_BUZZER:
         w->buzzer = 1;
+        w->buzzerPatterns = 0;
         break;
     case T_TAG:
         w->tags[w->platforms - 1] = (int16_t)be16(d);
@@ -290,6 +381,8 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
             w->points++;
         break;
     case T_ORBIT:
+        if (be16(d) < 0 || be16(d) > 2)
+            return "an ORBIT's axis is 0, 1 or 2";
         if (w->points >= 2)
             return "an ORBIT comes after two points of the platform's path: the game reads only its axis then";
         w->orbit = 1;
@@ -315,7 +408,13 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
             return "a SPINFLIP comes after a SPINPAUSE: the game reads none of its fields then";
         w->spinFlip = !zero_float(d + 2);
         break;
-    case T_SPIN: case T_SEESAW: case T_TOPPLE: case T_PENDULUM: case T_TILTY: case T_TAKESPIN: case T_CATAPULT:
+    case T_SPIN: case T_SEESAW: case T_TOPPLE: case T_PENDULUM:
+        /* The first field is the axis, which picks one of three numbers in the platform's spin. SPIN and
+           PENDULUM write four of the file's bytes at the place it picks. */
+        if (be16(d) < 0 || be16(d) > 2)
+            return "a spin's axis is 0, 1 or 2";
+        /* fall through */
+    case T_TILTY: case T_TAKESPIN: case T_CATAPULT:
     case T_LOOKATPOINT: case T_GOFORWARDS: case T_LOOKATHAND: case T_LOOKATBALL:
         /* Each makes the platform's spin, or clears the one it has. */
         w->motion = 1;
