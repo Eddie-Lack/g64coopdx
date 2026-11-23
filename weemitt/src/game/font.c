@@ -9,6 +9,8 @@ extern s32 fontmagicnum;
 extern u8 draw_buffer;
 extern Gfx overlay_dl[];
 extern Gfx overlay_dl2[];
+Gfx *G64TitleTextStart(s32 buffer);
+s32 G64TitleTextFull(Gfx *next, s32 n);
 extern PTR32(Gfx) overlay_dl_next;
 
 void text_sprite(Sprite *txt, char *str, Font *fnt, s32 xlen, s32 ylen);
@@ -84,7 +86,12 @@ void font_show_string(Gfx **glistp, char *str, Font *font) {
     Gfx *gxp;
 
     fontmagicnum = strlen(str);
-    if (draw_buffer) {
+    /* g64coopdx: the online program's start screen draws through a larger buffer (g64title.c). */
+    if (G64TitleTextStart(draw_buffer) != NULL) {
+        if (G64TitleTextFull(overlay_dl_next, fontmagicnum)) {
+            return;
+        }
+    } else if (draw_buffer) {
         if (&overlay_dl[NUM_DL(180 - fontmagicnum)] < overlay_dl_next) {
             return;
         }

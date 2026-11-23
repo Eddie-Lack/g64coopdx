@@ -101,4 +101,5 @@ run locally: set `GLOVER_ROM`.
 | Level packs: the reader, the format, and the tool that makes them | src/client (`pack.h`), docs/discovery/level-pack.md, tools/g64pack.c (`make packtool`) |
 | The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
+| The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
 | How players host and join | docs/playing-online.md |

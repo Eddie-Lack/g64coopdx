@@ -1034,9 +1034,15 @@ static const u32 playerColor[8] = {0, 0x60A0FF, 0x70FF70, 0xFFE040, 0xFF6060, 0x
 
 u32 g64PlayerColor[G64_MAX_PLAYERS][2];
 
+u32 G64TitleTint(Actor *a);
+
 u32 G64ActorTint(Actor *a) {
     s32 i, slot = -1, p, isBall = 0;
     u32 c;
+    /* The online program's start screen shows the glove in the player's colors (g64title.c). */
+    c = G64TitleTint(a);
+    if (c)
+        return c;
     if (a == &hand || a == &ball) {
         slot = swapped;
         isBall = a == &ball;

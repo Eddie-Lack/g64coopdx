@@ -149,6 +149,7 @@ extern u8 dontClearScreen;
 extern PTR32(Gfx) overlay_dl_next;
 extern Gfx overlay_dl[];
 extern Gfx overlay_dl2[];
+Gfx *G64TitleTextStart(s32 buffer);
 extern s32 dispFrameCount;
 extern Dynamic dynamic[2];
 extern MESG32 tlistPointers[2][10];
@@ -847,6 +848,10 @@ void GraphicsStep(void) {
         overlay_dl_next = overlay_dl;
     } else {
         overlay_dl_next = overlay_dl2;
+    }
+    /* g64coopdx: the online program's start screen draws its text through a larger buffer (g64title.c). */
+    if (G64TitleTextStart(draw_buffer) != NULL) {
+        overlay_dl_next = G64TitleTextStart(draw_buffer);
     }
     if (deltaTick) {
         dispFrameCount++;
