@@ -649,7 +649,8 @@ static void script_run(Engine *e, void *boot) {
    go back to the hub: two players start in it, and both must end in the hub, with no machine disagreeing. */
 /* An enemy kind whose object Atlantis 1's banks do not hold. */
 #define ENEMY_ELSEWHERE 50
-static size_t firstPlatform, firstGroup, firstEnemy, firstSpin, conditions[64];
+static size_t firstPlatform, firstGroup, firstEnemy, firstSpin, cameoSteps[64], conditions[64];
+static int cameoStepCount;
 static int conditionCount;
 static void find_platform(void *user, size_t offset, int token) {
     (void)user;
@@ -661,6 +662,8 @@ static void find_platform(void *user, size_t offset, int token) {
         firstEnemy = offset;
     if (token == 127 && firstSpin == 0)
         firstSpin = offset;
+    if (token == 171 && cameoStepCount < 64)
+        cameoSteps[cameoStepCount++] = offset;
     if (token == 149 && conditionCount < 64)
         conditions[conditionCount++] = offset;
 }
@@ -672,16 +675,20 @@ static void find_platform(void *user, size_t offset, int token) {
    puzzle condition has a number the game does not have. which 4: every puzzle condition on a tag becomes "the
    platform's spin is at pause 1" (AT_SPIN). Most of the tagged platforms have no spin, and none has a pause: the
    game tested the spin without asking, and divided by its count of pauses. This level must go on. which 5: the
-   first SPIN is on axis 7. The game wrote four of the file's bytes at the place the axis picks. */
+   first SPIN is on axis 7. The game wrote four of the file's bytes at the place the axis picks. which 6: every cameo
+   instruction that names an actor names enemy 25, which the level does not have. The cameos do not start, and the
+   level goes on. */
 static void unplayable_case(Engine *e, void *boot, int which) {
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
     size_t at = 0, size = 0, bad = 0;
     uint8_t *with;
     uint32_t none[16][2];
+    /* The cameo case plays the first hub level, which has cameos; the others play Atlantis 1. */
+    int level = which == 6 ? HUB1 : ATLANTIS1;
     int p, before = failed, levels[2] = {-1, -1};
     char what[200];
-    if (g64_pack_level_from_rom(rom, romSize, ATLANTIS1, &at, &size) != NULL)
+    if (g64_pack_level_from_rom(rom, romSize, level, &at, &size) != NULL)
         return;
     with = malloc(romSize + size);
     if (!with)
@@ -690,9 +697,10 @@ static void unplayable_case(Engine *e, void *boot, int which) {
     memcpy(with, rom, romSize);
     memcpy(with + romSize, rom + at, size);
     firstPlatform = firstGroup = firstEnemy = firstSpin = 0;
-    conditionCount = 0;
+    conditionCount = cameoStepCount = 0;
     g64_lev_check(with + romSize, size, find_platform, NULL, &bad);
-    check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
+    if (which != 6)
+        check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
     if (which == 0) {
         /* The object's id is the four bytes after the token. */
         with[romSize + firstPlatform + 2] ^= 0x5A;
@@ -713,6 +721,18 @@ static void unplayable_case(Engine *e, void *boot, int which) {
            the same length as most. */
         with[romSize + conditions[0] + 2] = 0;
         with[romSize + conditions[0] + 3] = 8;
+    } else if (which == 6) {
+        int k, changed = 0;
+        for (k = 0; k < cameoStepCount; k++) {
+            uint8_t *c = with + romSize + cameoSteps[k];
+            /* The instruction's type, then its target, for the types 0 to 4. */
+            if (c[2] == 0 && c[3] <= 4) {
+                c[4] = 0;
+                c[5] = 25;
+                changed++;
+            }
+        }
+        check(changed > 0, "the first hub level has cameo instructions");
     } else if (which == 5) {
         check(firstSpin != 0, "Atlantis 1 has a SPIN");
         with[romSize + firstSpin + 2] = 0;
@@ -738,13 +758,13 @@ static void unplayable_case(Engine *e, void *boot, int which) {
         g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
     engine_save(e, boot);
     engine_set_rom(e, with, romSize + size);
-    g64_instances_pack(ATLANTIS1, (unsigned)romSize, (unsigned)size);
+    g64_instances_pack(level, (unsigned)romSize, (unsigned)size);
     count = 0;
     for (p = 0; p < PLAYERS; p++)
         player[p] = NULL;
-    host = g64_ihost_new_with(e, boot, 2, 3u, none, ATLANTIS1, DEADLINE, host_send, NULL);
+    host = g64_ihost_new_with(e, boot, 2, 3u, none, level, DEADLINE, host_send, NULL);
     for (p = 0; p < 2; p++)
-        player[p] = g64_iclient_new_with(e, boot, 2, 3u, none, p, ATLANTIS1, WINDOW, DEADLINE, player_send, &ids[p]);
+        player[p] = g64_iclient_new_with(e, boot, 2, 3u, none, p, level, WINDOW, DEADLINE, player_send, &ids[p]);
     if (host && player[0] && player[1]) {
         for (now = 0; now < 400; now++) {
             deliver();
@@ -764,10 +784,11 @@ static void unplayable_case(Engine *e, void *boot, int which) {
                  : which == 2 ? "an enemy the level's banks do not hold"
                  : which == 3 ? "a puzzle condition the game does not have"
                  : which == 5 ? "a spin on an axis that is not there"
+                 : which == 6 ? "cameos about an enemy that is not there"
                               : "conditions on spins that are not there",
-                 which == 4 ? "plays on" : "sends its players to the hub", levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
+                 which == 4 || which == 6 ? "plays on" : "sends its players to the hub", levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
                  g64_iclient_desyncs(player[1]));
-        check(levels[0] == (which == 4 ? ATLANTIS1 : HUB1) && levels[1] == levels[0] &&
+        check(levels[0] == (which == 4 || which == 6 ? level : HUB1) && levels[1] == levels[0] &&
                   g64_ihost_hash_mismatches(host) == 0 &&
                   g64_iclient_desyncs(player[0]) == 0 && g64_iclient_desyncs(player[1]) == 0,
               what);
@@ -792,6 +813,7 @@ static void pack_unplayable(Engine *e, void *boot) {
     unplayable_case(e, boot, 3);
     unplayable_case(e, boot, 4);
     unplayable_case(e, boot, 5);
+    unplayable_case(e, boot, 6);
 }
 
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's

@@ -185,6 +185,61 @@ void AddCameo(Cameo *cameo) {
     }
 }
 
+/* g64coopdx: 1 when number e names an enemy of the level that a cameo can use. A cameo's instructions name enemies
+   by their number in the level's list, from 1. */
+static s32 CameoEnemy(s32 e) {
+    return e >= 1 && e <= numberOfEnemies && enemies[e - 1].actor.obj != NULL && enemies[e - 1].actor.anim != NULL
+           && enemies[e - 1].actor.shadow != NULL;
+}
+
+/* g64coopdx: 1 when every instruction of a cameo names things that are there. The game used an instruction's
+   target, trigger and arguments from the level file as they came: as an enemy's number, as the number of another
+   instruction of the cameo, and as one of an actor's 8 spheres. A cameo that fails does not start. */
+static s32 CameoUsable(Cameo *cameo) {
+    s32 k;
+    for (k = 0; k < cameo->count && k < 20; k++) {
+        CameoItem *item = cameo->items[k];
+        s32 t;
+        if (item == NULL || item->trigger >= cameo->count) {
+            return FALSE;
+        }
+        t = item->target;
+        switch (item->type) {
+            case CAMEO_INSTRUCTION_ANIMATION:
+                if (t < 0 || (t > 0 && !CameoEnemy(t))) {
+                    return FALSE;
+                }
+                break;
+            case CAMEO_INSTRUCTION_TARGET_CAMERA:
+            case CAMEO_INSTRUCTION_ROTATE_ACTOR:
+                if (t < -1 || (t > 0 && !CameoEnemy(t))) {
+                    return FALSE;
+                }
+                break;
+            case CAMEO_INSTRUCTION_MOVE_ACTOR:
+                /* Targets below 0 are the camera, the camera's target and a few scenes of the game's own. -7 moves
+                   the level's second enemy; -5 and -4 name an enemy in the first number of the place. */
+                if (t < -7 || t == -3 || (t > 0 && !CameoEnemy(t)) || (t == -7 && !CameoEnemy(2))
+                    || ((t == -5 || t == -4) && !CameoEnemy((s32)item->u.pos.x))) {
+                    return FALSE;
+                }
+                break;
+            case CAMEO_INSTRUCTION_TIE_ACTOR_TO_SPHERE:
+                if (t < -2 || (t > 0 && !CameoEnemy(t)) || (item->u.args[0] != 0 && !CameoEnemy(item->u.args[0]))
+                    || item->u.args[1] < 0 || item->u.args[1] > 7 || hand.obj == NULL) {
+                    return FALSE;
+                }
+                break;
+            case CAMEO_INSTRUCTION_DISABLE_ACTOR:
+                if (!CameoEnemy(t)) {
+                    return FALSE;
+                }
+                break;
+        }
+    }
+    return TRUE;
+}
+
 void StartCameo(s32 num) {
     Cameo *cameo;
     s32 j;
@@ -195,9 +250,16 @@ void StartCameo(s32 num) {
     if (!controlMethod) {
         DeactivateCameraControlMode();
     }
+    /* g64coopdx: the level has cameoList.count cameos, and each must name only what is there (CameoUsable). */
+    if (num < 0 || num >= cameoList.count) {
+        return;
+    }
     cameo = cameoList.head.next;
     for (j = 0; j < num; j++) {
         cameo = cameo->next;
+    }
+    if (!CameoUsable(cameo)) {
+        return;
     }
     cameo->active = TRUE;
     for (j = 0; j < cameo->count; j++) {

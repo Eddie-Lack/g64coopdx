@@ -238,6 +238,11 @@ static s32 ValuesAllowed(s16 token, u8 *data, Platform *platform) {
                        : token == TOKEN_CONDITIONAL_INSTRUCTION ? br->conditionalCount < 10 : br->attackCount < 30);
         case TOKEN_CAMEO_INSTRUCTION:
             return a >= 0 && a <= 6 && lastCameo->count < 20;
+        case TOKEN_TIP:
+            /* The tip's number, after its place. The game has tips 0 to 32, and walks its table of tip texts from
+               the start to the number it is given. */
+            a = port_read_token(data + 12);
+            return a >= 0 && a <= 32;
     }
     return TRUE;
 }
