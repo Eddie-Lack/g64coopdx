@@ -2789,6 +2789,98 @@ void G64TipView(s32 player) {
         TipDrawPage(tipLine[player] - 1, tipTime[player]);
 }
 
+/* The online program's own menu and text, in the game's style: the game's pause panes, fonts and colors. The
+   client calls these before it draws a player's view, as it calls G64TipView, and loads the state again after the
+   view: nothing here stays in the game. */
+extern Overlay tipOverlay2;
+extern PTR32(char) pauseString[];
+extern s32 frameCount2;
+struct Text *NEW_TEXT(s16 x, s16 y, u8 r, u8 g, u8 b, u8 a, f32 sx, f32 sy, u8 oneShot, char *str, u8 centre);
+void SetFont(u8 type);
+void AddOverlay(Overlay *overlay);
+s16 GetStringPixelLength(char *str, f32 sx, f32 sy);
+
+/* A line of the client's text for the game's text list, which holds 63 characters and takes its text as a format:
+   the plain printable characters, without the percent sign. */
+static char *view_string(char *out, const char *text) {
+    s32 n = 0;
+    for (; *text != 0 && n < 62; text++)
+        if (*text >= 32 && *text < 127 && *text != '%')
+            out[n++] = *text;
+    out[n] = 0;
+    return out;
+}
+
+/* The pause menu: the game's green pane, its "PAUSED" in the game's language, and the choices in the game's menu
+   font. The chosen one is full size and blinks, as in the game's own pause menu; the others are smaller. */
+void G64MenuView(const char *const *items, s32 count, s32 selected) {
+    char line[64];
+    s32 i, y;
+    if (count < 1 || count > 6)
+        return;
+    tipOverlay2.x = 160.0f;
+    tipOverlay2.y = 110.0f;
+    tipOverlay2.scaleX = 5600;
+    tipOverlay2.scaleY = (count * 128 + 512) * 4;
+    tipOverlay2.alpha = 200;
+    tipOverlay2.r = 0;
+    tipOverlay2.g = 200;
+    tipOverlay2.b = 0;
+    AddOverlay(&tipOverlay2);
+    /* The pane is count * 16 + 64 high around 110; the game's own menu has its title 24 below the pane's top. */
+    y = 110 - (count * 16 + 64) / 2 + 24;
+    SetFont(0);
+    NEW_TEXT(160, y, 255, 255, 255, 252, 1.0f, 1.0f, 1, pauseString[gameInfo.language], 1);
+    SetFont(1);
+    y += 30;
+    for (i = 0; i < count; i++, y += 20) {
+        f32 size = i == selected ? 1.0f : 0.8f;
+        u8 alpha = i == selected && !(frameCount2 & 4) ? 126 : 252;
+        NEW_TEXT(160, y, 255, 255, 255, alpha, size, size, 1, view_string(line, items[i]), 1);
+    }
+    SetFont(0);
+}
+
+/* A line of text in the upper middle of the picture, on a pane of the game's as wide as the text: what a level
+   pack's script shows to the player. */
+void G64LineView(const char *text) {
+    char line[64];
+    s32 width;
+    view_string(line, text);
+    if (line[0] == 0)
+        return;
+    SetFont(1);
+    /* A pane's scale is 32 for each point of the picture. The text's middle is 4 above the place it is given. */
+    width = GetStringPixelLength(line, 0.6f, 0.6f);
+    tipOverlay2.x = 160.0f;
+    tipOverlay2.y = 50.0f;
+    tipOverlay2.scaleX = (width + 28) * 32;
+    tipOverlay2.scaleY = 16 * 32;
+    tipOverlay2.alpha = 200;
+    tipOverlay2.r = 255;
+    tipOverlay2.g = 200;
+    tipOverlay2.b = 255;
+    AddOverlay(&tipOverlay2);
+    NEW_TEXT(160, 54, 255, 255, 255, 252, 0.6f, 0.6f, 1, line, 1);
+    SetFont(0);
+}
+
+/* The newest chat lines at the lower left of the picture, in the game's menu font. A line that starts with a star
+   is the program's own note, in the color of the game's tips. */
+void G64ChatView(const char *const *lines, s32 count) {
+    char line[64];
+    s32 i;
+    if (count > 6)
+        count = 6;
+    SetFont(1);
+    for (i = 0; i < count; i++) {
+        s32 note = lines[i][0] == '*';
+        NEW_TEXT(14, 178 - (count - 1 - i) * 11, note ? 170 : 255, note ? 170 : 255, 255, 252, 0.55f, 0.55f, 1,
+                 view_string(line, lines[i]), 0);
+    }
+    SetFont(0);
+}
+
 void CarnivalView(s32 slot);
 
 /* The client calls this before it draws a player's view: in the Carnival bonus level the cannon points where that
