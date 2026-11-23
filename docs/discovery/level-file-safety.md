@@ -61,14 +61,19 @@ the check lacks does less harm:
   puzzle, an enemy, a vent, a landscape piece and its object, a group of garibs, a cameo, a buzzer. A vent and a
   buzzer keep to their 6 patterns. The parser's own pointers to those things stay as the game left them: they are in
   the game's memory, which `make regress` compares with the baseline.
+- An ENEMY must be of one of the game's 59 kinds, the level holds 30 enemies, and an enemy whose object is not in
+  the level's banks is not made. A pick-up must be one of the game's 15 and have its object, both from a PICKUP
+  token and from a puzzle's action while the level runs.
 - The level is then marked as one that cannot be played (`G64Unplayable`), which is the game's own state for a
   level without its file. The game shows its error screen and runs none of the level's logic.
 - Online, the players of such a level go back to the hub, and each is told why. A hub level that cannot be played
   keeps its players.
 - `pack_unplayable` in tests/rom/instances.c plays a level whose first platform names a missing object, and one
-  whose garibs come before any group: both players end in the hub each time, and no machine disagrees.
+  whose garibs come before any group, and one with an enemy of a kind the level's banks do not hold: both players
+  end in the hub each time, and no machine disagrees.
 
-Not guarded yet: objects that enemies, pick-ups and puzzle actions look up after the parser; POS and the tokens
+Not guarded yet: the other objects that the game looks up while a level runs (a destructible platform's debris,
+a puzzle's backdrop); POS and the tokens
 that free a platform's faces, on a DUMMY; the short forms, which the check before loading refuses; and the rest of
 the list below.
 

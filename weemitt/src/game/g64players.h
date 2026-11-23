@@ -353,6 +353,11 @@ extern s32 g64ParseLogOn, g64ParseLogCount;
 extern s32 g64ParseLog[G64_PARSE_LOG][2];
 void G64ParseTrace(s32 offset, s32 token);
 
+/* Marks the level as one that cannot be played: the game's own state for a level without its file. The level
+   parser and the code that makes enemies and pick-ups call it where a level file names something the game does not
+   have. Online, the level's players then go back to the hub. */
+void G64Unplayable(const char *what);
+
 /* Tells a level pack's script that something happened to the player whose state is in the game's variables now:
    1 a garib taken, 2 a death (src/port/g64lua.c, G64LuaEvent). The script hears of it at the next frame. */
 void G64ScriptEvent(s32 kind);

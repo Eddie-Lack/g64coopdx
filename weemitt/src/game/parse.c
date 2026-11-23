@@ -396,7 +396,16 @@ void ParseLandscapeFile(s32 num) {
             PORT_COPY(&y, &data, 4);
             PORT_COPY(&z, &data, 4);
             PORT_COPY(&w, &data, 4);
+            /* g64coopdx: the type picks one of the game's 59 enemy kinds, and the level holds 30 enemies. An enemy
+               whose object the level's banks do not hold has marked the level as one that cannot be played. */
+            if (nme < 0 || nme > 58 || numberOfEnemies >= 30) {
+                G64Unplayable("ENEMY");
+                continue;
+            }
             LoadEnemy(nme, x, y, z, tag[0], w);
+            if (gameInfo.mode == 13) {
+                continue;
+            }
             enemies[numberOfEnemies - 1].brain.area.size.x = -1.0f;
             if (enemyStats[nme].flags & 0x40) {
                 numGaribs++;
