@@ -303,6 +303,12 @@ int main(void) {
     end("an action with a number past the game's last", 0);
 
     begin();
+    word(187);
+    len += 12;
+    word(33);
+    end("a tip past the game's last", 0);
+
+    begin();
     word(189);
     word(420);
     len += 4;

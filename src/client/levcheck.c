@@ -324,6 +324,10 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         if (be16(d) < 0 || be16(d) > 419)
             return "a sound's number is 0 to 419";
         break;
+    case 187: /* TIP: its place, then its number. The game has tips 0 to 32. */
+        if (be16(d + 12) < 0 || be16(d + 12) > 32)
+            return "a TIP has a number the game does not have";
+        break;
     case T_STARTPOINT:
         if (be16(d) < 0 || be16(d) >= w->points)
             return "a STARTPOINT names a point the platform's path does not have";

@@ -30,6 +30,11 @@ void AnimateActor(Actor *actor, s32 animNum, u8 loop, u8 queue, f32 speed) {
     if (state == NULL || state->anims == NULL) {
         return;
     }
+    /* g64coopdx: a number below 0 can come from a level file, through a cameo's instruction. The game's own test
+       below is for a number past the object's last animation. */
+    if (animNum < 0) {
+        animNum = 0;
+    }
     if (state->current == animNum && !queue && !state->finishedAnim) {
         if ((speed == 0.0f && state->speed == state->anims[animNum].speed) || speed == state->speed) {
             state->loop = loop;

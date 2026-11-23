@@ -36,6 +36,7 @@ rules:
 - a puzzle condition (27 to 30) and a puzzle action (56 to 58) name only the level's 100 variables, in both of
   their operands
 - a puzzle condition's number is 9 to 44 and an action's 45 to 87; a confine condition names limit 0 to 5
+- a TIP's number is 0 to 32
 
 Every rule passes on all 48 levels of the ROM. Of "The most dangerous" below, these cover points 1, 2 and 3 but for
 a cameo's extra camera spheres, and the plank count of point 9.
@@ -72,6 +73,10 @@ the check lacks does less harm:
 - A platform cannot be its own parent. A TAKESPIN under a parent whose spin has no axis stops the level: the game
   wrote three numbers into a list of two. A vent whose patterns all have 0 frames on stays off; the game called
   itself for it without an end.
+- A TIP's number is 0 to 32. An animation's number below 0 plays the object's first.
+- A cameo starts only when every one of its instructions names things that are there (`CameoUsable` in cameo.c): an
+  enemy of the level by its number, another instruction of the cameo as its trigger, one of an actor's 8 spheres.
+  A puzzle's action can start only a cameo the level has.
 - A puzzle condition's and action's number must be one the game has, and their puzzle variables among the level's
   100: the parser tests them as it reads them.
 - While the level runs, a condition or an action whose tag meets a platform without the part it needs (a path, a
@@ -88,10 +93,9 @@ the check lacks does less harm:
   whose garibs come before any group, and one with an enemy of a kind the level's banks do not hold: both players
   end in the hub each time, and no machine disagrees.
 
-Not guarded yet: the other objects that the game looks up while a level runs (a destructible platform's debris,
-a puzzle's backdrop); POS and the tokens
-that free a platform's faces, on a DUMMY; the short forms, which the check before loading refuses; and the rest of
-the list below.
+Not guarded in the game yet: a destructible platform's debris object; POS and the tokens that free a platform's
+faces, on a DUMMY; the short forms, which the check before loading refuses; work without end (a head start's or a
+bridge's update count, any number of objects until the heap is full); and what the last section says was not read.
 
 ## How the parser reads
 
