@@ -52,6 +52,8 @@ extern s32 frameCount;
 extern u8 draw_buffer;
 extern Gfx overlay_dl[];
 extern Gfx overlay_dl2[];
+Gfx *G64TitleTextStart(s32 buffer);
+s32 G64TitleTextFull(Gfx *next, s32 n);
 extern PTR32(Gfx) overlay_dl_next[];
 extern s32 spriteXluMode[2];
 extern Gfx rspInitForSprites_dl[];
@@ -367,7 +369,9 @@ void PrintOverlay(Overlay *overlay) {
     f32 x1;
     f32 y1;
 
-    if ((draw_buffer ? &overlay_dl[NUM_DL(178)] < overlay_dl_next[0] : &overlay_dl2[NUM_DL(178)] < overlay_dl_next[0]) ||
+    /* g64coopdx: the online program's start screen draws through a larger buffer (g64title.c). */
+    if ((G64TitleTextStart(draw_buffer) != NULL ? G64TitleTextFull(overlay_dl_next[0], 2)
+         : draw_buffer ? &overlay_dl[NUM_DL(178)] < overlay_dl_next[0] : &overlay_dl2[NUM_DL(178)] < overlay_dl_next[0]) ||
         !overlay->scaleX || !overlay->scaleY) {
         return;
     }

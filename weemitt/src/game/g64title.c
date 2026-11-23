@@ -12,6 +12,8 @@ PORT_C_BEGIN
 #include "camera.h"
 #include "delta.h"
 #include "enums.h"
+#include "text.h"
+#include "jalloc.h"
 #include "g64title.h"
 
 struct Text *NEW_TEXT(s16 x, s16 y, u8 r, u8 g, u8 b, u8 a, f32 sx, f32 sy, u8 oneShot, char *str, u8 centre);
@@ -61,10 +63,26 @@ static struct {
     u32 ball;
 } page;
 
+/* The game draws text and pictures through one buffer of about 180 letters a frame (overlay_dl, font.c). The start
+   screen has more text than that: while it is on, the game draws them through two larger buffers on the game's
+   heap, one for each picture buffer. */
+#define TEXT_GFX 12000
+static Gfx *textGfx[2];
+
+Gfx *G64TitleTextStart(s32 buffer) {
+    return page.on && textGfx[0] != NULL ? textGfx[buffer ? 0 : 1] : NULL;
+}
+
+/* 1 when the buffer has no room left for n more letters or pictures. */
+s32 G64TitleTextFull(Gfx *next, s32 n) {
+    Gfx *start = textGfx[0] <= next && next < textGfx[0] + TEXT_GFX ? textGfx[0] : textGfx[1];
+    return next + NUM_DL(n) > start + TEXT_GFX;
+}
+
 /* What the start screen keeps from frame to frame: the bars it added to the title's, each row's spin, and the row
    that was chosen before. */
 static s32 barsMade;
-static f32 jog[G64_TITLE_ROWS];
+static f32 jog[G64_TITLE_ROWS]; /* from 6.28 down to 0 after the row is chosen */
 static s32 lastSelected = -1;
 static s32 lastCount = -1;
 static f32 gloveTurn;
@@ -223,6 +241,8 @@ s32 G64TitleMenu(void) {
         LoadObjectBank(1);
         initFGObject("goodglov.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);
         initFGObject("gball.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);
+        textGfx[0] = (Gfx *)JallocAlloc(TEXT_GFX * sizeof(Gfx), 0, "G64Text0");
+        textGfx[1] = (Gfx *)JallocAlloc(TEXT_GFX * sizeof(Gfx), 0, "G64Text1");
         barsMade = 1;
     }
     if (!barsMade) {
@@ -242,7 +262,7 @@ s32 G64TitleMenu(void) {
     for (i = 0; i < G64_TITLE_ROWS; i++) {
         Actor *b = bar(i);
         if (i >= page.count) {
-            b->pos.x = 5000.0f;
+            b->pos.y = -1000.0f; /* below the picture */
             continue;
         }
         {
@@ -253,13 +273,16 @@ s32 G64TitleMenu(void) {
             f32 scale = (sel ? 0.9f : 0.75f) * (size < 0.85f ? size / 0.85f : 1.0f);
             s32 alpha = off ? 110 : sel ? (s32)pulse : 255;
             b->pos.x = BAR_X;
-            b->pos.y = (y + 8.0f - 119.5f) / 0.73f;
+            /* A larger y is higher in the picture. The bar's middle stands 11 points above the text's place. */
+            b->pos.y = (121.0f - y) / 0.77f;
             b->pos.z = 400.0f;
             b->scale.x = 0.85f;
-            b->scale.y = size * (sel ? 1.0f : 0.9f);
+            /* A newly chosen bar swells and settles. The title's bars spin instead, but these bars turn around a
+               point far from their middle. */
+            b->scale.y = size * (sel ? 1.0f : 0.9f) * (1.0f + jog[i] * 0.04f);
             b->scale.z = 1.0f;
             b->alpha = 255;
-            b->rot.x = jog[i];
+            b->rot.x = 0.0f;
             b->rot.y = sinf(animFloat * (0.1f + i * 0.03f)) * 0.1 + 3.14;
             b->rot.z = sinf(animFloat * 0.15) * 0.1;
             if (page.rows[i].value[0]) {
@@ -275,8 +298,8 @@ s32 G64TitleMenu(void) {
             } else {
                 copy_text(line, sizeof line, page.rows[i].label);
             }
-            /* A row that is being typed in shows a blinking mark at its end. */
-            if ((page.rows[i].flags & G64_TITLE_TYPING) && (frameCount2 & 8)) {
+            /* The chosen row of typed text shows a blinking mark at its end. */
+            if (sel && (page.rows[i].flags & G64_TITLE_TEXT) && (frameCount2 & 8)) {
                 s32 n = strlen(line);
                 if (n < 62) {
                     line[n] = '-';
@@ -302,7 +325,8 @@ s32 G64TitleMenu(void) {
             }
             if (sel) {
                 SetFont(0);
-                aimBallX = MID - GetStringPixelLength(line, scale, scale) / 2 - 22;
+                aimBallX = MID - GetStringPixelLength(line, scale, scale) / 2 -
+                           (page.rows[i].flags & G64_TITLE_ARROWS ? 34 : 22);
                 aimBallY = (s32)y - 10;
             }
         }
@@ -331,8 +355,8 @@ s32 G64TitleMenu(void) {
     if (page.hints[0]) {
         text(160, 236, 0xFFFFFF, 255, 0.6f, 1, page.hints, 1);
     }
-    /* The player's glove and ball turn slowly at the right, in the player's colors. For these two, a larger y is
-       higher in the picture: the glove's middle is at y 80 and the ball's at y 130. */
+    /* The player's glove and ball turn slowly at the right, in the player's colors: the glove's middle at y 80 and the
+       ball's at y 130. */
     {
         Actor *g = foregroundObjects[PLAYER_GLOVE];
         Actor *b = foregroundObjects[PLAYER_BALL];

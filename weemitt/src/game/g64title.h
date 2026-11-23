@@ -8,10 +8,11 @@ extern "C" {
 
 /* The most rows a page has. */
 #define G64_TITLE_ROWS 7
-/* A row's flags: grayed out, a value that left and right change, and a value that is being typed. */
+/* A row's flags: grayed out, a value that left and right change, and a value that the player types (the chosen
+   one shows a blinking mark). */
 #define G64_TITLE_OFF 1
 #define G64_TITLE_ARROWS 2
-#define G64_TITLE_TYPING 4
+#define G64_TITLE_TEXT 4
 /* A color that the player chose: this bit plus 0xRRGGBB (the session's G64_COLOR_SET). */
 #define G64_TITLE_COLOR_SET 0x1000000u
 

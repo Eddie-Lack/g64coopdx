@@ -276,14 +276,14 @@ static void build_page(launcher *L) {
             add_row(R_ANY_BALL, "Balls", netplay_host_any_ball() ? "shared" : "own", G64_TITLE_ARROWS);
             add_row(R_ANY_WORLD, "Worlds", netplay_host_any_world() ? "any" : "together", G64_TITLE_ARROWS);
             add_row(R_LISTED, "In the list", netplay_public() ? "yes" : "no", G64_TITLE_ARROWS);
-            add_row(R_TITLE, "Title", L->title[0] ? L->title : "-", netplay_public() ? 0 : G64_TITLE_OFF);
+            add_row(R_TITLE, "Title", L->title, netplay_public() ? G64_TITLE_TEXT : G64_TITLE_OFF);
             add_row(R_HOST, "Start hosting", "", 0);
             break;
         }
         case PAGE_JOIN: {
             int n = netplay_rooms_count();
             G64TitlePage("Join a game");
-            add_row(R_CODE, "Code", L->code[0] ? L->code : "-", 0);
+            add_row(R_CODE, "Code", L->code, G64_TITLE_TEXT);
             add_row(R_JOIN, "Join", "", strlen(L->code) == NETPLAY_ROOM_CODE ? 0 : G64_TITLE_OFF);
             for (i = 0; i < n && rowCount < G64_TITLE_ROWS; i++) {
                 const net_room *r = netplay_room(i);
@@ -299,7 +299,7 @@ static void build_page(launcher *L) {
             int g = shade_of(custom[0]), b = shade_of(custom[1]);
             snprintf(d, sizeof d, "%d", netplay_input_delay());
             G64TitlePage("Your options");
-            add_row(R_NAME, "Name", nameText[0] ? nameText : "-", 0);
+            add_row(R_NAME, "Name", nameText, G64_TITLE_TEXT);
             add_row(R_COLORS, "Colors", own ? "custom" : palettes[choice].name, G64_TITLE_ARROWS);
             add_row(R_GLOVE, "Glove", own ? (g >= 0 ? shades[g].name : "saved") : "-",
                     own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
