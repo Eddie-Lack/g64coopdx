@@ -436,6 +436,34 @@ static void test_pack(uint32_t *clock) {
         net_close(hs), net_close(s1), net_close(s2);
     }
     {
+        /* A joiner who asks for the first pieces again and again gets the pack three times over and no more, and
+           loses the place. A start that comes while the offer is open does not count. */
+        net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err);
+        g64_session *host = g64_session_host(hs, 2, ROM, 0, 3), *a;
+        uint8_t want[21] = {0x4A, 7, 7, 7, 1}, start[9 + 24 * 2] = {0x43, 2, 0, 3, 0, 3, 0, 3, 0};
+        int k;
+        net_resolve("127.0.0.1", net_port(hs), &hostAddr, err, sizeof err);
+        g64_session_set_build(host, BUILD);
+        g64_session_set_pack(host, hostId);
+        g64_session_send_pack(host, &info, packBytes);
+        a = g64_session_join(s1, &hostAddr, ROM, "greedy");
+        g64_session_set_build(a, BUILD);
+        pack_pump(host, a, clock, 60);
+        g64_session_test_inner(a, 0, start, sizeof start, *clock, NULL, NULL);
+        check(g64_session_poll(a, *clock, NULL, NULL) == G64_SESSION_WAITING, "a start while the offer is open does not count");
+        check(g64_session_peer_addr(host, 1) != NULL, "the joiner holds a place before it asks");
+        for (k = 0; k < 400 && g64_session_peer_addr(host, 1) != NULL; k++) {
+            *clock += 30;
+            g64_session_test_inner(host, 1, want, sizeof want, *clock, NULL, NULL);
+            g64_session_poll(a, *clock, NULL, NULL);
+            g64_session_poll(host, *clock, NULL, NULL);
+        }
+        check(g64_session_peer_addr(host, 1) == NULL && k > 3 * 20700 / 8192 && k < 60,
+              "a joiner who asks for the pack over and over loses the place");
+        g64_session_free(a), g64_session_free(host);
+        net_close(hs), net_close(s1);
+    }
+    {
         /* Offers that are not as they must be are dropped. */
         net_socket *s1 = net_open(0, err, sizeof err);
         g64_session *a = g64_session_join(s1, &hostAddr, ROM, "x");

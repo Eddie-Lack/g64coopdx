@@ -27,6 +27,10 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
 #define PACK_ASK 200
 /* How long a place is held for a player who has not got the pack yet, in ms. */
 #define PACK_WAIT (5 * 60 * 1000)
+/* The most places that players without the pack may hold at once, and how many times the pack's size the host
+   sends to one of them before it frees the place: a joiner cannot hold the room or the host's line for long. */
+#define PACK_PLACES 4
+#define PACK_TIMES 3
 /* The hello's bytes before the name: the type, "G64", the protocol, the ROM, the build, two colors, and the
    joiner's public key. */
 #define HELLO_KEY 21
@@ -72,6 +76,8 @@ typedef struct {
        they came; served is when the host last sent them pieces. */
     int needPack;
     uint32_t packSince, packServed, lastOffer;
+    size_t packSent; /* the pack's bytes sent to this peer so far */
+    int packOver;    /* the peer asked for more than PACK_TIMES the pack: the place is freed */
     int packAsked; /* the peer has asked for a piece or said it is ready, so it has the offer */
     uint32_t lastStart; /* when the host last sent this peer the start or the list of players */
     /* On the host: when a removed player's program was last told, at most every RESEND ms. */
@@ -389,6 +395,14 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
                     free_slot = p;
             if (free_slot < 0)
                 refuse[1] = G64_REFUSE_FULL;
+            /* Players without the pack hold only so many places at once. */
+            if (memcmp(d + HELLO_PACK, g->pack, G64_PACK_ID_SIZE) != 0) {
+                int waiting = 0;
+                for (p = 1; p < g->players; p++)
+                    waiting += g->peers[p].used && !g->peers[p].gone && g->peers[p].needPack;
+                if (waiting >= PACK_PLACES)
+                    refuse[1] = G64_REFUSE_FULL;
+            }
         }
         if (refuse[1]) {
             send_bytes(g, from, refuse, sizeof refuse);
@@ -478,6 +492,10 @@ static void host_pack(g64_session *g, int p, const uint8_t *d, int n, uint32_t n
         q->packAsked = 1;
         if (at >= total || (q->packServed && now - q->packServed < PACK_GAP))
             return;
+        if (q->packSent > total * PACK_TIMES) {
+            q->packOver = 1;
+            return;
+        }
         /* The pieces all players may get: PACK_RATE a second, and never more than PACK_POOL saved up. */
         {
             uint32_t passed = now - g->packPoolTime;
@@ -495,6 +513,7 @@ static void host_pack(g64_session *g, int p, const uint8_t *d, int n, uint32_t n
             put32(m + 1, (uint32_t)at);
             memcpy(m + 5, g->packBytes + at, len);
             send_sealed(g, q, m, 5 + len);
+            q->packSent += len;
             at += len;
             g->packPool--;
         }
@@ -552,7 +571,9 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
     case MSG_START:
         /* The start, and after it the same message again and again as the list of players: who is in now, with
            their names and colors. */
-        if (n >= START_HEAD && g->me >= 1 && d[1] == g->players && n == START_HEAD + START_EACH * g->players &&
+        /* No start counts while the host's offer is open: this machine does not have the host's pack yet. */
+        if (g->packState != G64_PACK_OFFERED && g->packState != G64_PACK_LOADING && g->packState != G64_PACK_LOADED &&
+            n >= START_HEAD && g->me >= 1 && d[1] == g->players && n == START_HEAD + START_EACH * g->players &&
             d[3] >= 1 && (d[4] & ~G64_FLAGS_KNOWN) == 0) {
             unsigned all = g->players >= 16 ? 0xFFFFu : (1u << g->players) - 1u;
             unsigned present = (unsigned)d[5] | (unsigned)d[6] << 8, members = (unsigned)d[7] | (unsigned)d[8] << 8;
@@ -767,7 +788,7 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
                 q->lastOffer = now ? now : 1;
                 send_offer(g, q);
             }
-            if (now - q->heard > TIMEOUT || (q->needPack && now - q->packSince > PACK_WAIT)) {
+            if (now - q->heard > TIMEOUT || (q->needPack && (q->packOver || now - q->packSince > PACK_WAIT))) {
                 if (g->state == G64_SESSION_STARTED) {
                     /* The game goes on without them: the host gives their glove no input from now on. */
                     q->gone = 1;
@@ -869,7 +890,7 @@ void g64_session_send_game(g64_session *g, int to, const uint8_t *data, size_t l
     if (len + 1 + G64_SEAL_OVERHEAD > sizeof m || g->state != G64_SESSION_STARTED)
         return;
     if (g->host) {
-        if (to < 1 || to >= g->players || !g->peers[to].used || g->peers[to].gone)
+        if (to < 1 || to >= g->players || !g->peers[to].used || g->peers[to].gone || g->peers[to].needPack)
             return;
     } else {
         to = 0;

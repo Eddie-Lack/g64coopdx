@@ -146,10 +146,23 @@ size_t netplay_offer_size(void) {
 }
 int netplay_offer_script(void) { return session && g64_session_pack_offer(session)->scriptSize > 0; }
 
+/* The folder of the player's own pack (netplay_set_pack), and 1 when the session's pack is no longer that one: a
+   joiner took the host's pack, or dropped its own for a host without one. The next session starts with the player's
+   own pack again. */
+static char ownPackDir[1024];
+static int packTaken;
+
 int netplay_set_pack(const char *dir, char *err, size_t errSize) {
     g64_pack_free(&pack);
+    packTaken = 0;
+    ownPackDir[0] = 0;
     if (!dir || !dir[0])
         return 0;
+    if (strlen(dir) >= sizeof ownPackDir) {
+        snprintf(err, errSize, "the level pack's path is too long");
+        return -1;
+    }
+    snprintf(ownPackDir, sizeof ownPackDir, "%s", dir);
     return g64_pack_load(dir, &pack, err, errSize);
 }
 
@@ -481,6 +494,7 @@ static void host_offer_pack(void) {
 /* On a joiner: takes p as the session's pack, in place of the one this program started with. */
 static void take_pack(g64_pack *p) {
     g64_pack_free(&pack);
+    packTaken = 1;
     pack = *p;
     memset(p, 0, sizeof *p);
     p->level = -1;
@@ -523,6 +537,8 @@ static int joiner_pack(void) {
         packKept = packCache[0] && g64_pack_cache_load(packCache, o->id, &keptPack, err, sizeof err) == 0 &&
                    strcmp(keptPack.name, o->name) == 0;
         if (packPolicy == PACK_NO) {
+            g64_pack_free(&keptPack);
+            packKept = 0;
             snprintf(err, sizeof err, "the host plays the level pack \"%s\". Start with --pack and its folder, or with "
                                       "--accept-pack to download it from the host",
                      o->name);
@@ -598,6 +614,16 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
     netplay_cancel();
     cerror[0] = 0;
     packAsking = packKept = 0;
+    if (packTaken) {
+        /* The last session's pack was the host's. This session starts with the player's own, or with none. */
+        char why[200];
+        g64_pack_free(&pack);
+        packTaken = 0;
+        if (ownPackDir[0] && g64_pack_load(ownPackDir, &pack, why, sizeof why) != 0) {
+            snprintf(err, errSize, "%s", why);
+            return fail_connect(err);
+        }
+    }
     cjoined = 0;
     chatCount = 0;
     memset(kickNoted, 0, sizeof kickNoted);
