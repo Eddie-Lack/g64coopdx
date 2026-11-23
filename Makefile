@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
