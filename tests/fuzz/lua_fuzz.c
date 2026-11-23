@@ -54,6 +54,19 @@ int G64PlayerGaribs(int p) {
     return p == 0 ? frames / 10 : -1;
 }
 
+/* The level's puzzle variables, as the stand-in game keeps them. */
+static int puzzleVars[100];
+
+int G64PuzzleVar(int n) {
+    return n >= 0 && n < 100 ? puzzleVars[n] : -1;
+}
+
+void G64SetPuzzleVar(int n, int value) {
+    if (n >= 0 && n < 100) {
+        puzzleVars[n] = value;
+    }
+}
+
 /* A hurt takes a point of the stand-in player's health; the health call sets it. */
 static int health = 3;
 

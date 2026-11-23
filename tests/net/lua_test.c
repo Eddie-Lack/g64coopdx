@@ -61,6 +61,19 @@ int G64PlayerGaribs(int p) {
     return p == 0 ? frames / 10 : -1;
 }
 
+/* The level's puzzle variables, as the stand-in game keeps them. */
+static int puzzleVars[100];
+
+int G64PuzzleVar(int n) {
+    return n >= 0 && n < 100 ? puzzleVars[n] : -1;
+}
+
+void G64SetPuzzleVar(int n, int value) {
+    if (n >= 0 && n < 100) {
+        puzzleVars[n] = value;
+    }
+}
+
 /* A hurt takes a point of the stand-in player's health; the health call sets it. */
 static int health = 3;
 
@@ -226,6 +239,14 @@ int main(void) {
         "game.hurt(7); game.set_health(7, 2)\n"
         "game.log(a .. ' ' .. b .. ' ' .. ((pcall(game.set_health, 0, 0) or pcall(game.set_health, 0, 4) or\n"
         "         pcall(game.set_health, 0, 1.5) or pcall(game.hurt, 16)) and 'ALLOWED' or 'refused'))\n",
+        1, 1);
+
+    run("the level's puzzle variables",
+        "local a = game.var(7)\n"
+        "game.set_var(7, 12); game.set_var(99, -1000000); game.set_var(0, 1000000)\n"
+        "game.log(a .. ' ' .. game.var(7) .. ' ' .. game.var(99) .. ' ' .. game.var(0) .. ' ' ..\n"
+        "         ((pcall(game.var, 100) or pcall(game.var, -1) or pcall(game.set_var, 100, 1) or\n"
+        "           pcall(game.set_var, 1, 1000001) or pcall(game.set_var, 1, 0.5)) and 'ALLOWED' or 'refused'))\n",
         1, 1);
 
     run("random numbers",

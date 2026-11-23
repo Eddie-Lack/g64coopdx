@@ -465,9 +465,9 @@ void G64LuaCounts(unsigned out[4]);
 double G64LuaGlobal(const char *name);
 
 /* Numbers that two_players reads from the script's global variables at the end. */
-#define SCRIPT_VALUES 10
-static const char *const scriptName[SCRIPT_VALUES] = {"joins",  "angles", "dice",   "balls", "counts",
-                                                      "frames", "taken",  "deaths", "taker", "healths"};
+#define SCRIPT_VALUES 11
+static const char *const scriptName[SCRIPT_VALUES] = {"joins",  "angles", "dice",   "balls", "counts", "frames",
+                                                      "taken",  "deaths", "taker",  "healths", "vars"};
 static double scriptValue[SCRIPT_VALUES];
 /* Where a garib of the level is, read at the end of two_players. */
 int G64GaribPlace(int k, float *x, float *y, float *z);
@@ -570,7 +570,7 @@ static void script_run(Engine *e, void *boot) {
     /* Events from the game's step. The script puts player 1's glove on a garib at frame 60, and far below the level
        at frame 150. It must hear of the garib, from player 1, and of the death. */
     static const char eventsText[] =
-        "taken, deaths, taker, healths = 0, 0, -1, 0\n"
+        "taken, deaths, taker, healths, vars = 0, 0, -1, 0, 0\n"
         "function on_garib(p) taken = taken + 1; taker = p end\n"
         "function on_death(p) deaths = deaths + 1 + p * 10 end\n"
         "function on_frame()\n"
@@ -583,6 +583,8 @@ static void script_run(Engine *e, void *boot) {
         "  if f == 102 then game.set_health(0, 3) end\n"
         "  if f == 103 then healths = healths + game.health(0) end\n"
         "  if f %% 7 == 0 then game.show(f %% 2, 'frame ' .. f, 5) end\n"
+        "  if f == 110 then vars = game.var(60) * 100; game.set_var(60, 9) end\n"
+        "  if f == 130 then vars = vars + game.var(60) end\n"
         "end\n";
     char events[sizeof eventsText + 200];
     uint8_t *with = malloc(romSize + sizeof script + sizeof endless + sizeof calls + sizeof events);
@@ -632,6 +634,7 @@ static void script_run(Engine *e, void *boot) {
           "a script hears of a garib taken and of a death");
     snprintf(what, sizeof what, "a script hurts a glove and heals it: health 2 and then 3 (%.0f)", scriptValue[9]);
     check(scriptValue[9] == 23, what);
+    check(scriptValue[10] == 9, "a script sets one of the level's puzzle variables, and it keeps the value");
     g64_instances_pack_script(0, 0);
     engine_set_rom(e, rom, romSize);
     free(with);

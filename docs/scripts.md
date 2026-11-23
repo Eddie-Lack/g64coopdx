@@ -2,8 +2,8 @@
 
 A level pack may hold a script: a file `script.lua` of Lua source text
 ([discovery/level-pack.md](discovery/level-pack.md)). This page is for someone who writes one. The scripting is a
-first version: a script can read the players, move, hurt and heal a glove, show text, draw random numbers, and
-keep values from level to level. More comes later.
+first version: a script can read the players, move, hurt and heal a glove, show text, draw random numbers, keep
+values from level to level, and work with the level's puzzles. More comes later.
 
 ## How a script runs
 
@@ -44,6 +44,8 @@ The table `game`:
 | `game.hurt(p)` | hurts player `p`'s glove by one point, by the game's own rules: a glove that was just hurt is not hurt again, and a glove at its last point dies |
 | `game.set_health(p, n)` | sets player `p`'s health to `n`, 1 to 3 |
 | `game.show(p, text)` | shows a line of text on player `p`'s screen for three seconds. `game.show(p, text, frames)` shows it for that many frames, 1 to 1200. A new text takes the old one's place, and an empty text takes the line away. The text is cut to 60 characters of plain ASCII |
+| `game.var(n)` | the level's puzzle variable number `n`, 0 to 99 |
+| `game.set_var(n, v)` | sets it to the whole number `v`, from -1000000 to 1000000 |
 | `game.random()` | a random number from 0 up to, not including, 1 |
 | `game.random(n)`, `game.random(a, b)` | a random whole number from 1 to `n`, or from `a` to `b`. The numbers stay within 31 bits |
 | `math.sin(x)`, `math.cos(x)` | the game's own sine and cosine, in single precision. `x` is from -1000000 to 1000000 |
@@ -54,6 +56,20 @@ A call that asks about a player gives nothing (`nil`) when that player is not in
 such a player does nothing.
 
 A script cannot change garibs or lives. The game carries them from level to level.
+
+## A script and the level's puzzles
+
+A level has 100 puzzle variables, whole numbers that start at 0. The level's puzzles test them and set them: in
+Glovebox these are the conditions `RegEq`, `RegNe`, `RegGt` and `RegLt`, and the actions `RegSet`, `RegAdd` and
+`RegSub`. A script reads and sets the same variables.
+
+- To have a script start something in the level, give a puzzle a condition on a variable, and set that variable
+  from the script. The puzzle's actions can be any the game has: a group of garibs, an enemy, a platform's move, a
+  camera. The puzzle sees the new value in the same frame.
+- To have the level tell the script something, give a puzzle an action that sets a variable, and read it in
+  `on_frame`.
+- Some of the game's own levels use a few variables. In a level of your own, the ones your puzzles use are yours.
+- The variables belong to one level. They start at 0 each time the level starts.
 
 ## Values that last from level to level
 

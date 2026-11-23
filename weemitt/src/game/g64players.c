@@ -1482,6 +1482,18 @@ void G64HurtPlayer(s32 who) {
     }
 }
 
+/* For scripts: the level's puzzle variables (puzzle.c, puzzleVal), 100 whole numbers that the level's puzzles test
+   and set. A script reads and sets them, and so starts what the level's maker tied to a variable: a group of garibs,
+   an enemy, a platform's move. -1 and nothing for a number out of range. */
+s32 G64PuzzleVar(s32 n) {
+    return n >= 0 && n < 100 ? puzzleVal[n] : -1;
+}
+
+void G64SetPuzzleVar(s32 n, s32 value) {
+    if (n >= 0 && n < 100)
+        puzzleVal[n] = value;
+}
+
 /* For scripts: sets a player's health, 1 to 3. */
 void G64SetPlayerHealth(s32 who, s32 health) {
     s32 i = slot_of(who);
