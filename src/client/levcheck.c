@@ -332,6 +332,12 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         /* Conditions 27 to 30 compare a puzzle variable, of which the level has 100, with a number, or with
            another variable when the first one's number is 100 or more. */
         int id = be16(d), tag = be16(d + 2), value = be16(d + 4);
+        /* The game has conditions 9 to 44. Another number, cut to a byte, becomes a camera's condition without a
+           camera's box. Conditions 31 and 32 test a platform's confine against one of its 6 limits. */
+        if (id < 9 || id > 44)
+            return "a puzzle condition has a number the game does not have";
+        if ((id == 31 || id == 32) && (value < 0 || value > 5))
+            return "a puzzle condition names a confine limit that is not 0 to 5";
         if (id >= 27 && id <= 30) {
             if (tag >= 100 ? (tag > 199 || value < 0 || value > 99) : tag < 0)
                 return "a puzzle condition names a variable the level does not have";
@@ -343,6 +349,8 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
            variable when the action's flag 0x80 is set. The fields are the id, the number (a float), the
            variable, a delay and the flags. */
         int id = be16(d);
+        if (id < 45 || id > 87)
+            return "a puzzle action has a number the game does not have";
         if (id >= 56 && id <= 58) {
             int tag = be16(d + 6);
             uint32_t bits = ((uint32_t)d[2] << 24) | ((uint32_t)d[3] << 16) | ((uint32_t)d[4] << 8) | d[5];

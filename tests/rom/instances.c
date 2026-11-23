@@ -649,7 +649,8 @@ static void script_run(Engine *e, void *boot) {
    go back to the hub: two players start in it, and both must end in the hub, with no machine disagreeing. */
 /* An enemy kind whose object Atlantis 1's banks do not hold. */
 #define ENEMY_ELSEWHERE 50
-static size_t firstPlatform, firstGroup, firstEnemy;
+static size_t firstPlatform, firstGroup, firstEnemy, conditions[64];
+static int conditionCount;
 static void find_platform(void *user, size_t offset, int token) {
     (void)user;
     if (token == 98 && firstPlatform == 0)
@@ -658,12 +659,17 @@ static void find_platform(void *user, size_t offset, int token) {
         firstGroup = offset;
     if (token == 131 && firstEnemy == 0)
         firstEnemy = offset;
+    if (token == 149 && conditionCount < 64)
+        conditions[conditionCount++] = offset;
 }
 
 /* which 0: the first platform's object is one the game does not have. which 1: the first group of garibs is gone
    (its token becomes COLL_OFFSET, which has fields of the same length and needs nothing), so the garibs after it
    come before any group. The parser kept its pointer to the last level's group, and wrote through it. which 2: the
-   first enemy is of a kind whose object Atlantis 1's banks do not hold (a boss of another world). */
+   first enemy is of a kind whose object Atlantis 1's banks do not hold (a boss of another world). which 3: the first
+   puzzle condition has a number the game does not have. which 4: every puzzle condition on a tag becomes "the
+   platform's spin is at pause 1" (AT_SPIN). Most of the tagged platforms have no spin, and none has a pause: the
+   game tested the spin without asking, and divided by its count of pauses. This level must go on. */
 static void unplayable_case(Engine *e, void *boot, int which) {
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
@@ -681,6 +687,7 @@ static void unplayable_case(Engine *e, void *boot, int which) {
     memcpy(with, rom, romSize);
     memcpy(with + romSize, rom + at, size);
     firstPlatform = firstGroup = firstEnemy = 0;
+    conditionCount = 0;
     g64_lev_check(with + romSize, size, find_platform, NULL, &bad);
     check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
     if (which == 0) {
@@ -692,11 +699,30 @@ static void unplayable_case(Engine *e, void *boot, int which) {
         with[romSize + firstGroup + 1] = 183;
         check(g64_lev_check(with + romSize, size, NULL, NULL, &bad) != NULL,
               "the check before loading refuses garibs without a group");
-    } else {
+    } else if (which == 2) {
         check(firstEnemy != 0, "Atlantis 1 has an enemy");
         /* The enemy's type is the two bytes after the token. */
         with[romSize + firstEnemy + 2] = 0;
         with[romSize + firstEnemy + 3] = ENEMY_ELSEWHERE;
+    } else if (which == 3) {
+        check(conditionCount > 0, "Atlantis 1 has a puzzle condition");
+        /* The condition's number is the two bytes after the token; the game has 9 to 44. Number 8 has fields of
+           the same length as most. */
+        with[romSize + conditions[0] + 2] = 0;
+        with[romSize + conditions[0] + 3] = 8;
+    } else {
+        int k, changed = 0;
+        for (k = 0; k < conditionCount; k++) {
+            uint8_t *c = with + romSize + conditions[k];
+            /* The conditions with a tag and a value have numbers below 34. Number 10 is AT_SPIN; the value 1. */
+            if (c[2] == 0 && c[3] < 34) {
+                c[3] = 10;
+                c[6] = 0;
+                c[7] = 1;
+                changed++;
+            }
+        }
+        check(changed > 0, "Atlantis 1 has puzzle conditions on tags");
     }
     engine_load(e, boot);
     for (p = 0; p < 8; p++)
@@ -723,13 +749,16 @@ static void unplayable_case(Engine *e, void *boot, int which) {
         }
         for (p = 0; p < 2; p++)
             levels[p] = g64_iclient_moving(player[p]) ? -1 : g64_iclient_level(player[p]);
-        snprintf(what, sizeof what,
-                 "a level with %s sends its players to the hub: levels %d and %d, %u mismatches, desyncs %u and %u",
-                 which == 0 ? "a missing object" : which == 1 ? "garibs before any group"
-                                                              : "an enemy the level's banks do not hold",
-                 levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
+        snprintf(what, sizeof what, "a level with %s %s: levels %d and %d, %u mismatches, desyncs %u and %u",
+                 which == 0   ? "a missing object"
+                 : which == 1 ? "garibs before any group"
+                 : which == 2 ? "an enemy the level's banks do not hold"
+                 : which == 3 ? "a puzzle condition the game does not have"
+                              : "conditions on spins that are not there",
+                 which == 4 ? "plays on" : "sends its players to the hub", levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
                  g64_iclient_desyncs(player[1]));
-        check(levels[0] == HUB1 && levels[1] == HUB1 && g64_ihost_hash_mismatches(host) == 0 &&
+        check(levels[0] == (which == 4 ? ATLANTIS1 : HUB1) && levels[1] == levels[0] &&
+                  g64_ihost_hash_mismatches(host) == 0 &&
                   g64_iclient_desyncs(player[0]) == 0 && g64_iclient_desyncs(player[1]) == 0,
               what);
     } else {
@@ -750,6 +779,8 @@ static void pack_unplayable(Engine *e, void *boot) {
     unplayable_case(e, boot, 0);
     unplayable_case(e, boot, 1);
     unplayable_case(e, boot, 2);
+    unplayable_case(e, boot, 3);
+    unplayable_case(e, boot, 4);
 }
 
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's
