@@ -67,6 +67,18 @@ void UpdateVent(Vent *vent) {
             vent->timer = vent->framesOn[vent->cycle];
             vent->cycle = (vent->cycle + 1) % vent->numCycles;
             if (vent->timer == 0) {
+                /* g64coopdx: a vent whose patterns all have 0 frames on would come here again without an end. It
+                   stays off. */
+                for (x = 0; x < vent->numCycles && x < 6; x++) {
+                    if (vent->framesOn[x] != 0) {
+                        break;
+                    }
+                }
+                if (x >= vent->numCycles || x >= 6) {
+                    vent->on = FALSE;
+                    vent->timer = 0;
+                    return;
+                }
                 vent->on = FALSE;
                 vent->timer = 1;
                 UpdateVent(vent);
