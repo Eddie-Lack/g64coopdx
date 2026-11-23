@@ -400,84 +400,9 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
     }
 }
 
-/* g64coopdx: the player's own pause menu in the online game (netplay.c): the choices in the middle of the screen, the
-   chosen one highlighted. The controller drives it; the game goes on behind it. */
-/* The chat's newest lines at the bottom left of the picture, each for a few seconds after it came. The menu's Chat
-   window has the whole list and the line to type in (menu.cpp). */
-#define CHAT_SHOWN_MS 8000u
-#define CHAT_SHOWN_LINES 6
-
-static int chat_overlay_lines(void) {
-    int i, n = 0;
-    for (i = netplay_chat_count() - 1; i >= 0 && n < CHAT_SHOWN_LINES; i--) {
-        if (netplay_chat_age(i) > CHAT_SHOWN_MS)
-            break;
-        n++;
-    }
-    return n;
-}
-
-static void chat_overlay(int h) {
-    int n = chat_overlay_lines(), i, count = netplay_chat_count();
-    ImDrawList *dl = ImGui::GetForegroundDrawList();
-    float y = (float)h - 110.0f - 18.0f * n;
-    for (i = count - n; i < count; i++) {
-        const char *line = netplay_chat_line(i);
-        ImVec2 size = ImGui::CalcTextSize(line);
-        dl->AddRectFilled(ImVec2(8, y - 1), ImVec2(16 + size.x, y + size.y + 1), IM_COL32(0, 0, 0, 150), 3.0f);
-        dl->AddText(ImVec2(12, y), line[0] == '*' ? IM_COL32(255, 220, 120, 255) : IM_COL32(255, 255, 255, 255), line);
-        y += 18.0f;
-    }
-}
-
-/* The line of text that a level pack's script shows to this player: in the upper middle of the picture. */
-static void script_overlay(int w, int h) {
-    const char *line = netplay_script_line();
-    ImDrawList *dl = ImGui::GetForegroundDrawList();
-    ImFont *font = ImGui::GetFont();
-    float size = ImGui::GetFontSize() * 1.5f;
-    ImVec2 text = font->CalcTextSizeA(size, 10000.0f, 0.0f, line);
-    float x = ((float)w - text.x) * 0.5f, y = (float)h * 0.18f;
-    dl->AddRectFilled(ImVec2(x - 10, y - 5), ImVec2(x + text.x + 10, y + text.y + 5), IM_COL32(0, 0, 0, 160), 5.0f);
-    dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 255, 255, 255), line);
-}
-
+/* The online game's pause menu, its chat lines over the picture and a script's line are drawn by the game itself,
+   in the game's own style (netplay.c calls G64MenuView, G64ChatView and G64LineView before each picture). Nothing
+   of them is drawn here. */
 void g64_pause_draw(SDL_Window *window) {
-    int w, h, i;
-    int chat = chat_overlay_lines();
-    int script = netplay_script_line()[0] != 0;
-    /* A tip is not drawn here: the game draws it in its own box (G64TipView). */
-    if (!netplay_pause_open() && chat == 0 && !script)
-        return;
-    SDL_GetWindowSize(window, &w, &h);
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
-    if (chat)
-        chat_overlay(h);
-    if (script)
-        script_overlay(w, h);
-    if (!netplay_pause_open()) {
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        return;
-    }
-    ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(360, 0), ImGuiCond_Always);
-    ImGui::Begin("Paused", NULL,
-                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
-                     | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoInputs);
-    ImGui::SetWindowFontScale(1.4f);
-    for (i = 0; i < netplay_pause_items(); i++) {
-        if (i == netplay_pause_selection())
-            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "> %s", netplay_pause_item(i));
-        else
-            ImGui::Text("  %s", netplay_pause_item(i));
-    }
-    ImGui::Spacing();
-    ImGui::SetWindowFontScale(1.0f);
-    ImGui::TextDisabled("The game goes on for everyone.\nUp and down choose, A picks, B or Start closes.");
-    ImGui::End();
-    ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    (void)window;
 }

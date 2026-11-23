@@ -45,6 +45,11 @@ void G64SwapPlayer(int p);
 void G64TipView(int p);
 const char *G64LuaShown(int player);
 int G64LevelUnplayable(void);
+/* The pause menu, a script's line and the chat's newest lines, drawn by the game in its own style (weemitt's
+   g64players.c). */
+void G64MenuView(const char *const *items, int count, int selected);
+void G64LineView(const char *text);
+void G64ChatView(const char *const *lines, int count);
 void G64CannonView(int p);
 int G64PortalShut(int player);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
@@ -1305,6 +1310,23 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     /* The line of text that a level pack's script shows to this player, if any (weemitt's g64lua.c). It is read from
        the game that is about to be drawn, so it follows rollbacks. */
     snprintf(scriptLine, sizeof scriptLine, "%s", G64LuaShown(me));
+    /* This program's own text goes into the picture in the game's style: the chat's newest lines, each for a few
+       seconds, the script's line, and the pause menu over them. */
+    {
+        const char *lines[6];
+        int n = 0, i;
+        for (i = chatCount - 1; i >= 0 && n < 6 && now_ms() - chatTimes[i] <= 8000u; i--)
+            n++;
+        for (i = 0; i < n; i++)
+            lines[i] = chatLines[chatCount - n + i];
+        if (n > 0)
+            G64ChatView(lines, n);
+        /* The pause menu covers the middle of the picture: the script's line waits behind it. */
+        if (pauseOpen)
+            G64MenuView(pauseItems, PAUSE_ITEMS, pauseSelection);
+        else if (scriptLine[0] != 0)
+            G64LineView(scriptLine);
+    }
     /* The tip that this player reads, in the game's own box. */
     G64TipView(me);
     /* In the Carnival bonus level the cannon points where this player aims. */

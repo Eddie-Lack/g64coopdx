@@ -188,7 +188,8 @@ player's game only.
 ## Your pause menu
 
 Start (Enter on the keyboard) opens your own pause menu. It does not stop the game: the others play on, and your
-glove waits.
+glove waits. The menu, the chat's lines over the picture and a script's text are drawn by the game, in its own
+letters and panes.
 
 | Choice | What it does |
 | --- | --- |
