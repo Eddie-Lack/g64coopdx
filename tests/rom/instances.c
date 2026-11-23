@@ -647,14 +647,19 @@ static void script_run(Engine *e, void *boot) {
    the id of its first platform's object changed. The game's parser used what its lookup gave without a test, and
    such a file made it use a null pointer. Now the level is marked as one that cannot be played, and its players
    go back to the hub: two players start in it, and both must end in the hub, with no machine disagreeing. */
-static size_t firstPlatform;
+static size_t firstPlatform, firstGroup;
 static void find_platform(void *user, size_t offset, int token) {
     (void)user;
     if (token == 98 && firstPlatform == 0)
         firstPlatform = offset;
+    if (token == 133 && firstGroup == 0)
+        firstGroup = offset;
 }
 
-static void pack_unplayable(Engine *e, void *boot) {
+/* which 0: the first platform's object is one the game does not have. which 1: the first group of garibs is gone
+   (its token becomes COLL_OFFSET, which has fields of the same length and needs nothing), so the garibs after it
+   come before any group. The parser kept its pointer to the last level's group, and wrote through it. */
+static void unplayable_case(Engine *e, void *boot, int which) {
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
     size_t at = 0, size = 0, bad = 0;
@@ -670,12 +675,19 @@ static void pack_unplayable(Engine *e, void *boot) {
     memset(none, 0, sizeof none);
     memcpy(with, rom, romSize);
     memcpy(with + romSize, rom + at, size);
-    firstPlatform = 0;
+    firstPlatform = firstGroup = 0;
     g64_lev_check(with + romSize, size, find_platform, NULL, &bad);
-    check(firstPlatform != 0, "Atlantis 1 has a platform");
-    /* The object's id is the four bytes after the token. */
-    with[romSize + firstPlatform + 2] ^= 0x5A;
-    with[romSize + firstPlatform + 3] ^= 0xA5;
+    check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
+    if (which == 0) {
+        /* The object's id is the four bytes after the token. */
+        with[romSize + firstPlatform + 2] ^= 0x5A;
+        with[romSize + firstPlatform + 3] ^= 0xA5;
+    } else {
+        with[romSize + firstGroup] = 0;
+        with[romSize + firstGroup + 1] = 183;
+        check(g64_lev_check(with + romSize, size, NULL, NULL, &bad) != NULL,
+              "the check before loading refuses garibs without a group");
+    }
     engine_load(e, boot);
     for (p = 0; p < 8; p++)
         g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
@@ -702,9 +714,8 @@ static void pack_unplayable(Engine *e, void *boot) {
         for (p = 0; p < 2; p++)
             levels[p] = g64_iclient_moving(player[p]) ? -1 : g64_iclient_level(player[p]);
         snprintf(what, sizeof what,
-                 "a level that names a missing object sends its players to the hub: levels %d and %d, %u mismatches, "
-                 "desyncs %u and %u",
-                 levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
+                 "a level with %s sends its players to the hub: levels %d and %d, %u mismatches, desyncs %u and %u",
+                 which == 0 ? "a missing object" : "garibs before any group", levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
                  g64_iclient_desyncs(player[1]));
         check(levels[0] == HUB1 && levels[1] == HUB1 && g64_ihost_hash_mismatches(host) == 0 &&
                   g64_iclient_desyncs(player[0]) == 0 && g64_iclient_desyncs(player[1]) == 0,
@@ -721,6 +732,11 @@ static void pack_unplayable(Engine *e, void *boot) {
     engine_set_rom(e, rom, romSize);
     free(with);
     printf("%s a level that cannot be played does not stop the session\n", failed != before ? "FAIL" : "ok  ");
+}
+
+static void pack_unplayable(Engine *e, void *boot) {
+    unplayable_case(e, boot, 0);
+    unplayable_case(e, boot, 1);
 }
 
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's

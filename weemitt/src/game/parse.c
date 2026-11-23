@@ -100,6 +100,91 @@ void G64Unplayable(const char *what);
    test; a level file that names an object the level's banks do not hold made it use a null pointer. */
 #define G64_USABLE(inst) ((inst) != NULL && (inst)->obj != NULL && (inst)->obj->mesh != NULL)
 
+/* g64coopdx: 1 when the parser has what a token's handler uses. The handlers use a platform, an orbit, a spin, a
+   path's points, a puzzle, an enemy, a vent, a landscape piece, a group of garibs, a cameo or a buzzer without a
+   test, and the parser kept its pointers to them from the level before. A level file whose tokens come in another
+   order than the game's own levels' made a handler write through a pointer that was not set, or through one into
+   memory that was freed. ParseLandscapeFile now notes which of them this level's file has made, and asks here
+   before each token. The notes are apart from the pointers: the pointers stay as the game left them, since they are
+   in the game's memory, which the tests compare with the original's. */
+static s32 madePuzzle, madeVent, madeLandscape, madeCameo, madeGaribGroup, madeBuzzer;
+
+static s32 TokenAllowed(s16 token, Platform *platform) {
+    s32 points = platform != NULL && platform->path != NULL ? platform->path->numPoints : 0;
+
+    switch (token) {
+        case TOKEN_PUZZLE_AND:
+        case TOKEN_PUZZLE_OR:
+        case TOKEN_PUZZLE_NUMTIMES:
+        case TOKEN_PUZZLE_ANY:
+        case TOKEN_CONDITION:
+        case TOKEN_ACTION:
+            return madePuzzle && parsePuzzle != NULL;
+        case TOKEN_END_ENEMY:
+        case TOKEN_NORMAL_INSTRUCTION:
+        case TOKEN_CONDITIONAL_INSTRUCTION:
+        case TOKEN_ATTACK_INSTRUCTION:
+        case TOKEN_CONFINE_ENEMY:
+        case TOKEN_DISABLE_REDIRECTION:
+            return numberOfEnemies > 0;
+        case TOKEN_VENT_PATTERN:
+            return madeVent && lastVent != NULL && lastVent->numCycles < 6;
+        case TOKEN_LANDROT:
+        case TOKEN_LANDSCALE:
+            return madeLandscape && lastLandscape != NULL;
+        case TOKEN_GARIB:
+            return madeGaribGroup && parseGaribGroup != NULL;
+        case TOKEN_CAMEO_INSTRUCTION:
+            return madeCameo && lastCameo != NULL;
+        case TOKEN_BUZZER_PATTERN:
+            return madeBuzzer && buzzer != NULL && buzzer->numTimes < 6;
+        case TOKEN_HEADSTART:
+            return spikeOrPlatformOrVent == 0x62 ? platform != NULL
+                   : spikeOrPlatformOrVent == 0xA2 ? madeVent && lastVent != NULL : TRUE;
+        case TOKEN_TERRAIN:
+        case TOKEN_MODGE:
+            /* A platform's or a landscape piece's, by what was made last. Both handlers use the object. */
+            return spikeOrPlatformOrVent == 0x62 ? platform != NULL && G64_USABLE(platform->actor.inst)
+                                                 : madeLandscape && lastLandscape != NULL
+                                                       && G64_USABLE(lastLandscape->inst);
+        case TOKEN_SPARKLY:
+        case TOKEN_NOCAMCOLLIDE:
+            return spikeOrPlatformOrVent == 0x62 ? platform != NULL
+                   : spikeOrPlatformOrVent == 0x92 ? madeLandscape && lastLandscape != NULL : TRUE;
+        case TOKEN_ORBITPAUSE:
+        case TOKEN_ORBITFLIP:
+        case TOKEN_ORBIT_SOUND:
+        case TOKEN_ORBIT_STOP_SOUND:
+            return platform != NULL && platform->orbit != NULL;
+        case TOKEN_SYMMETRY:
+        case TOKEN_SPINPAUSE:
+        case TOKEN_SPINFLIP:
+        case TOKEN_MAXROT:
+        case TOKEN_SPIN_SOUND:
+        case TOKEN_SPIN_STOP_SOUND:
+            return platform != NULL && platform->motion != NULL;
+        case TOKEN_STOP_SOUND:
+            return points >= 1;
+        case TOKEN_LOOKATPOINT:
+        case TOKEN_GOFORWARDS:
+            return points >= 2;
+        case TOKEN_CRUMBLE_SOUND:
+            return platform != NULL && platform->crumble != NULL;
+        case TOKEN_DESTROY_SOUND:
+            return platform != NULL && platform->destruct != NULL;
+    }
+    /* Every other token that is a platform's. */
+    if ((token >= TOKEN_SPINTOMOVE && token <= TOKEN_HEADSTART) || (token >= TOKEN_LOOKATPOINT && token <= TOKEN_LOOKATBALL)
+        || (token >= TOKEN_RESTART && token <= TOKEN_CATAPULT) || (token >= TOKEN_POINT && token <= TOKEN_SPIKE)
+        || (token >= TOKEN_TELEPORT && token <= TOKEN_MAGNET) || token == TOKEN_ELECTRIC
+        || (token >= TOKEN_GRAVITY && token <= TOKEN_TILTY) || token == TOKEN_FLOATS
+        || (token >= TOKEN_POS && token <= TOKEN_EXITDOOR) || token == TOKEN_RECALC
+        || (token >= TOKEN_ANIMATE_PLATFORM && token <= TOKEN_DESTROY_SOUND)) {
+        return platform != NULL;
+    }
+    return TRUE;
+}
+
 void ParseLandscapeFile(s32 num) {
     s16 tag[4]; // an 8-byte buffer: it is given the first stack slot, as in the original
     u8 *data;
@@ -123,6 +208,9 @@ void ParseLandscapeFile(s32 num) {
     f32 dist;
     f32 radius;
 
+    /* g64coopdx: nothing of the level before is the parser's (TokenAllowed). */
+    platform = NULL;
+    madePuzzle = madeVent = madeLandscape = madeCameo = madeGaribGroup = madeBuzzer = 0;
     ropeTag = 10000;
     numRopeBridges = 0;
     numRestartGates = 0;
@@ -173,6 +261,32 @@ void ParseLandscapeFile(s32 num) {
         data += 2;
         if (gameInfo.mode == 13) {
             break;
+        }
+        if (!TokenAllowed(token, platform)) {
+            G64Unplayable("TOKEN ORDER");
+            break;
+        }
+        switch (token) {
+            case TOKEN_PUZZLE:
+                madePuzzle = 1;
+                break;
+            case TOKEN_VENT:
+                madeVent = 1;
+                break;
+            case TOKEN_LANDSCAPE:
+            case TOKEN_BACKGROUND:
+            case TOKEN_CAMEO_OBJ:
+                madeLandscape = 1;
+                break;
+            case TOKEN_CAMEO:
+                madeCameo = 1;
+                break;
+            case TOKEN_GARIBGROUP:
+                madeGaribGroup = 1;
+                break;
+            case TOKEN_BUZZER:
+                madeBuzzer = 1;
+                break;
         }
         if (ParseTokenGeneric(token, &data) || ParseTokenCameo(token, &data) || ParseTokenPuzzle(token, &data)
             || ParseTokenCollectable(token, &data) || ParseTokenPlatformInteraction(token, &data, platform)
@@ -630,7 +744,7 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
         PORT_COPY(buf, data, 2);
         PORT_COPY(&crc2, data, 4);
         /* g64coopdx: the camera's part must be there, and the cameo holds 10 extra spheres. */
-        if (lastLandscape == NULL || !G64_USABLE(lastLandscape->inst)) {
+        if (!madeLandscape || lastLandscape == NULL || !G64_USABLE(lastLandscape->inst)) {
             G64Unplayable("CAMEO OBJECT");
             return TRUE;
         }

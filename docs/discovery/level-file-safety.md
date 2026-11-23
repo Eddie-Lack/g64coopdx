@@ -56,15 +56,21 @@ the check lacks does less harm:
 - An object's lookup that finds nothing, or an object without a mesh, no longer gives the parser a null pointer:
   PLATFORM, the three bridges, LANDSCAPE, BACKGROUND, CAMEO_OBJ and WATER. The same for a backdrop's texture and for a
   cameo camera's part, and a cameo has at most 10 extra spheres.
+- Before each token the parser asks whether the thing the token's handler uses was made by this level's file
+  (`TokenAllowed` in parse.c): a platform, its orbit, its spin, its path's points, its crumble or destructible part, a
+  puzzle, an enemy, a vent, a landscape piece and its object, a group of garibs, a cameo, a buzzer. A vent and a
+  buzzer keep to their 6 patterns. The parser's own pointers to those things stay as the game left them: they are in
+  the game's memory, which `make regress` compares with the baseline.
 - The level is then marked as one that cannot be played (`G64Unplayable`), which is the game's own state for a
   level without its file. The game shows its error screen and runs none of the level's logic.
 - Online, the players of such a level go back to the hub, and each is told why. A hub level that cannot be played
   keeps its players.
-- `pack_unplayable` in tests/rom/instances.c plays a level whose first platform names a missing object: both
-  players end in the hub, and no machine disagrees.
+- `pack_unplayable` in tests/rom/instances.c plays a level whose first platform names a missing object, and one
+  whose garibs come before any group: both players end in the hub each time, and no machine disagrees.
 
-Not guarded yet: objects that enemies, pick-ups and puzzle actions look up after the parser; tokens that use a
-landscape piece or a platform without an object (TERRAIN, MODGE, POS on a DUMMY); and the rest of the list below.
+Not guarded yet: objects that enemies, pick-ups and puzzle actions look up after the parser; POS and the tokens
+that free a platform's faces, on a DUMMY; the short forms, which the check before loading refuses; and the rest of
+the list below.
 
 ## How the parser reads
 
