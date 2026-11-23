@@ -7,8 +7,9 @@ A level pack is a folder with a custom level for a session. This file is the for
 
 - A pack's level takes the place of one of the game's levels for the whole session. Entering that level loads the
   pack's level.
-- Every player has the pack's folder already and gives it to the program (`--pack FOLDER`). A host refuses a joiner
-  whose pack differs, or who has none.
+- The host gives the pack's folder to the program (`--pack FOLDER`). A joiner who lacks the pack downloads it from
+  the host, after the player said yes ("Packs that came from a host" below). A joiner may also have the folder
+  already.
 - The level places objects that the borrowed level's own banks hold. A level file that names an object the banks
   do not hold makes the game stop: there is no check for it yet.
 
@@ -80,7 +81,26 @@ the same one.
 
 ## Packs that came from a host
 
-The reader has what a download needs; the download itself is still to come.
+A joiner's hello names its pack. When the host's pack is another one, the host still gives the joiner a place, and
+offers its pack over the sealed link (`src/session/session.h`: offer, want, piece, ready).
+
+- The offer has the pack's id, name and sizes. The joiner's program shows the name and size and asks the player.
+  Nothing is stored before the answer. On the command line, `--accept-pack` is the answer; without it the session
+  ends.
+- The joiner asks for the bytes by offset, and the host answers each request with up to 8 pieces of 1,024 bytes.
+  The host keeps no state for a download. It serves one player at most every 20 ms and sends at most 256 pieces a
+  second in all: a download must not crowd out a running game's messages.
+- The joiner takes pieces in order only, up to the sizes of the first offer. A second offer of another pack ends
+  the session.
+- The joiner reads the bytes as a pack in the strict form, and compares its id and name with the offer's. Only then
+  does it tell the host that it is ready. Until then the host does not count the player: they are not in the
+  game, get no start and no chat, and their place is free again after five minutes.
+- A host without a pack offers "none", and a joiner who came with a pack plays without it.
+- The host does not offer a pack whose level file is a level of the ROM, or one that fails the check. It then
+  refuses a joiner who lacks the pack, as before.
+
+A pack whose level file is a shipped level with small changes does travel. The comparison catches exact copies
+only.
 
 - `g64_pack_from_bytes` reads a pack from its three files' bytes. Its strict form also holds the level file to the
   check of its structure ([level-file-safety.md](level-file-safety.md), "What is checked today"). A pack from
@@ -100,11 +120,9 @@ size, which are the same on every machine. It holds no pointer to the pack.
 
 ## Still to come
 
-- **A check of the level file.** The game's level parser is the original game's and trusts what it reads. Before a
-  pack may come from another player, the reader must check every command of the level file, and the ids it names
-  against the player's ROM. [level-file-safety.md](level-file-safety.md) lists what that check must hold: it is a
-  large piece of work, and the owner decides whether to do it or to keep packs to people who trust each other.
-- **Packs from the host.** A joiner without the pack is shown its name and size and asked. The host then sends it in
-  pieces, and the joiner checks its id ([mods.md](mods.md#how-mods-reach-other-players)).
+- **The rest of the level file's check.** A downloaded pack must pass the check of its structure, and the game
+  guards many of the values it reads. [level-file-safety.md](level-file-safety.md) lists what is still open. The
+  joiner is told to take a pack only from a host they trust.
+- **A list of packs in the lobby.** A room's entry does not name its pack yet.
 - **More in a pack:** the author's own models and textures in banks of their own, more than one level, and more
   for a script to call.

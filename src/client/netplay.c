@@ -117,10 +117,34 @@ void netplay_set_any_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_BA
 
 /* The level pack for the session (pack.h), the ROM this program was started with, and the buffer that holds that
    ROM with the pack's level file after it, which the game reads from once the session has begun. */
-static g64_pack pack = {"", -1, {0}, NULL, 0, NULL, 0};
+static g64_pack pack = {"", -1, {0}, NULL, 0, NULL, 0, NULL, 0};
 static const uint8_t *baseRom;
 static size_t baseRomSize;
 static uint8_t *packRom;
+/* On the host: the pack's three files one after another, as joiners download them. */
+static uint8_t *packBlob;
+/* The folder that keeps downloaded packs, and what this joiner does with the host's offer: PACK_ASK waits for the
+   player's answer (netplay_pack_answer), PACK_YES takes every offer (the --accept-pack option), PACK_NO refuses. */
+static char packCache[900];
+enum { PACK_NO, PACK_ASK, PACK_YES };
+static int packPolicy = PACK_NO;
+/* The offer that waits for the player's answer: 1 while it waits, and whether this machine has kept that pack. */
+static int packAsking, packKept;
+static g64_pack keptPack = {"", -1, {0}, NULL, 0, NULL, 0, NULL, 0};
+
+void netplay_set_pack_cache(const char *dir) { snprintf(packCache, sizeof packCache, "%s", dir ? dir : ""); }
+void netplay_set_pack_policy(int ask, int yes) { packPolicy = yes ? PACK_YES : ask ? PACK_ASK : PACK_NO; }
+int netplay_pack_asking(void) { return packAsking; }
+int netplay_pack_kept(void) { return packKept; }
+const char *netplay_offer_name(void) { return session ? g64_session_pack_offer(session)->name : ""; }
+size_t netplay_offer_size(void) {
+    const g64_pack_offer *o;
+    if (!session)
+        return 0;
+    o = g64_session_pack_offer(session);
+    return o->manifestSize + o->levSize + o->scriptSize;
+}
+int netplay_offer_script(void) { return session && g64_session_pack_offer(session)->scriptSize > 0; }
 
 int netplay_set_pack(const char *dir, char *err, size_t errSize) {
     g64_pack_free(&pack);
@@ -415,6 +439,124 @@ const char *netplay_build(void) { return G64_BUILD_ID; }
 
 static uint32_t build_hash(void) { return g64_rom_hash((const uint8_t *)G64_BUILD_ID, strlen(G64_BUILD_ID)); }
 
+/* On the host: lets the session send the pack to joiners who lack it, when the pack may travel. A pack whose level
+ * is a level of the ROM holds game data and never travels. A pack whose level file does not pass the check is not
+ * offered either: a joiner would download it and then refuse it. Joiners of such a pack need its folder. */
+static void host_offer_pack(void) {
+    g64_pack_offer info;
+    int rom;
+    free(packBlob);
+    packBlob = NULL;
+    if (!pack.lev) {
+        g64_session_send_pack(session, NULL, NULL);
+        return;
+    }
+    rom = g64_pack_rom_level(&pack, baseRom, baseRomSize);
+    if (rom >= 0) {
+        plog_printf("g64coopdx: the pack's level is level %d of the ROM: the pack is not sent to other players", rom);
+        return;
+    }
+    if (g64_pack_check_strict(&pack, NULL) != NULL) {
+        plog_printf("g64coopdx: the pack's level file does not pass the check (%s): the pack is not sent to other "
+                    "players",
+                    g64_pack_check_strict(&pack, NULL));
+        return;
+    }
+    packBlob = malloc(pack.manifestSize + pack.levSize + pack.scriptSize);
+    if (!packBlob)
+        return;
+    memcpy(packBlob, pack.manifest, pack.manifestSize);
+    memcpy(packBlob + pack.manifestSize, pack.lev, pack.levSize);
+    if (pack.script)
+        memcpy(packBlob + pack.manifestSize + pack.levSize, pack.script, pack.scriptSize);
+    memset(&info, 0, sizeof info);
+    snprintf(info.name, sizeof info.name, "%s", pack.name);
+    info.manifestSize = pack.manifestSize;
+    info.levSize = pack.levSize;
+    info.scriptSize = pack.scriptSize;
+    g64_session_send_pack(session, &info, packBlob);
+    plog_printf("g64coopdx: players without the level pack \"%s\" can download it from this host", pack.name);
+}
+
+/* On a joiner: takes p as the session's pack, in place of the one this program started with. */
+static void take_pack(g64_pack *p) {
+    g64_pack_free(&pack);
+    pack = *p;
+    memset(p, 0, sizeof *p);
+    p->level = -1;
+    g64_session_pack_ready(session);
+}
+
+void netplay_pack_answer(int yes) {
+    if (!packAsking || !session)
+        return;
+    packAsking = 0;
+    if (!yes) {
+        fail_connect("you did not take the host's level pack");
+        return;
+    }
+    if (packKept)
+        take_pack(&keptPack);
+    else if (g64_session_pack_accept(session) != 0)
+        fail_connect("no memory for the host's level pack");
+}
+
+/* On a joiner, while it waits for the start: the host's offer of its level pack, and the download. Returns -1 when
+ * the session ends here. */
+static int joiner_pack(void) {
+    const g64_pack_offer *o = g64_session_pack_offer(session);
+    g64_pack_state st = g64_session_pack_state(session);
+    char err[200];
+    if (st == G64_PACK_OFFERED && !packAsking) {
+        if (o->manifestSize + o->levSize + o->scriptSize == 0) {
+            /* The host plays without a pack: so does this machine. */
+            g64_pack none = {"", -1, {0}, NULL, 0, NULL, 0, NULL, 0};
+            plog_printf("g64coopdx: the host plays without a level pack; this game does too");
+            take_pack(&none);
+            return 0;
+        }
+        if (baseRomSize >= 0x0F000000u)
+            return fail_connect("the ROM is too large to play the host's level pack with");
+        /* A pack that was downloaded before is read from its folder, and checked in full again. The player is
+           asked all the same: the pack changes the game. */
+        g64_pack_free(&keptPack);
+        packKept = packCache[0] && g64_pack_cache_load(packCache, o->id, &keptPack, err, sizeof err) == 0 &&
+                   strcmp(keptPack.name, o->name) == 0;
+        if (packPolicy == PACK_NO) {
+            snprintf(err, sizeof err, "the host plays the level pack \"%s\". Start with --pack and its folder, or with "
+                                      "--accept-pack to download it from the host",
+                     o->name);
+            return fail_connect(err);
+        }
+        packAsking = 1;
+        if (packPolicy == PACK_YES)
+            netplay_pack_answer(1);
+        return cstate == C_FAILED ? -1 : 0;
+    }
+    if (st == G64_PACK_LOADED) {
+        /* Every byte is here, and every byte is untrusted: the pack must read as one, pass the check of its level
+           file, and be the pack the host named. */
+        const uint8_t *d = g64_session_pack_bytes(session);
+        g64_pack got;
+        char why[160];
+        if (g64_pack_from_bytes(d, o->manifestSize, d + o->manifestSize, o->levSize,
+                                o->scriptSize ? d + o->manifestSize + o->levSize : NULL, o->scriptSize, 1, &got, why,
+                                sizeof why) != 0) {
+            snprintf(err, sizeof err, "the host's level pack was refused: %s", why);
+            return fail_connect(err);
+        }
+        if (memcmp(got.id, o->id, G64_PACK_ID) != 0 || strcmp(got.name, o->name) != 0) {
+            g64_pack_free(&got);
+            return fail_connect("the host's level pack is not the one the host named");
+        }
+        if (!packCache[0] || g64_pack_cache_save(packCache, &got, why, sizeof why) != 0)
+            plog_printf("g64coopdx: the level pack was not kept for the next time");
+        plog_printf("g64coopdx: downloaded the level pack \"%s\" from the host", got.name);
+        take_pack(&got);
+    }
+    return 0;
+}
+
 /* Makes the session once the socket is ready: at once in the direct mode, after the relay's answer through it. */
 static int make_session(void) {
     if (crelay[0] && !chost) {
@@ -436,6 +578,8 @@ static int make_session(void) {
         g64_session_set_colors(session, myGlove, myBall);
         g64_session_set_build(session, build_hash());
         g64_session_set_pack(session, pack.lev ? pack.id : NULL);
+        if (chost)
+            host_offer_pack();
         g64_session_set_name(session, myName);
         g64_session_on_chat(session, on_chat, NULL);
     }
@@ -453,6 +597,7 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
                   const uint8_t *rom, size_t romSize, char *err, size_t errSize) {
     netplay_cancel();
     cerror[0] = 0;
+    packAsking = packKept = 0;
     cjoined = 0;
     chatCount = 0;
     memset(kickNoted, 0, sizeof kickNoted);
@@ -555,8 +700,15 @@ int netplay_poll(void) {
         if ((int32_t)(t - cstart) > CONNECT_TIMEOUT_MS)
             return fail_connect("nobody came");
         cjoined = g64_session_joined(session);
+        if (!chost && joiner_pack() != 0)
+            return -1;
         if (chost)
             snprintf(cstatus, sizeof cstatus, "%d of %d players are in", cjoined, cwanted);
+        else if (packAsking)
+            snprintf(cstatus, sizeof cstatus, "The host plays a level pack.");
+        else if (g64_session_pack_state(session) == G64_PACK_LOADING)
+            snprintf(cstatus, sizeof cstatus, "Downloading the level pack: %u of %u KB",
+                     (unsigned)(g64_session_pack_have(session) / 1024), (unsigned)((netplay_offer_size() + 1023) / 1024));
         else
             snprintf(cstatus, sizeof cstatus, "Waiting for the host to start...");
     }
@@ -568,6 +720,8 @@ void netplay_cancel(void) {
     if (session && sock && chost && publicRoom && crelay[0] && cstate != C_STARTED)
         net_relay_announce(sock, build_hash(), cwanted, 0, 0, 0, publicTitle[0] ? publicTitle : myName);
     netplay_rooms_close();
+    packAsking = packKept = 0;
+    g64_pack_free(&keptPack);
     if (session) {
         g64_session_free(session);
         session = NULL;

@@ -102,10 +102,25 @@ The program also prints a status line every 100 frames.
 ## A custom level
 
 A level pack is a folder with a custom level that takes the place of one of the game's levels
-([discovery/level-pack.md](discovery/level-pack.md)). Every player needs the same folder and starts the program with
-`--pack FOLDER`. The level shows when you enter the level it replaces. A host refuses a player who has another pack,
-or none. The program cannot send a pack to another player yet. A pack may also hold a script
-([scripts.md](scripts.md)).
+([discovery/level-pack.md](discovery/level-pack.md)). The host starts the program with `--pack FOLDER`. The level
+shows when you enter the level it replaces. A pack may also hold a script ([scripts.md](scripts.md)).
+
+A player who joins without the pack can download it from the host:
+
+- On the start screen, the program shows the pack's name and size and asks. Nothing is downloaded before you say
+  yes. If you say no, you leave the game.
+- With options on the command line nobody can be asked. Add `--accept-pack` to download the host's pack. Without
+  it, the program ends with a message that names the pack.
+- The program checks a downloaded pack before use. The check does not catch everything a bad level file can do
+  ([discovery/level-file-safety.md](discovery/level-file-safety.md)). Take a pack only from a host you trust.
+- The program keeps a downloaded pack in the folder `packs` next to its settings. The next time, it asks and then
+  uses the kept copy.
+- A player who has the folder can still start with `--pack FOLDER`, and nothing is downloaded.
+- A player who starts with a pack and joins a host without one plays without it.
+
+The host does not send a pack in two cases, and a player then needs the folder. The first: the pack's level file is
+an unchanged level of the game. That is game data, which never travels. The second: the level file does not pass
+the check (`g64pack check` prints it).
 
 ### Making a pack
 
@@ -123,7 +138,7 @@ Run it from a command prompt in the game's folder.
        g64pack make MyLevel --name "My level" --level 10 --rom built.z64
 
    Add `--script script.lua` for a pack with a script.
-5. Give the folder `MyLevel` to every player. Each starts the game with `--pack MyLevel`.
+5. Host with `--pack MyLevel`. The other players download the pack when they join, or start with the same folder.
 
 `g64pack check MyLevel` reads a pack as the game does and prints its id. Two players have the same pack when their
 ids are the same. It also prints a line on the level file's structure. A warning there names a part of the file

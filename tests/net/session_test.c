@@ -340,6 +340,180 @@ static void test_join_later(uint32_t start) {
     }
 }
 
+/* A level pack from the host. The pack's bytes here are made up: the session moves bytes and does not read them. */
+static uint8_t packBytes[20000 + 700];
+
+static void pack_pump(g64_session *host, g64_session *join, uint32_t *clock, int rounds) {
+    int i;
+    for (i = 0; i < rounds; i++) {
+        *clock += 10;
+        g64_session_poll(join, *clock, NULL, NULL);
+        g64_session_poll(host, *clock, NULL, NULL);
+    }
+}
+
+static void test_pack(uint32_t *clock) {
+    static const uint8_t hostId[G64_PACK_ID_SIZE] = {7, 7, 7, 1}, otherId[G64_PACK_ID_SIZE] = {9, 9};
+    char err[128];
+    g64_pack_offer info;
+    net_addr hostAddr;
+    size_t i, total = sizeof packBytes;
+    for (i = 0; i < total; i++)
+        packBytes[i] = (uint8_t)(i * 31 + i / 251);
+    memset(&info, 0, sizeof info);
+    snprintf(info.name, sizeof info.name, "A test\x02pack");
+    info.manifestSize = 40;
+    info.levSize = 20000;
+    info.scriptSize = 660;
+    {
+        /* A joiner without the pack, and one with another pack, before the start. */
+        net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err), *s2 = net_open(0, err, sizeof err);
+        g64_session *host = g64_session_host(hs, 3, ROM, 0, 3), *a, *b;
+        const g64_pack_offer *o;
+        uint8_t piece[5 + 1024] = {0x4B};
+        int me;
+        net_resolve("127.0.0.1", net_port(hs), &hostAddr, err, sizeof err);
+        g64_session_set_build(host, BUILD);
+        g64_session_set_pack(host, hostId);
+        g64_session_send_pack(host, &info, packBytes);
+        a = g64_session_join(s1, &hostAddr, ROM, "none");
+        g64_session_set_build(a, BUILD);
+        pack_pump(host, a, clock, 60);
+        o = g64_session_pack_offer(a);
+        check(g64_session_pack_state(a) == G64_PACK_OFFERED && memcmp(o->id, hostId, sizeof hostId) == 0 &&
+                  !strcmp(o->name, "A test?pack") && o->manifestSize == 40 && o->levSize == 20000 && o->scriptSize == 660,
+              "a joiner without the host's pack gets the offer");
+        me = g64_session_me(a);
+        check(me >= 1 && g64_session_joined(host) == 1 && g64_session_poll(host, *clock, NULL, NULL) == G64_SESSION_WAITING,
+              "a joiner without the pack has a place and is not counted");
+        /* A piece before the player said yes: nothing is kept. */
+        memcpy(piece + 5, packBytes, 1024);
+        g64_session_test_inner(a, 0, piece, sizeof piece, *clock, NULL, NULL);
+        check(g64_session_pack_have(a) == 0 && g64_session_pack_bytes(a) == NULL, "a piece before the player's yes is dropped");
+        g64_session_begin(host);
+        pack_pump(host, a, clock, 60);
+        check(g64_session_poll(host, *clock, NULL, NULL) == G64_SESSION_STARTED && !g64_session_present(host, me) &&
+                  g64_session_start_members(host) == 1 && g64_session_poll(a, *clock, NULL, NULL) == G64_SESSION_WAITING,
+              "the game starts without the player who lacks the pack");
+        check(g64_session_pack_accept(a) == 0 && g64_session_pack_state(a) == G64_PACK_LOADING, "the player says yes");
+        /* Pieces that are not the next one, or that go past the end. */
+        piece[1] = 0, piece[2] = 4;
+        g64_session_test_inner(a, 0, piece, sizeof piece, *clock, NULL, NULL);
+        check(g64_session_pack_have(a) == 0, "a piece from a later offset is dropped");
+        for (i = 0; i < 2000 && g64_session_pack_state(a) == G64_PACK_LOADING; i++)
+            pack_pump(host, a, clock, 1);
+        check(g64_session_pack_state(a) == G64_PACK_LOADED && g64_session_pack_have(a) == total &&
+                  g64_session_pack_bytes(a) && memcmp(g64_session_pack_bytes(a), packBytes, total) == 0,
+              "every byte of the pack comes, in order");
+        piece[1] = piece[2] = 0;
+        g64_session_test_inner(a, 0, piece, sizeof piece, *clock, NULL, NULL);
+        check(g64_session_pack_have(a) == total, "a piece after the last one is dropped");
+        g64_session_pack_ready(a);
+        pack_pump(host, a, clock, 60);
+        check(g64_session_pack_state(a) == G64_PACK_DONE && g64_session_present(host, me) &&
+                  g64_session_poll(a, *clock, NULL, NULL) == G64_SESSION_STARTED &&
+                  !((g64_session_start_members(a) >> me) & 1),
+              "the player with the pack joins the running game as one who came later");
+        /* A second joiner, with another pack: the same offer. A host that then offers another pack ends the session. */
+        b = g64_session_join(s2, &hostAddr, ROM, "other");
+        g64_session_set_build(b, BUILD);
+        g64_session_set_pack(b, otherId);
+        for (i = 0; i < 60; i++) {
+            pack_pump(host, a, clock, 1);
+            g64_session_poll(b, *clock, NULL, NULL);
+        }
+        check(g64_session_pack_state(b) == G64_PACK_OFFERED, "a joiner with another pack gets the offer");
+        {
+            uint8_t offer[27 + 4] = {0x49, 1, 2, 3};
+            offer[17] = 40, offer[19] = 8;
+            memcpy(offer + 27, "evil", 4);
+            g64_session_test_inner(b, 0, offer, sizeof offer, *clock, NULL, NULL);
+            check(g64_session_poll(b, *clock, NULL, NULL) == G64_SESSION_FAILED &&
+                      strstr(g64_session_error(b), "changed") != NULL,
+                  "a second offer of another pack ends the session");
+        }
+        g64_session_free(a), g64_session_free(b), g64_session_free(host);
+        net_close(hs), net_close(s1), net_close(s2);
+    }
+    {
+        /* Offers that are not as they must be are dropped. */
+        net_socket *s1 = net_open(0, err, sizeof err);
+        g64_session *a = g64_session_join(s1, &hostAddr, ROM, "x");
+        uint8_t welcome[35] = {0x41, 1, 2}, offer[27 + 33] = {0x49, 1};
+        net_addr from = hostAddr;
+        memset(welcome + 3, 7, 32);
+        g64_session_poll(a, *clock, NULL, NULL);
+        g64_session_receive(a, &from, welcome, sizeof welcome, *clock, NULL, NULL);
+        memset(offer + 27, 'n', 33);
+        offer[17] = 40, offer[19] = 8;
+        g64_session_test_inner(a, 0, offer, sizeof offer, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer with a name of 33 bytes is dropped");
+        g64_session_test_inner(a, 0, offer, 27, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of a pack without a name is dropped");
+        offer[21] = 0x11; /* a level file of more than 1 MB */
+        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of a level file that is too large is dropped");
+        offer[21] = 0, offer[19] = 7;
+        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of a level file that is too small is dropped");
+        offer[19] = 8, offer[1] = 0;
+        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of no pack that has sizes is dropped");
+        offer[1] = 1;
+        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_OFFERED && g64_session_pack_offer(a)->levSize == 8,
+              "an offer within the limits is taken");
+        g64_session_free(a);
+        net_close(s1);
+    }
+    {
+        /* A host without a pack, and a joiner who came with one: the joiner plays without it. */
+        net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err);
+        g64_session *host = g64_session_host(hs, 2, ROM, 0, 3), *a;
+        net_resolve("127.0.0.1", net_port(hs), &hostAddr, err, sizeof err);
+        g64_session_set_build(host, BUILD);
+        g64_session_send_pack(host, NULL, NULL);
+        a = g64_session_join(s1, &hostAddr, ROM, "packed");
+        g64_session_set_build(a, BUILD);
+        g64_session_set_pack(a, otherId);
+        pack_pump(host, a, clock, 60);
+        check(g64_session_pack_state(a) == G64_PACK_OFFERED && g64_session_pack_offer(a)->levSize == 0 &&
+                  g64_session_pack_accept(a) != 0,
+              "a host without a pack offers none, and there is nothing to download");
+        g64_session_pack_ready(a);
+        pack_pump(host, a, clock, 60);
+        check(g64_session_poll(a, *clock, NULL, NULL) == G64_SESSION_STARTED &&
+                  g64_session_poll(host, *clock, NULL, NULL) == G64_SESSION_STARTED &&
+                  ((g64_session_start_members(host) >> 1) & 1),
+              "the joiner who dropped its pack starts with the host");
+        g64_session_free(a), g64_session_free(host);
+        net_close(hs), net_close(s1);
+    }
+    {
+        /* A joiner who never answers the offer loses the place after five minutes. */
+        net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err);
+        g64_session *host = g64_session_host(hs, 2, ROM, 0, 3), *a;
+        int k;
+        net_resolve("127.0.0.1", net_port(hs), &hostAddr, err, sizeof err);
+        g64_session_set_build(host, BUILD);
+        g64_session_set_pack(host, hostId);
+        g64_session_send_pack(host, &info, packBytes);
+        a = g64_session_join(s1, &hostAddr, ROM, "slow");
+        g64_session_set_build(a, BUILD);
+        pack_pump(host, a, clock, 60);
+        check(g64_session_peer_addr(host, 1) != NULL, "a joiner who reads the offer holds a place");
+        for (k = 0; k < 5 * 60 * 2 + 20; k++) {
+            *clock += 490;
+            g64_session_poll(a, *clock, NULL, NULL);
+            g64_session_poll(host, *clock, NULL, NULL);
+        }
+        check(g64_session_peer_addr(host, 1) == NULL && g64_session_poll(host, *clock, NULL, NULL) == G64_SESSION_WAITING,
+              "a joiner who does not answer the offer loses the place");
+        g64_session_free(a), g64_session_free(host);
+        net_close(hs), net_close(s1);
+    }
+}
+
 int main(void) {
     char err[128];
     net_socket *sock[PLAYERS];
@@ -510,6 +684,7 @@ int main(void) {
         g64_session_free(m[i].session);
         net_close(sock[i]);
     }
+    test_pack(&clock);
     net_shutdown();
     printf("%s: %d failures\n", failures ? "FAIL" : "ok", failures);
     return failures ? 1 : 0;

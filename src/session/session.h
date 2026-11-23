@@ -28,12 +28,26 @@
  *            text (up to G64_CHAT_MAX bytes). A joiner sends its lines to the host, which passes them on. A sender
  *            repeats a line a few times; a receiver drops a line whose number is that player's last one.
  *   kick     0x47 (host to a player it removed)
+ * The level pack (src/client/pack.h). A joiner whose hello names another pack than the host's, or none, is
+ * welcomed all the same when the host may send its pack, and is not in the game until it has the pack:
+ *   offer    0x49, the pack's id (16 bytes), the sizes of its manifest (u16), level file (u32) and script (u32, 0
+ *            for none), its name (1 to 32 bytes). Host to a joiner who lacks the pack, until the joiner answers.
+ *            An id and sizes of zeros, with no name, mean that the host plays without a pack.
+ *   want     0x4A, the pack's id, offset (u32). The joiner asks for the pack's bytes from that offset: the three
+ *            files one after another. The host answers with a few pieces.
+ *   piece    0x4B, offset (u32), 1 to 1024 bytes. A joiner takes pieces in order only, and only after its player
+ *            said yes to the offer.
+ *   ready    0x4C, the pack's id. The joiner has the host's pack (or dropped its own for an offer of none). The
+ *            host counts the player in from here and answers with the same message.
+ * The session moves the bytes and no more. Its user checks them against the id before it says ready
+ * (g64_session_pack_ready).
  * Names and chat lines are text from the network: every byte outside printable ASCII becomes '?'. They never enter
  * the game's state.
  * Every message from the network is untrusted: lengths, counts and player numbers are checked before use. */
 #ifndef G64_SESSION_H
 #define G64_SESSION_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "../net/udp.h"
@@ -58,7 +72,7 @@ enum {
     G64_REFUSE_PROTOCOL = 3, /* another version of g64coopdx: another protocol or another build */
     G64_REFUSE_STARTED = 4,  /* the game has started (not sent any more: a started game takes new players) */
     G64_REFUSE_REMOVED = 5,  /* the host removed a player at this address from the game */
-    G64_REFUSE_PACK = 6,     /* the host plays with another level pack, or with none */
+    G64_REFUSE_PACK = 6,     /* the host plays with a level pack that it may not send, and the joiner lacks it */
 };
 
 typedef enum {
@@ -99,9 +113,48 @@ int g64_session_deadline(const g64_session *g);
  * refuses a joiner whose build differs (G64_REFUSE_PROTOCOL). Set it on both sides before the first poll. It is 0
  * until set. */
 void g64_session_set_build(g64_session *g, uint32_t build);
-/* This machine's level pack, by its id (G64_PACK_ID_SIZE bytes; NULL or zeros: none). A pack changes the game, so a
- * host refuses a joiner whose pack differs (G64_REFUSE_PACK). Set it on both sides before the first poll. */
+/* This machine's level pack, by its id (G64_PACK_ID_SIZE bytes; NULL or zeros: none). A pack changes the game, so
+ * every machine must have the host's. A joiner whose pack differs gets the host's offer (g64_session_send_pack),
+ * or a refusal (G64_REFUSE_PACK). Set it on both sides before the first poll. */
 void g64_session_set_pack(g64_session *g, const uint8_t *id);
+/* The limits of a pack's parts, which pack.h has too (G64_PACK_MANIFEST_MAX and the others). */
+#define G64_PACK_NAME_MAX 32
+#define G64_PACK_MANIFEST_LIMIT 1024
+#define G64_PACK_LEVEL_LIMIT (1024 * 1024)
+#define G64_PACK_SCRIPT_LIMIT (256 * 1024)
+typedef struct {
+    uint8_t id[G64_PACK_ID_SIZE];
+    char name[G64_PACK_NAME_MAX + 1];
+    size_t manifestSize, levSize, scriptSize; /* the pack's bytes: the three files one after another */
+} g64_pack_offer;
+typedef enum {
+    G64_PACK_NONE,    /* the host has made no offer: this machine has the host's pack, or the offer is still to come */
+    G64_PACK_OFFERED, /* the host offered its pack: the player decides (g64_session_pack_offer) */
+    G64_PACK_LOADING, /* the player said yes, and the pieces come */
+    G64_PACK_LOADED,  /* every byte is here: check them, then say ready */
+    G64_PACK_READY,   /* this machine has the pack and tells the host */
+    G64_PACK_DONE,    /* the host counts this player in */
+} g64_pack_state;
+/* On the host, after g64_session_set_pack and before the first poll: the host may send its pack to a joiner who
+ * lacks it. info has the pack's name and sizes, and bytes its three files one after another; the bytes stay the
+ * caller's and must live as long as the session. With no pack set, call it with NULL, NULL: a joiner who came with
+ * a pack then plays without it. Without this call the host refuses a joiner whose pack differs. */
+void g64_session_send_pack(g64_session *g, const g64_pack_offer *info, const uint8_t *bytes);
+/* On a joiner: where the pack stands, and the host's offer once the state is G64_PACK_OFFERED or later. Every field
+ * of the offer is from the network: the name is printable ASCII, the sizes are within the limits above, and an
+ * offer of no pack has an id and sizes of zeros. */
+g64_pack_state g64_session_pack_state(const g64_session *g);
+const g64_pack_offer *g64_session_pack_offer(const g64_session *g);
+/* The player said yes to the download. Returns 0, or -1 (no offer, an offer of no pack, or no memory). To say no,
+ * end the session. */
+int g64_session_pack_accept(g64_session *g);
+/* The bytes that have come so far, and all of them once the state is G64_PACK_LOADED (NULL before). */
+size_t g64_session_pack_have(const g64_session *g);
+const uint8_t *g64_session_pack_bytes(const g64_session *g);
+/* This machine has the pack of the host's offer now: from the download (after the caller checked the bytes against
+ * the offer's id), from a copy it had kept, or, for an offer of no pack, by playing without its own. The session's
+ * pack becomes the offer's and the host is told. */
+void g64_session_pack_ready(g64_session *g);
 /* The host's options (G64_FLAG_): the host sets them before the start; a joiner gets them with the start. */
 int g64_session_flags(const g64_session *g);
 void g64_session_set_flags(g64_session *g, int flags);

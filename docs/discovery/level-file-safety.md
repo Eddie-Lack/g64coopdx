@@ -6,7 +6,7 @@ memory. It comes from a read of the code on 22 November 2026; nothing here was t
 numbers are of that day. `P:` means `weemitt/src/game/parse.c`.
 
 It exists for one decision: whether g64coopdx may load a level pack that comes from another player
-([level-pack.md](level-pack.md)). Today a pack comes only from a folder the player chose.
+([level-pack.md](level-pack.md)). A pack comes from a folder the player chose, or from the host after the player said yes. A pack from the host must pass the check below.
 
 ## The short answer
 

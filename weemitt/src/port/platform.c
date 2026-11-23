@@ -37,6 +37,7 @@ typedef struct Options {
     int netInputDelay;       /* g64coopdx: --input-delay FRAMES (-1: the default) */
     int netNormalBall;       /* g64coopdx: --normal-ball (the host plays with the game's normal ball controls) */
     int netAnyBall;          /* g64coopdx: --any-ball (the host lets a glove take any free ball) */
+    int netAcceptPack;       /* g64coopdx: --accept-pack (download the host's level pack without asking) */
     int netAnyWorld;         /* g64coopdx: --any-world (the host lets players go to different worlds) */
     const char *netPack;     /* g64coopdx: --pack DIR (a level pack's folder, the same for every player) */
     const char *netName;     /* g64coopdx: --name NAME (this player's name in the online game) */
@@ -1618,7 +1619,7 @@ static void parse_args(int argc, char **argv) {
         /* g64coopdx: the start screen opens unless an option asks for something else (online settings and the ROM
            do not). */
         if (strcmp(a, "--rom") && strcmp(a, "--input-delay") && strcmp(a, "--deadline") && strcmp(a, "--relay") &&
-            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--any-world") && strcmp(a, "--pack") && strcmp(a, "--name") && strcmp(a, "--public") && strcmp(a, "--start-alone") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
+            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--any-world") && strcmp(a, "--pack") && strcmp(a, "--accept-pack") && strcmp(a, "--name") && strcmp(a, "--public") && strcmp(a, "--start-alone") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
             opt.netOtherArgs = 1;
         }
         if (!strcmp(a, "--rom") && next) {
@@ -1653,6 +1654,8 @@ static void parse_args(int argc, char **argv) {
             opt.netAnyBall = 1;
         } else if (!strcmp(a, "--any-world")) {
             opt.netAnyWorld = 1;
+        } else if (!strcmp(a, "--accept-pack")) {
+            opt.netAcceptPack = 1;
         } else if (!strcmp(a, "--pack") && next) {
             opt.netPack = argv[++i];
         } else if (!strcmp(a, "--name") && next) {
@@ -2134,6 +2137,22 @@ int main(int argc, char **argv) {
         if (opt.netAnyBall) {
             netplay_set_any_ball(1);
         }
+        {
+            /* Packs that come from a host are kept next to the settings. With options on the command line nobody
+               can be asked: the host's pack is taken only with --accept-pack. The start screen asks. */
+            char *prefDir = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
+
+            if (prefDir != NULL) {
+                size_t len = strlen(prefDir);
+
+                while (len > 1 && (prefDir[len - 1] == '/' || prefDir[len - 1] == '\\')) {
+                    prefDir[--len] = 0;
+                }
+                netplay_set_pack_cache(prefDir);
+                SDL_free(prefDir);
+            }
+            netplay_set_pack_policy(0, opt.netAcceptPack);
+        }
         if (opt.netPublic) {
             netplay_set_public(1, opt.netPublic);
         }
@@ -2158,7 +2177,10 @@ int main(int argc, char **argv) {
             }
             online = 1;
         } else if (!opt.netOtherArgs || opt.netLauncher) {
-            int r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
+            int r;
+
+            netplay_set_pack_policy(1, opt.netAcceptPack);
+            r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
 
             if (r < 0) {
                 return 0;

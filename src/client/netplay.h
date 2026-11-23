@@ -58,10 +58,27 @@ int netplay_normal_ball(void);
  * kills its real owner either way. Call it before netplay_start; netplay_any_ball gives it after the start. */
 void netplay_set_any_ball(int on);
 /* The level pack for the session: a folder with a custom level that takes the place of one of the game's levels
- * (pack.h). Every player of a session must have the same pack: a host refuses a joiner whose pack differs. Call it
+ * (pack.h). Every player of a session must have the same pack. Call it
  * before netplay_start. An empty dir means no pack. Returns 0, or -1 with a message in err. */
 int netplay_set_pack(const char *dir, char *err, size_t errSize);
 const char *netplay_pack_name(void);
+/* A joiner who lacks the host's pack can download it from the host (session.h). The host sends a pack only when its
+ * level file passes the check (levcheck.h) and is not a level of the ROM.
+ * netplay_set_pack_cache names the folder that keeps downloaded packs (in DIR/packs). netplay_set_pack_policy says
+ * what a joiner does with the host's offer: ask the player (ask 1), take it (yes 1), or end the session with a
+ * message (both 0, the default). Call both before netplay_start.
+ * While netplay_pack_asking is 1 during netplay_poll, the offer waits: netplay_offer_name, netplay_offer_size (bytes)
+ * and netplay_offer_script (1 for a pack with a script) describe it, netplay_pack_kept is 1 when this machine has
+ * kept that pack from an earlier download, and netplay_pack_answer gives the player's answer. A downloaded pack is
+ * used only when it reads as a pack, passes the check, and has the id the host named. */
+void netplay_set_pack_cache(const char *dir);
+void netplay_set_pack_policy(int ask, int yes);
+int netplay_pack_asking(void);
+int netplay_pack_kept(void);
+const char *netplay_offer_name(void);
+size_t netplay_offer_size(void);
+int netplay_offer_script(void);
+void netplay_pack_answer(int yes);
 int netplay_pack_level(void);
 /* The host's choice that players may go to different worlds. Without it the session is in one world at a time: a
  * portal from the hub to another world is shut while players are in a world, and opens when everyone is in the
