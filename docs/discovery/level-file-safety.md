@@ -65,6 +65,13 @@ the check lacks does less harm:
 - An ENEMY must be of one of the game's 59 kinds, the level holds 30 enemies, and an enemy whose object is not in
   the level's banks is not made. A pick-up must be one of the game's 15 and have its object, both from a PICKUP
   token and from a puzzle's action while the level runs.
+- Before each token the parser also tests the token's first values (`ValuesAllowed`): an axis is 0, 1 or 2; a
+  bridge has 1 to 100 planks and the level 10 rope bridges; a garib's type, a sound's number, an enemy
+  instruction's and a cameo instruction's type are ones the game has; an enemy keeps to its 30, 10 and 30
+  instructions and a cameo to its 20; a STARTPOINT names a point the path has.
+- A platform cannot be its own parent. A TAKESPIN under a parent whose spin has no axis stops the level: the game
+  wrote three numbers into a list of two. A vent whose patterns all have 0 frames on stays off; the game called
+  itself for it without an end.
 - A puzzle condition's and action's number must be one the game has, and their puzzle variables among the level's
   100: the parser tests them as it reads them.
 - While the level runs, a condition or an action whose tag meets a platform without the part it needs (a path, a

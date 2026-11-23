@@ -164,6 +164,7 @@ static s32 TokenAllowed(s16 token, Platform *platform) {
         case TOKEN_SPIN_STOP_SOUND:
             return platform != NULL && platform->motion != NULL;
         case TOKEN_STOP_SOUND:
+        case TOKEN_STARTPOINT:
             return points >= 1;
         case TOKEN_LOOKATPOINT:
         case TOKEN_GOFORWARDS:
@@ -181,6 +182,62 @@ static s32 TokenAllowed(s16 token, Platform *platform) {
         || (token >= TOKEN_POS && token <= TOKEN_EXITDOOR) || token == TOKEN_RECALC
         || (token >= TOKEN_ANIMATE_PLATFORM && token <= TOKEN_DESTROY_SOUND)) {
         return platform != NULL;
+    }
+    return TRUE;
+}
+
+/* g64coopdx: 1 when a token's first fields hold values the game can use. data points at the fields. The handlers
+   used an axis, a count, a type and an index from the file as they came: an axis picks one of three numbers and
+   SPIN and PENDULUM write the file's bytes at the place it picks, a count filled a list of a fixed size, a type and
+   a sound's number picked an entry of a table. */
+static s32 ValuesAllowed(s16 token, u8 *data, Platform *platform) {
+    s16 a = port_read_token(data);
+    s16 c = port_read_token(data + 4);
+    NMEBrain *br;
+
+    switch (token) {
+        case TOKEN_SPIN:
+        case TOKEN_PENDULUM:
+        case TOKEN_SEESAW:
+        case TOKEN_TOPPLE:
+        case TOKEN_ORBIT:
+            return a >= 0 && a <= 2;
+        case TOKEN_ROPEBRIDGE:
+            /* Its planks, the planks' inertia, the axis they turn on. The level holds 10 rope bridges, and the
+               game's own code for a bridge has room for 100 planks. */
+            return a >= 1 && a <= 100 && c >= 0 && c <= 2 && numRopeBridges < 10;
+        case TOKEN_SINEBRIDGE:
+            return a >= 1 && a <= 100;
+        case TOKEN_ORBITBRIDGE:
+            /* The axis, then the planks. */
+            return a >= 0 && a <= 2 && port_read_token(data + 2) >= 1 && port_read_token(data + 2) <= 100;
+        case TOKEN_GARIB:
+            a = port_read_token(data + 12);
+            return a >= 0 && a <= 3;
+        case TOKEN_AMBIENT_SOUND:
+        case TOKEN_SOUND:
+        case TOKEN_MOVE_SOUND:
+        case TOKEN_STOP_SOUND:
+        case TOKEN_SPIN_SOUND:
+        case TOKEN_ORBIT_SOUND:
+        case TOKEN_SPIN_STOP_SOUND:
+        case TOKEN_ORBIT_STOP_SOUND:
+        case TOKEN_CRUMBLE_SOUND:
+        case TOKEN_DESTROY_SOUND:
+            return a >= 0 && a <= 419;
+        case TOKEN_STARTPOINT:
+            return a >= 0 && a < platform->path->numPoints;
+        case TOKEN_NORMAL_INSTRUCTION:
+        case TOKEN_CONDITIONAL_INSTRUCTION:
+        case TOKEN_ATTACK_INSTRUCTION:
+            /* An instruction's type is 0 to 24: the parser reads fewer fields for another. An enemy's lists hold 30,
+               10 and 30. */
+            br = &enemies[numberOfEnemies - 1].brain;
+            return a >= 0 && a <= 24
+                   && (token == TOKEN_NORMAL_INSTRUCTION ? br->normalCount < 30
+                       : token == TOKEN_CONDITIONAL_INSTRUCTION ? br->conditionalCount < 10 : br->attackCount < 30);
+        case TOKEN_CAMEO_INSTRUCTION:
+            return a >= 0 && a <= 6 && lastCameo->count < 20;
     }
     return TRUE;
 }
@@ -264,6 +321,10 @@ void ParseLandscapeFile(s32 num) {
         }
         if (!TokenAllowed(token, platform)) {
             G64Unplayable("TOKEN ORDER");
+            break;
+        }
+        if (!ValuesAllowed(token, data, platform)) {
+            G64Unplayable("TOKEN VALUE");
             break;
         }
         switch (token) {
@@ -1189,6 +1250,12 @@ s32 ParseTokenPlatformInteraction(s16 token, u8 **data, Platform *platform) {
         if (buf[0]) {
             if (platform->path == NULL || platform->path->numPoints == 0) {
                 platform->parent = TagToFirstPlatform(buf[0]);
+                if (platform->parent == platform) {
+                    /* g64coopdx: a platform that is its own parent. The game walks from a platform up its parents
+                       until there is none. */
+                    platform->parent = NULL;
+                    G64Unplayable("PARENT TAG");
+                }
                 if (platform->parent == NULL) {
                     PRINTF("WARNING!! No such parent tag %d for platform %d\n", buf[0], platformList.count);
                 }
@@ -1219,6 +1286,13 @@ s32 ParseTokenPlatformInteraction(s16 token, u8 **data, Platform *platform) {
             platform->motion = (PlatformMotion *)JallocAlloc(0x98, 1, "Plat_Spin");
         }
         plat = platform->parent;
+        /* g64coopdx: the code below puts the two numbers off the parent's spin axis into a list of two. A parent
+           whose spin has no axis gave it three. */
+        if (plat != NULL && plat->motion != NULL && !plat->motion->active[0] && !plat->motion->active[1]
+            && !plat->motion->active[2]) {
+            G64Unplayable("TAKESPIN");
+            return TRUE;
+        }
         if (plat != NULL) {
             axis = 10;
             if (plat->motion != NULL) {

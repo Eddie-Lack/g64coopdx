@@ -649,7 +649,7 @@ static void script_run(Engine *e, void *boot) {
    go back to the hub: two players start in it, and both must end in the hub, with no machine disagreeing. */
 /* An enemy kind whose object Atlantis 1's banks do not hold. */
 #define ENEMY_ELSEWHERE 50
-static size_t firstPlatform, firstGroup, firstEnemy, conditions[64];
+static size_t firstPlatform, firstGroup, firstEnemy, firstSpin, conditions[64];
 static int conditionCount;
 static void find_platform(void *user, size_t offset, int token) {
     (void)user;
@@ -659,6 +659,8 @@ static void find_platform(void *user, size_t offset, int token) {
         firstGroup = offset;
     if (token == 131 && firstEnemy == 0)
         firstEnemy = offset;
+    if (token == 127 && firstSpin == 0)
+        firstSpin = offset;
     if (token == 149 && conditionCount < 64)
         conditions[conditionCount++] = offset;
 }
@@ -669,7 +671,8 @@ static void find_platform(void *user, size_t offset, int token) {
    first enemy is of a kind whose object Atlantis 1's banks do not hold (a boss of another world). which 3: the first
    puzzle condition has a number the game does not have. which 4: every puzzle condition on a tag becomes "the
    platform's spin is at pause 1" (AT_SPIN). Most of the tagged platforms have no spin, and none has a pause: the
-   game tested the spin without asking, and divided by its count of pauses. This level must go on. */
+   game tested the spin without asking, and divided by its count of pauses. This level must go on. which 5: the
+   first SPIN is on axis 7. The game wrote four of the file's bytes at the place the axis picks. */
 static void unplayable_case(Engine *e, void *boot, int which) {
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
@@ -686,7 +689,7 @@ static void unplayable_case(Engine *e, void *boot, int which) {
     memset(none, 0, sizeof none);
     memcpy(with, rom, romSize);
     memcpy(with + romSize, rom + at, size);
-    firstPlatform = firstGroup = firstEnemy = 0;
+    firstPlatform = firstGroup = firstEnemy = firstSpin = 0;
     conditionCount = 0;
     g64_lev_check(with + romSize, size, find_platform, NULL, &bad);
     check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
@@ -710,6 +713,12 @@ static void unplayable_case(Engine *e, void *boot, int which) {
            the same length as most. */
         with[romSize + conditions[0] + 2] = 0;
         with[romSize + conditions[0] + 3] = 8;
+    } else if (which == 5) {
+        check(firstSpin != 0, "Atlantis 1 has a SPIN");
+        with[romSize + firstSpin + 2] = 0;
+        with[romSize + firstSpin + 3] = 7;
+        check(g64_lev_check(with + romSize, size, NULL, NULL, &bad) != NULL,
+              "the check before loading refuses a spin on axis 7");
     } else {
         int k, changed = 0;
         for (k = 0; k < conditionCount; k++) {
@@ -754,6 +763,7 @@ static void unplayable_case(Engine *e, void *boot, int which) {
                  : which == 1 ? "garibs before any group"
                  : which == 2 ? "an enemy the level's banks do not hold"
                  : which == 3 ? "a puzzle condition the game does not have"
+                 : which == 5 ? "a spin on an axis that is not there"
                               : "conditions on spins that are not there",
                  which == 4 ? "plays on" : "sends its players to the hub", levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
                  g64_iclient_desyncs(player[1]));
@@ -781,6 +791,7 @@ static void pack_unplayable(Engine *e, void *boot) {
     unplayable_case(e, boot, 2);
     unplayable_case(e, boot, 3);
     unplayable_case(e, boot, 4);
+    unplayable_case(e, boot, 5);
 }
 
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's
