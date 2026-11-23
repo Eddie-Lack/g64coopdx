@@ -16,8 +16,12 @@
  *     states (an ORBIT after two path points, a TELEPORT to a tag that no platform has yet, and others), and then
  *     reads the rest of the fields as tokens
  *   - a ball start's place, read as tokens, holds no token: the parser skips the place in some states of the save
+ *   - the game's lists of a fixed size are not overrun: 30 enemies, 30, 10 and 30 instructions of one enemy, 6
+ *     patterns of a vent or a buzzer, 20 instructions of a cameo, 10 rope bridges of 1 to 100 planks
+ *   - an axis is 0, 1 or 2; an enemy's, a garib's and a pick-up's type, a sound's number, a path's start point and
+ *     a puzzle variable's number are ones the game has
  *
- * What it does not do: check values (an axis, a count, a type, a sound's number), or whether the level's objects
+ * What it does not do: check the other values (level-file-safety.md lists them), or whether the level's objects
  * are in the banks of the level whose place it takes. A file that passes can still make the game read or write
  * outside its memory. Until those checks exist too, a level file comes only from a folder the player chose.
  *

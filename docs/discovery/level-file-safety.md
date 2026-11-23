@@ -28,14 +28,24 @@ rules:
   buzzer comes after the token that makes one, in this file
 - no token takes a short form (the tokens whose length depends on what came before, below)
 - a ball start's place, read as tokens, holds no token
+- the game's lists of a fixed size are not overrun: 30 enemies, the 30, 10 and 30 instructions of one enemy, 6
+  patterns of a vent or a buzzer, 20 instructions of a cameo, 10 rope bridges of 1 to 100 planks
+- an axis is 0, 1 or 2 (SPIN, PENDULUM, SEESAW, TOPPLE, ORBIT, a rope bridge)
+- an enemy's type is 0 to 58, a garib's 0 to 3, a pick-up's 0 to 14, a sound's number 0 to 419
+- a STARTPOINT names a point the platform's path has
+- a puzzle condition (27 to 30) and a puzzle action (56 to 58) name only the level's 100 variables, in both of
+  their operands
+
+Every rule passes on all 48 levels of the ROM. Of "The most dangerous" below, these cover points 1, 2 and 3 but for
+a cameo's extra camera spheres, and the plank count of point 9.
 
 How it is proven: the game's parser records each token it reads (`G64ParseTrace`, for tests only), and
 `tests/rom/levcheck.c` compares that record with the check's walk on all 48 levels of the ROM. The check accepts
 every one and names the same tokens at the same offsets. 26 of the parser's tokens are in no level of the ROM; their
 lengths come from the code alone. The check's fuzz target shows that it never reads outside the file.
 
-What it does not check: values (an axis, a count, a type, a sound's number), and whether the level's objects are in
-the banks of the level whose place it takes. The numbered list below still holds for a file that passes. `g64pack`
+What it does not check: the other values (points 4 to 11 below, and the rest of the table of ranges), and whether
+the level's objects are in the banks of the level whose place it takes. The numbered list below still holds for a file that passes. `g64pack`
 prints the check's result for a pack's maker. The game does not refuse a pack on it yet.
 
 ## How the parser reads

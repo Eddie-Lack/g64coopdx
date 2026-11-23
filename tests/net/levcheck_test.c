@@ -164,6 +164,138 @@ int main(void) {
     len += 8;
     end("a ball start that does not", 1);
 
+    /* Counts and values. */
+    {
+        int i;
+        begin();
+        for (i = 0; i < 31; i++)
+            token(131, 20);
+        end("31 enemies", 0);
+
+        begin();
+        token(131, 20);
+        for (i = 0; i < 11; i++)
+            token(155, 34);
+        end("11 conditional instructions of one enemy", 0);
+
+        begin();
+        token(131, 20);
+        for (i = 0; i < 10; i++)
+            token(155, 34);
+        token(131, 20);
+        for (i = 0; i < 10; i++)
+            token(155, 34);
+        end("10 conditional instructions of each of two enemies", 1);
+
+        begin();
+        token(162, 30);
+        for (i = 0; i < 7; i++)
+            token(163, 4);
+        end("7 patterns of one vent", 0);
+
+        begin();
+        token(170, 0);
+        for (i = 0; i < 21; i++)
+            token(171, 16);
+        end("21 instructions of one cameo", 0);
+    }
+
+    begin();
+    word(131);
+    word(59);
+    len += 18;
+    end("an enemy of type 59", 0);
+
+    begin();
+    token(98, 12);
+    word(127); /* SPIN on axis 3 */
+    word(3);
+    len += 8;
+    end("a SPIN on axis 3", 0);
+
+    begin();
+    token(98, 12);
+    word(112); /* PENDULUM on axis -1 */
+    word(-1);
+    len += 14;
+    end("a PENDULUM on axis -1", 0);
+
+    begin();
+    token(133, 4);
+    word(134);
+    len += 12;
+    word(4);
+    len += 2;
+    end("a GARIB of type 4", 0);
+
+    begin();
+    token(98, 12);
+    token(107, 14);
+    word(167);
+    word(1);
+    end("a STARTPOINT at a point the path does not have", 0);
+
+    begin();
+    token(4, 0);
+    word(149); /* CONDITION 27: variable 100 equals 5 */
+    word(27);
+    word(100);
+    word(5);
+    end("a condition on variable 0 against variable 5", 1);
+
+    begin();
+    token(4, 0);
+    word(149);
+    word(27);
+    word(200);
+    word(5);
+    end("a condition on a variable past the last", 0);
+
+    begin();
+    token(4, 0);
+    word(150); /* ACTION 56: set variable 100 */
+    word(56);
+    len += 4;
+    word(100);
+    len += 6;
+    end("an action that sets variable 100", 0);
+
+    begin();
+    token(4, 0);
+    word(150); /* ACTION 57 with flag 0x80: add variable 100.0 to variable 3 */
+    word(57);
+    word(0x42C8);
+    word(0);
+    word(3);
+    word(0);
+    word(0);
+    word(0x80);
+    end("an action that reads variable 100", 0);
+
+    begin();
+    token(4, 0);
+    word(150);
+    word(57);
+    word(0x4248); /* 50.0 */
+    word(0);
+    word(3);
+    word(0);
+    word(0);
+    word(0x80);
+    end("an action that reads variable 50", 1);
+
+    begin();
+    word(189);
+    word(420);
+    len += 4;
+    end("a sound past the game's last", 0);
+
+    begin();
+    word(141); /* ROPEBRIDGE with 101 planks */
+    word(101);
+    len += 68;
+    end("a rope bridge of 101 planks", 0);
+
     begin();
     token(140, 52);
     len -= 2; /* the end token then overwrites the token's last two bytes */
