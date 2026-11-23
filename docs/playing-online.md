@@ -17,21 +17,35 @@ are in, with the other players who are in it. It is a test build: see "What does
 ## Start
 
 1. Put your ROM next to `g64coopdx.exe` and name it `glover.z64`.
-2. Double-click `g64coopdx.exe`. A start screen opens.
-3. To host: choose the number of players and press **Host**. The screen shows a room code such as `F3J7WZ`; press
-   **Copy code** and send it to the other players. The game starts when everyone is in, or when you press
-   **Start now**.
-4. To join: type the code under **Join an online game** and press **Join**.
+2. Double-click `g64coopdx.exe`. The start screen opens. It is the game's own title menu, with the online choices on
+   its bars: **Host a game**, **Join a game**, **Your options** and **Play alone**.
+3. To host: open **Host a game**, set **Players** and press **Start hosting**. The screen shows a room code such as
+   `F3J7WZ`; press **Copy code** and send it to the other players. The game starts when everyone is in, or when you
+   press **Start now**.
+4. To join: open **Join a game**, type the code on the **Code** bar (Ctrl+V pastes it) and press **Join**.
+
+On the start screen:
+
+| Key | Controller | What it does |
+| --- | --- | --- |
+| Up, Down | D-pad or stick | Chooses a bar |
+| Left, Right | D-pad or stick | Changes the value on the bar (the bar shows - and +) |
+| Enter | A or Start | Presses the bar |
+| Esc | B | Goes back, or cancels while the program connects |
+| Letters | | Type on a bar with a blinking mark: a name, a title or a room code |
+| Backspace | | Takes back a letter; on other bars it goes back |
+
+The game's letters have capitals only, so names and titles show in capitals. They keep the letters you typed.
 
 The number of players is the most the game takes. Players can join a game that has started, while it has a free
 place: they come into the game's first level, or the hub's newest stage if it started in the hub. A player who
 leaves frees their place for the next one. The host finds the room code again under Esc, **Online game**,
 **Players**.
 
-A host can check **Show this game in the list of open games** and give the game a title. Every player with the same
-version then sees it under **Open games**, with the number of players in it, and joins with the **Join** button
-beside it. No code is needed. The game stays on the list while it has a free place, also after it has started.
-Without the check, only players with the code can join. `--public TITLE` does the same from a command prompt.
+A host can set **In the list** to yes and type a **Title**. Every player with the same version then sees the game
+on **Join a game**, below the code, with the number of players in it. Pressing it joins. No code is needed. The game
+stays on the list while it has a free place, also after it has started. Without it, only players with the code can
+join. `--public TITLE` does the same from a command prompt.
 
 **Play alone** starts the normal game.
 
@@ -54,22 +68,23 @@ on inside the room. Windows may ask whether to allow the program on networks. Al
 Each program applies your input 1 frame (50 ms) after you press it, and sends it at once: the others then get it
 before they need it, and the other gloves move without corrections. The start screen's **Input delay** (or
 `--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump; a lower one
-makes your own glove answer sooner. Each player chooses their own.
+makes your own glove answer sooner. Each player chooses their own. It is under **Your options**.
 
-Your glove's and ball's colors are under **Colors** on the start screen: **Automatic** (the color of your player
-number), **Classic** (the game's own), **Cross-Stitch**, a few plain colors, or **Custom**, with a color for the glove
-and one for the ball. A color tints the glove's and the ball's own, so white keeps them as they are. Every player sees
-everyone's choice. The start screen keeps yours for next time.
+Your glove's and ball's colors are under **Your options**, **Colors**: **Automatic** (the color of your player
+number), **Classic** (the game's own), **Cross-Stitch**, a few plain colors, or **Custom**. With Custom, **Glove** and
+**Ball** each step through a list of colors. A color tints the glove's and the ball's own, so white keeps them as they
+are. A glove and a ball at the right of the start screen show your choice. Every player sees everyone's choice. The
+start screen keeps yours for next time.
 
-Everyone plays with the easy ball controls. The host can tick **Normal ball controls** on the start screen (or add
+Everyone plays with the easy ball controls. The host can set **Ball** to normal on **Host a game** (or add
 `--normal-ball`) for the game's own controls; every player then has them.
 
 The session is in one world at a time. When a player goes through a portal to a world, the hub's portals to the
 other worlds are shut for everyone, and the game tells you so when you walk into one. They open again when every
-player is back in the hub. The portal to the world the others are in stays open. The host can tick **Players can go
-to different worlds** (or add `--any-world`) to play without this rule.
+player is back in the hub. The portal to the world the others are in stays open. The host can set **Worlds** to any (or
+add `--any-world`) to play without this rule.
 
-A glove takes only its own ball. The host can tick **Any glove can take any ball** (or add `--any-ball`): a glove
+A glove takes only its own ball. The host can set **Balls** to shared (or add `--any-ball`): a glove
 that touches another player's free ball then takes it, and that player gets the ball you left. A ball that is lost
 still kills the player it first belonged to, whoever has it.
 
@@ -107,8 +122,8 @@ shows when you enter the level it replaces. A pack may also hold a script ([scri
 
 A player who joins without the pack can download it from the host:
 
-- On the start screen, the program shows the pack's name and size and asks. Nothing is downloaded before you say
-  yes. If you say no, you leave the game.
+- On the start screen, the program shows the pack's name and size and asks: **Download and play** or **No, leave**.
+  Nothing is downloaded before you say yes. If you say no, you leave the game.
 - With options on the command line nobody can be asked. Add `--accept-pack` to download the host's pack. Without
   it, the program ends with a message that names the pack.
 - The program checks a downloaded pack before use. The check does not catch everything a bad level file can do
@@ -157,7 +172,7 @@ What a pack cannot hold yet:
 
 ## Names, the player list and chat
 
-Type your name on the start screen (or add `--name NAME`). It can have 16 letters, and the program keeps it for
+Type your name under **Your options**, **Name** (or add `--name NAME`). It can have 16 letters, and the program keeps it for
 next time.
 
 In a game, press Esc and open **Online game**:

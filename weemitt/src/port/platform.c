@@ -26,9 +26,17 @@
 #endif
 #include "settings.h"
 
+#ifdef PORT_STUDIO
 /* g64coopdx: 1 while the start screen runs the game's title screen (g64_title_begin). The title plays no sound: the
    game's state is set back to before the title afterwards, and a sound device would go on reading it. */
 static int titleSilent;
+#define TITLE_SILENT titleSilent
+/* g64coopdx: the developer tools and the studio's tools are off in the online program (menu.h). */
+#define TOOLS_HIDDEN() menu_tools_hidden()
+#else
+#define TITLE_SILENT 0
+#define TOOLS_HIDDEN() 0
+#endif
 
 /* The N64 stick reads about +-80 at full tilt. */
 #define STICK_MAX 80
@@ -649,7 +657,7 @@ int port_audio_open(int rate, void (*render)(short *out, int frames)) {
     SDL_AudioSpec want;
     SDL_AudioSpec have;
 
-    if (opt.headlessFrames || opt.noSound || titleSilent) {
+    if (opt.headlessFrames || opt.noSound || TITLE_SILENT) {
         return 0;
     }
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
@@ -2230,7 +2238,7 @@ int main(int argc, char **argv) {
     menu_init(window, gl, &settings);
     load_pad_mappings();
     make_virtual_pads();
-    if (getenv("WEEMITT_DEBUG_PAD") != NULL && !menu_tools_hidden()) {
+    if (getenv("WEEMITT_DEBUG_PAD") != NULL && !TOOLS_HIDDEN()) {
         settings.debugPad = !strcmp(getenv("WEEMITT_DEBUG_PAD"), "second") ? DEBUGPAD_SECOND : DEBUGPAD_KEYBOARD;
     }
     parse_taps();
@@ -2400,7 +2408,7 @@ int main(int argc, char **argv) {
             tapPending |= pressed;
             if (e.type == SDL_QUIT) {
                 running = 0;
-            } else if (menu_tools_hidden() && e.type == SDL_KEYDOWN && !e.key.repeat
+            } else if (TOOLS_HIDDEN() && e.type == SDL_KEYDOWN && !e.key.repeat
                        && ((settings.pauseKey != 0 && (int)e.key.keysym.scancode == settings.pauseKey)
                            || (settings.stepKey != 0 && (int)e.key.keysym.scancode == settings.stepKey))) {
                 /* g64coopdx: the pause and step keys do nothing (menu_tools_hidden). */
