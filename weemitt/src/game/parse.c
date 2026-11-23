@@ -91,6 +91,8 @@ extern char outputMessageBuffer[];
 u32 UpdateCRC(char *ptr);
 void NMEGetNewInstruction(Enemy *enemy, s32 instructionNum, s32 overrideConditions);
 void DestroyAndFreeActor(Actor *actor);
+/* g64coopdx: a test's record of the tokens read (g64players.c). */
+void G64ParseTrace(s32 offset, s32 token);
 
 void ParseLandscapeFile(s32 num) {
     s16 tag[4]; // an 8-byte buffer: it is given the first stack slot, as in the original
@@ -160,6 +162,8 @@ void ParseLandscapeFile(s32 num) {
     PRINTF("\nParsing landscape file %s\n", data);
     data += strlen((char *)data) + 1;
     while ((token = port_read_token(data)) != 0x7D00) {
+        /* g64coopdx: a test's record of where each token starts (g64players.c). */
+        G64ParseTrace((s32)(data - file), token);
         data += 2;
         if (gameInfo.mode == 13) {
             break;
@@ -287,6 +291,7 @@ void ParseLandscapeFile(s32 num) {
             NMEAddAttackInstruction(&data);
         }
     }
+    G64ParseTrace((s32)(data - file), token);
     JallocFree(&file);
     if (gameInfo.mode == 13) {
         return;
