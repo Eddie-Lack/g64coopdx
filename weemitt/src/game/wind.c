@@ -167,7 +167,8 @@ void UpdateWinds(void) {
             continue;
         }
         if (deltaTick && (frameCount & 1)) {
-            for (i = 0; i < wind->strength; i++) {
+            /* g64coopdx: at most 1,000 a frame; a strength without an end made this loop run without one. */
+            for (i = 0; i < wind->strength && i < 1000; i++) {
                 lifetime = 0;
                 vel = wind->strength * (Random(10) / 4.0f + 12.0f);
                 for (x = 0; x < 3; x++) {

@@ -571,7 +571,8 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             fog.r = action->data[0];
             fog.g = action->data[1];
             fog.b = action->data[2];
-            fog.min = action->data[3];
+            /* g64coopdx: the game divides by the fog's far end less its near end when it draws. */
+            fog.min = action->data[3] == fog.max ? fog.max - 1 : action->data[3];
             farPlaneDist = action->data[4];
             originalFog = fog;
             return;
@@ -663,7 +664,10 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             return;
         case ACTION_SET_WATERLEVEL:
             water = FindTaggedWater(action->tag);
-            water->targetHeight = action->value;
+            /* g64coopdx: a tag that no water has. */
+            if (water != NULL) {
+                water->targetHeight = action->value;
+            }
             return;
         case ACTION_SET_VAR:
             if (action->flags & 0x80) {

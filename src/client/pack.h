@@ -70,8 +70,14 @@ int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint
 /* Loads the pack in folder dir, without the check of the level file's structure. Returns 0, or -1 with a message
  * in err. */
 int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize);
-/* The check of the level file's structure (levcheck.h): NULL when it passes, or a message, with the place in at
- * (at may be NULL). */
+/* 1 when level is one of the three ordinary levels of a world (10 to 12, 15 to 17, and so on up to 37). The
+ * game's code for the hubs, the boss levels, the bonus levels and the scenes expects fixed things in those levels,
+ * by tag and by order, and uses them without a test. A pack that came from another player may take the place of an
+ * ordinary level only. */
+int g64_pack_level_plain(int level);
+/* The check of a pack that may come from another player: its level is an ordinary one, and the level file's
+ * structure is as the game reads it (levcheck.h). NULL when it passes, or a message, with the place in at (at may
+ * be NULL). */
 const char *g64_pack_check_strict(const g64_pack *p, size_t *at);
 /* The number of the level in rom whose file has the same bytes as the pack's, or -1. Such a pack holds game data: it
  * is a copy of a level of the ROM, and must not be sent to anyone. */

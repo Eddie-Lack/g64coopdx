@@ -118,9 +118,10 @@ A player who joins without the pack can download it from the host:
 - A player who has the folder can still start with `--pack FOLDER`, and nothing is downloaded.
 - A player who starts with a pack and joins a host without one plays without it.
 
-The host does not send a pack in two cases, and a player then needs the folder. The first: the pack's level file is
-an unchanged level of the game. That is game data, which never travels. The second: the level file does not pass
-the check (`g64pack check` prints it).
+The host does not send a pack in three cases, and a player then needs the folder. The first: the pack's level file
+is an unchanged level of the game. That is game data, which never travels. The second: the level file does not pass
+the check. The third: the pack takes the place of a hub, a boss level, a bonus level or a scene, and not of one of
+a world's three levels. `g64pack check` says whether a pack can be downloaded.
 
 ### Making a pack
 
