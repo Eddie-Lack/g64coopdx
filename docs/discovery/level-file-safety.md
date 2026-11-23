@@ -16,6 +16,28 @@ hold in the player's own ROM. Parts of the game that use parsed values were not 
 a check exists and has been fuzzed against the real parser, a level file from a stranger can crash the game or
 write outside its memory.
 
+## What is checked today
+
+`src/client/levcheck.c` checks a level file's structure. It walks the file as the parser does and holds it to these
+rules:
+
+- the file starts with its own size, and its name ends with a zero byte
+- every token is one the parser handles, and the end token comes inside the file
+- every token's fields lie inside the file
+- a token that uses a platform, a puzzle, an enemy, a vent, a landscape piece, a group of garibs, a cameo or a
+  buzzer comes after the token that makes one, in this file
+- no token takes a short form (the tokens whose length depends on what came before, below)
+- a ball start's place, read as tokens, holds no token
+
+How it is proven: the game's parser records each token it reads (`G64ParseTrace`, for tests only), and
+`tests/rom/levcheck.c` compares that record with the check's walk on all 48 levels of the ROM. The check accepts
+every one and names the same tokens at the same offsets. 26 of the parser's tokens are in no level of the ROM; their
+lengths come from the code alone. The check's fuzz target shows that it never reads outside the file.
+
+What it does not check: values (an axis, a count, a type, a sound's number), and whether the level's objects are in
+the banks of the level whose place it takes. The numbered list below still holds for a file that passes. `g64pack`
+prints the check's result for a pack's maker. The game does not refuse a pack on it yet.
+
 ## How the parser reads
 
 - The file is: a size (4 bytes), a name that ends with a zero byte, then 16-bit tokens with their fields, until
@@ -27,6 +49,8 @@ write outside its memory.
 - The token values are Glovebox's opcodes (`Glovebox/crates/core/data/level_format.json`): all 110 agree. The byte
   counts differ in three places: ORBITFLIP reads 6 bytes (P:1607), SINEBRIDGE reads 60 (P:1147-1160), and an enemy
   instruction of an unknown type reads only its type and time (`nmeprocess.c:78-105`).
+- The tokens SPIKE, CAMEO_CAM and ANIMATE_PLATFORM have handlers that do not report that they took the token. No
+  other handler takes it after them, so their lengths hold.
 - Some tokens read fewer bytes depending on what came before, and the rest is then read as tokens: BALL_START (by
   the save), the puzzle tokens without a puzzle, TELEPORT whose target tag is not found, ORBIT after two path
   points, ORBITPAUSE and ORBITFLIP after each other, SPINFLIP after SPINPAUSE, SCALE after a POINT, and enemy and

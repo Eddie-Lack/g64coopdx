@@ -66,6 +66,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make sound         # the online game's sound through rollbacks, on Linux and under Wine (needs the ROM)
     make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips, cameos, each player's ball texture and the any-ball rule with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
+    make levcheck      # the level file check reads every level as the game's parser does, on Linux and Wine (needs the ROM)
     make bots          # every level with 8 and with 16 players who play at random, on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
@@ -98,5 +99,6 @@ run locally: set `GLOVER_ROM`.
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
 | Level packs: the reader, the format, and the tool that makes them | src/client (`pack.h`), docs/discovery/level-pack.md, tools/g64pack.c (`make packtool`) |
+| The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | How players host and join | docs/playing-online.md |

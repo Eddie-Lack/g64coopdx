@@ -21,6 +21,7 @@
 #define make_dir(p) mkdir(p, 0777)
 #endif
 
+#include "../src/client/levcheck.h"
 #include "../src/client/pack.h"
 
 /* The game's levels by number (weemitt's enum Level). */
@@ -99,6 +100,17 @@ static void print_pack(const char *dir, const g64_pack *p) {
     printf("name: %s\n", p->name);
     printf("level: %d (%s)\n", p->level, levelName[p->level]);
     printf("level file: %lu bytes\n", (unsigned long)p->levSize);
+    {
+        /* The structure check does not stop a pack yet: it has been compared with the game's parser on the game's
+           own levels only. It tells the pack's maker what the game may read wrongly. */
+        size_t at = 0;
+        const char *why = g64_lev_check(p->lev, p->levSize, NULL, NULL, &at);
+        if (why) {
+            printf("level file's structure: WARNING, at byte %lu: %s\n", (unsigned long)at, why);
+        } else {
+            printf("level file's structure: as the game reads it\n");
+        }
+    }
     if (p->script != NULL) {
         printf("script: %lu bytes\n", (unsigned long)p->scriptSize);
     } else {
