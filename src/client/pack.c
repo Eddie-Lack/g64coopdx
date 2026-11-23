@@ -197,13 +197,6 @@ static uint8_t *read_file(const char *dir, const char *name, size_t max, size_t 
     return d;
 }
 
-#define NOT_PLAIN "the pack takes the place of a level that is not one of a world's three levels"
-
-int g64_pack_level_plain(int level) {
-    /* Atlantis 1 is level 10, and each world has its three levels, its boss and its bonus level in that order. */
-    return level >= 10 && level <= 37 && (level - 10) % 5 < 3;
-}
-
 static uint8_t *copy_bytes(const uint8_t *d, size_t n) {
     uint8_t *c = malloc(n ? n : 1);
     if (c && n)
@@ -236,7 +229,7 @@ int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint
     }
     if (strict) {
         size_t at = 0;
-        const char *why = g64_pack_level_plain(out->level) ? g64_lev_check(lev, levSize, NULL, NULL, &at) : NOT_PLAIN;
+        const char *why = g64_lev_check(lev, levSize, NULL, NULL, &at);
         if (why) {
             memset(out, 0, sizeof *out);
             out->level = -1;
@@ -299,7 +292,6 @@ int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize) {
 const char *g64_pack_check_strict(const g64_pack *p, size_t *at) {
     size_t where = 0;
     const char *why = !p || !p->lev ? "there is no level file"
-                      : !g64_pack_level_plain(p->level) ? NOT_PLAIN
                       : g64_lev_check(p->lev, p->levSize, NULL, NULL, &where);
     if (at)
         *at = where;

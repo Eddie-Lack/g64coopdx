@@ -115,10 +115,7 @@ static void print_pack(const char *dir, const g64_pack *p) {
        tool has no ROM here: a host also does not send a level file that is a copy of one of the ROM's levels. */
     printf("from the host: %s\n", g64_pack_check_strict(p, NULL) == NULL
                                       ? "players can download this pack when they join"
-                                      : g64_pack_level_plain(p->level)
-                                            ? "not sent, the level file's structure has a warning; every player needs the folder"
-                                            : "not sent, it takes the place of a hub, boss, bonus or scene level; every "
-                                              "player needs the folder");
+                                      : "not sent, the level file's structure has a warning; every player needs the folder");
     if (p->script != NULL) {
         printf("script: %lu bytes\n", (unsigned long)p->scriptSize);
     } else {

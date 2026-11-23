@@ -457,6 +457,11 @@ void InitMorePersonal(s32 num) {
     if (num == 8) {
         for (j = saveSlot[currentSaveSlot].hubLevel + 1; j < 8; j++) {
             platform = TagToFirstPlatform(j);
+            if (platform == NULL) {
+                /* g64coopdx: the cave's file may lack the platform of a world's tag. */
+                G64Unplayable("CAVE PLATFORM");
+                continue;
+            }
             platform->actor.alpha = 0;
             platform->actor.pos.y = -5000.0f;
             platform->flags &= ~0x20000;
