@@ -411,8 +411,8 @@ build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) $(SEAL_DEPS)
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/seal_test.c $(SEAL_SRC) -lbcrypt
 
 # The level pack reader (src/client/pack.h), with the hash it takes from the cryptography library.
-PACK_SRC := src/client/pack.c third_party/monocypher/monocypher.c
-PACK_DEPS := src/client/pack.h third_party/monocypher/monocypher.h
+PACK_SRC := src/client/pack.c src/client/levcheck.c third_party/monocypher/monocypher.c
+PACK_DEPS := src/client/pack.h src/client/levcheck.h third_party/monocypher/monocypher.h
 build/tests/pack_test: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/pack_test.c $(PACK_SRC)
@@ -456,11 +456,11 @@ packtool-windows: build/g64pack.exe
 
 build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
 	@mkdir -p build
-	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC) src/client/levcheck.c
+	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC)
 
 build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
 	@mkdir -p build
-	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC) src/client/levcheck.c
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC)
 
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests

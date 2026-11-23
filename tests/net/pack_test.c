@@ -1,5 +1,6 @@
 /* Tests of the level pack reader (src/client/pack.h): the manifest's parser, the level file's outside check, the
- * id, and a pack loaded from a folder that the test writes. The level file here is made up: a size and a name. No
+ * id, a pack loaded from a folder that the test writes, a pack from bytes, the cache, and the comparison with a
+ * ROM's levels. The level file here is made up: a size and a name. No
  * ROM needed. It prints the id of a fixed pack; Linux and Windows must print the same. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +22,7 @@ static int manifest(const char *text, g64_pack *p) {
 }
 
 static void write_file(const char *dir, const char *name, const void *d, size_t n) {
-    char path[512];
+    char path[1024];
     FILE *f;
     snprintf(path, sizeof path, "%s/%s", dir, name);
     f = fopen(path, "wb");
@@ -32,7 +33,7 @@ static void write_file(const char *dir, const char *name, const void *d, size_t 
 }
 
 static void remove_file(const char *dir, const char *name) {
-    char path[512];
+    char path[1024];
     snprintf(path, sizeof path, "%s/%s", dir, name);
     remove(path);
 }
@@ -118,6 +119,98 @@ int main(int argc, char **argv) {
     write_file(dir, "pack.txt", "format=9\n", 9);
     check(g64_pack_load(dir, &p, err, sizeof err) != 0, "a pack with a bad manifest is refused");
     check(g64_pack_load("no-such-folder-here", &p, err, sizeof err) != 0, "a folder that is not there is refused");
+    write_file(dir, "pack.txt", good, strlen(good));
+
+    {
+        /* A pack from bytes, as one that came from a host. The strict form also holds the level file to the check
+           of its structure: the made-up file above has no end token. */
+        static const uint8_t whole[11] = {0, 0, 0, 11, 't', '.', 'l', 'n', 0, 0x7D, 0x00};
+        static const char script[] = "function on_frame() end\n";
+        g64_pack q;
+        uint8_t wholeId[G64_PACK_ID];
+        const uint8_t *m = (const uint8_t *)good;
+        size_t mn = strlen(good);
+        check(g64_pack_from_bytes(m, mn, lev, sizeof lev, NULL, 0, 0, &p, err, sizeof err) == 0 &&
+                  memcmp(p.id, id, sizeof id) == 0 && p.manifestSize == mn && memcmp(p.manifest, m, mn) == 0,
+              "a pack from bytes has the folder's id and keeps its manifest");
+        check(g64_pack_check_strict(&p, NULL) != NULL, "the made-up level file does not pass the check");
+        g64_pack_free(&p);
+        check(g64_pack_from_bytes(m, mn, lev, sizeof lev, NULL, 0, 1, &p, err, sizeof err) != 0 && p.lev == NULL,
+              "the strict form refuses a level file without an end");
+        check(g64_pack_from_bytes(m, mn, whole, sizeof whole, NULL, 0, 1, &p, err, sizeof err) == 0,
+              "the strict form takes a whole level file");
+        memcpy(wholeId, p.id, sizeof wholeId);
+        check(g64_pack_from_bytes(m, mn - 1, whole, sizeof whole, NULL, 0, 1, &q, err, sizeof err) != 0,
+              "a cut manifest is refused");
+        check(g64_pack_from_bytes(m, mn, whole, sizeof whole - 1, NULL, 0, 1, &q, err, sizeof err) != 0,
+              "a cut level file is refused");
+        check(g64_pack_from_bytes(m, mn, whole, sizeof whole, (const uint8_t *)"\x1bLua", 4, 1, &q, err, sizeof err) != 0,
+              "a compiled script is refused");
+        check(g64_pack_from_bytes(NULL, 0, NULL, 0, NULL, 0, 1, &q, err, sizeof err) != 0, "no bytes are refused");
+
+        /* The cache: a folder named by the id alone. */
+        {
+            char path[600], want[600];
+            snprintf(want, sizeof want, "%s/packs/", dir);
+            check(g64_pack_cache_dir(dir, wholeId, path, sizeof path) == 0 && strlen(path) == strlen(want) + 32 &&
+                      memcmp(path, want, strlen(want)) == 0 && strspn(path + strlen(want), "0123456789abcdef") == 32,
+                  "the cache folder's name is the id in hexadecimal digits");
+            check(g64_pack_cache_dir(dir, wholeId, path, 20) != 0, "a path that does not fit is refused");
+            check(g64_pack_cache_dir("", wholeId, path, sizeof path) != 0, "no base folder is refused");
+        }
+        check(g64_pack_cache_load(dir, wholeId, &q, err, sizeof err) != 0, "a pack that was never kept is not found");
+        check(g64_pack_cache_save(dir, &p, err, sizeof err) == 0, "a pack is kept");
+        check(g64_pack_cache_load(dir, wholeId, &q, err, sizeof err) == 0 && memcmp(q.id, wholeId, sizeof wholeId) == 0 &&
+                  q.levSize == sizeof whole && !q.script,
+              "a kept pack is read back");
+        g64_pack_free(&q);
+        check(g64_pack_cache_save(dir, &p, err, sizeof err) == 0, "a pack is kept a second time");
+        g64_pack_free(&p);
+        {
+            /* Files that changed on the disk: the id no longer fits, or the level file no longer passes. */
+            char path[600];
+            g64_pack_cache_dir(dir, wholeId, path, sizeof path);
+            write_file(path, "script.lua", script, sizeof script - 1);
+            check(g64_pack_cache_load(dir, wholeId, &q, err, sizeof err) != 0, "a kept pack with a new file is refused");
+            remove_file(path, "script.lua");
+            write_file(path, "level.lev", lev, sizeof lev);
+            check(g64_pack_cache_load(dir, wholeId, &q, err, sizeof err) != 0, "a kept pack that changed is refused");
+            check(g64_pack_cache_load(dir, id, &q, err, sizeof err) != 0, "a pack under another id's name is not found");
+        }
+        /* A kept pack with a script, and then the same folder used for a pack without one. */
+        check(g64_pack_from_bytes(m, mn, whole, sizeof whole, (const uint8_t *)script, sizeof script - 1, 1, &p, err,
+                                  sizeof err) == 0 && memcmp(p.id, wholeId, sizeof wholeId) != 0,
+              "a pack with a script from bytes");
+        check(g64_pack_cache_save(dir, &p, err, sizeof err) == 0 &&
+                  g64_pack_cache_load(dir, p.id, &q, err, sizeof err) == 0 && q.scriptSize == sizeof script - 1,
+              "a kept pack with a script is read back");
+        g64_pack_free(&q);
+        g64_pack_free(&p);
+    }
+    {
+        /* A pack whose level file is a level of the ROM holds game data. The ROM here is made up: its first word,
+           the two pointers of the loader's code, and two level files. */
+        static uint8_t rom[0x54100];
+        static const uint8_t start[8] = {0x3C, 0x02, 0xB0, 0x05, 0x34, 0x42, 0x40, 0x00};
+        static const uint8_t end[8] = {0x3C, 0x03, 0xB0, 0x05, 0x34, 0x63, 0x40, 0x18};
+        static const uint8_t second[12] = {0, 0, 0, 12, 't', 'e', 's', 't', '.', 'l', 'n', 0};
+        static const uint8_t first[12] = {0, 0, 0, 12, 'o', 'n', 'e', '.', 'l', 'n', 0, 0};
+        static uint8_t own[12] = {0, 0, 0, 12, 't', 'e', 's', 't', '.', 'l', 'n', 1};
+        rom[0] = 0x80, rom[1] = 0x37, rom[2] = 0x12, rom[3] = 0x40;
+        memcpy(rom + 341164, start, 8);
+        memcpy(rom + 341348, end, 8);
+        memcpy(rom + 0x54000, first, 12);
+        memcpy(rom + 0x5400C, second, 12);
+        check(g64_pack_from_bytes((const uint8_t *)good, strlen(good), second, 12, NULL, 0, 0, &p, err, sizeof err) == 0 &&
+                  g64_pack_rom_level(&p, rom, sizeof rom) == 1,
+              "a pack with a level of the ROM is found");
+        g64_pack_free(&p);
+        check(g64_pack_from_bytes((const uint8_t *)good, strlen(good), own, 12, NULL, 0, 0, &p, err, sizeof err) == 0 &&
+                  g64_pack_rom_level(&p, rom, sizeof rom) == -1,
+              "a pack with a level of its own is not one of the ROM's");
+        check(g64_pack_rom_level(&p, rom, 64) == -1, "a ROM that is too short has no levels");
+        g64_pack_free(&p);
+    }
     printf("%s: %d failures\n", failures ? "FAILED" : "ok", failures);
     return failures ? 1 : 0;
 }

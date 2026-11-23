@@ -24,6 +24,30 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (g64_pack_check_script(data, size) == 0 && (size < 1 || size > G64_PACK_SCRIPT_MAX || data[0] == 0x1B ||
                                                     memchr(data, 0, size)))
         __builtin_trap();
+    /* A pack from bytes, as one from a host: the input's first three bytes cut the rest into a manifest, a level
+       file and a script. A pack that comes out has parts within the limits, and reads the same a second time. */
+    if (size >= 3) {
+        const uint8_t *rest = data + 3;
+        size_t n = size - 3, mn = n ? (size_t)(data[0] | (data[1] & 3) << 8) % (n + 1) : 0;
+        size_t ln = n - mn ? (size_t)data[2] * 37 % (n - mn + 1) : 0, sn = n - mn - ln;
+        char err[160];
+        g64_pack a, b;
+        if (g64_pack_from_bytes(rest, mn, rest + mn, ln, sn ? rest + mn + ln : NULL, sn, data[1] >> 7, &a, err,
+                                sizeof err) == 0) {
+            if (a.manifestSize != mn || a.levSize != ln || a.scriptSize != sn || a.level < 0 ||
+                a.level >= G64_PACK_LEVELS || (data[1] >> 7 && g64_pack_check_strict(&a, NULL) != NULL))
+                __builtin_trap();
+            if (g64_pack_from_bytes(a.manifest, a.manifestSize, a.lev, a.levSize, a.script, a.scriptSize, 1, &b, err,
+                                    sizeof err) == 0) {
+                if (memcmp(a.id, b.id, sizeof a.id) != 0)
+                    __builtin_trap();
+                g64_pack_free(&b);
+            }
+            g64_pack_free(&a);
+        } else if (a.lev || a.manifest || a.script) {
+            __builtin_trap();
+        }
+    }
     /* The reader of a ROM's level files: the input stands for a ROM, with its first word and its two code pointers
        put right so the walk over the files is reached. A file it finds lies inside the input. */
     if (size >= 4) {
