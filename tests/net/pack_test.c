@@ -22,7 +22,7 @@ static int manifest(const char *text, g64_pack *p) {
 }
 
 static void write_file(const char *dir, const char *name, const void *d, size_t n) {
-    char path[512];
+    char path[1024];
     FILE *f;
     snprintf(path, sizeof path, "%s/%s", dir, name);
     f = fopen(path, "wb");
@@ -33,7 +33,7 @@ static void write_file(const char *dir, const char *name, const void *d, size_t 
 }
 
 static void remove_file(const char *dir, const char *name) {
-    char path[512];
+    char path[1024];
     snprintf(path, sizeof path, "%s/%s", dir, name);
     remove(path);
 }
