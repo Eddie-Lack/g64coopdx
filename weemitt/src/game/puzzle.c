@@ -625,6 +625,10 @@ void PuzzleExecuteAction(PuzzleAction *action) {
             return;
         case ACTION_DROP_PICKUP:
             collectable = CreateNewPickup(action->tag, (Vec3 *)action->data, 0, action->flags);
+            if (collectable == NULL) {
+                /* g64coopdx: the game does not have this pick-up in this level. */
+                return;
+            }
             collectable->tag = action->value;
             ZERO_VECTOR(&collectable->actor.scale);
             CreateStarCircle(&collectable->actor.pos, 6, 19);

@@ -880,11 +880,23 @@ Collectable *CreateNewPickup(u8 type, Vec3 *pos, s16 time, s16 duration) {
     Collectable *collectable = (Collectable *)JallocAlloc(sizeof(Collectable), 1, "Collect");
     Platform *platform;
 
+    /* g64coopdx: the type picks one of the game's 15 pick-ups, whose object must be in the level's banks. If not,
+       the level is marked as one that cannot be played (FindObject does it for a missing object), and there is no
+       pick-up. */
+    if (type > 14) {
+        G64Unplayable("PICKUP");
+        JallocFree(&collectable);
+        return NULL;
+    }
     collectable->type = type;
     collectable->actor.pos = *pos;
     collectable->respawnTime = time;
     collectable->duration = duration;
     FindObject(&collectable->actor.inst, UpdateCRC(collectableFileName[collectable->type]), NULL, 1);
+    if (collectable->actor.inst == NULL) {
+        JallocFree(&collectable);
+        return NULL;
+    }
     InitActorStructures(&collectable->actor, 12);
     AnimateActor(&collectable->actor, 0, 1, 0, 0.0f);
     collectable->scaleTarget = 0.4f;
