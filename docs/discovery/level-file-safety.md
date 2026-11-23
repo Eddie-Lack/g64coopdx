@@ -116,10 +116,12 @@ uses the object, and the game's free does nothing for a list that is not there. 
 updates.
 
 The game's code for the hubs, the boss levels, the bonus levels and the scenes expects fixed things in those
-levels: platforms by tag, enemies by order, a water by tag. It uses them without a test (boss.c, nmeprocess2.c).
-None of that is guarded. A pack that comes from a host may therefore take the place of an ordinary level only,
-one of a world's three (`g64_pack_level_plain` in src/client/pack.c). A pack for another level needs its folder on
-every machine.
+levels: platforms by tag, enemies by order, a water by tag. `make swaps` (tests/rom/swaps.c) plays every level with
+each other level's file in its place, with two players at random, and the game must play it or stop it as
+unplayable. It found these, now guarded: the crystal cave's platforms by tag (InitMorePersonal), the third space
+boss's platforms by tag (DoSpaceBoss3), a restart gate without motion (CheckRestartGate, RestartPlayer), and the
+error screen's overlays, which wrote their vertices past their buffer (GraphicsStep). A pack that comes from a host
+may therefore take the place of any level.
 
 Not guarded in the game yet: the short forms, which the check before loading refuses; memory that fills after the
 level is read, while it runs (the program then stops); and what the last section says was not read.
