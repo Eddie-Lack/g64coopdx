@@ -47,7 +47,7 @@ safe for bytes from the network.
 
 The game's level file: a length (4 bytes, big-endian), the name of the level's landscape file, then the level's
 commands. The length is the file's whole size, and the reader checks it. The file is 1 MB at most. The game's largest
-level file is about 150 KB.
+level file is about 15 KB.
 
 ### Making a pack
 
@@ -77,6 +77,19 @@ BLAKE2b comes with the cryptography library that g64coopdx already holds (`third
 
 The session's hello carries the id (`src/session/session.h`). A pack changes the game, so both machines must have
 the same one.
+
+## Packs that came from a host
+
+The reader has what a download needs; the download itself is still to come.
+
+- `g64_pack_from_bytes` reads a pack from its three files' bytes. Its strict form also holds the level file to the
+  check of its structure ([level-file-safety.md](level-file-safety.md), "What is checked today"). A pack from
+  another player is read this way. A pack from a folder the player chose is not held to that check.
+- A downloaded pack is kept in `packs/ID` in the program's folder for its own files, where `ID` is the pack's id as
+  32 hexadecimal digits. No text from the network is part of a path. A kept pack is read with the strict form
+  again, and its files must give the id its folder names.
+- `g64_pack_rom_level` says whether a pack's level file has the same bytes as one of the ROM's levels. Such a pack
+  holds game data, and a host must not send it.
 
 ## How the game reads it
 
