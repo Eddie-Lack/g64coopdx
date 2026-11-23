@@ -353,10 +353,18 @@ s32 IntroTitleWait(s32 *act, Screen *me) {
                       : (110.0f - spinInCount[0]) * 255.0f / 110.0f) : 255)
 #define TITLE_PULSE (sinf(animFloat * 0.65) * 90.0f + 128.0f + 38.0f)
 
+s32 G64TitleActive(void);
+s32 G64TitleMenu(void);
+
 s32 MainTitleWait(s32 *act, Screen *me) {
     s32 i;
     s32 j;
     f64 spinDecay;
+
+    /* g64coopdx: the online program's start screen uses the title screen (g64title.c). */
+    if (G64TitleActive()) {
+        return G64TitleMenu();
+    }
 
     cameFromTitle = FALSE;
     UpdatePause();

@@ -22,6 +22,7 @@
 /* g64coopdx: the online mode (g64coopdx's src/client/netplay.c). */
 #include "../../../src/client/netplay.h"
 #include "g64launcher.h"
+#include "../game/g64title.h"
 #endif
 #include "settings.h"
 
@@ -743,6 +744,19 @@ void g64_title_frame(SDL_Window *window) {
     titleLast = now;
     if (titleAcc > 0.25) {
         titleAcc = 0.25;
+    }
+    /* Up to the title menu the game runs as fast as it can, with the window black: the logos would take 15
+       seconds. */
+    if (!G64TitleReady()) {
+        int k;
+
+        for (k = 0; k < 120 && !G64TitleReady(); k++) {
+            port_buttons = 0;
+            port_stick_x = port_stick_y = 0;
+            port_game_frame(titleTasks, 16);
+        }
+        titleAcc = 0.0;
+        titleTaskCount = 0;
     }
     while (titleAcc >= port_game_retraces() / 60.0) {
         long n;
