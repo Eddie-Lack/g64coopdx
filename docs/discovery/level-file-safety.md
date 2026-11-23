@@ -73,6 +73,11 @@ the check lacks does less harm:
 - A platform cannot be its own parent. A TAKESPIN under a parent whose spin has no axis stops the level: the game
   wrote three numbers into a list of two. A vent whose patterns all have 0 frames on stays off; the game called
   itself for it without an end.
+- A DESTRUCTIBLE platform's pieces must be of an object the level's banks hold (or of none, as in the game's own
+  levels), and a platform breaks into at most 64.
+- A level file may not fill the game's memory. The game stops the program when its heap or its list of 1,280 memory
+  blocks is full. Before each token the parser asks for 4 MB of free heap and for fewer than 1,100 blocks in use; the
+  largest of the game's levels uses 957 blocks and about 1 MB of 22 while it is read.
 - A TIP's number is 0 to 32. An animation's number below 0 plays the object's first.
 - A cameo starts only when every one of its instructions names things that are there (`CameoUsable` in cameo.c): an
   enemy of the level by its number, another instruction of the cameo as its trigger, one of an actor's 8 spheres.
@@ -90,12 +95,16 @@ the check lacks does less harm:
 - Online, the players of such a level go back to the hub, and each is told why. A hub level that cannot be played
   keeps its players.
 - `pack_unplayable` in tests/rom/instances.c plays a level whose first platform names a missing object, and one
-  whose garibs come before any group, and one with an enemy of a kind the level's banks do not hold: both players
-  end in the hub each time, and no machine disagrees.
+  whose garibs come before any group, one with an enemy of a kind the level's banks do not hold, one whose broken
+  platform leaves pieces of a missing object, and one with 1,300 more platforms than the game's: both players end in
+  the hub each time, and no machine disagrees.
 
-Not guarded in the game yet: a destructible platform's debris object; POS and the tokens that free a platform's
-faces, on a DUMMY; the short forms, which the check before loading refuses; work without end (a head start's or a
-bridge's update count, any number of objects until the heap is full); and what the last section says was not read.
+POS and the tokens that free a platform's faces are safe on a DUMMY as the game is: the first returns before it
+uses the object, and the game's free does nothing for a list that is not there. A head start runs at most 32,767
+updates.
+
+Not guarded in the game yet: the short forms, which the check before loading refuses; memory that fills after the
+level is read, while it runs (the program then stops); and what the last section says was not read.
 
 ## How the parser reads
 

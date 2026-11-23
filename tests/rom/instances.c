@@ -677,7 +677,9 @@ static void find_platform(void *user, size_t offset, int token) {
    game tested the spin without asking, and divided by its count of pauses. This level must go on. which 5: the
    first SPIN is on axis 7. The game wrote four of the file's bytes at the place the axis picks. which 6: every cameo
    instruction that names an actor names enemy 25, which the level does not have. The cameos do not start, and the
-   level goes on. */
+   level goes on. which 7: the first platform is DESTRUCTIBLE with pieces of an object that the level's banks do not
+   hold. which 8: 1,300 platforms without an object come first. The game stopped the program when its list of memory
+   blocks was full. */
 static void unplayable_case(Engine *e, void *boot, int which) {
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
@@ -690,7 +692,8 @@ static void unplayable_case(Engine *e, void *boot, int which) {
     char what[200];
     if (g64_pack_level_from_rom(rom, romSize, level, &at, &size) != NULL)
         return;
-    with = malloc(romSize + size);
+    /* Room for the tokens that two of the cases put into the file. */
+    with = malloc(romSize + size + 4096);
     if (!with)
         return;
     memset(none, 0, sizeof none);
@@ -701,7 +704,27 @@ static void unplayable_case(Engine *e, void *boot, int which) {
     g64_lev_check(with + romSize, size, find_platform, NULL, &bad);
     if (which != 6)
         check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
-    if (which == 0) {
+    if (which == 7 || which == 8) {
+        /* Tokens go into the file: a DESTRUCTIBLE with 5 pieces of an object the level does not have, after the
+           first platform's own 12 bytes of fields, or 1,300 DUMMY platforms before the first token. The file's first
+           word is its size. */
+        uint8_t *lev = with + romSize;
+        size_t where = which == 7 ? firstPlatform + 14 : 4 + strlen((const char *)lev + 4) + 1;
+        size_t extra = which == 7 ? 20 : 2600, k;
+        memmove(lev + where + extra, lev + where, size - where);
+        memset(lev + where, 0, extra);
+        if (which == 7) {
+            lev[where + 1] = 101;
+            lev[where + 7] = 5;
+            lev[where + 8] = 0x12, lev[where + 9] = 0x34, lev[where + 10] = 0x56, lev[where + 11] = 0x78;
+        } else {
+            for (k = 0; k < extra; k += 2)
+                lev[where + k + 1] = 93;
+        }
+        size += extra;
+        lev[0] = (uint8_t)(size >> 24), lev[1] = (uint8_t)(size >> 16), lev[2] = (uint8_t)(size >> 8), lev[3] = (uint8_t)size;
+        check(g64_lev_check(lev, size, NULL, NULL, &bad) == NULL, "the check before loading takes the file: it knows no banks and no memory");
+    } else if (which == 0) {
         /* The object's id is the four bytes after the token. */
         with[romSize + firstPlatform + 2] ^= 0x5A;
         with[romSize + firstPlatform + 3] ^= 0xA5;
@@ -785,6 +808,8 @@ static void unplayable_case(Engine *e, void *boot, int which) {
                  : which == 3 ? "a puzzle condition the game does not have"
                  : which == 5 ? "a spin on an axis that is not there"
                  : which == 6 ? "cameos about an enemy that is not there"
+                 : which == 7 ? "a broken platform's pieces of an object that is not there"
+                 : which == 8 ? "more platforms than the game's memory has blocks for"
                               : "conditions on spins that are not there",
                  which == 4 || which == 6 ? "plays on" : "sends its players to the hub", levels[0], levels[1], g64_ihost_hash_mismatches(host), g64_iclient_desyncs(player[0]),
                  g64_iclient_desyncs(player[1]));
@@ -814,6 +839,8 @@ static void pack_unplayable(Engine *e, void *boot) {
     unplayable_case(e, boot, 4);
     unplayable_case(e, boot, 5);
     unplayable_case(e, boot, 6);
+    unplayable_case(e, boot, 7);
+    unplayable_case(e, boot, 8);
 }
 
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's
