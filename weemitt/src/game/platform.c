@@ -1533,7 +1533,8 @@ void CheckRestartGate(Platform *platform) {
             tempVect.x = 8.0f;
             tempVect.y = 0.0f;
             tempVect.z = 0.0f;
-            RotateVector2D(&tempVect, &tempVect, platform->motion->rot.y);
+            /* g64coopdx: a gate of another level's file may have no motion. */
+            RotateVector2D(&tempVect, &tempVect, platform->motion ? platform->motion->rot.y : 0.0f);
             for (i = 0; i < 6; i++) {
                 RotateVector2D(&tempVect, &tempVect, 1.0f);
                 AddPuff(&platform->actor.pos, &tempVect, 2.0f);
@@ -1698,7 +1699,8 @@ void RestartPlayer(void) {
             tempVect.x = 8.0f;
             tempVect.y = 0.0f;
             tempVect.z = 0.0f;
-            RotateVector2D(&tempVect, &tempVect, handControl.checkpoint->motion->rot.y);
+            /* g64coopdx: a gate of another level's file may have no motion. */
+            RotateVector2D(&tempVect, &tempVect, handControl.checkpoint->motion ? handControl.checkpoint->motion->rot.y : 0.0f);
             if (*timer == 35 || (*timer == 10 && ballWithHand)) {
                 size = 2.0f;
             } else if (*timer == 36 || (*timer == 11 && ballWithHand)) {

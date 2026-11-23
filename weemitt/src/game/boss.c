@@ -1605,6 +1605,13 @@ void DoSpaceBoss3(void) {
     s32 players;
     s32 p;
 
+    /* g64coopdx: the boss moves the platforms of the tags 1 to 5, and a level file may lack one. */
+    for (i = 1; i < 6; i++) {
+        if (i != 3 && TagToFirstPlatform(i) == NULL) {
+            G64Unplayable("BOSS PLATFORM");
+            return;
+        }
+    }
     if (frameCount == 0 && DeltaFirst(&spaceBossSetUpFrame)) {
         spaceBossCamOffVect.x = 0.0f;
         spaceBossPanelOn = 0;

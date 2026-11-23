@@ -100,6 +100,8 @@ extern f32 TicksPerSec;
 extern s32 osTvType;
 extern PTR32(u16) cfb_ptrs[];
 extern u8 draw_buffer;
+extern PTR32(Vtx) vtxPtr;
+extern Vtx objectsVtx[2][800];
 extern u8 gfxIsDrawing;
 extern u8 UseTextureMode;
 extern s32 actualGFXListLength[];
@@ -895,6 +897,10 @@ void GraphicsStep(void) {
                     port_draw_mark_hook(PORT_DRAW_WORLD, NULL);
                 }
                 RenderObjects();
+            } else {
+                /* g64coopdx: RenderObjects sets the vertex pointer at each frame's start. The error screen of an
+                   unplayable level skips it, and the overlays' vertices would pass the end of their buffer. */
+                vtxPtr = objectsVtx[draw_buffer];
             }
             StartTimer(1, "GRAPHICS");
             if (port_draw_mark_hook != NULL) {
