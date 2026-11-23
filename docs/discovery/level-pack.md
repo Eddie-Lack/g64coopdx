@@ -90,12 +90,15 @@ offers its pack over the sealed link (`src/session/session.h`: offer, want, piec
 - The joiner asks for the bytes by offset, and the host answers each request with up to 8 pieces of 1,024 bytes.
   The host keeps no state for a download. It serves one player at most every 20 ms and sends at most 256 pieces a
   second in all: a download must not crowd out a running game's messages.
+- One joiner gets at most three times the pack's size, and then loses the place. Players without the pack hold at
+  most four places at once.
 - The joiner takes pieces in order only, up to the sizes of the first offer. A second offer of another pack ends
   the session.
 - The joiner reads the bytes as a pack in the strict form, and compares its id and name with the offer's. Only then
   does it tell the host that it is ready. Until then the host does not count the player: they are not in the
   game, get no start and no chat, and their place is free again after five minutes.
 - A host without a pack offers "none", and a joiner who came with a pack plays without it.
+- The host's pack is the joiner's for that session only. The joiner's next session starts with its own pack.
 - The host does not offer a pack whose level file is a level of the ROM, or one that fails the check. It then
   refuses a joiner who lacks the pack, as before.
 
