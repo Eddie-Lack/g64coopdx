@@ -107,6 +107,11 @@ void G64Unplayable(const char *what);
    memory that was freed. ParseLandscapeFile now notes which of them this level's file has made, and asks here
    before each token. The notes are apart from the pointers: the pointers stay as the game left them, since they are
    in the game's memory, which the tests compare with the original's. */
+/* g64coopdx: what a level file may use of the game's memory while it is read, and the most pieces of one broken
+   platform. */
+#define G64_PARSE_FREE (4 * 1024 * 1024)
+#define G64_PARSE_BLOCKS 1100
+#define G64_DEBRIS_MAX 64
 static s32 madePuzzle, madeVent, madeLandscape, madeCameo, madeGaribGroup, madeBuzzer;
 
 static s32 TokenAllowed(s16 token, Platform *platform) {
@@ -322,6 +327,14 @@ void ParseLandscapeFile(s32 num) {
         G64ParseTrace((s32)(data - file), token);
         data += 2;
         if (gameInfo.mode == 13) {
+            break;
+        }
+        /* g64coopdx: the game stops the program when its heap or its list of memory blocks is full. A level file
+           with far more in it than the game's own levels would fill them. The largest of the game's levels leaves
+           more than 21 MB of 22 free here and uses 957 of the 1,280 blocks. */
+        if ((s32)(jallocControl.heapSize - jallocControl.staticUsed - jallocControl.dynamicUsed) < G64_PARSE_FREE
+            || jallocControl.lastStatic >= G64_PARSE_BLOCKS) {
+            G64Unplayable("TOO LARGE");
             break;
         }
         if (!TokenAllowed(token, platform)) {
@@ -2262,7 +2275,21 @@ s32 ParseTokenPlatformGeneric(s16 token, u8 **data, Platform *platform) {
         PORT_COPY(&platform->destruct->numDebris, data, 4);
         PORT_COPY(&platform->destruct->inst, data, 4);
         PORT_COPY(tempName, data, 8);
-        FindObject(&platform->destruct->inst, (u32)platform->destruct->inst, tempName, 1);
+        {
+            /* g64coopdx: the pieces a broken platform leaves are drawn with this object, and the game made as many
+               as the file said. An object the level's banks do not hold, or more pieces than G64_DEBRIS_MAX, mark
+               the level as one that cannot be played. An id of 0 means no object, as in the game's own levels. */
+            u32 debrisId;
+
+            memcpy(&debrisId, &platform->destruct->inst, 4);
+            FindObject(&platform->destruct->inst, debrisId, tempName, 1);
+            if ((debrisId != 0 && !G64_USABLE(platform->destruct->inst)) || platform->destruct->numDebris < 0
+                || platform->destruct->numDebris > G64_DEBRIS_MAX) {
+                G64Unplayable("DEBRIS");
+                platform->destruct->inst = 0;
+                platform->destruct->numDebris = 0;
+            }
+        }
         return TRUE;
     }
     if (token == TOKEN_DESTROY_SOUND) {
