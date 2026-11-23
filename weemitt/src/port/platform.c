@@ -25,6 +25,10 @@
 #endif
 #include "settings.h"
 
+/* g64coopdx: 1 while the start screen runs the game's title screen (g64_title_begin). The title plays no sound: the
+   game's state is set back to before the title afterwards, and a sound device would go on reading it. */
+static int titleSilent;
+
 /* The N64 stick reads about +-80 at full tilt. */
 #define STICK_MAX 80
 
@@ -644,7 +648,7 @@ int port_audio_open(int rate, void (*render)(short *out, int frames)) {
     SDL_AudioSpec want;
     SDL_AudioSpec have;
 
-    if (opt.headlessFrames || opt.noSound) {
+    if (opt.headlessFrames || opt.noSound || titleSilent) {
         return 0;
     }
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
@@ -666,6 +670,114 @@ int port_audio_open(int rate, void (*render)(short *out, int frames)) {
     }
     SDL_PauseAudioDevice(audioDevice, 0);
     return 1;
+}
+#endif
+
+#ifdef PORT_STUDIO
+/* g64coopdx: the start screen (g64launcher.cpp) runs the game's own title screen behind its menu. The game then
+   runs before the online game or the game alone starts, and both must start from the state the program has before
+   the game first runs. g64_title_begin keeps a copy of all of the game's variables: the writable data of the game's
+   code (the sections gstate_data and gstate_bss, as in a savestate, bruteforce/engine/engine.c) and the game's
+   memory with the hardware's registers (the section gram_bss). g64_title_end puts the copy back. */
+extern unsigned char __start_gstate_data[], __stop_gstate_data[];
+extern unsigned char __start_gstate_bss[], __stop_gstate_bss[];
+extern unsigned char __start_gram_bss[], __stop_gram_bss[];
+static unsigned char *titleSaved;
+static PortFrameTask titleTasks[16];
+static long titleTaskCount;
+static double titleAcc;
+static Uint64 titleLast;
+static const Settings *titleSettings;
+static void set_interp_volatile(void);
+
+static size_t title_part(int i, unsigned char **start) {
+    unsigned char *s[3] = {__start_gstate_data, __start_gstate_bss, __start_gram_bss};
+    unsigned char *e[3] = {__stop_gstate_data, __stop_gstate_bss, __stop_gram_bss};
+
+    *start = s[i];
+    return (size_t)(e[i] - s[i]);
+}
+
+void g64_title_begin(const Settings *st) {
+    size_t total = 0, at = 0;
+    unsigned char *p;
+    unsigned cfbA, cfbB;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        total += title_part(i, &p);
+    }
+    titleSaved = malloc(total);
+    if (titleSaved == NULL) {
+        die("%s", "no memory for the start screen");
+    }
+    for (i = 0; i < 3; i++) {
+        size_t n = title_part(i, &p);
+
+        memcpy(titleSaved + at, p, n);
+        at += n;
+    }
+    titleSettings = st;
+    titleSilent = 1;
+    /* The title menu at once, without the logos and the fly-through. */
+    port_set_skip_intro(1);
+    port_game_init(-1);
+    port_game_framebuffers(&cfbA, &cfbB);
+    gfx_set_framebuffers(cfbA, cfbB);
+    gfx_set_memory_range(PORT_PTR_BASE, PORT_PTR_END);
+    gfx_set_memory_base(PORT_PTR_DELTA);
+    set_interp_volatile();
+    gfx_interp_set(-1.0f);
+    titleTaskCount = 0;
+    titleAcc = 0.0;
+    titleLast = SDL_GetPerformanceCounter();
+}
+
+/* Runs the title screen's game frames for the time that has passed, at the game's own rate, without the player's
+   controller: the start screen reads the keys and the pad itself. Then draws the newest frame into the window. */
+void g64_title_frame(SDL_Window *window) {
+    Uint64 now = SDL_GetPerformanceCounter();
+    int w, h;
+
+    titleAcc += (double)(now - titleLast) / SDL_GetPerformanceFrequency();
+    titleLast = now;
+    if (titleAcc > 0.25) {
+        titleAcc = 0.25;
+    }
+    while (titleAcc >= port_game_retraces() / 60.0) {
+        long n;
+
+        titleAcc -= port_game_retraces() / 60.0;
+        port_buttons = 0;
+        port_stick_x = port_stick_y = 0;
+        n = port_game_frame(titleTasks, 16);
+        if (n >= 0) {
+            titleTaskCount = n;
+        }
+    }
+    SDL_GL_GetDrawableSize(window, &w, &h);
+    gfx_set_drawable_size(w, h);
+    apply_gfx_options(titleSettings);
+    gfx_draw_frame((const GfxTask *)titleTasks, (int)titleTaskCount, w, h);
+}
+
+void g64_title_end(void) {
+    size_t at = 0;
+    unsigned char *p;
+    int i;
+
+    if (titleSaved == NULL) {
+        return;
+    }
+    for (i = 0; i < 3; i++) {
+        size_t n = title_part(i, &p);
+
+        memcpy(p, titleSaved + at, n);
+        at += n;
+    }
+    free(titleSaved);
+    titleSaved = NULL;
+    titleSilent = 0;
 }
 #endif
 
@@ -2180,7 +2292,9 @@ int main(int argc, char **argv) {
             int r;
 
             netplay_set_pack_policy(1, opt.netAcceptPack);
+            g64_title_begin(&settings);
             r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
+            g64_title_end();
 
             if (r < 0) {
                 return 0;

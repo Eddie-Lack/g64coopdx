@@ -15,6 +15,9 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
 /* Draws the player's own pause menu in the online game, when it is open (netplay_pause_open). Call it after the game's
    frame is drawn and before the window's buffers are swapped. */
 void g64_pause_draw(SDL_Window *window);
+/* The game's own title screen behind the start screen (platform.c): runs its frames for the time that has passed
+   and draws the newest one into the window. */
+void g64_title_frame(SDL_Window *window);
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);
 

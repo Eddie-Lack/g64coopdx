@@ -223,7 +223,6 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2((float)w, (float)h), IM_COL32(28, 30, 48, 255));
         ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize(ImVec2(420, 0), ImGuiCond_Always);
         ImGui::Begin("g64coopdx", NULL,
@@ -417,6 +416,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         }
         ImGui::End();
         ImGui::Render();
+        g64_title_frame(window);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
         SDL_Delay(10);
