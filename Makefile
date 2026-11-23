@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck bots-build bots instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -316,6 +316,18 @@ levelstart: levelstart-build
 
 # Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
 # "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
+SWAPS_SRC := tests/rom/swaps.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
+    weemitt/src/port/statehash.c
+swaps-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -g -Wall -Wextra -Werror -no-pie -o build/tests/swaps $(SWAPS_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+
+# Every level with every other level's file in its place: the game plays it or stops it, and never crashes (Linux).
+swaps: swaps-build
+	build/tests/swaps "$$GLOVER_ROM" 1500 > build/tests/swaps.out || { grep FAIL build/tests/swaps.out; exit 1; }
+	tail -1 build/tests/swaps.out
+
 BOTS_SRC := tests/rom/bots.c weemitt/src/port/statehash.c
 bots-build: savestates
 	@mkdir -p build/tests

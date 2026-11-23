@@ -87,6 +87,21 @@ static s32 lastSelected = -1;
 static s32 lastCount = -1;
 static f32 gloveTurn;
 
+/* The glove shows one of these moves after another, a few seconds each, as a character's profile does in a
+   fighting game's menu. None of them needs the ball. */
+static const s32 showAnims[] = {
+    HANDANIM_IDLE1, HANDANIM_WAVE, HANDANIM_THUMBSUP, HANDANIM_CARTWHEEL, HANDANIM_OKAY, HANDANIM_POINTCYCLE,
+    HANDANIM_TIPTOE, HANDANIM_SPIN, HANDANIM_IDLE2WAVE, HANDANIM_RUN, HANDANIM_WHACK1, HANDANIM_DENIS,
+};
+#define SHOW_ANIMS ((s32)(sizeof showAnims / sizeof showAnims[0]))
+/* Original frames that each move lasts. */
+#define SHOW_TIME 90
+static s32 showAnim;
+static s32 showTime;
+
+/* The name at the left, where the title has its Glover logo: one letter above the other. */
+static const char logoName[] = "G64COOPDX";
+
 /* The title's four bars are foreground objects 0 to 3, and 4 is its logo. The start screen adds three more bars
    (5 to 7), the player's glove (8) and ball (9). The game's list holds 10 objects. */
 #define PLAYER_GLOVE 8
@@ -250,6 +265,8 @@ s32 G64TitleMenu(void) {
         LoadTextureBank(GENERIC_TEX_BANK);
         LoadObjectBank(1);
         initFGObject("goodglov.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);
+        InitActorStructures(foregroundObjects[PLAYER_GLOVE], 4);
+        AnimateActor(foregroundObjects[PLAYER_GLOVE], showAnims[0], 1, 0, 1.0f);
         initFGObject("gball.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);
         textGfx[0] = (Gfx *)JallocAlloc(TEXT_GFX * sizeof(Gfx), 0, "G64Text0");
         textGfx[1] = (Gfx *)JallocAlloc(TEXT_GFX * sizeof(Gfx), 0, "G64Text1");
@@ -264,6 +281,12 @@ s32 G64TitleMenu(void) {
         }
         lastSelected = page.selected;
         lastCount = page.count;
+    }
+    /* The title's Glover logo gives way to the program's name, in the game's large letters. */
+    foregroundObjects[4]->alpha = 0;
+    for (i = 0; logoName[i] != 0; i++) {
+        char letter[2] = {logoName[i], 0};
+        text(40, 34 + i * 22, 0xFFFFFF, 255, 1.3f, 0, letter, 1);
     }
     row_layout(page.count, &top, &step, &size);
     if (page.heading[0]) {
@@ -370,8 +393,13 @@ s32 G64TitleMenu(void) {
     {
         Actor *g = foregroundObjects[PLAYER_GLOVE];
         Actor *b = foregroundObjects[PLAYER_BALL];
-        gloveTurn += 0.03f * deltaTime;
-        g->pos.x = -150.0f;
+        gloveTurn += 0.02f * deltaTime;
+        if (deltaTick && ++showTime >= SHOW_TIME) {
+            showTime = 0;
+            showAnim = (showAnim + 1) % SHOW_ANIMS;
+            AnimateActor(g, showAnims[showAnim], 1, 0, 1.0f);
+        }
+        g->pos.x = -165.0f;
         g->pos.y = 51.0f;
         g->pos.z = 400.0f;
         g->scale.x = g->scale.y = g->scale.z = 0.15f;
@@ -379,7 +407,7 @@ s32 G64TitleMenu(void) {
         g->rot.y = gloveTurn;
         g->rot.z = 0.0f;
         g->alpha = 255;
-        b->pos.x = -150.0f;
+        b->pos.x = -165.0f;
         b->pos.y = -14.0f;
         b->pos.z = 400.0f;
         b->scale.x = b->scale.y = b->scale.z = 0.1f;
