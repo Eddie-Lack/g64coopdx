@@ -305,6 +305,8 @@ int G64PlayerHealth(int p);
 int G64PlayerLives(int p);
 void G64HurtPlayer(int p);
 void G64SetPlayerHealth(int p, int health);
+int G64PuzzleVar(int n);
+void G64SetPuzzleVar(int n, int value);
 float port_sinf(float x);
 float port_cosf(float x);
 void G64PlacePlayer(int p, float x, float y, float z);
@@ -429,6 +431,28 @@ static int api_show(lua_State *L) {
     }
     luaShown[p][i] = 0;
     luaShownUntil[p] = G64FramesRun() + (int)frames;
+    return 0;
+}
+
+/* A number of one of the level's puzzle variables from a script: 0 to 99. */
+static int var_arg(lua_State *L, int i) {
+    lua_Integer n = luaL_checkinteger(L, i);
+    luaL_argcheck(L, n >= 0 && n < 100, i, "a puzzle variable's number is 0 to 99");
+    return (int)n;
+}
+
+/* game.var(n): the level's puzzle variable number n. */
+static int api_var(lua_State *L) {
+    lua_pushinteger(L, G64PuzzleVar(var_arg(L, 1)));
+    return 1;
+}
+
+/* game.set_var(n, v): sets it. The level's puzzles see the new value in this frame's step. */
+static int api_set_var(lua_State *L) {
+    int n = var_arg(L, 1);
+    lua_Integer v = luaL_checkinteger(L, 2);
+    luaL_argcheck(L, v >= -1000000 && v <= 1000000, 2, "a puzzle variable is from -1000000 to 1000000");
+    G64SetPuzzleVar(n, (int)v);
     return 0;
 }
 
@@ -557,6 +581,7 @@ static const luaL_Reg api[] = {{"frame", api_frame},         {"level", api_level
                                {"random", api_random},       {"hurt", api_hurt},
                                {"set_health", api_set_health}, {"show", api_show},
                                {"session", api_session},     {"add_session", api_add_session},
+                               {"var", api_var},             {"set_var", api_set_var},
                                {NULL, NULL}};
 
 /* ---- The sandbox */

@@ -92,3 +92,5 @@
 "game.session"
 "game.add_session"
 "on_session"
+"game.var"
+"game.set_var"
