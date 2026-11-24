@@ -116,9 +116,11 @@ void g64_instances_one_world(int on) { oneWorldRule = on != 0; }
 /* The session's level pack (weemitt's g64players.c, G64SetPack). */
 void G64SetPack(int level, unsigned rom, unsigned size);
 void G64SetPackScript(unsigned rom, unsigned size);
+void G64SetPackModels(unsigned texRom, unsigned texSize, unsigned objRom, unsigned objSize);
 void G64LuaStart(void);
 static int packLevel = -1;
 static unsigned packRom, packSize, packScriptRom, packScriptSize;
+static unsigned packTexRom, packTexSize, packObjRom, packObjSize;
 
 void g64_instances_pack(int level, unsigned rom, unsigned size) {
     packLevel = size ? level : -1;
@@ -131,6 +133,13 @@ void g64_instances_pack_script(unsigned rom, unsigned size) {
     packScriptSize = size;
 }
 
+void g64_instances_pack_models(unsigned texRom, unsigned texSize, unsigned objRom, unsigned objSize) {
+    packTexRom = texRom;
+    packTexSize = texSize;
+    packObjRom = objRom;
+    packObjSize = objSize;
+}
+
 static void build_setup(void *ctx) {
     const start_record *r = ctx;
     G64Save s;
@@ -141,6 +150,7 @@ static void build_setup(void *ctx) {
     g64OneWorld = oneWorldRule;
     G64SetPack(packLevel, packRom, packSize);
     G64SetPackScript(packScriptRom, packScriptSize);
+    G64SetPackModels(packTexRom, packTexSize, packObjRom, packObjSize);
     G64SetSessionWorld(r->session_world);
     {
         unsigned values[G64_SCRIPT_KEYS];

@@ -311,6 +311,17 @@ extern s32 g64AnyBall;
 extern s32 g64PackLevel;
 extern u32 g64PackRom, g64PackSize;
 void G64SetPack(s32 level, u32 rom, u32 size);
+/* A level pack's own models (g64packbanks.c): where its texture bank and its object bank are in the ROM buffer.
+   G64LoadPackBanks loads them into free slots when the level is the pack's (LoadLevel, game.c). */
+extern u32 g64PackTexRom, g64PackTexSize, g64PackObjRom, g64PackObjSize;
+extern s32 g64PackHeapFree, g64PackHeapGap, g64PackHeapBlocks, g64PackHeapLastStatic;
+void G64SetPackModels(u32 texRom, u32 texSize, u32 objRom, u32 objSize);
+void G64LoadPackBanks(s32 num);
+const void *G64PackBankLoaded(s32 objects, u32 *word);
+/* The collision planes of the last level start (parse.c, G64PlanesFit): the blocks, bytes and work they would take.
+   Also the last static block's number before them. For tests. */
+extern s32 g64PlanesBlocks, g64PlanesLastStatic;
+extern s64 g64PlanesBytes, g64PlanesWork;
 /* One world at a time (g64players.c, "One world at a time"): the host's rule that a portal from the hub to another
    world is shut while players are in a world. */
 extern s32 g64OneWorld;

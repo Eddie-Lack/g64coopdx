@@ -23,4 +23,18 @@
  * changed. Not reentrant. */
 const char *g64_bank_shadow(const uint8_t *tex, size_t tn, const uint8_t *obj, size_t on, size_t *at, int *bank);
 
+/* Each bank's bytes after the port's converter and after the loaders, in the host's byte order. A fixed pointer in
+ * the object bank is its offset in the bank plus G64_SHADOW_BASE, and a pointer into the texture bank is its offset
+ * there plus G64_SHADOW_TEXBASE. Each buffer has room for its bank. */
+#define G64_SHADOW_BASE 0x40000000u
+#define G64_SHADOW_TEXBASE 0x20000000u
+typedef struct {
+    uint8_t *texConverted, *texLoaded, *objConverted, *objLoaded;
+} G64BankImages;
+
+/* The walk of g64_bank_shadow, which also fills out when it is not NULL. A buffer is filled only when the walk
+ * reaches that point. The ROM test tests/rom/bankwalk.c compares the images with the game's own loaders. */
+const char *g64_bank_shadow_images(const uint8_t *tex, size_t tn, const uint8_t *obj, size_t on, G64BankImages *out,
+                                   size_t *at, int *bank);
+
 #endif

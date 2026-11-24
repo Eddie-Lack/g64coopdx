@@ -78,6 +78,15 @@ the check lacks does less harm:
 - A level file may not fill the game's memory. The game stops the program when its heap or its list of 1,280 memory
   blocks is full. Before each token the parser asks for 4 MB of free heap and for fewer than 1,100 blocks in use; the
   largest of the game's levels uses 957 blocks and about 1 MB of 22 while it is read.
+- The collision planes after the parse must fit too (`G64PlanesFit`, parse.c). Each LANDSCAPE, BACKGROUND or WATER
+  actor takes one more block and 120 bytes for each face of its mesh. Before any plane is made, the parser adds them
+  up. The level stops as unplayable ("TOO LARGE") when they would leave less than 4 MB free, or would bring the
+  blocks in use to 1,100. A level file that named one object some hundreds of times filled the list of blocks here,
+  and the game stopped the program. With 16 players the game's own levels need at most 101 blocks and 288,048
+  bytes, and reach at most 1,035 blocks in use.
+- A landscape actor with collision compares each face of its mesh with every later face (`CheckForInnerEdges`).
+  The parser adds up the squares of those face counts, and the level stops ("COLLISION") above 40,000,000. The game's
+  own levels reach 340,884 (level 43). Seventeen flat meshes of 1500 faces fit.
 - A CAMEO_CAM of a type below 0 takes one of the 10 extra spheres, as every type but 0 and 1 does.
 - An ORBITBRIDGE's axis is 0 to 2 or 0x58 to 0x5A. An orbit whose axis was never set moved a platform through a
   list of two numbers with three; the list has three now.
@@ -122,6 +131,10 @@ unplayable. It found these, now guarded: the crystal cave's platforms by tag (In
 boss's platforms by tag (DoSpaceBoss3), a restart gate without motion (CheckRestartGate, RestartPlayer), and the
 error screen's overlays, which wrote their vertices past their buffer (GraphicsStep). A pack that comes from a host
 may therefore take the place of any level.
+
+`make bankwalk` found one more. The intro and the ending read their first actor's animation (DoIntroEffects,
+DoOutroEffects). A pack's file can put an actor without one first, such as a piece of scenery. Both scenes now stop
+as unplayable then.
 
 Not guarded in the game yet: the short forms, which the check before loading refuses; memory that fills after the
 level is read, while it runs (the program then stops); and what the last section says was not read.
