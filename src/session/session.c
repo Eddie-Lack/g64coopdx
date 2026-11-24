@@ -12,8 +12,8 @@
 enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME, MSG_CHAT, MSG_KICK };
 /* The level pack's messages (session.h). 0x48 is the sealed datagram's own type. */
 enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
-/* The offer: the type, the id, the three sizes (u16, u32, u32), then the name. */
-#define OFFER_SIZE (1 + G64_PACK_ID_SIZE + 10)
+/* The offer: the type, the id, the four sizes (u16, u32, u32, u32), then the name. */
+#define OFFER_SIZE (1 + G64_PACK_ID_SIZE + 14)
 /* A piece has up to PACK_PIECE bytes. The host answers one request with up to PACK_BURST pieces, serves a player
    at most every PACK_GAP ms, and sends at most PACK_RATE pieces a second to all players together, PACK_POOL at
    once: a download must not crowd out a running game's own messages. */
@@ -25,8 +25,13 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
 /* A joiner asks again when no piece came for this long, in ms. After a whole burst it asks at once, but not within
    PACK_GAP ms of its last request, which the host would drop. */
 #define PACK_ASK 200
-/* How long a place is held for a player who has not got the pack yet, in ms. */
+/* How long a place is held for a player who has not got the pack yet, in ms. A joiner gets PACK_BURST pieces for
+   each round trip, about 8 KB. A large pack holds the place for one minute more than its download takes on a link
+   with a round trip of one second, which moves PACK_SLOW bytes a ms. A pack of up to about 1.9 MB holds it for
+   PACK_WAIT. */
 #define PACK_WAIT (5 * 60 * 1000)
+#define PACK_SLOW 8
+#define PACK_WAIT_MORE (60 * 1000)
 /* The most places that players without the pack may hold at once, and how many times the pack's size the host
    sends to one of them before it frees the place: a joiner cannot hold the room or the host's line for long. */
 #define PACK_PLACES 4
@@ -156,7 +161,19 @@ struct g64_session {
     uint32_t packAsk, lastReady;
 };
 
-static size_t offer_total(const g64_pack_offer *o) { return o->manifestSize + o->levSize + o->scriptSize; }
+static size_t offer_total(const g64_pack_offer *o) {
+    return o->manifestSize + o->levSize + o->scriptSize + o->modelsSize;
+}
+
+/* How long the host holds a place for a player who has not got its pack yet, in ms. The pack is at most about
+   5.3 MB, so this is at most about 12.5 minutes. */
+static uint32_t pack_wait(const g64_pack_offer *o) {
+    size_t slow = PACK_WAIT_MORE + offer_total(o) / PACK_SLOW;
+    return slow > PACK_WAIT ? (uint32_t)slow : PACK_WAIT;
+}
+
+/* models.bin's size in an offer: 0 for none, or within its limits. */
+static int models_size_ok(size_t n) { return n == 0 || (n >= G64_PACK_MODELS_MIN && n <= G64_PACK_MODELS_LIMIT); }
 
 /* A color from the network: the chosen bit and 24 bits of color, nothing else. */
 static int valid_color(uint32_t c) { return (c >> 25) == 0; }
@@ -467,6 +484,7 @@ static void send_offer(g64_session *g, peer *q) {
     m[17] = (uint8_t)g->packInfo.manifestSize, m[18] = (uint8_t)(g->packInfo.manifestSize >> 8);
     put32(m + 19, (uint32_t)g->packInfo.levSize);
     put32(m + 23, (uint32_t)g->packInfo.scriptSize);
+    put32(m + 27, (uint32_t)g->packInfo.modelsSize);
     memcpy(m + OFFER_SIZE, g->packInfo.name, len);
     send_sealed(g, q, m, OFFER_SIZE + len);
 }
@@ -626,12 +644,14 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
             o.manifestSize = (size_t)d[17] | (size_t)d[18] << 8;
             o.levSize = get32(d + 19);
             o.scriptSize = get32(d + 23);
+            o.modelsSize = get32(d + 27);
             clean_text(o.name, sizeof o.name, d + OFFER_SIZE, (size_t)(n - OFFER_SIZE));
             for (i = 0; i < G64_PACK_ID_SIZE; i++)
                 none &= o.id[i] == 0;
             if (none ? (offer_total(&o) != 0 || n != OFFER_SIZE)
                      : (o.manifestSize < 1 || o.manifestSize > G64_PACK_MANIFEST_LIMIT || o.levSize < 8 ||
-                        o.levSize > G64_PACK_LEVEL_LIMIT || o.scriptSize > G64_PACK_SCRIPT_LIMIT || !o.name[0]))
+                        o.levSize > G64_PACK_LEVEL_LIMIT || o.scriptSize > G64_PACK_SCRIPT_LIMIT ||
+                        !models_size_ok(o.modelsSize) || !o.name[0]))
                 break;
             /* An offer of this machine's own pack is not one: the hello said which pack it has. */
             if (memcmp(o.id, g->pack, G64_PACK_ID_SIZE) == 0 && g->packState == G64_PACK_NONE)
@@ -641,7 +661,7 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
                 g->packState = G64_PACK_OFFERED;
             } else if (memcmp(o.id, g->offer.id, sizeof o.id) != 0 || strcmp(o.name, g->offer.name) != 0 ||
                        o.manifestSize != g->offer.manifestSize || o.levSize != g->offer.levSize ||
-                       o.scriptSize != g->offer.scriptSize) {
+                       o.scriptSize != g->offer.scriptSize || o.modelsSize != g->offer.modelsSize) {
                 fail(g, "the host changed its level pack");
             }
         }
@@ -788,7 +808,8 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
                 q->lastOffer = now ? now : 1;
                 send_offer(g, q);
             }
-            if (now - q->heard > TIMEOUT || (q->needPack && (q->packOver || now - q->packSince > PACK_WAIT))) {
+            if (now - q->heard > TIMEOUT ||
+                (q->needPack && (q->packOver || now - q->packSince > pack_wait(&g->packInfo)))) {
                 if (g->state == G64_SESSION_STARTED) {
                     /* The game goes on without them: the host gives their glove no input from now on. */
                     q->gone = 1;
@@ -964,7 +985,8 @@ void g64_session_send_pack(g64_session *g, const g64_pack_offer *info, const uin
     g->packBytes = NULL;
     g->packSend = 1;
     if (info && bytes && info->manifestSize >= 1 && info->manifestSize <= G64_PACK_MANIFEST_LIMIT &&
-        info->levSize >= 8 && info->levSize <= G64_PACK_LEVEL_LIMIT && info->scriptSize <= G64_PACK_SCRIPT_LIMIT) {
+        info->levSize >= 8 && info->levSize <= G64_PACK_LEVEL_LIMIT && info->scriptSize <= G64_PACK_SCRIPT_LIMIT &&
+        models_size_ok(info->modelsSize)) {
         g->packInfo = *info;
         clean_text(g->packInfo.name, sizeof g->packInfo.name, (const uint8_t *)info->name, G64_PACK_NAME_MAX);
         memcpy(g->packInfo.id, g->pack, G64_PACK_ID_SIZE);

@@ -67,7 +67,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips, cameos, each player's ball texture and the any-ball rule with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
     make meshguards    # the game with meshes that have no texture coordinates and no colors, as a pack's; Linux and Wine (needs the ROM)
-    make levcheck      # the level file check reads every level as the game's parser does, on Linux and Wine (needs the ROM)
+    make levcheck      # the level file check reads every level as the game's parser does; its object ids are the ones FindObject is asked for, in the banks LoadLevel loads; Linux and Wine (needs the ROM)
     make rombanks      # the index of the ROM's banks and the FLA2 reader against the game's loaders, on Linux and Wine (needs the ROM)
     make bankwalk      # a pack's own banks loaded by the game: the loaders change the shadow walk's words; they play as scenery; the heap with 16 players; the collision planes' limits; Linux and Wine (needs the ROM)
     make models        # may a pack's models be platforms: platforms, bridges, debris and water with identity rotation keys give equal output on Linux and Wine; also measures keys of all zeros (needs the ROM)
@@ -109,6 +109,7 @@ run locally: set `GLOVER_ROM`.
 | The bounded reader of compressed (FLA2) banks, and the index of the ROM's banks (ids and hashes) | src/client (`fla2.h`, `rombanks.h`; the game's ranges in `rombanks_game.c`), docs/discovery/model-banks.md; the test tests/rom/rombanks.c |
 | The check of a pack's models.bin (its header, texture bank and object bank), and its rules that need the ROM | src/client (`bankcheck.h`), docs/discovery/model-banks.md; the test tests/net/bankcheck_test.c, the fixture tests/fixtures/cube.models.bin |
 | The game's bank switch as a table, for programs that do not link the game (the pack tool, tests) | src/client (`bankranges.h`, `bankranges_table.c` written by tools/gen_bankranges.py); `make rombanks` compares it with the game |
+| The level file's object ids against the banks the level will have, and each level's object banks | src/client (`g64_pack_check_ids` in `pack.h`; with the committed tables, as the pack tool and the host before its offer run it, `packrom.h`; the table `g64_level_object_banks` in `bankranges.c`), weemitt/src/game/g64packbanks.c (`G64LevelBankNumbers`), docs/discovery/model-banks.md; `make levcheck` |
 | The shadow walk (a copy of the game's bank loaders that stops at any access outside the bank), and the maker of test banks | tests/fuzz (`bankwalk.h`, `bankcheck_fuzz.c`), tests/net/bankbuild.h |
 | A pack's own models in the game: where its banks are, their load into free slots, and the test against the shadow walk | weemitt/src/game/g64packbanks.c (`G64SetPackModels`, `G64LoadPackBanks`), src/client (`instances.h`, `g64_instances_pack_models`); the test tests/rom/bankwalk.c |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |

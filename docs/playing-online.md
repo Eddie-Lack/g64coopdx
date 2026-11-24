@@ -130,6 +130,11 @@ A player who joins without the pack can download it from the host:
 
 - On the start screen, the program shows the pack's name and size and asks: **Download and play** or **No, leave**.
   Nothing is downloaded before you say yes. If you say no, you leave the game.
+- A pack with models also shows the size of its models. Models make a pack larger: they may be up to 4 MB.
+- How long a download takes depends on the time a message needs to go to the host and back. The program gets about
+  8 KB each time. Over the internet that is often about 100 ms, and then 1 MB takes about 13 seconds. On a home
+  network 1 MB takes about 5 seconds. It takes longer when several players download at once.
+- The host keeps your place while you download: five minutes, or longer for a large pack.
 - With options on the command line nobody can be asked. Add `--accept-pack` to download the host's pack. Without
   it, the program ends with a message that names the pack.
 - The program checks a downloaded pack before use. The check does not catch everything a bad level file can do
@@ -139,10 +144,13 @@ A player who joins without the pack can download it from the host:
 - A player who has the folder can still start with `--pack FOLDER`, and nothing is downloaded.
 - A player who starts with a pack and joins a host without one plays without it.
 
-The host does not send a pack in two cases, and a player then needs the folder. The first: the pack's level file
+The host does not send a pack in three cases, and a player then needs the folder. The first: the pack's level file
 is an unchanged level of the game. That is game data, which never travels. The second: the level file does not pass
-the check. A pack may take the place of any level: a hub, a boss level, a bonus level or a scene too. `g64pack check`
-says whether a pack can be downloaded.
+the check. The third: the pack's models do not pass the check on the host's ROM. The host's log says which case it
+was. A pack whose level names an object that is in none of the level's banks is never sent: the host's session
+stops before it starts. A pack may take the place of any level: a hub, a boss level, a bonus level or a scene too.
+`g64pack check FOLDER --rom ROM` says whether a pack can be downloaded. Without `--rom` it cannot check the first and
+the third case, and it says so.
 
 ### Making a pack
 
@@ -162,7 +170,8 @@ Run it from a command prompt in the game's folder.
    Add `--script script.lua` for a pack with a script.
 5. Host with `--pack MyLevel`. The other players download the pack when they join, or start with the same folder.
 
-`g64pack check MyLevel` reads a pack as the game does and prints its id. Two players have the same pack when their
+`g64pack check MyLevel` reads a pack as the game does and prints its id. `g64pack check MyLevel --rom ROM` also
+checks it against your ROM, as the host does before it sends a pack. Two players have the same pack when their
 ids are the same. It also prints a line on the level file's structure. A warning there names a part of the file
 that the game may read wrongly.
 

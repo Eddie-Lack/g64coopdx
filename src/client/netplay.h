@@ -63,12 +63,14 @@ void netplay_set_any_ball(int on);
 int netplay_set_pack(const char *dir, char *err, size_t errSize);
 const char *netplay_pack_name(void);
 /* A joiner who lacks the host's pack can download it from the host (session.h). The host sends a pack only when its
- * level file passes the check (levcheck.h) and is not a level of the ROM.
+ * level file passes the check (levcheck.h) and is not a level of the ROM, and its models.bin, if it has one, passes
+ * the bank check and the rules that need the host's ROM (bankcheck.h). The joiner checks the same on its own ROM.
  * netplay_set_pack_cache names the folder that keeps downloaded packs (in DIR/packs). netplay_set_pack_policy says
  * what a joiner does with the host's offer: ask the player (ask 1), take it (yes 1), or end the session with a
  * message (both 0, the default). Call both before netplay_start.
- * While netplay_pack_asking is 1 during netplay_poll, the offer waits: netplay_offer_name, netplay_offer_size (bytes)
- * and netplay_offer_script (1 for a pack with a script) describe it, netplay_pack_kept is 1 when this machine has
+ * While netplay_pack_asking is 1 during netplay_poll, the offer waits: netplay_offer_name, netplay_offer_size (bytes,
+ * all of the pack), netplay_offer_script (1 for a pack with a script) and netplay_offer_models (the bytes of its
+ * models.bin, 0 for none) describe it, netplay_pack_kept is 1 when this machine has
  * kept that pack from an earlier download, and netplay_pack_answer gives the player's answer. A downloaded pack is
  * used only when it reads as a pack, passes the check, and has the id the host named. */
 void netplay_set_pack_cache(const char *dir);
@@ -78,6 +80,7 @@ int netplay_pack_kept(void);
 const char *netplay_offer_name(void);
 size_t netplay_offer_size(void);
 int netplay_offer_script(void);
+size_t netplay_offer_models(void);
 void netplay_pack_answer(int yes);
 int netplay_pack_level(void);
 /* The host's choice that players may go to different worlds. Without it the session is in one world at a time: a

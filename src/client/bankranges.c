@@ -53,3 +53,29 @@ int g64_bank_rom_range(void *user, int kind, unsigned num, uint32_t *start, uint
     *end = t & 0x0FFFFFFF;
     return 1;
 }
+
+/* Each level's object banks, as LoadLevel (weemitt's game.c) loads them: 0, the world's bank before INTRO (level
+   46), 1 (69 in FLYTHRU, level 44), and the level's own. 0 ends a row early. tests/rom/levcheck.c pins every row. */
+static const uint8_t levelBanks[48][4] = {
+    {0, 64, 1, 2}, {0, 64, 1, 3}, {0, 64, 1, 4}, {0, 64, 1, 5}, {0, 64, 1, 6}, {0, 64, 1, 7},
+    {0, 64, 1, 8}, {0, 64, 1, 9}, {0, 64, 1, 10}, {0, 64, 1, 11}, {0, 12, 1, 13}, {0, 12, 1, 14},
+    {0, 12, 1, 15}, {0, 12, 1, 17}, {0, 12, 1, 18}, {0, 19, 1, 20}, {0, 19, 1, 21}, {0, 19, 1, 23},
+    {0, 19, 1, 25}, {0, 19, 1, 26}, {0, 38, 1, 39}, {0, 38, 1, 40}, {0, 38, 1, 43}, {0, 38, 1, 44},
+    {0, 38, 1, 45}, {0, 46, 1, 47}, {0, 46, 1, 49}, {0, 46, 1, 52}, {0, 46, 1, 53}, {0, 46, 1, 54},
+    {0, 55, 1, 56}, {0, 55, 1, 58}, {0, 55, 1, 61}, {0, 55, 1, 62}, {0, 55, 1, 63}, {0, 27, 1, 29},
+    {0, 27, 1, 30}, {0, 27, 1, 31}, {0, 27, 1, 33}, {0, 27, 1, 71}, {0, 27, 1, 33}, {0, 27, 1, 35},
+    {0, 64, 1, 67}, {0, 27, 1, 68}, {0, 64, 69, 9}, {0, 64, 1, 9}, {0, 1, 65}, {0, 1, 66},
+};
+
+int g64_level_object_banks(int num, unsigned *banks, int max) {
+    int n = 0, k;
+    if (num < 0 || num >= 48)
+        return -1;
+    /* Bank 0 comes first in every row. */
+    for (k = 0; k < 4 && (k == 0 || levelBanks[num][k] != 0); k++) {
+        if (n < max)
+            banks[n] = levelBanks[num][k];
+        n++;
+    }
+    return n;
+}

@@ -13,8 +13,8 @@ A level pack is a folder with a custom level for a session. This file is the for
 - The level places objects that the borrowed level's own banks hold, and the pack's own models
   ([model-banks.md](model-banks.md)). A level file that names an object the banks do not hold makes the game stop:
   there is no check for it yet.
-- A pack with models plays when every player has its folder. The session does not send `models.bin` yet. The host
-  does not offer such a pack.
+- A pack with models travels as the other files do. The host checks its models on its own ROM before it offers
+  the pack, and a joiner checks them again on theirs.
 
 ## The folder
 
@@ -67,10 +67,12 @@ same id as a pack made by Glovebox's own builder.
 `g64pack` also prints whether the level file's structure is as the game reads it
 ([level-file-safety.md](level-file-safety.md), "What is checked today"). For `models.bin` it prints the banks'
 sizes, the counts of textures and objects, and the retail bank numbers. `g64pack check DIR --rom ROM` also runs the
-rules that need the player's ROM: the level file is not one of the ROM's, and the models hold none of the ROM's ids,
-textures or vertices. The tool does not link the game. It finds the ROM's banks with a table of the game's bank
-switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`; `make rombanks` compares it with the
-game's own).
+rules that need the player's ROM: the level file is not one of the ROM's, the models hold none of the ROM's ids,
+textures or vertices, and every object the level names is in a bank the level will have
+([model-banks.md](model-banks.md), "The level's object ids"). The online program runs the same rules on the host
+before its offer, on a joiner after a download, and again when the game starts. The tool does not link the game. It finds the ROM's banks with a table of the game's bank switch
+(`src/client/bankranges.h`, written by `tools/gen_bankranges.py`; `make rombanks` compares it with the game's own),
+and each level's banks with a table of their numbers (`make levcheck` compares it with the game's).
 
 ### `script.lua`
 
@@ -108,7 +110,8 @@ the same one.
 A joiner's hello names its pack. When the host's pack is another one, the host still gives the joiner a place, and
 offers its pack over the sealed link (`src/session/session.h`: offer, want, piece, ready).
 
-- The offer has the pack's id, name and sizes. The joiner's program shows the name and size and asks the player.
+- The offer has the pack's id, name and the sizes of its four files. The joiner's program shows the name, the size
+  and the size of the models, and asks the player.
   Nothing is stored before the answer. On the command line, `--accept-pack` is the answer; without it the session
   ends.
 - The joiner asks for the bytes by offset, and the host answers each request with up to 8 pieces of 1,024 bytes.
@@ -116,17 +119,28 @@ offers its pack over the sealed link (`src/session/session.h`: offer, want, piec
   second in all: a download must not crowd out a running game's messages.
 - One joiner gets at most three times the pack's size, and then loses the place. Players without the pack hold at
   most four places at once.
-- The joiner takes pieces in order only, up to the sizes of the first offer. A second offer of another pack ends
-  the session.
-- The joiner reads the bytes as a pack in the strict form, and compares its id and name with the offer's. Only then
-  does it tell the host that it is ready. Until then the host does not count the player: they are not in the
-  game, get no start and no chat, and their place is free again after five minutes.
+- The joiner takes pieces in order only, up to the sizes of the first offer. A second offer of another pack, or
+  with other sizes, ends the session.
+- The bytes are `pack.txt`, `level.lev`, `script.lua` and `models.bin`, one after another, with no bytes for a
+  file the pack lacks (`g64_pack_blob`). The joiner splits them by the offer's sizes (`g64_pack_from_blob`).
+- The joiner reads the bytes as a pack in the strict form, with the bank check. Its models must also pass the rules
+  that need the joiner's own ROM. It compares the pack's id and name with the offer's (`g64_pack_from_download`).
+  Every object the level file names must be in a bank the level will have, on the joiner's own ROM
+  (`g64_pack_check_ids_rom`). Only then does it tell the
+  host that it is ready. Until then the host does not count the player: they are not in the
+  game, get no start and no chat, and their place is free again after five minutes. For a pack larger than about
+  1.9 MB the place is held for longer: one minute more than the download takes when each round trip takes one
+  second (model-banks.md, "The network").
 - A host without a pack offers "none", and a joiner who came with a pack plays without it.
 - The host's pack is the joiner's for that session only. The joiner's next session starts with its own pack.
+- The host does not offer a pack whose models fail the bank check or the rules that need the host's ROM
+  (`g64_pack_may_send`). Its log says why.
 - The host does not offer a pack whose level file is a level of the ROM, one that fails the check, or one that
   takes the place of a hub, a boss level, a bonus level or a scene. The game's code for those levels expects fixed
   things in them ([level-file-safety.md](level-file-safety.md)). It then
   refuses a joiner who lacks the pack, as before.
+- A pack whose level file names an object that no bank of its level has stops the host's session before the offer
+  ([model-banks.md](model-banks.md), "The level's object ids").
 
 A pack whose level file is a shipped level with small changes does travel. The comparison catches exact copies
 only.
@@ -157,6 +171,5 @@ pointer to the pack. The game loads the pack's banks when the pack's level start
   guards many of the values it reads. [level-file-safety.md](level-file-safety.md) lists what is still open. The
   joiner is told to take a pack only from a host they trust.
 - **A list of packs in the lobby.** A room's entry does not name its pack yet.
-- **The rest of models in a pack:** the check of the level file's object ids against the banks, the transfer of
-  `models.bin` from the host, and the loading of retail banks. [model-banks.md](model-banks.md) is the plan.
+- **The rest of models in a pack:** the loading of retail banks. [model-banks.md](model-banks.md) is the plan.
 - **More in a pack:** more than one level, and more for a script to call.

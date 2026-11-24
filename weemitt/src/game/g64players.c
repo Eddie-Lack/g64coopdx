@@ -1509,11 +1509,25 @@ void G64ParseTrace(s32 offset, s32 token) {
     /* The level's name comes right after the file's size: the first token is the first thing after it. A record
        that starts again is one whose offset went back. */
     if (g64ParseLogCount > 0 && offset <= g64ParseLog[g64ParseLogCount - 1][0])
-        g64ParseLogCount = 0;
+        g64ParseLogCount = g64FindLogCount = 0;
     if (g64ParseLogCount < G64_PARSE_LOG) {
         g64ParseLog[g64ParseLogCount][0] = offset;
         g64ParseLog[g64ParseLogCount][1] = token;
         g64ParseLogCount++;
+    }
+}
+
+s32 g64FindLogCount;
+u32 g64FindLog[G64_PARSE_LOG][2];
+
+void G64FindObjectTrace(u32 id) {
+    /* Only while the parser is between its first token and the end token. */
+    if (!g64ParseLogOn || g64ParseLogCount == 0 || g64ParseLog[g64ParseLogCount - 1][1] == 0x7D00)
+        return;
+    if (g64FindLogCount < G64_PARSE_LOG) {
+        g64FindLog[g64FindLogCount][0] = (u32)(g64ParseLogCount - 1);
+        g64FindLog[g64FindLogCount][1] = id;
+        g64FindLogCount++;
     }
 }
 

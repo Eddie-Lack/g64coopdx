@@ -30,10 +30,11 @@
  *   kick     0x47 (host to a player it removed)
  * The level pack (src/client/pack.h). A joiner whose hello names another pack than the host's, or none, is
  * welcomed all the same when the host may send its pack, and is not in the game until it has the pack:
- *   offer    0x49, the pack's id (16 bytes), the sizes of its manifest (u16), level file (u32) and script (u32, 0
- *            for none), its name (1 to 32 bytes). Host to a joiner who lacks the pack, until the joiner answers.
- *            An id and sizes of zeros, with no name, mean that the host plays without a pack.
- *   want     0x4A, the pack's id, offset (u32). The joiner asks for the pack's bytes from that offset: the three
+ *   offer    0x49, the pack's id (16 bytes), the sizes of its manifest (u16), level file (u32), script (u32, 0
+ *            for none) and models.bin (u32, 0 for none), its name (1 to 32 bytes). Host to a joiner who lacks the
+ *            pack, until the joiner answers. An id and sizes of zeros, with no name, mean that the host plays
+ *            without a pack.
+ *   want     0x4A, the pack's id, offset (u32). The joiner asks for the pack's bytes from that offset: the four
  *            files one after another. The host answers with a few pieces.
  *   piece    0x4B, offset (u32), 1 to 1024 bytes. A joiner takes pieces in order only, and only after its player
  *            said yes to the offer.
@@ -52,7 +53,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 11
+#define G64_PROTOCOL 12
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -122,10 +123,14 @@ void g64_session_set_pack(g64_session *g, const uint8_t *id);
 #define G64_PACK_MANIFEST_LIMIT 1024
 #define G64_PACK_LEVEL_LIMIT (1024 * 1024)
 #define G64_PACK_SCRIPT_LIMIT (256 * 1024)
+/* models.bin: at most 4 MiB of banks and a header of 24 bytes (G64_PACK_MODELS_MAX). The smallest file names one
+   retail bank and has no banks of its own: a header of 16 bytes. */
+#define G64_PACK_MODELS_LIMIT (4 * 1024 * 1024 + 24)
+#define G64_PACK_MODELS_MIN 16
 typedef struct {
     uint8_t id[G64_PACK_ID_SIZE];
     char name[G64_PACK_NAME_MAX + 1];
-    size_t manifestSize, levSize, scriptSize; /* the pack's bytes: the three files one after another */
+    size_t manifestSize, levSize, scriptSize, modelsSize; /* the pack's bytes: the four files one after another */
 } g64_pack_offer;
 typedef enum {
     G64_PACK_NONE,    /* the host has made no offer: this machine has the host's pack, or the offer is still to come */
@@ -136,7 +141,7 @@ typedef enum {
     G64_PACK_DONE,    /* the host counts this player in */
 } g64_pack_state;
 /* On the host, after g64_session_set_pack and before the first poll: the host may send its pack to a joiner who
- * lacks it. info has the pack's name and sizes, and bytes its three files one after another; the bytes stay the
+ * lacks it. info has the pack's name and sizes, and bytes its four files one after another; the bytes stay the
  * caller's and must live as long as the session. With no pack set, call it with NULL, NULL: a joiner who came with
  * a pack then plays without it. Without this call the host refuses a joiner whose pack differs. */
 void g64_session_send_pack(g64_session *g, const g64_pack_offer *info, const uint8_t *bytes);

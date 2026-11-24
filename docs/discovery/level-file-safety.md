@@ -46,9 +46,23 @@ How it is proven: the game's parser records each token it reads (`G64ParseTrace`
 every one and names the same tokens at the same offsets. 26 of the parser's tokens are in no level of the ROM; their
 lengths come from the code alone. The check's fuzz target shows that it never reads outside the file.
 
-What it does not check: the other values (points 4 to 11 below, and the rest of the table of ranges), and whether
-the level's objects are in the banks of the level whose place it takes. The numbered list below still holds for a file that passes. `g64pack`
-prints the check's result for a pack's maker. The game does not refuse a pack on it yet.
+What it does not check: the other values (points 4 to 11 below, and the rest of the table of ranges). The numbered
+list below still holds for a file that passes. `g64pack` prints the check's result for a pack's maker. The game does
+not refuse a pack on it yet.
+
+## The level's object ids
+
+A second rule, with the player's ROM, checks that every object the file names is in a bank the level will have
+(`g64_pack_check_ids` in `src/client/pack.c`; [model-banks.md](model-banks.md), "The level's object ids"). It runs on
+a file that passes the structure check. The parser asks for an object by an id of the file in nine tokens:
+PLATFORM, DESTRUCTIBLE (its debris; id 0 is none), ROPEBRIDGE, SINEBRIDGE, ORBITBRIDGE, BACKGROUND, LANDSCAPE,
+CAMEO_OBJ and WATER. Every other object it finds has a name of the game's own: an enemy's, a bullet's, a pick-up's or
+a garib's. The banks are the four that the level loads (three in the intro and the ending), the pack's own object
+bank, and the retail banks that its models.bin names. A CAMEO_OBJ may not name a model of the pack's own bank.
+`tests/rom/levcheck.c` proves the token list: on all 48 levels, the ids the rule reads are the ids the game's
+FindObject is asked for while the parser reads those tokens. No level of the ROM has a bridge, so the test adds one
+of each to a copy of a level. The rule covers point 4 below for objects. A backdrop's texture, CAMEO_CAM and puzzle
+action 40 are not part of it.
 
 ## What the game itself guards
 

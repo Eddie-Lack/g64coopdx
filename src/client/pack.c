@@ -294,6 +294,98 @@ int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint
     return 0;
 }
 
+uint8_t *g64_pack_blob(const g64_pack *p, size_t *size) {
+    size_t n = p->manifestSize + p->levSize + p->scriptSize + p->modelsSize;
+    uint8_t *b;
+    *size = 0;
+    if (!p->manifest || !p->lev || n == 0)
+        return NULL;
+    b = (uint8_t *)malloc(n);
+    if (!b)
+        return NULL;
+    memcpy(b, p->manifest, p->manifestSize);
+    memcpy(b + p->manifestSize, p->lev, p->levSize);
+    if (p->script)
+        memcpy(b + p->manifestSize + p->levSize, p->script, p->scriptSize);
+    if (p->models)
+        memcpy(b + p->manifestSize + p->levSize + p->scriptSize, p->models, p->modelsSize);
+    *size = n;
+    return b;
+}
+
+int g64_pack_from_blob(const uint8_t *blob, size_t n, size_t manifestSize, size_t levSize, size_t scriptSize,
+                       size_t modelsSize, const g64_pack_banks *banks, int strict, g64_pack *out, char *err,
+                       size_t errSize) {
+    /* Each size is at most its file's limit before they are added, so the sum cannot wrap. */
+    if (!blob || manifestSize > G64_PACK_MANIFEST_MAX || levSize > G64_PACK_LEVEL_MAX ||
+        scriptSize > G64_PACK_SCRIPT_MAX || modelsSize > G64_PACK_MODELS_MAX ||
+        manifestSize + levSize + scriptSize + modelsSize != n) {
+        memset(out, 0, sizeof *out);
+        out->level = -1;
+        snprintf(err, errSize, "the level pack's sizes do not add up to its bytes");
+        return -1;
+    }
+    /* A part of size 0 is a part the pack lacks: g64_pack_from_bytes takes NULL for it. */
+    return g64_pack_from_bytes(blob, manifestSize, blob + manifestSize, levSize,
+                               scriptSize ? blob + manifestSize + levSize : NULL, scriptSize,
+                               modelsSize ? blob + manifestSize + levSize + scriptSize : NULL, modelsSize, banks,
+                               strict, out, err, errSize);
+}
+
+int g64_pack_from_download(const uint8_t *blob, size_t n, size_t manifestSize, size_t levSize, size_t scriptSize,
+                           size_t modelsSize, const uint8_t id[G64_PACK_ID], const char *name,
+                           const g64_pack_banks *banks, g64_pack *out, char *err, size_t errSize) {
+    if (modelsSize && (!banks || !banks->rom)) {
+        memset(out, 0, sizeof *out);
+        out->level = -1;
+        snprintf(err, errSize, "there is no index of the ROM's banks to check the level pack's models with");
+        return -1;
+    }
+    if (g64_pack_from_blob(blob, n, manifestSize, levSize, scriptSize, modelsSize, banks, 1, out, err, errSize) != 0)
+        return -1;
+    if (memcmp(out->id, id, G64_PACK_ID) != 0 || strcmp(out->name, name) != 0) {
+        g64_pack_free(out);
+        snprintf(err, errSize, "it is not the pack the host named");
+        return -1;
+    }
+    return 0;
+}
+
+int g64_pack_may_send(const g64_pack *p, const uint8_t *rom, size_t romSize, const g64_pack_banks *banks, char *err,
+                      size_t errSize) {
+    const char *why;
+    size_t at = 0;
+    int num;
+    if (!p->lev) {
+        snprintf(err, errSize, "there is no pack");
+        return -1;
+    }
+    num = g64_pack_rom_level(p, rom, romSize);
+    if (num >= 0) {
+        snprintf(err, errSize, "the pack's level is level %d of the ROM", num);
+        return -1;
+    }
+    why = g64_pack_check_strict(p, &at);
+    if (why) {
+        snprintf(err, errSize, "the pack's level file does not pass the check (%s)", why);
+        return -1;
+    }
+    if (p->models) {
+        G64Models found;
+        if (!banks || !banks->rom) {
+            snprintf(err, errSize, "there is no index of the ROM's banks to check the pack's models with");
+            return -1;
+        }
+        why = g64_pack_check_models(p->models, p->modelsSize, banks, &found, &at);
+        if (why) {
+            snprintf(err, errSize, "the pack's models.bin does not pass the check (%s, at byte %u)", why,
+                     (unsigned)at);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 /* Reads an optional file. Returns 0 when it is not there (data stays NULL) or was read, and -1 when it is there but
  * is empty, cannot be read or is larger than max. */
 static int read_optional(const char *dir, const char *name, size_t max, uint8_t **data, size_t *size) {
@@ -347,6 +439,147 @@ const char *g64_pack_check_strict(const g64_pack *p, size_t *at) {
     if (at)
         *at = where;
     return why;
+}
+
+/* The tokens whose fields hold an object id, and the id's offset in the fields (pack.h). Token numbers are weemitt's
+   enum Token. */
+enum { TOKEN_PLATFORM = 98, TOKEN_DESTRUCTIBLE = 101, TOKEN_ROPEBRIDGE = 141, TOKEN_ORBITBRIDGE = 143,
+       TOKEN_SINEBRIDGE = 144, TOKEN_BACKGROUND = 145, TOKEN_LANDSCAPE = 146, TOKEN_WATER = 160, TOKEN_CAMEO_OBJ = 188 };
+
+static int id_offset(int token) {
+    switch (token) {
+    case TOKEN_PLATFORM: case TOKEN_BACKGROUND: case TOKEN_LANDSCAPE: case TOKEN_CAMEO_OBJ:
+        return 0;
+    case TOKEN_SINEBRIDGE:
+        return 4;
+    case TOKEN_DESTRUCTIBLE: case TOKEN_ROPEBRIDGE:
+        return 6;
+    case TOKEN_ORBITBRIDGE:
+        return 8;
+    case TOKEN_WATER:
+        return 38;
+    default:
+        return -1;
+    }
+}
+
+typedef struct {
+    size_t *at;
+    size_t count, cap;
+    int oom;
+} id_places;
+
+/* levcheck calls this before it checks the token's length, so it only notes where each id token starts. */
+static void note_id_token(void *user, size_t offset, int token) {
+    id_places *w = user;
+    if (id_offset(token) < 0 || w->oom)
+        return;
+    if (w->count == w->cap) {
+        size_t cap = w->cap ? w->cap * 2 : 64;
+        size_t *at = realloc(w->at, cap * sizeof *at);
+        if (!at) {
+            w->oom = 1;
+            return;
+        }
+        w->at = at;
+        w->cap = cap;
+    }
+    w->at[w->count++] = offset;
+}
+
+const char *g64_lev_object_ids(const uint8_t *lev, size_t n, g64_lev_id_fn fn, void *user, size_t *at) {
+    id_places w;
+    const char *why;
+    size_t i;
+    memset(&w, 0, sizeof w);
+    why = g64_lev_check(lev, n, note_id_token, &w, at);
+    if (!why && w.oom)
+        why = "out of memory";
+    /* The check has passed: every token's fields lie inside the file. */
+    for (i = 0; !why && i < w.count; i++) {
+        int token = (lev[w.at[i]] << 8) | lev[w.at[i] + 1];
+        fn(user, w.at[i], token, rom_be32(lev + w.at[i] + 2 + id_offset(token)));
+    }
+    free(w.at);
+    return why;
+}
+
+typedef struct {
+    const uint8_t *models;
+    const G64Models *info;
+    const g64_level_banks *banks;
+    g64_bank_has_fn has;
+    void *user;
+    const char *why;
+    size_t at;
+} id_rule;
+
+/* 1 when the pack's own object bank's directory has the id. models.bin passed its check, so the directory's
+   numEntries entries of 8 bytes lie in the bank. */
+static int pack_has(const id_rule *r, uint32_t id) {
+    unsigned i;
+    if (!r->models || !r->info || r->info->objSize == 0)
+        return 0;
+    for (i = 0; i < r->info->numEntries; i++)
+        if (rom_be32(r->models + r->info->objAt + 8 * (size_t)i) == id)
+            return 1;
+    return 0;
+}
+
+static void apply_id_rule(void *user, size_t offset, int token, uint32_t id) {
+    id_rule *r = user;
+    unsigned i;
+    int found = 0;
+    if (r->why)
+        return;
+    /* A broken platform's debris with id 0 has no object, as in the game's own levels. */
+    if (token == TOKEN_DESTRUCTIBLE && id == 0)
+        return;
+    if (pack_has(r, id)) {
+        if (token == TOKEN_CAMEO_OBJ) {
+            r->why = "a CAMEO_OBJ names one of the pack's own models: the game animates a cameo, and a pack's model "
+                     "has no animation";
+            r->at = offset;
+        }
+        return;
+    }
+    for (i = 0; !found && r->banks && i < r->banks->count && i < G64_LEVEL_BANKS_MAX; i++)
+        found = r->has(r->user, r->banks->num[i], id);
+    for (i = 0; !found && r->info && i < r->info->numObj && i < G64_MODELS_RETAIL_MAX; i++)
+        found = r->has(r->user, r->info->obj[i], id);
+    if (!found) {
+        r->why = "the level names an object that is in no bank the level has: not in the level's own banks, the "
+                 "pack's models or the retail banks it names";
+        r->at = offset;
+    }
+}
+
+const char *g64_pack_check_ids(const uint8_t *lev, size_t levSize, const uint8_t *models, const G64Models *info,
+                               const g64_level_banks *banks, g64_bank_has_fn has, void *user, size_t *at) {
+    id_rule r;
+    size_t where = 0;
+    const char *why;
+    memset(&r, 0, sizeof r);
+    r.models = models;
+    r.info = models ? info : NULL;
+    r.banks = banks;
+    r.has = has;
+    r.user = user;
+    why = g64_lev_object_ids(lev, levSize, apply_id_rule, &r, &where);
+    if (!why && r.why) {
+        why = r.why;
+        where = r.at;
+    }
+    *at = where;
+    return why;
+}
+
+const char *g64_pack_check_level_ids(const g64_pack *p, const g64_level_banks *banks, g64_bank_has_fn has, void *user,
+                                     size_t *at) {
+    *at = 0;
+    if (!p || !p->lev)
+        return "there is no level file";
+    return g64_pack_check_ids(p->lev, p->levSize, p->models, &p->modelsInfo, banks, has, user, at);
 }
 
 int g64_pack_rom_level(const g64_pack *p, const uint8_t *rom, size_t size) {

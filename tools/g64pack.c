@@ -9,8 +9,8 @@
  *
  * Every file the tool reads is untrusted: sizes and offsets are checked before use. The pack it writes is read
  * back with the game's own pack reader (src/client/pack.c), so a pack this tool accepts is one the game accepts.
- * The tool does not link the game: the retail bank numbers and the ROM's bank ranges come from the table of the
- * game's bank switch (src/client/bankranges.h). */
+ * The tool does not link the game: the retail bank numbers, the ROM's bank ranges and each level's object banks
+ * come from the tables of src/client/bankranges.h. */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +27,7 @@
 #include "../src/client/bankranges.h"
 #include "../src/client/levcheck.h"
 #include "../src/client/pack.h"
+#include "../src/client/packrom.h"
 #include "../src/client/rombanks.h"
 
 /* The game's levels by number (weemitt's enum Level). */
@@ -147,13 +148,6 @@ static void print_pack(const char *dir, const g64_pack *p) {
             printf("level file's structure: as the game reads it\n");
         }
     }
-    /* A host sends a pack to players who lack it only when it passes the check for packs from other players. The
-       tool has no ROM here: a host also does not send a level file that is a copy of one of the ROM's levels. */
-    printf("from the host: %s\n",
-           g64_pack_check_strict(p, NULL) != NULL
-               ? "not sent, the level file's structure has a warning; every player needs the folder"
-               : p->models != NULL ? "not sent yet, the session cannot send models; every player needs the folder"
-                                   : "players can download this pack when they join");
     if (p->script != NULL) {
         printf("script: %lu bytes\n", (unsigned long)p->scriptSize);
     } else {
@@ -167,9 +161,31 @@ static void print_pack(const char *dir, const g64_pack *p) {
     printf("\n");
 }
 
+/* The rule for the level file's object ids, as the online host runs it before it offers its pack (host_offer_pack in
+ * src/client/netplay.c): every object the level names is in a bank the level will have. A level file whose structure
+ * has a warning cannot be read for its ids. */
+static int check_objects(const g64_pack *p, const unsigned char *rom, size_t romSize) {
+    size_t at = 0;
+    int rule = 0;
+    const char *why;
+    if (g64_pack_check_strict(p, NULL) != NULL) {
+        printf("the level's objects: not checked, the level file's structure has a warning\n");
+        return 0;
+    }
+    why = g64_pack_check_ids_rom(p, rom, romSize, &rule, &at);
+    if (why && !rule)
+        return fail("the level's objects could not be checked", why);
+    if (why) {
+        printf("the level's objects: at byte %lu: %s\n", (unsigned long)at, why);
+        return fail("the level names an object that the game would not find", NULL);
+    }
+    printf("the level's objects: all in the level's banks\n");
+    return 0;
+}
+
 /* Reads a pack as the game reads the player's own folder, and prints it. With a ROM, the pack is also held to the
- * rules that need the player's ROM: its level is not one of the ROM's, and its models hold none of the ROM's ids or
- * data. */
+ * rules that need the player's ROM: its level is not one of the ROM's, its models hold none of the ROM's ids or
+ * data, and every object its level names is in a bank the level will have. */
 static int check(const char *dir, const char *romPath) {
     g64_pack p;
     g64_pack_banks banks;
@@ -196,7 +212,7 @@ static int check(const char *dir, const char *romPath) {
             return fail("no memory for the index of the ROM's banks", NULL);
         }
         g64_rombanks_stats(index, &st);
-        /* The same rule as the online program's (check_pack_models in src/client/netplay.c). */
+        /* The same rule as the online program's (rom_index in src/client/netplay.c). */
         if (!g64_rombanks_complete(&st)) {
             g64_rombanks_free(index);
             free(rom);
@@ -209,15 +225,40 @@ static int check(const char *dir, const char *romPath) {
     if (g64_pack_load(dir, &banks, &p, err, sizeof err) != 0) {
         r = fail("the pack does not load", err);
     } else {
+        int level = -1, objects = 0;
         print_pack(dir, &p);
         if (rom != NULL) {
-            int level = g64_pack_rom_level(&p, rom, romSize);
+            level = g64_pack_rom_level(&p, rom, romSize);
             if (level >= 0) {
                 printf("the ROM's rules: the level file is level %d of the ROM\n", level);
-                r = fail("the pack holds game data: its level file is one of the ROM's", NULL);
             } else {
                 printf("the ROM's rules: passed\n");
             }
+            objects = check_objects(&p, rom, romSize);
+            r |= objects;
+        }
+        /* A host sends a pack to players who lack it only when it passes the check for packs from other players
+           and the ROM's rules (g64_pack_may_send). Without a ROM the tool cannot say the second: a host does not
+           send a level file that is a copy of one of the ROM's levels, or models that fail the ROM's rules. With a
+           ROM, a pack whose models fail those rules did not load. A host whose pack fails the rule for the level's
+           object ids stops its session before the offer. */
+        if (g64_pack_check_strict(&p, NULL) != NULL) {
+            printf("from the host: not sent, the level file's structure has a warning; every player needs the "
+                   "folder\n");
+        } else if (level >= 0) {
+            printf("from the host: not sent, the level file is one of the ROM's; every player needs the folder\n");
+        } else if (objects != 0) {
+            printf("from the host: not sent, the host stops its session; the level names an object that the game "
+                   "would not find\n");
+        } else if (rom == NULL) {
+            printf("from the host: players can download this pack when they join, if it also passes the ROM's "
+                   "rules (check %s --rom ROM)\n",
+                   dir);
+        } else {
+            printf("from the host: players can download this pack when they join\n");
+        }
+        if (level >= 0) {
+            r = fail("the pack holds game data: its level file is one of the ROM's", NULL);
         }
         g64_pack_free(&p);
     }

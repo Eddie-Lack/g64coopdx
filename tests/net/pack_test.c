@@ -157,10 +157,64 @@ static void models(const char *dir, const char *cubePath, const uint8_t *lev, si
                                        err, sizeof err) != 0 && strstr(err, "an object id that the ROM has") != NULL,
           "models whose ids the ROM has are refused");
     printf("pack: %s\n", err);
+    {
+        /* The same in the bytes a joiner downloads. */
+        uint8_t *blob;
+        size_t bn = 0;
+        check(g64_pack_from_bytes((const uint8_t *)good, mn, lev, levSize, NULL, 0, cube, cubeN, &table, 0, &p, err,
+                                  sizeof err) == 0,
+              "the cube's pack, to send");
+        blob = g64_pack_blob(&p, &bn);
+        g64_pack_free(&p);
+        check(index && blob &&
+                  g64_pack_from_blob(blob, bn, mn, levSize, 0, cubeN, &withRom, 0, &p, err, sizeof err) != 0 &&
+                  strstr(err, "an object id that the ROM has") != NULL,
+              "a joiner refuses downloaded models whose ids its ROM has");
+        free(blob);
+    }
     write_file(dir, "models.bin", cube, cubeN);
     check(index && g64_pack_load(dir, &withRom, &p, err, sizeof err) != 0, "the same from a folder");
     remove_file(dir, "models.bin");
     g64_rombanks_free(index);
+
+    /* The bytes a host sends: the four files one after another. A joiner splits them by the offer's sizes. */
+    {
+        static const char script[] = "x=1\n";
+        uint8_t *blob;
+        size_t bn = 0;
+        check(g64_pack_from_bytes((const uint8_t *)good, mn, whole, wholeSize, (const uint8_t *)script, 4, cube, cubeN,
+                                  &table, 1, &p, err, sizeof err) == 0,
+              "a pack with a script and models, to send");
+        blob = g64_pack_blob(&p, &bn);
+        check(blob && bn == mn + wholeSize + 4 + cubeN && memcmp(blob, good, mn) == 0 &&
+                  memcmp(blob + mn, whole, wholeSize) == 0 && memcmp(blob + mn + wholeSize, script, 4) == 0 &&
+                  memcmp(blob + mn + wholeSize + 4, cube, cubeN) == 0,
+              "a host's bytes are pack.txt, level.lev, script.lua and models.bin, in that order");
+        check(blob && g64_pack_from_blob(blob, bn, mn, wholeSize, 4, cubeN, &table, 1, &q, err, sizeof err) == 0 &&
+                  memcmp(q.id, p.id, sizeof q.id) == 0 && q.modelsSize == cubeN && q.scriptSize == 4,
+              "a joiner who splits them four ways has the host's pack");
+        g64_pack_free(&q);
+        check(blob && g64_pack_from_blob(blob, bn, mn, wholeSize, 4, cubeN - 8, &table, 1, &q, err, sizeof err) != 0 &&
+                  !q.lev,
+              "sizes that do not add up to the bytes are refused");
+        check(blob && g64_pack_from_blob(blob, bn, mn, wholeSize, 4 + cubeN, 0, &table, 1, &q, err, sizeof err) != 0,
+              "models.bin taken as part of the script is refused");
+        check(blob && g64_pack_from_blob(blob, bn - cubeN, mn, wholeSize, 4, 0, &table, 1, &q, err, sizeof err) == 0 &&
+                  !q.models && memcmp(q.id, p.id, sizeof q.id) != 0,
+              "the same bytes without models.bin are another pack");
+        g64_pack_free(&q);
+        if (blob) {
+            /* A changed byte in the models is caught by the bank check, or by the id. */
+            blob[mn + wholeSize + 4 + 8] = 2;
+            check(g64_pack_from_blob(blob, bn, mn, wholeSize, 4, cubeN, &table, 1, &q, err, sizeof err) != 0 &&
+                      strstr(err, "models.bin") != NULL,
+                  "a bad models.bin in a host's bytes is refused");
+        }
+        free(blob);
+        g64_pack_free(&p);
+        blob = g64_pack_blob(&p, &bn);
+        check(!blob && bn == 0, "a pack that was freed has no bytes to send");
+    }
 
     /* The cache, with models and without. */
     check(g64_pack_from_bytes((const uint8_t *)good, mn, whole, wholeSize, NULL, 0, cube, cubeN, &table, 1, &p, err,
@@ -218,6 +272,177 @@ static void models(const char *dir, const char *cubePath, const uint8_t *lev, si
         check(l.texSize == 0 && l.objSize == 0 && l.size == 1001 + wholeSize, "a pack without models has no banks");
     }
     g64_pack_free(&p);
+}
+
+/* ---- The level file's object ids against the banks (g64_pack_check_ids), with a made-up table of banks: bank 7
+   holds object 0x1111 and bank 13 object 0x2222. */
+static int made_up_banks(void *user, unsigned num, uint32_t id) {
+    (void)user;
+    return (num == 7 && id == 0x1111) || (num == 13 && id == 0x2222);
+}
+
+static uint8_t idLev[512];
+static size_t idLevN;
+
+static void lev16(int v) {
+    idLev[idLevN++] = (uint8_t)((unsigned)v >> 8);
+    idLev[idLevN++] = (uint8_t)v;
+}
+
+static void lev32(uint32_t v) {
+    lev16((int)(v >> 16));
+    lev16((int)(v & 0xFFFF));
+}
+
+static void lev_zeros(size_t n) {
+    memset(idLev + idLevN, 0, n);
+    idLevN += n;
+}
+
+/* A level file's start: room for its size, and a name. */
+static void lev_begin(void) {
+    idLevN = 0;
+    lev32(0);
+    memcpy(idLev + idLevN, "ids", 4);
+    idLevN += 4;
+}
+
+static void lev_end(void) {
+    lev16(0x7D00);
+    idLev[0] = (uint8_t)(idLevN >> 24);
+    idLev[1] = (uint8_t)(idLevN >> 16);
+    idLev[2] = (uint8_t)(idLevN >> 8);
+    idLev[3] = (uint8_t)idLevN;
+}
+
+/* A token with an object id at the token's offset in its fields, and zeros elsewhere. */
+static void lev_token(int token, size_t fields, size_t idAt, uint32_t id) {
+    lev16(token);
+    lev_zeros(idAt);
+    lev32(id);
+    lev_zeros(fields - idAt - 4);
+}
+
+typedef struct {
+    int count, token[16];
+    uint32_t id[16];
+} seen_ids;
+
+static void note_ids(void *user, size_t offset, int token, uint32_t id) {
+    seen_ids *s = user;
+    (void)offset;
+    if (s->count < 16) {
+        s->token[s->count] = token;
+        s->id[s->count] = id;
+    }
+    s->count++;
+}
+
+static void level_ids(const uint8_t *cube, size_t cubeN) {
+    const g64_pack_banks table = {g64_bank_exists, NULL, NULL};
+    g64_level_banks banks = {2, {0, 7}};
+    G64Models info, retail;
+    seen_ids seen;
+    size_t at = 0, plat;
+    uint32_t cubeId;
+    unsigned nums[G64_LEVEL_BANKS_MAX];
+    static uint8_t bad[8192];
+    const char *why;
+    if (g64_pack_check_models(cube, cubeN, &table, &info, &at) != NULL) {
+        check(0, "the cube passes the bank check");
+        return;
+    }
+    cubeId = ((uint32_t)cube[info.objAt] << 24) | ((uint32_t)cube[info.objAt + 1] << 16) |
+             ((uint32_t)cube[info.objAt + 2] << 8) | cube[info.objAt + 3];
+
+    /* Every id token, read where the parser reads it. */
+    lev_begin();
+    lev_token(98, 12, 0, 0x1111);       /* PLATFORM */
+    lev_token(101, 18, 6, 0);           /* DESTRUCTIBLE, no debris */
+    lev_token(141, 70, 6, 0x1112);      /* ROPEBRIDGE */
+    idLev[idLevN - 70 + 1] = 1;         /* one plank */
+    lev_token(144, 60, 4, 0x1113);      /* SINEBRIDGE */
+    lev_token(143, 60, 8, 0x1114);      /* ORBITBRIDGE */
+    lev_token(145, 24, 0, 0x1115);      /* BACKGROUND */
+    lev_token(146, 24, 0, 0x1116);      /* LANDSCAPE */
+    lev_token(188, 24, 0, 0x1117);      /* CAMEO_OBJ */
+    lev_token(160, 62, 38, 0x1118);     /* WATER */
+    lev_token(131, 20, 0, 0);           /* an ENEMY: its type, not an id */
+    lev_end();
+    memset(&seen, 0, sizeof seen);
+    why = g64_lev_object_ids(idLev, idLevN, note_ids, &seen, &at);
+    check(why == NULL && seen.count == 9 && seen.token[0] == 98 && seen.id[0] == 0x1111 && seen.token[1] == 101 &&
+              seen.id[1] == 0 && seen.id[2] == 0x1112 && seen.id[3] == 0x1113 && seen.id[4] == 0x1114 &&
+              seen.id[5] == 0x1115 && seen.id[6] == 0x1116 && seen.id[7] == 0x1117 && seen.token[8] == 160 &&
+              seen.id[8] == 0x1118,
+          "the id walk reads every id token's id at its place");
+    check(g64_lev_object_ids(idLev, idLevN - 1, note_ids, &seen, &at) != NULL, "the id walk needs the level check");
+
+    /* The rule. A platform of bank 7, debris of none, the pack's cube as LANDSCAPE, BACKGROUND, WATER and debris. */
+    lev_begin();
+    plat = idLevN;
+    lev_token(98, 12, 0, 0x1111);
+    lev_token(101, 18, 6, 0);
+    lev_token(98, 12, 0, cubeId);
+    lev_token(101, 18, 6, cubeId);
+    lev_token(145, 24, 0, cubeId);
+    lev_token(146, 24, 0, cubeId);
+    lev_token(160, 62, 38, cubeId);
+    lev_token(141, 70, 6, cubeId);
+    idLev[idLevN - 70 + 1] = 1;
+    lev_end();
+    check(g64_pack_check_ids(idLev, idLevN, cube, &info, &banks, made_up_banks, NULL, &at) == NULL,
+          "ids of the level's banks and of the pack's own bank pass");
+    check(g64_pack_check_ids(idLev, idLevN, NULL, NULL, &banks, made_up_banks, NULL, &at) != NULL && at == plat + 34,
+          "without models.bin, the pack's id is in no bank");
+    banks.num[1] = 8;
+    check(g64_pack_check_ids(idLev, idLevN, cube, &info, &banks, made_up_banks, NULL, &at) != NULL && at == plat,
+          "an id of a bank the level does not load is refused");
+    banks.num[1] = 7;
+    banks.count = 1;
+    check(g64_pack_check_ids(idLev, idLevN, cube, &info, &banks, made_up_banks, NULL, &at) != NULL && at == plat,
+          "only the level's banks count");
+    banks.count = 2;
+
+    /* A cameo may not use the pack's model. It may use an object of the level's banks. */
+    lev_begin();
+    lev_token(188, 24, 0, 0x1111);
+    plat = idLevN;
+    lev_token(188, 24, 0, cubeId);
+    lev_end();
+    why = g64_pack_check_ids(idLev, idLevN, cube, &info, &banks, made_up_banks, NULL, &at);
+    check(why != NULL && at == plat && strstr(why, "CAMEO_OBJ") != NULL, "a CAMEO_OBJ with the pack's model is refused");
+
+    /* A retail bank that models.bin names counts. models is not NULL, and the pack has no bank of its own. */
+    memset(&retail, 0, sizeof retail);
+    retail.numObj = 1;
+    retail.obj[0] = 13;
+    lev_begin();
+    lev_token(146, 24, 0, 0x2222);
+    lev_token(188, 24, 0, 0x2222);
+    lev_end();
+    check(g64_pack_check_ids(idLev, idLevN, cube, &retail, &banks, made_up_banks, NULL, &at) == NULL,
+          "an object of a retail bank that models.bin names passes, as a cameo too");
+    check(g64_pack_check_ids(idLev, idLevN, NULL, NULL, &banks, made_up_banks, NULL, &at) != NULL,
+          "the same without models.bin is refused");
+
+    /* The table of the levels' banks, for programs that do not link the game. */
+    check(g64_level_object_banks(0, nums, G64_LEVEL_BANKS_MAX) == 4 && nums[0] == 0 && nums[2] == 1,
+          "level 0 loads four object banks, 0 first");
+    check(g64_level_object_banks(44, nums, G64_LEVEL_BANKS_MAX) == 4 && nums[2] == 69, "FLYTHRU loads bank 69");
+    check(g64_level_object_banks(46, nums, G64_LEVEL_BANKS_MAX) == 3, "INTRO loads three object banks");
+    check(g64_level_object_banks(48, nums, G64_LEVEL_BANKS_MAX) == -1 && g64_level_object_banks(-1, nums, 4) == -1,
+          "the table has levels 0 to 47 only");
+
+    /* The bank check refuses an object with the id of one of the game's own enemies or pick-ups. */
+    memcpy(bad, cube, cubeN);
+    bad[info.objAt] = (uint8_t)(g64_models_game_ids[0] >> 24);
+    bad[info.objAt + 1] = (uint8_t)(g64_models_game_ids[0] >> 16);
+    bad[info.objAt + 2] = (uint8_t)(g64_models_game_ids[0] >> 8);
+    bad[info.objAt + 3] = (uint8_t)g64_models_game_ids[0];
+    why = g64_pack_check_models(bad, cubeN, &table, &retail, &at);
+    check(why != NULL && at == info.objAt && strstr(why, "enemy") != NULL,
+          "an object with the id of an enemy of the game is refused");
 }
 
 int main(int argc, char **argv) {
@@ -396,6 +621,18 @@ int main(int argc, char **argv) {
         g64_pack_free(&q);
         g64_pack_free(&p);
         models(dir, cubePath, lev, sizeof lev, good, whole, sizeof whole);
+        {
+            static uint8_t cube[8192];
+            size_t cubeN = 0;
+            FILE *f = fopen(cubePath, "rb");
+            if (f) {
+                cubeN = fread(cube, 1, sizeof cube, f);
+                fclose(f);
+            }
+            check(cubeN > 0 && cubeN < sizeof cube, "the cube's models.bin is read for the id rule");
+            if (cubeN > 0 && cubeN < sizeof cube)
+                level_ids(cube, cubeN);
+        }
     }
     {
         /* A pack whose level file is a level of the ROM holds game data. The ROM here is made up: its first word,

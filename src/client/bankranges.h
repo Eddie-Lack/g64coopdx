@@ -1,5 +1,6 @@
-/* The game's bank switch as a table, for programs that do not link the game: the pack tool and the tests
- * (tools/gen_bankranges.py writes bankranges_table.c from weemitt's src/game/banks.c and gen/romsyms.c).
+/* The game's bank switch as a table, for programs that do not link the game (the pack tool and the tests), and for
+ * the online program before the game has read its ROM (netplay.c). tools/gen_bankranges.py writes
+ * bankranges_table.c from weemitt's src/game/banks.c and gen/romsyms.c.
  *
  * The game knows a bank by its kind (G64_BANK_TEXTURE or G64_BANK_OBJECT, rombanks.h) and number. Each bank's range
  * in the ROM runs from one ROM symbol to another. A symbol's address is in the game's code, as a pair of
@@ -7,8 +8,8 @@
  * ROM that Glovebox built has its moved banks' addresses there. The table holds each symbol's address in the game's own ROM and
  * the offsets of its two instructions. It holds no bytes of the ROM.
  *
- * A program that links the game asks the game's own switch instead (G64BankRom, rombanks_game.c). tests/rom/rombanks.c
- * compares the two. */
+ * A program that links the game can ask the game's own switch instead (G64BankRom, rombanks_game.c), once the game has
+ * powered on. tests/rom/rombanks.c compares the two. */
 #ifndef G64_BANKRANGES_H
 #define G64_BANKRANGES_H
 
@@ -43,5 +44,14 @@ int g64_bank_exists(void *user, int kind, unsigned num, uint32_t *start, uint32_
  * for a number with no bank, and for a ROM too short to hold the code. The range is ROM offsets, as
  * g64_rombanks_build wants them. */
 int g64_bank_rom_range(void *user, int kind, unsigned num, uint32_t *start, uint32_t *end);
+
+/* The object banks that the game loads for level num (0 to 47) before a pack's, in the order it loads them: the
+ * numbers of G64LevelBankNumbers (weemitt's g64packbanks.c), which reads them from the game's tables. Writes at
+ * most max numbers and returns how many there are, or -1 for another level. The numbers are the retail game's.
+ * tests/rom/levcheck.c compares the table with the game's on the player's ROM, and with the banks LoadLevel loads. */
+int g64_level_object_banks(int num, unsigned *banks, int max);
+/* The same from the game itself (G64LevelBankNumbers). Only a program that links the game has it
+ * (rombanks_game.c). */
+int g64_level_object_banks_game(int num, unsigned *banks, int max);
 
 #endif

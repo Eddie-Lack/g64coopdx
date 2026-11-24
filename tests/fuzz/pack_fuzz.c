@@ -1,6 +1,7 @@
 /* A libFuzzer target for the level pack's parsers (src/client/pack.h): the manifest, the level file's outside
- * check, the script's check, a pack from bytes with its models.bin, and the reader of a ROM's level files. A
- * manifest that parses has a name of printable characters and a level in range.
+ * check, the script's check, a pack from bytes with its models.bin, the level file's object ids and their rule, a
+ * joiner's download split by an offer's four sizes (g64_pack_from_blob, g64_pack_from_download), and the reader of a
+ * ROM's level files. A manifest that parses has a name of printable characters and a level in range.
  *
  * Build and run: make fuzz (clang with -fsanitize=fuzzer). */
 #include <stddef.h>
@@ -9,10 +10,58 @@
 #include <string.h>
 
 #include "../../src/client/bankranges.h"
+#include "../../src/client/levcheck.h"
 #include "../../src/client/pack.h"
+
+/* A made-up table of banks for the id rule: bank num has every id whose low byte is num. */
+static int some_banks(void *user, unsigned num, uint32_t id) {
+    (void)user;
+    return (id & 0xFF) == num;
+}
+
+typedef struct {
+    size_t size;
+    int count;
+} id_walk;
+
+/* Each id the walk reports lies inside the file: its token's 2 bytes, then at least 4 more. */
+static void check_id(void *user, size_t offset, int token, uint32_t id) {
+    id_walk *w = (id_walk *)user;
+    (void)id;
+    if (offset > w->size || w->size - offset < 6 || token <= 0)
+        __builtin_trap();
+    w->count++;
+}
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     g64_pack p;
+    /* The input as a level file: the id walk and the id rule read only inside it. */
+    {
+        static const g64_level_banks banks = {3, {0, 1, 2}};
+        id_walk w = {size, 0};
+        size_t at = 0;
+        if (g64_lev_object_ids(data, size, check_id, &w, &at) == NULL &&
+            g64_lev_check(data, size, NULL, NULL, &at) != NULL)
+            __builtin_trap();
+        if (g64_pack_check_ids(data, size, NULL, NULL, &banks, some_banks, NULL, &at) == NULL &&
+            g64_lev_check(data, size, NULL, NULL, &at) != NULL)
+            __builtin_trap();
+        /* The input as a level file's tokens, with a size, a name and an end token around them. The walk reaches
+           far more files that pass the level check this way. */
+        if (size <= 4000) {
+            static uint8_t lev[4010];
+            size_t n = 6 + size + 2;
+            id_walk w2 = {n, 0};
+            lev[0] = 0, lev[1] = 0, lev[2] = (uint8_t)(n >> 8), lev[3] = (uint8_t)n;
+            lev[4] = 'f', lev[5] = 0;
+            memcpy(lev + 6, data, size);
+            lev[n - 2] = 0x7D, lev[n - 1] = 0;
+            if (g64_lev_object_ids(lev, n, check_id, &w2, &at) == NULL &&
+                g64_lev_check(lev, n, NULL, NULL, &at) != NULL)
+                __builtin_trap();
+            (void)g64_pack_check_ids(lev, n, NULL, NULL, &banks, some_banks, NULL, &at);
+        }
+    }
     memset(&p, 0, sizeof p);
     if (g64_pack_parse_manifest(data, size, &p) == 0) {
         size_t i, n = strlen(p.name);
@@ -53,6 +102,14 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                              (uint64_t)a.modelsInfo.texAt + a.modelsInfo.texSize + a.modelsInfo.objSize !=
                                  a.modelsSize))
                 __builtin_trap();
+            {
+                /* The id rule on the pack, with its own models: it reads the pack's directory inside models.bin. */
+                static const g64_level_banks banks = {2, {0, 7}};
+                size_t at = 0;
+                if (g64_pack_check_level_ids(&a, &banks, some_banks, NULL, &at) == NULL &&
+                    g64_lev_check(a.lev, a.levSize, NULL, NULL, &at) != NULL)
+                    __builtin_trap();
+            }
             g64_pack_layout_of(&a, 16, &l);
             if (l.size != (l.texSize ? l.objAt + l.objSize : 16 + ln + sn) || l.levAt != 16 || l.texAt % 8 ||
                 (l.texSize && l.texAt < 16 + ln + sn))
@@ -87,6 +144,49 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                 if (memcmp(a.id, b.id, sizeof a.id) != 0)
                     __builtin_trap();
                 g64_pack_free(&b);
+            }
+            g64_pack_free(&a);
+        } else if (a.lev || a.manifest || a.script || a.models) {
+            __builtin_trap();
+        }
+    }
+    /* A download split by an offer's sizes. With bit 0 of byte 0 the four sizes are any u32 values from bytes 1 to
+       16, as a host may send them. Without it they are cut from the rest so that they add up, as most offers do.
+       The rest of the input is the download. A split that fails leaves the pack empty. One that succeeds has the
+       four sizes, which add up to the download, and the id that g64_pack_from_bytes gives for the same parts. A
+       joiner's read with that id and name succeeds only for a pack without models, as there is no ROM index here. */
+    if (size >= 17) {
+        static const g64_pack_banks table = {g64_bank_exists, NULL, NULL};
+        const uint8_t *rest = data + 17;
+        size_t n = size - 17, s[4], i;
+        char err[160];
+        g64_pack a, b;
+        for (i = 0; i < 4; i++)
+            s[i] = (size_t)data[1 + 4 * i] | (size_t)data[2 + 4 * i] << 8 | (size_t)data[3 + 4 * i] << 16 |
+                   (size_t)data[4 + 4 * i] << 24;
+        if (!(data[0] & 1)) {
+            s[0] %= n + 1;
+            s[1] %= n - s[0] + 1;
+            s[2] %= n - s[0] - s[1] + 1;
+            s[3] = n - s[0] - s[1] - s[2];
+        }
+        if (g64_pack_from_blob(rest, n, s[0], s[1], s[2], s[3], &table, data[0] >> 7, &a, err, sizeof err) == 0) {
+            if (a.manifestSize != s[0] || a.levSize != s[1] || a.scriptSize != s[2] || a.modelsSize != s[3] ||
+                s[0] + s[1] + s[2] + s[3] != n)
+                __builtin_trap();
+            if (g64_pack_from_bytes(rest, s[0], rest + s[0], s[1], s[2] ? rest + s[0] + s[1] : NULL, s[2],
+                                    s[3] ? rest + s[0] + s[1] + s[2] : NULL, s[3], &table, data[0] >> 7, &b, err,
+                                    sizeof err) != 0 ||
+                memcmp(a.id, b.id, sizeof a.id) != 0)
+                __builtin_trap();
+            g64_pack_free(&b);
+            if (g64_pack_from_download(rest, n, s[0], s[1], s[2], s[3], a.id, a.name, &table, &b, err, sizeof err) ==
+                0) {
+                if (s[3] != 0 || memcmp(a.id, b.id, sizeof a.id) != 0)
+                    __builtin_trap();
+                g64_pack_free(&b);
+            } else if (b.lev || b.manifest || b.script || b.models) {
+                __builtin_trap();
             }
             g64_pack_free(&a);
         } else if (a.lev || a.manifest || a.script || a.models) {

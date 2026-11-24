@@ -53,11 +53,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         uint8_t hello[69 + 4] = {0x40, 'G', '6', '4', G64_PROTOCOL, 0xcd, 0xab, 0x34, 0x12};
         uint8_t welcome[35] = {0x41, 1, 4};
         /* The host has a level pack that it may send. Player 1 has it; player 2 lacks it and holds a place. */
-        uint8_t offer[27 + 4] = {0x49, 5, 6, 7};
+        uint8_t offer[31 + 4] = {0x49, 5, 6, 7};
         g64_pack_offer info;
         memset(&info, 0, sizeof info);
         memcpy(info.name, "fuzz", 4);
-        info.manifestSize = 40, info.levSize = 2000, info.scriptSize = sizeof packBytes - 2040;
+        info.manifestSize = 40, info.levSize = 2000, info.modelsSize = 20;
+        info.scriptSize = sizeof packBytes - 2060;
         if (host)
             g64_session_free(host), g64_session_free(join), g64_session_free(load);
         host = g64_session_host(sock, 4, 0x1234abcdu, 0, 3);
@@ -81,8 +82,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         g64_session_poll(load, now, game, NULL);
         welcome[1] = 2;
         g64_session_receive(load, &senders[0], welcome, sizeof welcome, now, game, NULL);
-        offer[17] = 40, offer[19] = 0xD0, offer[20] = 7, offer[23] = 0xC0, offer[24] = 3;
-        memcpy(offer + 27, "fuzz", 4);
+        /* The host's offer: a manifest of 40 bytes, a level file of 2000, a script of 940 and a models.bin of 20. */
+        offer[17] = 40, offer[19] = 0xD0, offer[20] = 7, offer[23] = 0xAC, offer[24] = 3, offer[27] = 20;
+        memcpy(offer + 31, "fuzz", 4);
         g64_session_test_inner(load, 0, offer, sizeof offer, now, game, NULL);
         if (g64_session_joined(host) != 2 || g64_session_me(join) != 1 || g64_session_pack_accept(load) != 0)
             __builtin_trap();
@@ -107,10 +109,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     for (i = 0; i < 2; i++) {
         const g64_session *j = i ? load : join;
         const g64_pack_offer *o = g64_session_pack_offer(j);
-        size_t total = o->manifestSize + o->levSize + o->scriptSize;
+        size_t total = o->manifestSize + o->levSize + o->scriptSize + o->modelsSize;
         const char *c;
         if (o->manifestSize > G64_PACK_MANIFEST_LIMIT || o->levSize > G64_PACK_LEVEL_LIMIT ||
-            o->scriptSize > G64_PACK_SCRIPT_LIMIT || g64_session_pack_have(j) > total ||
+            o->scriptSize > G64_PACK_SCRIPT_LIMIT || o->modelsSize > G64_PACK_MODELS_LIMIT ||
+            (o->modelsSize != 0 && o->modelsSize < G64_PACK_MODELS_MIN) || g64_session_pack_have(j) > total ||
             (g64_session_pack_bytes(j) != NULL) != (g64_session_pack_state(j) == G64_PACK_LOADED) ||
             (g64_session_pack_state(j) == G64_PACK_LOADED && g64_session_pack_have(j) != total))
             __builtin_trap();

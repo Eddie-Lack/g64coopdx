@@ -606,6 +606,15 @@ static int object(Check *c, uint32_t ptrAt, uint32_t o, unsigned depth, unsigned
     return 1;
 }
 
+/* The ids of objects that the game finds by a name of its own and that the retail ROM's banks do not have: the
+   names of nine enemy kinds (kinds 0 to 6 share one name, and kinds 46 and 57 have one each) and of the pick-ups 7,
+   8 and 9. The
+   game asks FindObject for them when a level has such an enemy or pick-up. A pack's object with one of these ids
+   would be that enemy or pick-up, which reads an animation. The rule for the ROM's ids covers every other name.
+   tests/rom/levcheck.c compares this list with the game's names and the ROM. */
+const uint32_t g64_models_game_ids[G64_MODELS_GAME_IDS] = {0x5e9f46bf, 0xf90dc11e, 0x61af1e01, 0x0ee2f4e2,
+                                                           0x571f7f95, 0x8516ac66};
+
 /* The directory: entries of {id, instance} up to an entry of 8 zero bytes. LoadObjectBankAt stops only at an
    instance of 0. */
 static int objects(Check *c) {
@@ -625,6 +634,9 @@ static int objects(Check *c) {
         }
         if (be32(o + at) == 0)
             return fail(c, fo(c, at), "a directory entry has the id 0");
+        for (k = 0; k < G64_MODELS_GAME_IDS; k++)
+            if (be32(o + at) == g64_models_game_ids[k])
+                return fail(c, fo(c, at), "an object has the id of an enemy or a pick-up of the game");
         if (e == MAX_ENTRIES)
             return fail(c, fo(c, at), "the directory has more than 1024 entries");
         for (k = 0; k < e; k++)

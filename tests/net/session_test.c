@@ -340,8 +340,48 @@ static void test_join_later(uint32_t start) {
     }
 }
 
-/* A level pack from the host. The pack's bytes here are made up: the session moves bytes and does not read them. */
-static uint8_t packBytes[20000 + 700];
+/* A level pack from the host. The pack's bytes here are made up: the session moves bytes and does not read them. They
+   stand for four files: a manifest of 40 bytes, a level file of 20000, a script of 660 and a models.bin of 3000. */
+#define PACK_TOTAL (40 + 20000 + 660 + 3000)
+static uint8_t packBytes[PACK_TOTAL];
+
+/* An offer as the host sends it: the type, the id, the four sizes, then the name. */
+static size_t make_offer(uint8_t *m, const uint8_t *id, unsigned manifest, uint32_t lev, uint32_t script,
+                         uint32_t models, const char *name) {
+    size_t i, n = strlen(name);
+    m[0] = 0x49;
+    memcpy(m + 1, id, G64_PACK_ID_SIZE);
+    m[17] = (uint8_t)manifest, m[18] = (uint8_t)(manifest >> 8);
+    for (i = 0; i < 4; i++) {
+        m[19 + i] = (uint8_t)(lev >> (8 * i));
+        m[23 + i] = (uint8_t)(script >> (8 * i));
+        m[27 + i] = (uint8_t)(models >> (8 * i));
+    }
+    memcpy(m + 31, name, n);
+    return 31 + n;
+}
+
+/* A hello of protocol proto to host from a made-up address. 1 when the host took the player in. */
+static int hello_joins(uint8_t proto, uint32_t *clock) {
+    char err[128];
+    net_socket *hs = net_open(0, err, sizeof err);
+    g64_session *host = g64_session_host(hs, 2, ROM, 0, 3);
+    uint8_t hello[69 + 5] = {0x40, 'G', '6', '4', proto, ROM & 0xFF, (ROM >> 8) & 0xFF, (ROM >> 16) & 0xFF, ROM >> 24,
+                             BUILD & 0xFF, (BUILD >> 8) & 0xFF, (BUILD >> 16) & 0xFF, BUILD >> 24};
+    net_addr from;
+    int joined;
+    memset(&from, 0, sizeof from);
+    from.family = 4, from.ip[0] = 127, from.ip[3] = 1, from.port = 9;
+    memset(hello + 21, 9, 32);
+    memcpy(hello + 69, "proto", 5);
+    g64_session_set_build(host, BUILD);
+    g64_session_poll(host, *clock, NULL, NULL);
+    g64_session_receive(host, &from, hello, sizeof hello, *clock, NULL, NULL);
+    joined = g64_session_joined(host) == 2;
+    g64_session_free(host);
+    net_close(hs);
+    return joined;
+}
 
 static void pack_pump(g64_session *host, g64_session *join, uint32_t *clock, int rounds) {
     int i;
@@ -365,6 +405,9 @@ static void test_pack(uint32_t *clock) {
     info.manifestSize = 40;
     info.levSize = 20000;
     info.scriptSize = 660;
+    info.modelsSize = 3000;
+    check(G64_PROTOCOL == 12 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(11, clock),
+          "the protocol is 12, and a hello of protocol 11 is refused");
     {
         /* A joiner without the pack, and one with another pack, before the start. */
         net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err), *s2 = net_open(0, err, sizeof err);
@@ -381,7 +424,8 @@ static void test_pack(uint32_t *clock) {
         pack_pump(host, a, clock, 60);
         o = g64_session_pack_offer(a);
         check(g64_session_pack_state(a) == G64_PACK_OFFERED && memcmp(o->id, hostId, sizeof hostId) == 0 &&
-                  !strcmp(o->name, "A test?pack") && o->manifestSize == 40 && o->levSize == 20000 && o->scriptSize == 660,
+                  !strcmp(o->name, "A test?pack") && o->manifestSize == 40 && o->levSize == 20000 &&
+                  o->scriptSize == 660 && o->modelsSize == 3000,
               "a joiner without the host's pack gets the offer");
         me = g64_session_me(a);
         check(me >= 1 && g64_session_joined(host) == 1 && g64_session_poll(host, *clock, NULL, NULL) == G64_SESSION_WAITING,
@@ -404,7 +448,7 @@ static void test_pack(uint32_t *clock) {
             pack_pump(host, a, clock, 1);
         check(g64_session_pack_state(a) == G64_PACK_LOADED && g64_session_pack_have(a) == total &&
                   g64_session_pack_bytes(a) && memcmp(g64_session_pack_bytes(a), packBytes, total) == 0,
-              "every byte of the pack comes, in order");
+              "every byte of the pack comes, in order, models.bin last");
         piece[1] = piece[2] = 0;
         g64_session_test_inner(a, 0, piece, sizeof piece, *clock, NULL, NULL);
         check(g64_session_pack_have(a) == total, "a piece after the last one is dropped");
@@ -424,13 +468,17 @@ static void test_pack(uint32_t *clock) {
         }
         check(g64_session_pack_state(b) == G64_PACK_OFFERED, "a joiner with another pack gets the offer");
         {
-            uint8_t offer[27 + 4] = {0x49, 1, 2, 3};
-            offer[17] = 40, offer[19] = 8;
-            memcpy(offer + 27, "evil", 4);
-            g64_session_test_inner(b, 0, offer, sizeof offer, *clock, NULL, NULL);
+            uint8_t offer[31 + G64_PACK_NAME_MAX];
+            size_t n = make_offer(offer, hostId, 40, 20000, 660, 3000, "A test?pack");
+            g64_session_test_inner(b, 0, offer, n, *clock, NULL, NULL);
+            check(g64_session_poll(b, *clock, NULL, NULL) == G64_SESSION_WAITING &&
+                      g64_session_pack_state(b) == G64_PACK_OFFERED,
+                  "the same offer again changes nothing");
+            n = make_offer(offer, hostId, 40, 20000, 660, 3008, "A test?pack");
+            g64_session_test_inner(b, 0, offer, n, *clock, NULL, NULL);
             check(g64_session_poll(b, *clock, NULL, NULL) == G64_SESSION_FAILED &&
                       strstr(g64_session_error(b), "changed") != NULL,
-                  "a second offer of another pack ends the session");
+                  "a second offer with another size of models.bin ends the session");
         }
         g64_session_free(a), g64_session_free(b), g64_session_free(host);
         net_close(hs), net_close(s1), net_close(s2);
@@ -458,40 +506,80 @@ static void test_pack(uint32_t *clock) {
             g64_session_poll(a, *clock, NULL, NULL);
             g64_session_poll(host, *clock, NULL, NULL);
         }
-        check(g64_session_peer_addr(host, 1) == NULL && k > 3 * 20700 / 8192 && k < 60,
+        check(g64_session_peer_addr(host, 1) == NULL && k > 3 * PACK_TOTAL / 8192 && k < 60,
               "a joiner who asks for the pack over and over loses the place");
         g64_session_free(a), g64_session_free(host);
         net_close(hs), net_close(s1);
     }
     {
         /* Offers that are not as they must be are dropped. */
+        static const uint8_t oneId[G64_PACK_ID_SIZE] = {1};
+        static const uint8_t noId[G64_PACK_ID_SIZE] = {0};
+        static const struct {
+            uint32_t models;
+            int taken;
+            const char *what;
+        } models[] = {
+            {15, 0, "an offer of a models.bin of 15 bytes is dropped"},
+            {G64_PACK_MODELS_LIMIT + 1, 0, "an offer of a models.bin of more than 4 MiB and 24 bytes is dropped"},
+            {16, 1, "an offer of a models.bin of 16 bytes is taken"},
+            {G64_PACK_MODELS_LIMIT, 1, "an offer of a models.bin of 4 MiB and 24 bytes is taken"},
+        };
         net_socket *s1 = net_open(0, err, sizeof err);
         g64_session *a = g64_session_join(s1, &hostAddr, ROM, "x");
-        uint8_t welcome[35] = {0x41, 1, 2}, offer[27 + 33] = {0x49, 1};
+        uint8_t welcome[35] = {0x41, 1, 2}, offer[31 + 33];
         net_addr from = hostAddr;
+        size_t n, k;
         memset(welcome + 3, 7, 32);
         g64_session_poll(a, *clock, NULL, NULL);
         g64_session_receive(a, &from, welcome, sizeof welcome, *clock, NULL, NULL);
-        memset(offer + 27, 'n', 33);
-        offer[17] = 40, offer[19] = 8;
-        g64_session_test_inner(a, 0, offer, sizeof offer, *clock, NULL, NULL);
+        n = make_offer(offer, oneId, 40, 8, 0, 0, "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn");
+        check(n == 31 + 33, "the offer's name starts at byte 31");
+        g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
         check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer with a name of 33 bytes is dropped");
-        g64_session_test_inner(a, 0, offer, 27, *clock, NULL, NULL);
+        g64_session_test_inner(a, 0, offer, 31, *clock, NULL, NULL);
         check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of a pack without a name is dropped");
-        offer[21] = 0x11; /* a level file of more than 1 MB */
-        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        g64_session_test_inner(a, 0, offer, 30, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of the old protocol's form is dropped");
+        n = make_offer(offer, oneId, 40, 0x110000, 0, 0, "n");
+        g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
         check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of a level file that is too large is dropped");
-        offer[21] = 0, offer[19] = 7;
-        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        n = make_offer(offer, oneId, 40, 7, 0, 0, "n");
+        g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
         check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of a level file that is too small is dropped");
-        offer[19] = 8, offer[1] = 0;
-        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
+        n = make_offer(offer, noId, 40, 8, 0, 0, "n");
+        g64_session_test_inner(a, 0, offer, 31, *clock, NULL, NULL);
         check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of no pack that has sizes is dropped");
-        offer[1] = 1;
-        g64_session_test_inner(a, 0, offer, 28, *clock, NULL, NULL);
-        check(g64_session_pack_state(a) == G64_PACK_OFFERED && g64_session_pack_offer(a)->levSize == 8,
+        n = make_offer(offer, noId, 0, 0, 0, 16, "");
+        g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_NONE, "an offer of no pack with a models.bin is dropped");
+        n = make_offer(offer, oneId, 40, 8, 0, 0, "n");
+        g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
+        check(g64_session_pack_state(a) == G64_PACK_OFFERED && g64_session_pack_offer(a)->levSize == 8 &&
+                  g64_session_pack_offer(a)->modelsSize == 0,
               "an offer within the limits is taken");
+        {
+            static const uint8_t evilId[G64_PACK_ID_SIZE] = {1, 2, 3};
+            n = make_offer(offer, evilId, 40, 8, 0, 0, "n");
+            g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
+            check(g64_session_poll(a, *clock, NULL, NULL) == G64_SESSION_FAILED &&
+                      strstr(g64_session_error(a), "changed") != NULL,
+                  "a second offer of another pack ends the session");
+        }
         g64_session_free(a);
+        /* The limits of models.bin, each on a joiner of its own: an offer that is taken stays. */
+        for (k = 0; k < sizeof models / sizeof models[0]; k++) {
+            a = g64_session_join(s1, &hostAddr, ROM, "x");
+            g64_session_poll(a, *clock, NULL, NULL);
+            g64_session_receive(a, &from, welcome, sizeof welcome, *clock, NULL, NULL);
+            n = make_offer(offer, oneId, 40, 8, 0, models[k].models, "n");
+            g64_session_test_inner(a, 0, offer, n, *clock, NULL, NULL);
+            check(models[k].taken ? g64_session_pack_state(a) == G64_PACK_OFFERED &&
+                                        g64_session_pack_offer(a)->modelsSize == models[k].models
+                                  : g64_session_pack_state(a) == G64_PACK_NONE,
+                  models[k].what);
+            g64_session_free(a);
+        }
         net_close(s1);
     }
     {
@@ -537,6 +625,79 @@ static void test_pack(uint32_t *clock) {
         }
         check(g64_session_peer_addr(host, 1) == NULL && g64_session_poll(host, *clock, NULL, NULL) == G64_SESSION_WAITING,
               "a joiner who does not answer the offer loses the place");
+        g64_session_free(a), g64_session_free(host);
+        net_close(hs), net_close(s1);
+    }
+    {
+        /* A pack of the largest size on a slow link. The host answers once a second, which stands for a round trip
+           of one second. A joiner gets one burst of 8 pieces for each answer, so the download takes about 11
+           minutes. The host holds the place for longer than the five minutes of a small pack. A joiner who never
+           answers the offer of such a pack still loses the place, after about 12.5 minutes. */
+        static uint8_t big[G64_PACK_MANIFEST_LIMIT + G64_PACK_LEVEL_LIMIT + G64_PACK_SCRIPT_LIMIT +
+                           G64_PACK_MODELS_LIMIT];
+        g64_pack_offer large;
+        net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err);
+        g64_session *host = g64_session_host(hs, 2, ROM, 0, 3), *a;
+        size_t bigTotal = sizeof big, before, most = 0;
+        uint32_t t0;
+        int k, kept = 1;
+        for (i = 0; i < bigTotal; i += 4096)
+            big[i] = (uint8_t)(i >> 12);
+        memset(&large, 0, sizeof large);
+        snprintf(large.name, sizeof large.name, "Big");
+        large.manifestSize = G64_PACK_MANIFEST_LIMIT;
+        large.levSize = G64_PACK_LEVEL_LIMIT;
+        large.scriptSize = G64_PACK_SCRIPT_LIMIT;
+        large.modelsSize = G64_PACK_MODELS_LIMIT;
+        net_resolve("127.0.0.1", net_port(hs), &hostAddr, err, sizeof err);
+        g64_session_set_build(host, BUILD);
+        g64_session_set_pack(host, hostId);
+        g64_session_send_pack(host, &large, big);
+        a = g64_session_join(s1, &hostAddr, ROM, "far");
+        g64_session_set_build(a, BUILD);
+        pack_pump(host, a, clock, 60);
+        check(g64_session_pack_accept(a) == 0, "a joiner says yes to a pack of the largest size");
+        t0 = *clock;
+        for (k = 0; k < 100000 && g64_session_pack_state(a) == G64_PACK_LOADING; k++) {
+            *clock += 10;
+            g64_session_poll(a, *clock, NULL, NULL);
+            if (k % 100 == 99) {
+                before = g64_session_pack_have(a);
+                g64_session_poll(host, *clock, NULL, NULL);
+                /* The pieces arrive on the joiner's next poll. */
+                *clock += 10, k++;
+                g64_session_poll(a, *clock, NULL, NULL);
+                if (g64_session_pack_have(a) - before > most)
+                    most = g64_session_pack_have(a) - before;
+                if (g64_session_peer_addr(host, 1) == NULL)
+                    kept = 0;
+            }
+        }
+        check(most == 8 * 1024, "the host sends one burst of 8 pieces for each request");
+        check(kept && g64_session_pack_state(a) == G64_PACK_LOADED && g64_session_pack_have(a) == bigTotal &&
+                  memcmp(g64_session_pack_bytes(a), big, bigTotal) == 0 && *clock - t0 > 10 * 60 * 1000 &&
+                  *clock - t0 < 12 * 60 * 1000,
+              "a pack of the largest size comes whole over a slow link, and the joiner keeps the place");
+        g64_session_free(a), g64_session_free(host);
+        host = g64_session_host(hs, 2, ROM, 0, 3);
+        g64_session_set_build(host, BUILD);
+        g64_session_set_pack(host, hostId);
+        g64_session_send_pack(host, &large, big);
+        a = g64_session_join(s1, &hostAddr, ROM, "silent");
+        g64_session_set_build(a, BUILD);
+        pack_pump(host, a, clock, 60);
+        for (k = 0; k < 6 * 60 * 2; k++) {
+            *clock += 500;
+            g64_session_poll(a, *clock, NULL, NULL);
+            g64_session_poll(host, *clock, NULL, NULL);
+        }
+        check(g64_session_peer_addr(host, 1) != NULL, "after six minutes the place for a large pack is still held");
+        for (k = 0; k < 7 * 60 * 2; k++) {
+            *clock += 500;
+            g64_session_poll(a, *clock, NULL, NULL);
+            g64_session_poll(host, *clock, NULL, NULL);
+        }
+        check(g64_session_peer_addr(host, 1) == NULL, "after 13 minutes it is free");
         g64_session_free(a), g64_session_free(host);
         net_close(hs), net_close(s1);
     }

@@ -22,7 +22,7 @@
  *     a puzzle variable's number are ones the game has
  *
  * What it does not do: check the other values (level-file-safety.md lists them), or whether the level's objects
- * are in the banks of the level whose place it takes. A file that passes can still make the game read or write
+ * are in the banks of the level whose place it takes (g64_pack_check_ids in pack.h does that, with the ROM). A file that passes can still make the game read or write
  * outside its memory. A level file that comes from a host must pass this check, and the player is asked first and
  * told to take a pack only from a host they trust.
  *
