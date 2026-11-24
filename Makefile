@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk packbanks-build packbanks models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk packbanks-build packbanks scenery-build scenery models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -400,6 +400,28 @@ packbanks: packbanks-build
 	    > build/tests/packbanks-windows.raw || { tr -d '\r' < build/tests/packbanks-windows.raw; exit 1; }
 	tr -d '\r' < build/tests/packbanks-windows.raw > build/tests/packbanks-windows.out
 	cmp build/tests/packbanks.out build/tests/packbanks-windows.out
+
+# Many scenery objects in one level file (tests/rom/scenery.c): the note's case of object bank 29 in level 35, also
+# with 16 players; each of 9 levels with its objects in turn and with one object again and again up to the parser's
+# limit; and every level with an unknown object. The level plays or stops as unplayable, on Linux and under Wine. The
+# two outputs must be equal (needs the ROM in GLOVER_ROM).
+SCENERY_SRC := tests/rom/scenery.c src/client/levcheck.c src/client/rombanks.c src/client/fla2.c \
+    src/client/rombanks_game.c $(BANKRANGES_SRC) third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
+scenery-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/scenery $(SCENERY_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/scenery.exe $(SCENERY_SRC) $(ENGINE_WINDOWS) -lm
+
+scenery: scenery-build
+	build/tests/scenery "$$GLOVER_ROM" > build/tests/scenery.out || { cat build/tests/scenery.out; exit 1; }
+	grep -E '^FAIL' build/tests/scenery.out || true
+	tail -2 build/tests/scenery.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/scenery.exe "$$GLOVER_ROM" \
+	    > build/tests/scenery-windows.raw || { tr -d '\r' < build/tests/scenery-windows.raw; exit 1; }
+	tr -d '\r' < build/tests/scenery-windows.raw > build/tests/scenery-windows.out
+	cmp build/tests/scenery.out build/tests/scenery-windows.out
 
 # May a pack's own models be platforms (tests/rom/models.c)? Platforms, bridges, debris and water with the pack's
 # models, on Linux and under Wine. Variant I has identity rotation keys: its two outputs must be equal. Variant Z has

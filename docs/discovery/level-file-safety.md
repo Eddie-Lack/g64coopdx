@@ -72,6 +72,13 @@ the check lacks does less harm:
 - An object's lookup that finds nothing, or an object without a mesh, no longer gives the parser a null pointer:
   PLATFORM, the three bridges, LANDSCAPE, BACKGROUND, CAMEO_OBJ and WATER. The same for a backdrop's texture and for a
   cameo camera's part, and a cameo has at most 10 extra spheres.
+- The same tokens stop the level ("OBJECT") when the object has a sprite whose texture no loaded texture bank has
+  (`G64_USABLE` in parse.c). An object bank can hold such objects: level 5's banks have one, whose sprite's texture
+  is in another level's texture bank. The texture's lookup gives a null pointer, and `AddActor` read the texture's
+  size from it (`AddObjectsSpritesToSpriteList`, actor.c). That read now tests the pointer too, for the objects the
+  game finds by a name of its own, and stops the level ("SPRITE TEXTURE"). The check before loading does not refuse
+  such an object of the level's own banks yet. For a retail bank that a pack names, `g64_pack_check_retail_sprites`
+  refuses it (model-banks.md).
 - Before each token the parser asks whether the thing the token's handler uses was made by this level's file
   (`TokenAllowed` in parse.c): a platform, its orbit, its spin, its path's points, its crumble or destructible part, a
   puzzle, an enemy, a vent, a landscape piece and its object, a group of garibs, a cameo, a buzzer. A vent and a
@@ -98,6 +105,17 @@ the check lacks does less harm:
   blocks in use to 1,100. A level file that named one object some hundreds of times filled the list of blocks here,
   and the game stopped the program. With 16 players the game's own levels need at most 101 blocks and 288,048
   bytes, and reach at most 1,035 blocks in use.
+- A level that stops while it is read has no collision planes: the parser makes them only after a whole file. Its
+  landscape actors are on the list of collisions all the same. The restart gates' shadows read the planes at the
+  level's start (`InitRestartGateShadows`, through `Altitude`), and are not made in a stopped level now. Level 45
+  stopped after its landscape and crashed there.
+- A mesh without a display list is drawn from a buffer of 800 vertices for each frame (`objectsVtx`): 3 for each
+  face, each time it is drawn (`WriteObjectDisplayListFlat` and `WriteObjectDisplayListGouraud` in banks.c). The
+  lightning takes 2 for each point. The game wrote with no test, and the lists of actors, of collisions and of
+  distances come after the second buffer. A level file with a hundred or so such objects near the start broke those
+  lists, and `UpdateWater`, `CheckCollisions` or `CreateObjects` then crashed. Now a mesh that does not fit is not
+  drawn that frame (`G64VertexRoom` in object.c). The game's own levels do not reach the end: `make regress` sees the
+  same memory. The object matrices already work this way (`NextObjectMtx`).
 - A landscape actor with collision compares each face of its mesh with every later face (`CheckForInnerEdges`).
   The parser adds up the squares of those face counts, and the level stops ("COLLISION") above 40,000,000. The game's
   own levels reach 340,884 (level 43). Seventeen flat meshes of 1500 faces fit.
@@ -149,6 +167,25 @@ may therefore take the place of any level.
 `make bankwalk` found one more. The intro and the ending read their first actor's animation (DoIntroEffects,
 DoOutroEffects). A pack's file can put an actor without one first, such as a piece of scenery. Both scenes now stop
 as unplayable then.
+
+`make scenery` (tests/rom/scenery.c) found the last three above. It copies a level's own file and adds scenery
+(BACKGROUND tokens) around the start:
+
+- The note's case in model-banks.md: the objects of object bank 29 in the order of its directory, 64 to 200 of them,
+  in level 35, whose own bank it is. They stand in rows of 8 from x 0 and z 0, as in `make packbanks`. The check
+  before loading accepts each of these files. The same level with 128 of them and 16 players.
+- In levels 0, 5, 8, 13, 20, 29, 36, 44 and 45, every object of the level's banks that plays alone, in turn, and the
+  one that asks for the most vertices again and again. The count goes from 50 up, by 50 and then by 100, until the
+  parser stops the level as too large. That is 100 to 500 objects.
+- Every level with one object that no bank has. Each must stop as unplayable.
+
+Every case plays or stops as unplayable, and two runs give the same memory hash. The output is the same on Linux and
+under Wine. A frame asks for up to 966 vertices. In one run of 300 frames, up to 115,968 draws of a mesh find no
+room. The graphics list holds at most 5,575 commands of its 20,000, so it has room at the parser's limit. Before the
+guards, the note's case crashed in `CheckCollisions` from 104 objects, and 100 played. A first version of the other
+cases crashed in 15 of its 30 cases. Level 5 crashed from 68 objects (the sprite), level 45 from 100 (the sprite, then
+the shadows), and level 13 from 116 (the vertices). With 16 players and no added objects, the game's own levels ask for
+at most 606 vertices (level 37), and no draw finds no room.
 
 Not guarded in the game yet: the short forms, which the check before loading refuses; memory that fills after the
 level is read, while it runs (the program then stops); and what the last section says was not read.

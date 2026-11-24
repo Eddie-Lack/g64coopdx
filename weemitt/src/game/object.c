@@ -1026,6 +1026,31 @@ void HandSwish(Object *obj, f32 time, s16 animStart, s16 animEnd, f32 speed) {
 INCLUDE_ASM("asm/nonmatchings/object", pad_80145674);
 
 
+/* g64coopdx: 1 when the vertex buffer that vtxPtr is in has room for n more vertices. A mesh without a display list
+   takes 3 vertices for each of its faces each time it is drawn (WriteObjectDisplayListFlat and
+   WriteObjectDisplayListGouraud in banks.c), and a bolt of lightning 2 for each point (DrawLightning in light.c).
+   Each draw buffer holds 800. The game wrote with no test, and past the end of the second buffer are the game's
+   lists of actors: a level file that names many such objects near each other broke them. The test asks where
+   vtxPtr is, not draw_buffer: CleanupAndSendDisplayList changes draw_buffer before the fade's overlay is drawn.
+   The callers draw nothing when there is no room. For tests: the most vertices a frame asked for, and how many
+   draws had no room. */
+s32 g64VertexPeak, g64VertexDrops;
+
+s32 G64VertexRoom(s32 n) {
+    Vtx *p = vtxPtr;
+    Vtx *base = p >= objectsVtx[1] ? objectsVtx[1] : objectsVtx[0];
+    s32 used = p - base;
+
+    if (used + n > g64VertexPeak) {
+        g64VertexPeak = used + n;
+    }
+    if (p < objectsVtx[0] || n < 0 || used + n > 800) {
+        g64VertexDrops++;
+        return FALSE;
+    }
+    return TRUE;
+}
+
 /* The frame's next object matrix. The first 256 are in Dynamic, as on the N64. The ones after them are in
    objectMtxMore. Past the end of both, every caller gets the last place: those objects are drawn wrong, and no
    memory after the table is written. */

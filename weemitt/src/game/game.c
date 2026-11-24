@@ -471,7 +471,12 @@ void InitMorePersonal(s32 num) {
         AnimateActor(&hand, HANDANIM_STAND, 1, 0, 0.0f);
     }
     AnimateActor(&ball, 42, 1, 0, 0.0f);
-    InitRestartGateShadows();
+    /* g64coopdx: a level whose parse stopped as unplayable has landscape actors on the collision list without their
+       collision planes: ParseLandscapeFile makes the planes only after a whole parse. The shadows' heights read
+       those planes (Altitude, collision.c). */
+    if (gameInfo.mode != 13) {
+        InitRestartGateShadows();
+    }
     FindTexture(&lavaTexture, UpdateCRC("restart.bmp"), 0);
     for (j = 0; j < 50; j++) {
         updateLava(lavaTexture->data, lavaTexture->width, lavaTexture->height);

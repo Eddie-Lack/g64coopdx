@@ -75,6 +75,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make bots          # every level with 8 and with 16 players who play at random, and level 14 with the seeds that broke the frog's tongue; on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make swaps         # every level with every other level's file in its place: played or stopped, never a crash (needs the ROM)
+    make scenery       # level files with hundreds of scenery objects, in 10 levels, also with 16 players: played or stopped, never a crash; Linux and Wine must print the same (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed

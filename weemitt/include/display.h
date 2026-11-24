@@ -21,6 +21,8 @@ extern Mtx objectMtxMore[2][OBJECT_MTX_MORE];
 
 /* The place of the frame's next object matrix. It takes the next number. */
 Mtx *NextObjectMtx(void);
+/* g64coopdx: 1 when the frame's vertex buffer has room for n more vertices (object.c). */
+s32 G64VertexRoom(s32 n);
 
 extern PTR32(Gfx) glistp;
 extern PTR32(Dynamic) dynamicp;

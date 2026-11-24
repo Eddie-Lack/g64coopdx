@@ -251,8 +251,9 @@ static s32 RetailAllowed(s32 objects, u32 num) {
 
 /* 1 when an object of the tree has a sprite whose texture no loaded bank had. The game reads a sprite's texture with
    no test for NULL (AddObjectsSpritesToSpriteList, actor.c). A face's texture may be NULL: LoadTexture tests it. A
-   display list's texture word keeps the id, and the renderer reads only inside the game's memory. */
-static s32 SpriteTextureMissing(Object *obj) {
+   display list's texture word keeps the id, and the renderer reads only inside the game's memory. The parser asks
+   the same of each object a level file names (G64_USABLE in parse.c). */
+s32 G64SpriteTextureMissing(Object *obj) {
     s32 i;
 
     for (; obj != NULL; obj = obj->sibling) {
@@ -261,7 +262,7 @@ static s32 SpriteTextureMissing(Object *obj) {
                 return 1;
             }
         }
-        if (SpriteTextureMissing(obj->child)) {
+        if (G64SpriteTextureMissing(obj->child)) {
             return 1;
         }
     }
@@ -287,7 +288,7 @@ static void LoadRetail(G64BankTable *t, s32 objects, u32 num) {
         if (objectBanks[0].data != NULL) {
             t->obj[t->numObj++] = objectBanks[0];
             for (i = 0; i < objectBanks[0].count; i++) {
-                if (SpriteTextureMissing(objectBanks[0].entries[i].inst->obj)) {
+                if (G64SpriteTextureMissing(objectBanks[0].entries[i].inst->obj)) {
                     /* The pack names an object bank without the texture bank of its sprites. The client refuses the
                        same pack (g64_pack_check_retail_sprites in src/client/packrom.c). */
                     g64PackSpriteStops++;

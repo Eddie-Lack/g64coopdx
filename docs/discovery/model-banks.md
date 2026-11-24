@@ -330,9 +330,10 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
 - The rule runs in `g64_pack_check_ids_rom`, after the rule for the level's ids. The host runs it before its offer,
   a joiner on the download, and the pack tool on a folder. `check_pack_ids_and_models` in netplay.c runs it again
   with the game's own bank ranges. A refusal gives rule 2 and the object bank's number.
-- Glovebox's pack export keeps this rule (`pack::add_sprite_banks`). It adds texture banks until every sprite
-  texture of each object bank it names is in one, and it refuses a pack that would need more than 4 or a texture that
-  no bank has.
+- Glovebox's pack export keeps this rule (Glovebox pull request 3, `pack::add_sprite_banks`). It adds texture banks
+  until every sprite texture of each object bank it names is in one: first the texture banks of the levels that load
+  the object bank, then any other. It refuses a pack that would need more than 4, or a sprite texture in no bank. A
+  pack for Atlantis 1 that names Carnival's object bank 19 now names Carnival's texture bank 4 too.
 
 `make packbanks` (`tests/rom/packbanks.c`) tests the table with the ROM. Its output is equal on Linux and under Wine.
 
@@ -347,10 +348,11 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
   19,675,600 bytes free. That is 672 runs. The whole test takes about 10 minutes on Linux and under Wine together.
 - The four costliest object banks by blocks, the four by bytes, and the four largest banks of each kind play in
   levels 15, 35, 7 and 46. The least free is 180 blocks (level 15) and 17,781,632 bytes.
-- A level file that names 64 objects of a retail bank as scenery plays, and the table answers each lookup. Without
+- A level file that names every object of a retail bank that level 13 lacks as scenery plays, and the table answers
+  each lookup. Without
   the retail number the level stops as unplayable, and `g64_pack_check_ids` refuses the file. The same objects play
   with the first flag.
-- Every object bank alone, without its texture banks, with up to 64 of its objects that level 13 lacks as scenery:
+- Every object bank alone, without its texture banks, with all of its objects that level 13 lacks as scenery:
   the level plays, or stops as unplayable where a sprite's texture is missing (banks 19, 27, 38, 55, 62, 66 and 69).
   The program never stops, and two runs give the same hash.
 - The lookup order: level 13's own world texture bank (3) as a retail bank, with an object bank of its world. Every
@@ -376,9 +378,13 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
   table. The bell is found in the table and in no slot. The client accepts that pack. It refuses the same pack with
   object banks 19 and 20 and no texture bank (rule 2, bank 19), and the same pack without object bank 20 (rule 1).
 
-`make packbanks` also found a fault of level files that has nothing to do with retail banks. A level file with about
-107 of bank 29's objects as scenery crashes the game, in level 29 itself and with no pack banks: `CheckCollisions` and
-`UpdateWater` find a broken list of actors. 100 of them play. The test names at most 64 objects of a bank.
+`make packbanks` also found faults of level files that have nothing to do with retail banks. A level file with about
+104 of object bank 29's objects as scenery crashed the game, in level 35, whose own bank it is, and with no pack
+banks: `CheckCollisions` and `UpdateWater` found a broken list of actors. 100 of them played. The meshes without a
+display list had filled the frame's buffer of vertices, and the game had written on past it, over the lists of
+actors. A sprite without its texture and a level that stopped before its collision planes crashed too. The game now
+guards all three, and `make scenery` tests them (level-file-safety.md, "What the game itself guards"). `make
+packbanks` now names every object of a bank that level 13 lacks, with no cap.
 
 The caps stay at 4 and 4. The costs leave room for more: the table and 4 banks of each kind take at most 51 blocks of
 the 1,245 free where the banks load. The level parser already stops a level that would bring the blocks in use to 1,100
