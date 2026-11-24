@@ -467,10 +467,10 @@ void G64LuaCounts(unsigned out[4]);
 double G64LuaGlobal(const char *name);
 
 /* Numbers that two_players reads from the script's global variables at the end. */
-#define SCRIPT_VALUES 14
+#define SCRIPT_VALUES 16
 static const char *const scriptName[SCRIPT_VALUES] = {"joins",  "angles", "dice",   "balls", "counts", "frames",
                                                       "taken",  "deaths", "taker",  "healths", "vars",
-                                                      "livesBefore", "livesAfter", "made"};
+                                                      "livesBefore", "livesAfter", "made", "picked", "picker"};
 static double scriptValue[SCRIPT_VALUES];
 /* Where a garib of the level is, read at the end of two_players. */
 int G64GaribPlace(int k, float *x, float *y, float *z);
@@ -696,17 +696,19 @@ static void script_run(Engine *e, void *boot) {
     check(scriptValue[9] == 23, what);
     check(scriptValue[10] == 9, "a script sets one of the level's puzzle variables, and it keeps the value");
     {
-        /* A script gives player 1 a life at frame 40, and puts the first pick-up of the game's kinds that
-           Atlantis 1's banks hold in the level at frame 50. */
+        /* A script gives player 1 a life at frame 40. At frame 50 it puts the first pick-up of the game's kinds
+           that Atlantis 1's banks hold where player 1's glove is, and hears player 1 take it. */
         static const char gifts[] =
-            "livesBefore, livesAfter, made = -1, -1, -1\n"
+            "livesBefore, livesAfter, made, picked, picker = -1, -1, -1, 0, -1\n"
+            "function on_pickup(p) picked = picked + 1; picker = p end\n"
             "function on_frame()\n"
             "  local f = game.frame()\n"
             "  if f == 40 and game.has_player(1) then livesBefore = game.lives(1); game.add_life(1) end\n"
             "  if f == 41 and game.has_player(1) then livesAfter = game.lives(1) end\n"
             "  if f == 50 then\n"
             "    for k = 0, 14 do\n"
-            "      if made < 0 and game.spawn_pickup(k, 0, 20, 100) then made = k end\n"
+            "      local x, y, z = game.pos(1)\n"
+            "      if made < 0 and x and game.spawn_pickup(k, x, y, z) then made = k end\n"
             "    end\n"
             "  end\n"
             "end\n";
@@ -721,6 +723,9 @@ static void script_run(Engine *e, void *boot) {
                      scriptValue[11], scriptValue[12], scriptValue[13]);
             check(active && scriptValue[11] >= 0 && scriptValue[12] == scriptValue[11] + 1 && scriptValue[13] >= 0,
                   what);
+            snprintf(what, sizeof what, "a script hears of a pick-up taken: %.0f, by player %.0f", scriptValue[14],
+                     scriptValue[15]);
+            check(scriptValue[14] >= 1 && scriptValue[15] == 1, what);
             free(withGifts);
         }
     }

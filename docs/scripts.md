@@ -18,7 +18,8 @@ values from level to level, and work with the level's puzzles. More comes later.
   who start it come in a little later, when the level's opening is over. `on_leave` is the same for a player who
   is gone. The last player of a level gets no `on_leave`: the level ends with them.
 - If the script has a function `on_garib`, the game calls it with a player's number when that player has taken a
-  garib. `on_death` is the same for a player whose glove has died. The script hears of both at the start of the
+  garib. `on_death` is the same for a player whose glove has died, `on_checkpoint` for a player who has reached a
+  new checkpoint, and `on_pickup` for a player who has taken a pick-up. The script hears of them at the start of the
   next frame, after `on_join` and before `on_frame`, in the order they happened. Of more than 64 such events in one
   frame, the script hears of the first 64.
 - Every machine runs the same script on the same game and must reach the same result. So a script has no clock, no
