@@ -81,6 +81,21 @@ void G64SetPlayerHealth(int p, int n) {
         health = n;
     }
 }
+/* The game's lives and pick-ups: the stand-in counts the calls. */
+static int livesGiven, pickupsMade;
+void G64GivePlayerLife(int p) {
+    if (p == 0) {
+        livesGiven++;
+    }
+}
+int G64SpawnPickup(int kind, float x, float y, float z, int duration) {
+    (void)x, (void)y, (void)z, (void)duration;
+    if (kind == 7 || kind == 9) {
+        return 0;
+    }
+    pickupsMade++;
+    return 1;
+}
 
 int G64PlayerHealth(int p) {
     return p == 0 ? health : -100;

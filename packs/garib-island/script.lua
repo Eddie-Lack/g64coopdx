@@ -1,4 +1,4 @@
--- Garib Island: counts each player's garibs on the island and says who reaches the exit first.
+-- Garib Island: counts each player's garibs on the island, gives a life for all of them, and says who reaches the exit first.
 local TOTAL = 11
 local EXIT_X, EXIT_Z = 18, 600
 local start = {}  -- each player's garibs when they came into the level
@@ -19,7 +19,8 @@ function on_frame()
       if got ~= shown[p] and got >= 0 then
         shown[p] = got
         if got >= TOTAL then
-          game.show(p, "All the garibs! Take the ball to the exit", 150)
+          game.add_life(p)
+          game.show(p, "All the garibs, and a life! Now the exit", 150)
         else
           game.show(p, "Garibs: " .. got .. " of " .. TOTAL, 90)
         end

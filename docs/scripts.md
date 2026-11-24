@@ -43,6 +43,8 @@ The table `game`:
 | `game.garibs(p)`, `game.health(p)`, `game.lives(p)` | player `p`'s garibs, health and lives |
 | `game.hurt(p)` | hurts player `p`'s glove by one point, by the game's own rules: a glove that was just hurt is not hurt again, and a glove at its last point dies |
 | `game.set_health(p, n)` | sets player `p`'s health to `n`, 1 to 3 |
+| `game.add_life(p)` | gives player `p` one more life, as an extra life does, with its sound. A player keeps at most 99 lives |
+| `game.spawn_pickup(kind, x, y, z)` | puts one of the game's pick-ups at a place, and gives `true` when it is there. `game.spawn_pickup(kind, x, y, z, frames)` sets how long its effect lasts, 0 to 30000 frames; the default is 600. The kinds are below. It gives `false` when the level's banks lack the kind's object, and when the level holds 128 pick-ups |
 | `game.show(p, text)` | shows a line of text on player `p`'s screen for three seconds. `game.show(p, text, frames)` shows it for that many frames, 1 to 1200. A new text takes the old one's place, and an empty text takes the line away. The text is cut to 60 characters of plain ASCII |
 | `game.var(n)` | the level's puzzle variable number `n`, 0 to 99 |
 | `game.set_var(n, v)` | sets it to the whole number `v`, from -1000000 to 1000000 |
@@ -55,7 +57,22 @@ The table `game`:
 A call that asks about a player gives nothing (`nil`) when that player is not in this level. A call that acts on
 such a player does nothing.
 
-A script cannot change garibs or lives. The game carries them from level to level.
+A script cannot change garibs. It can give lives (`game.add_life`); the game carries them from level to level as it
+does lives from an extra life.
+
+The pick-ups' kinds, as the game numbers them, by the name of their object:
+
+| Kind | Object | Kind | Object |
+| --- | --- | --- | --- |
+| 0 | `rblades` | 6 | `blades` |
+| 1 | `death` | 8 | `power` |
+| 2 | `frogspell` | 10 | `beach` |
+| 3 | `sticky` | 13 | `boomer` |
+| 4 | `hercules` | 14 | `vanish` |
+| 5 | `fast` | | |
+
+Kinds 7 and 9 are balls, which a level file cannot place either, and kinds 11 and 12 have no object. A level has
+the pick-ups of its world's banks; Atlantis 1, for example, has kind 0.
 
 ## A script and the level's puzzles
 

@@ -88,6 +88,21 @@ void G64SetPlayerHealth(int p, int n) {
         health = n;
     }
 }
+/* The game's lives and pick-ups: the stand-in counts the calls. */
+static int livesGiven, pickupsMade;
+void G64GivePlayerLife(int p) {
+    if (p == 0) {
+        livesGiven++;
+    }
+}
+int G64SpawnPickup(int kind, float x, float y, float z, int duration) {
+    (void)x, (void)y, (void)z, (void)duration;
+    if (kind == 7 || kind == 9) {
+        return 0;
+    }
+    pickupsMade++;
+    return 1;
+}
 
 int G64PlayerHealth(int p) {
     return p == 0 ? health : -100;
@@ -240,6 +255,22 @@ int main(void) {
         "game.log(a .. ' ' .. b .. ' ' .. ((pcall(game.set_health, 0, 0) or pcall(game.set_health, 0, 4) or\n"
         "         pcall(game.set_health, 0, 1.5) or pcall(game.hurt, 16)) and 'ALLOWED' or 'refused'))\n",
         1, 1);
+
+    livesGiven = pickupsMade = 0;
+    run("lives and pick-ups",
+        "game.add_life(0); game.add_life(7)\n"
+        "local a = game.spawn_pickup(5, 10, 0, -20); local b = game.spawn_pickup(7, 0, 0, 0)\n"
+        "local c = game.spawn_pickup(3, 1, 2, 3, 0)\n"
+        "local function yes(v) return v and 'made' or 'not made' end\n"
+        "game.log(yes(a) .. ', ' .. yes(b) .. ', ' .. yes(c) .. ', ' ..\n"
+        "         ((pcall(game.spawn_pickup, 15, 0, 0, 0) or pcall(game.spawn_pickup, -1, 0, 0, 0) or\n"
+        "           pcall(game.spawn_pickup, 5, 0, 0, 0, 30001) or pcall(game.spawn_pickup, 5, 0, 0) or\n"
+        "           pcall(game.add_life, 16)) and 'ALLOWED' or 'refused'))\n",
+        1, 1);
+    if (livesGiven != 1 || pickupsMade != 2) {
+        printf("FAIL lives and pick-ups: %d lives and %d pick-ups, expected 1 and 2\n", livesGiven, pickupsMade);
+        failed++;
+    }
 
     run("the level's puzzle variables",
         "local a = game.var(7)\n"

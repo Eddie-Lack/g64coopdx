@@ -467,9 +467,10 @@ void G64LuaCounts(unsigned out[4]);
 double G64LuaGlobal(const char *name);
 
 /* Numbers that two_players reads from the script's global variables at the end. */
-#define SCRIPT_VALUES 11
+#define SCRIPT_VALUES 14
 static const char *const scriptName[SCRIPT_VALUES] = {"joins",  "angles", "dice",   "balls", "counts", "frames",
-                                                      "taken",  "deaths", "taker",  "healths", "vars"};
+                                                      "taken",  "deaths", "taker",  "healths", "vars",
+                                                      "livesBefore", "livesAfter", "made"};
 static double scriptValue[SCRIPT_VALUES];
 /* Where a garib of the level is, read at the end of two_players. */
 int G64GaribPlace(int k, float *x, float *y, float *z);
@@ -694,6 +695,35 @@ static void script_run(Engine *e, void *boot) {
     snprintf(what, sizeof what, "a script hurts a glove and heals it: health 2 and then 3 (%.0f)", scriptValue[9]);
     check(scriptValue[9] == 23, what);
     check(scriptValue[10] == 9, "a script sets one of the level's puzzle variables, and it keeps the value");
+    {
+        /* A script gives player 1 a life at frame 40, and puts the first pick-up of the game's kinds that
+           Atlantis 1's banks hold in the level at frame 50. */
+        static const char gifts[] =
+            "livesBefore, livesAfter, made = -1, -1, -1\n"
+            "function on_frame()\n"
+            "  local f = game.frame()\n"
+            "  if f == 40 and game.has_player(1) then livesBefore = game.lives(1); game.add_life(1) end\n"
+            "  if f == 41 and game.has_player(1) then livesAfter = game.lives(1) end\n"
+            "  if f == 50 then\n"
+            "    for k = 0, 14 do\n"
+            "      if made < 0 and game.spawn_pickup(k, 0, 20, 100) then made = k end\n"
+            "    end\n"
+            "  end\n"
+            "end\n";
+        uint8_t *withGifts = malloc(romSize + sizeof gifts);
+        if (withGifts) {
+            memcpy(withGifts, rom, romSize);
+            memcpy(withGifts + romSize, gifts, sizeof gifts - 1);
+            engine_set_rom(e, withGifts, romSize + sizeof gifts);
+            g64_instances_pack_script((unsigned)romSize, sizeof gifts - 1);
+            two_players(e, boot, after, counts, &active);
+            snprintf(what, sizeof what, "a script gives a life (%.0f, then %.0f) and makes a pick-up of kind %.0f",
+                     scriptValue[11], scriptValue[12], scriptValue[13]);
+            check(active && scriptValue[11] >= 0 && scriptValue[12] == scriptValue[11] + 1 && scriptValue[13] >= 0,
+                  what);
+            free(withGifts);
+        }
+    }
     g64_instances_pack_script(0, 0);
     engine_set_rom(e, rom, romSize);
     free(with);
