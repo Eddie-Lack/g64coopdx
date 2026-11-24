@@ -578,11 +578,9 @@ static unsigned scenery_ids(unsigned o, const G64RomBanks *index, uint32_t *ids,
 /* Plays level 13 with the objects of bank o as scenery, with r, twice. With mustFind 1, the table must answer each
    object's lookup, and the controls run. With 2, the level must play. With 0, it may stop as unplayable. */
 static void scenery_case(const char *what, unsigned o, const Retail *r, int mustFind, const G64RomBanks *index) {
-    /* At most 64: a level file with about 107 of bank 29's objects as scenery crashes the game in level 29 itself,
-       with no pack banks (CheckCollisions and UpdateWater find a broken actor list). That is a fault of level files,
-       not of retail banks. */
-    static uint32_t ids[64];
-    unsigned count = scenery_ids(o, index, ids, 64);
+    /* Every object of the bank that level 13 lacks. An object bank holds at most a few hundred. */
+    static uint32_t ids[512];
+    unsigned count = scenery_ids(o, index, ids, 512);
     size_t n = 0, at = 0;
     uint8_t *lev = count ? with_scenery(LEVEL, ids, count, &n) : NULL;
     int found, stopped;

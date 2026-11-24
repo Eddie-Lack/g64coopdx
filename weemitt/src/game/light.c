@@ -360,6 +360,11 @@ void DrawLightning(Vec3 *start, Vec3 *end, u8 r, u8 g, u8 b, s16 numSegments, s1
         }
         ADD_VECTORS(&lightningVect[x], &lightningVect[x], &d);
     }
+    /* g64coopdx: no vertices past the frame's buffer (G64VertexRoom in object.c). The random numbers above are drawn
+       all the same. */
+    if (!G64VertexRoom((numSegments + 1) * 2)) {
+        return;
+    }
     for (x = 0; x < numSegments + 1; x++) {
         vtxPtr[x * 2].v.ob[0] = (s32)lightningVect[x].x;
         vtxPtr[x * 2].v.ob[1] = (s32)lightningVect[x].y;

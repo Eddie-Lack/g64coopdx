@@ -98,12 +98,21 @@ s32 IsHandHoldingBall(void) {
     return FALSE;
 }
 
+void G64Unplayable(const char *what);
+
 void AddObjectsSpritesToSpriteList(Object *obj) {
     GameSprite *sprite;
     s32 x;
 
     if (obj->numSprites > 0) {
         for (x = 0; x < obj->numSprites; x++) {
+            if (obj->sprites[x].tex == NULL) {
+                /* g64coopdx: no loaded texture bank had the sprite's texture (FindTexture in banks.c leaves NULL).
+                   The game read its size here with no test. The parser stops such an object first (G64_USABLE in
+                   parse.c); this covers the objects that the game finds by a name of its own. */
+                G64Unplayable("SPRITE TEXTURE");
+                continue;
+            }
             sprite = (GameSprite *)JallocAlloc(sizeof(GameSprite), 1, "Obj_Sprite");
             sprite->tex = obj->sprites[x].tex;
             sprite->pos = zero;

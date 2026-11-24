@@ -96,9 +96,14 @@ void G64ParseTrace(s32 offset, s32 token);
 /* g64coopdx: marks the level as one that cannot be played (g64players.c). The parser's loop stops at its next
    token. */
 void G64Unplayable(const char *what);
-/* g64coopdx: 1 when an object's instance is there and has a mesh. The parser used what the lookup gave without a
-   test; a level file that names an object the level's banks do not hold made it use a null pointer. */
-#define G64_USABLE(inst) ((inst) != NULL && (inst)->obj != NULL && (inst)->obj->mesh != NULL)
+/* g64coopdx: 1 when an object's instance is there, has a mesh, and each of its sprites has a texture. The parser
+   used what the lookup gave without a test; a level file that names an object the level's banks do not hold made
+   it use a null pointer. An object bank can hold objects whose sprite textures are in a texture bank of another
+   level. The lookup of such a texture gives NULL (FindTexture, banks.c), and AddActor reads the texture's size with
+   no test (AddObjectsSpritesToSpriteList, actor.c). */
+s32 G64SpriteTextureMissing(Object *obj);
+#define G64_USABLE(inst) \
+    ((inst) != NULL && (inst)->obj != NULL && (inst)->obj->mesh != NULL && !G64SpriteTextureMissing((inst)->obj))
 
 /* g64coopdx: 1 when the parser has what a token's handler uses. The handlers use a platform, an orbit, a spin, a
    path's points, a puzzle, an enemy, a vent, a landscape piece, a group of garibs, a cameo or a buzzer without a

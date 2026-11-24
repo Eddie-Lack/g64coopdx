@@ -866,6 +866,10 @@ void WriteObjectDisplayListFlat(Object *obj) {
     MeshColour *col;
     MeshColour *colours = (MeshColour *)mesh->faceColours;
 
+    /* g64coopdx: the whole mesh or nothing (G64VertexRoom in object.c). */
+    if (!G64VertexRoom(mesh->numFaces * 3)) {
+        return;
+    }
     gDPPipeSync(glistp++);
     for (i = 0; i < groups; i++) {
         start = vtxPtr;
@@ -993,6 +997,10 @@ void WriteObjectDisplayListGouraud(Object *obj) {
     MeshColour *col;
     MeshColour *colours = (MeshColour *)mesh->colours;
 
+    /* g64coopdx: the whole mesh or nothing (G64VertexRoom in object.c). */
+    if (!G64VertexRoom(mesh->numFaces * 3)) {
+        return;
+    }
     gDPPipeSync(glistp++);
     for (i = 0; i < groups; i++) {
         start = vtxPtr;

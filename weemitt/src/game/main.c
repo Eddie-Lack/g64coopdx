@@ -573,11 +573,17 @@ void ClearZBuffer(void) {
     gDPPipeSync(glistp++);
 }
 
+/* g64coopdx: for tests, the most commands a frame's graphics list held. */
+s32 g64GfxPeak;
+
 void CleanupAndSendDisplayList(s32 flag, s32 flags) {
     s32 len;
 
     gDPFullSync(glistp++);
     gSPEndDisplayList(glistp++);
+    if ((s32)(glistp - dynamicp->glist) > g64GfxPeak) {
+        g64GfxPeak = glistp - dynamicp->glist;
+    }
     ((NNScTask *)tlistp[currentTask])->list.t.data_size = (glistp - (Gfx *)((NNScTask *)tlistp[currentTask])->list.t.data_ptr) * sizeof(Gfx);
     actualGFXListLength[currentTask] = ((NNScTask *)tlistp[currentTask])->list.t.data_size;
     /* The N64 game dropped a task of 20000 bytes or more. One player's largest task is about 12000 bytes, and each
