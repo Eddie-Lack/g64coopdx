@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<Level name="ISLAND" libgarib-version="unknown+gcf87929" data-format-version="87197ff">
+<Level name="ISLANDS" libgarib-version="unknown+gcf87929" data-format-version="87197ff">
   <Platform object_id="0x70210547" name="hoop.nd">
     <PlatSetInitialPos x="0.0" y="30.0" z="140.0"/>
     <PlatCheckpoint u16_0x17="0" theta="3.14159"/>
@@ -74,6 +74,15 @@
   <Platform object_id="0x7FDADB91" name="exitpos">
     <PlatSetInitialPos x="18.0" y="-26.0" z="600.0"/>
     <SetExit behavior="1" type="solid_platform"/>
+  </Platform>
+  <LandActor object_id="0x60CB35B6" name="raft" x="-80.0" y="-19.0" z="150.0"/>
+  <LandActor object_id="0x45F8316C" name="bell" x="-70.0" y="30.0" z="250.0"/>
+  <Platform object_id="0x60CB35B6" name="raft">
+    <PlatSetTag tag="200"/>
+    <PlatMaxVelocity velocity="0.5"/>
+    <PlatPathAcceleration acceleration="0.02"/>
+    <PlatPathPoint duration="0" x="0.0" y="12.0" z="145.0"/>
+    <PlatPathPoint duration="0" x="0.0" y="12.0" z="205.0"/>
   </Platform>
   <AmbientLight r="110" g="110" b="150"/>
   <DiffuseLight r="160" g="160" b="220" theta_x="0.0" theta_y="3.700000047683716"/>

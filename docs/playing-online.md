@@ -122,9 +122,12 @@ A level pack is a folder with a custom level that takes the place of one of the 
 shows when you enter the level it replaces. A pack may also hold a script ([scripts.md](scripts.md)).
 
 The game comes with one pack to try: `packs/garib-island`. It is a small level of its own in the place of Atlantis 1:
-a sand island with a row of 11 garibs, three boxes, a checkpoint and the exit. Its script counts each player's garibs
-on the screen, gives a life to a player who finds all 11, and says who reaches the exit first. To play it, host with `--pack packs/garib-island`; the game
-starts in the hub, and the level is behind Atlantis 1's door. Its Glovebox source is `level.xml` in the same folder.
+a sand island with a row of 11 garibs, three boxes, two checkpoints and the exit. You land on a wooden raft that
+hovers over the sand and moves to and fro at the start of the row. A second raft sits in the sea, and a bell from
+Carnival stands beside the row. The rafts are the pack's own model. The bell comes from your own ROM: the pack names
+its banks, not the model. Its script counts each player's garibs on the screen, gives a life to a player who finds
+all 11, and says who reaches the exit first. To play it, host with `--pack packs/garib-island`; the game starts in the
+hub, and the level is behind Atlantis 1's door. Its Glovebox source is `level.xml` in the same folder.
 
 A player who joins without the pack can download it from the host:
 

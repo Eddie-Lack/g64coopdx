@@ -95,7 +95,7 @@ run 1 check a --rom missing.z64
 echo "the sample pack keeps its id"
 id=$($tool check garib 2>&1 | tr -d '\r' | grep '^id:')
 echo "$id"
-if [ "$id" != "id: 7446d7ba27354ed8364cb61a0f067308" ]; then
+if [ "$id" != "id: 291749c3f24587a81b2317b67ea4c6ab" ]; then
     echo "FAIL: the sample pack's id changed"
     failed=$((failed + 1))
 fi
