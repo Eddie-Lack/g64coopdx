@@ -309,6 +309,24 @@ void DeformTextures(void) {
     }
 }
 
+/* g64coopdx, for tests (tests/rom/meshguards.c): makes the first actor's object look like a pack object that the
+   level marked with WATER or MODGE. A pack's object has a display list, and its mesh has no texture coordinates. No
+   object of the shipped levels is both marked and drawn from a display list. Returns 1 when there was such an actor. */
+s32 G64TestDeformWithoutUV(void) {
+    Actor *actor;
+
+    for (actor = actorList.head.next; actor != &actorList.head; actor = actor->next) {
+        if (actor->inst != NULL && actor->inst->obj->displayList != NULL
+            && actor->inst->obj->mesh->numFaces > 0) {
+            actor->inst->obj->flags |= 0x20;
+            actor->inst->obj->mesh->uv = NULL;
+            actor->inst->obj->mesh->origUV = NULL;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void UpdateWater(void) {
     Vec3 tempVect;
     Vec3 tempVect2;

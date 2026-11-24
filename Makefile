@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -334,6 +334,23 @@ levelstart: levelstart-build
 	    > build/tests/levelstart-windows.out
 	cmp build/tests/levelstart.out build/tests/levelstart-windows.out
 
+# The game with meshes that have no texture coordinates and no vertex colors, as a pack's meshes have none, on Linux
+# and under Wine (tests/rom/meshguards.c); the two outputs must be equal (needs the ROM in GLOVER_ROM).
+MESHGUARDS_SRC := tests/rom/meshguards.c weemitt/src/port/statehash.c
+meshguards-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/meshguards $(MESHGUARDS_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/meshguards.exe $(MESHGUARDS_SRC) $(ENGINE_WINDOWS) -lm
+
+meshguards: meshguards-build
+	build/tests/meshguards "$$GLOVER_ROM" > build/tests/meshguards.out
+	cat build/tests/meshguards.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/meshguards.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/meshguards-windows.out
+	cmp build/tests/meshguards.out build/tests/meshguards-windows.out
+
 # Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
 # "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
 SWAPS_SRC := tests/rom/swaps.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
@@ -482,6 +499,24 @@ build/tests/levcheck_fuzz: tests/fuzz/levcheck_fuzz.c src/client/levcheck.c src/
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/levcheck_fuzz.c src/client/levcheck.c
 
+# The check of a pack's models.bin (src/client/bankcheck.c): its test without the game, and its fuzz target. Both
+# run the shadow walk (tests/fuzz/bankwalk.c), a copy of the game's bank loaders.
+BANKCHECK_SRC := src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c third_party/monocypher/monocypher.c \
+    tests/fuzz/bankwalk.c
+BANKCHECK_DEPS := src/client/bankcheck.h src/client/rombanks.h src/client/fla2.h third_party/monocypher/monocypher.h \
+    tests/fuzz/bankwalk.h tests/net/bankbuild.h
+build/tests/bankcheck_test: tests/net/bankcheck_test.c $(BANKCHECK_SRC) $(BANKCHECK_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/bankcheck_test.c $(BANKCHECK_SRC) -lm
+
+build/tests/bankcheck_test.exe: tests/net/bankcheck_test.c $(BANKCHECK_SRC) $(BANKCHECK_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/bankcheck_test.c $(BANKCHECK_SRC) -lm
+
+build/tests/bankcheck_fuzz: tests/fuzz/bankcheck_fuzz.c $(BANKCHECK_SRC) $(BANKCHECK_DEPS)
+	@mkdir -p build/tests
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/bankcheck_fuzz.c $(BANKCHECK_SRC) -lm
+
 # The tool that makes and checks level packs (tools/g64pack.c).
 packtool: build/g64pack
 packtool-windows: build/g64pack.exe
@@ -559,7 +594,7 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
-        build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test
+        build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
@@ -569,6 +604,9 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	tail -1 build/tests/lua_test.out
 	build/tests/levcheck_test > build/tests/levcheck_test.out || { cat build/tests/levcheck_test.out; exit 1; }
 	tail -1 build/tests/levcheck_test.out
+	build/tests/bankcheck_test tests/fixtures/cube.models.bin > build/tests/bankcheck_test.out \
+	    || { cat build/tests/bankcheck_test.out; exit 1; }
+	tail -1 build/tests/bankcheck_test.out
 	sh tests/net/packtool_test.sh build/tests/packtool-linux build/g64pack > build/tests/packtool.out \
 	    || { cat build/tests/packtool.out; exit 1; }
 	tail -1 build/tests/packtool.out
@@ -584,7 +622,7 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
               build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
-              build/tests/levcheck_test.exe test-c
+              build/tests/levcheck_test.exe build/tests/bankcheck_test.exe test-c
 	@mkdir -p build/tests/pack-windows
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows | tr -d '\r' \
 	    > build/tests/pack_test-windows.out
@@ -602,6 +640,10 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	    > build/tests/levcheck_test-windows.out
 	tail -1 build/tests/levcheck_test-windows.out
 	cmp build/tests/levcheck_test.out build/tests/levcheck_test-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bankcheck_test.exe tests/fixtures/cube.models.bin \
+	    | tr -d '\r' > build/tests/bankcheck_test-windows.out
+	tail -1 build/tests/bankcheck_test-windows.out
+	cmp build/tests/bankcheck_test.out build/tests/bankcheck_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) sh tests/net/packtool_test.sh build/tests/packtool-windows \
 	    $(WINE64) build/g64pack.exe > build/tests/packtool-windows.out || { cat build/tests/packtool-windows.out; exit 1; }
 	tail -1 build/tests/packtool-windows.out
@@ -622,10 +664,15 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 
 # The message parsers under libFuzzer for FUZZ_TIME seconds each (needs clang). Each parser is its own target, and
 # make -j runs several at once. CI uses -j4.
-FUZZ_TARGETS := fuzz-fla2 fuzz-levcheck fuzz-lua fuzz-pack fuzz-instances fuzz-relay fuzz-relay-go fuzz-rollback \
+FUZZ_TARGETS := fuzz-bankcheck fuzz-fla2 fuzz-levcheck fuzz-lua fuzz-pack fuzz-instances fuzz-relay fuzz-relay-go fuzz-rollback \
     fuzz-session
 fuzz: $(FUZZ_TARGETS)
 
+# The corpus starts with the cube, Glovebox's real output (tests/fixtures/README.md). It holds no game data.
+fuzz-bankcheck: build/tests/bankcheck_fuzz
+	@mkdir -p build/fuzz-corpus-bankcheck
+	cp tests/fixtures/cube.models.bin build/fuzz-corpus-bankcheck/cube
+	build/tests/bankcheck_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-bankcheck
 fuzz-fla2: build/tests/fla2_fuzz
 	@mkdir -p build/fuzz-corpus-fla2
 	build/tests/fla2_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-fla2

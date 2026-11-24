@@ -39,6 +39,8 @@ All words are big-endian, as in the game's banks.
 
 - T and O are multiples of 8. They are both 0 or both more than 0.
 - T + O is at most 4 MiB.
+- The flag is 0 when the file names no retail texture bank.
+- Each retail number appears once. The font and generic texture banks and object banks 0 and 1 are refused.
 - The file is exactly H + T + O bytes long.
 - The pack's id hashes `models.bin` after `script.lua`, in the same form as the other files.
 
@@ -52,7 +54,9 @@ game's loaders do, and it refuses anything it does not understand.
 Some rules allow only what Glovebox writes today. A test on Glovebox's real output pins each of them. A new kind
 of model in Glovebox widens the rule and its test together.
 
-What the check refuses, in short:
+What the check refuses, in short. No rule counts faces or display list commands across the bank: the 4 MiB limit
+bounds them. The renderer stops a display list after 100000 commands (`gfx_dl.c`); that changes only
+the picture.
 
 - A bank that starts with `FLA2`. The game would decompress it, and its decompressor has no bounds.
 - Any byte that no structure reaches and that is not 0.
@@ -62,23 +66,47 @@ What the check refuses, in short:
 - A pointer that is not aligned, that has high bits set, or that names a range outside the bank.
 - Two structures that share bytes. The loaders fix each pointer each time they reach it, so a shared one breaks.
 - An object tree deeper than 32 or with more than 4096 objects.
+- An object tree with more than 10 levels of children. Each level keeps one matrix on the game's matrix stack,
+  which has 20 entries, and one entry of `parentScaleStack`, which has 10.
 - A face index outside its mesh's vertices.
-- A display list command that Glovebox does not write, or a texture load in another form than Glovebox's.
+- A display list command that Glovebox does not write, or a texture load in another form than Glovebox's. A
+  texture load must hold the exact words Glovebox writes for the size of its texture.
 - An object with the name of the ball or the hand. The game points the ball's and the hand's textures at those.
+  Glovebox names an object after its glTF file and does not refuse these five names today (`gball`, `cball`,
+  `GShinL`, `GShinR`, `gbl_bt`). Its pack export should refuse or change them.
 - A float that is not finite, a position past 16384 or a scale past 64.
+- An object whose position, added up along its parents, is past 16384. The game translates a child by its position
+  times its parent's scale, and keeps the parent's translation while the child draws. The sum counts each
+  position's length times the largest part of the parent's scale. A rotation does not change a length. The bound
+  holds for an actor at the origin with scale 1: `guMtxF2L` turns each matrix entry times 65536 into a 32-bit
+  integer, which overflows past 32768. The actor's own position and scale come from the level, and add to it.
 - A rotation key that is not near unit length. Glovebox writes a key of all zeros today. The game turns it into a
   matrix of NaN values (not-a-number). The pack export writes the identity key in its place.
 
 With the player's ROM, the client also refuses:
 
 - A pack id of an object or texture that the ROM already has.
-- A texture, a vertex list or a mesh that is equal to one in the ROM.
+- A texture, a mesh's vertex list or a G_VTX block that is equal to one in the ROM. A vertex list or a block of
+  less than 64 bytes is allowed, and so is a texture of one color.
 - A level file that names an object found in no bank the level will have.
 - A level whose actors would need more memory for their collision than the budget allows.
 
-A fuzz target runs the check on random and mutated banks. For every bank the check accepts, it runs a copy of the
-game's loaders that stops at any read or write outside the bank. A ROM test proves that this copy does what the
-game does.
+The check's API is `g64_models_check` and `g64_models_check_rom` (`src/client/bankcheck.h`). Each returns a
+message and the offset in `models.bin` of the fault. The caller gives the first one the game's bank numbers: the
+game's program asks `G64BankRom`, and the tests use a table. The second one applies the first two rules that need
+the ROM. The level rules come in step 7.
+
+A fuzz target (`tests/fuzz/bankcheck_fuzz.c`) runs the check on random banks, on changes to Glovebox's cube, and
+on banks made from random shapes. For every bank the check accepts, it runs a copy of the game's loaders that stops
+at any read or write outside the bank (`tests/fuzz/bankwalk.c`). Step 4's ROM test (`make bankwalk`) will prove
+that this copy does what the game does.
+
+A pack's mesh has no texture coordinates and no vertex colors, and the bank check cannot see what a level does to
+its object. Two places in the game wrote through those pointers with no test. `DeformTextureCoords` (object.c)
+moves the texture coordinates of an object that WATER or MODGE marks. The space boss's shield (`DoSpaceBoss3`,
+boss.c) changes the colors of the first foreground object. Both now stop when the pointer is 0. `make meshguards`
+(`tests/rom/meshguards.c`) runs both cases with the ROM, on Linux and under Wine; without the guards the game
+crashes.
 
 ## Loading
 
@@ -113,7 +141,7 @@ pack at those limits and checks that the level plays or stops as unplayable, and
 | --- | --- | --- |
 | 1 | This page, and the bank switch split out of the loaders with no change to the game | yes |
 | 2 | A bounded reader of compressed banks, and an index of the ROM's banks | yes |
-| 3 | The bank check, its tests and its fuzz target | |
+| 3 | The bank check, its tests and its fuzz target | yes |
 | 4 | The pack's own banks in free slots, and the proof that the check matches the loaders | |
 | 5 | The test of platforms with custom models, on Linux and under Wine | |
 | 6 | `models.bin` in the pack format, the pack tool and the cache | |

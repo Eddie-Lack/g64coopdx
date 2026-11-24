@@ -1682,6 +1682,10 @@ void DoSpaceBoss3(void) {
                     foregroundObjects[0]->alpha += MIN(MAX(-20, (100 - foregroundObjects[0]->alpha) / 4), 20);
                 }
                 c = (MeshColour *)foregroundObjects[0]->inst->obj->mesh->colours;
+                /* g64coopdx: a pack's mesh has no vertex colors (src/client/bankcheck.c). */
+                if (c == NULL) {
+                    return;
+                }
                 time = FrameTime();
                 c->r = (s32)(SineWave(5.0f, time, 0) * 63.0f + 192.0f);
                 c->g = 0;
@@ -1798,6 +1802,33 @@ void SetupFlythru2Screen(void) {
     CreditsInit();
     FadeScreenIn();
     disablePause = TRUE;
+}
+
+/* g64coopdx, for tests (tests/rom/meshguards.c): makes the first foreground object, whose colors the space boss's
+   shield changes, look like a pack object. Its mesh loses its vertex colors. A pack object always has a display list,
+   and this one is drawn from its mesh, so it borrows the list of the first actor that has one. Returns 1 when there
+   were such objects. */
+s32 G64TestDropShieldColors(void) {
+    Object *obj;
+    Actor *actor;
+
+    if (numForegroundObjects < 1 || foregroundObjects[0] == NULL || foregroundObjects[0]->inst == NULL) {
+        return 0;
+    }
+    obj = foregroundObjects[0]->inst->obj;
+    if (obj->displayList == NULL) {
+        for (actor = actorList.head.next; actor != &actorList.head; actor = actor->next) {
+            if (actor->inst != NULL && actor->inst->obj->displayList != NULL) {
+                break;
+            }
+        }
+        if (actor == &actorList.head) {
+            return 0;
+        }
+        obj->displayList = actor->inst->obj->displayList;
+    }
+    obj->mesh->colours = NULL;
+    return 1;
 }
 
 INCLUDE_ASM("asm/nonmatchings/boss", pad_801326E4);
