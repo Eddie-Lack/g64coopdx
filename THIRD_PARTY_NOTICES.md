@@ -83,3 +83,43 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+## libgarib
+
+`src/client/fla2.c`, the bounded reader of compressed (FLA2) banks, is ported from Glovebox's
+`crates/core/src/fla2.rs`. Glovebox ported that code from [libgarib](https://github.com/naclomi/libgarib) (by
+naclomi), at commit `cf879296afc5108867de03facbca428923618f29`. libgarib is under the MIT license, copyright (c) 2021
+Naomi Alterman. g64coopdx's changes to the port are under the same license. The text below is libgarib's
+`LICENSE.md` at that commit:
+
+```text
+# Note
+
+This repository contains descriptions of software interfaces and
+implementations of algorithms that were reverse-engineered in a "clean room"
+manner from copies of game software legally possessed by the repository author.
+The re-interpretations of these original game softwares are available under the
+MIT License, detailed below.
+
+# MIT License
+
+Copyright (c) 2021 Naomi Alterman 
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

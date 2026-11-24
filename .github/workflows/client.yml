@@ -18,6 +18,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels the run it replaces. Runs on main and on tags always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   windows:
     name: Windows (64-bit)

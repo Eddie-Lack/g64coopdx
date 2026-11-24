@@ -67,6 +67,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips, cameos, each player's ball texture and the any-ball rule with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
     make levcheck      # the level file check reads every level as the game's parser does, on Linux and Wine (needs the ROM)
+    make rombanks      # the index of the ROM's banks and the FLA2 reader against the game's loaders, on Linux and Wine (needs the ROM)
     make bots          # every level with 8 and with 16 players who play at random, on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make swaps         # every level with every other level's file in its place: played or stopped, never a crash (needs the ROM)
@@ -102,6 +103,7 @@ run locally: set `GLOVER_ROM`.
 | Level packs: the reader, the format, and the tool that makes them | src/client (`pack.h`), docs/discovery/level-pack.md, tools/g64pack.c (`make packtool`) |
 | The sample pack, Garib Island: its files and its Glovebox source (`level.xml`, written from scratch) | packs/garib-island; the test `sample_pack` in tests/rom/instances.c |
 | The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
+| The bounded reader of compressed (FLA2) banks, and the index of the ROM's banks (ids and hashes) | src/client (`fla2.h`, `rombanks.h`; the game's ranges in `rombanks_game.c`), docs/discovery/model-banks.md; the test tests/rom/rombanks.c |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
 | How players host and join | docs/playing-online.md |

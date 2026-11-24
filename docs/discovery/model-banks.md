@@ -112,7 +112,7 @@ pack at those limits and checks that the level plays or stops as unplayable, and
 | Step | What | Done |
 | --- | --- | --- |
 | 1 | This page, and the bank switch split out of the loaders with no change to the game | yes |
-| 2 | A bounded reader of compressed banks, and an index of the ROM's banks | |
+| 2 | A bounded reader of compressed banks, and an index of the ROM's banks | yes |
 | 3 | The bank check, its tests and its fuzz target | |
 | 4 | The pack's own banks in free slots, and the proof that the check matches the loaders | |
 | 5 | The test of platforms with custom models, on Linux and under Wine | |
