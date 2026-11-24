@@ -77,6 +77,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             g64_rombanks_has_texels_hash(b, h);
             g64_rombanks_has_verts_hash(b, h);
             g64_rombanks_has_vtx_hash(b, h);
+            {
+                uint32_t ids[8];
+                size_t n = g64_rombanks_sprite_textures(b, 0, ids, 8), k;
+                for (k = 0; k < n && k < 8; k++)
+                    g64_rombanks_texture_bank_has(b, 0, ids[k]);
+            }
         }
         g64_rombanks_free(b);
     }

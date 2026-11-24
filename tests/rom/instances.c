@@ -24,7 +24,7 @@
  *
  * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
  * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run). The sample pack
- * plays alone and with models (sample_pack, sample_pack_models).
+ * plays alone, with models, and with retail banks only (sample_pack, sample_pack_models, sample_pack_retail).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -39,6 +39,7 @@
 #include "../../src/client/instances.h"
 #include "../../src/client/levcheck.h"
 #include "../../src/client/pack.h"
+#include "../../src/client/packrom.h"
 #include "../../src/client/rombanks.h"
 
 typedef struct {
@@ -689,6 +690,113 @@ static void sample_pack_models(Engine *e, void *boot) {
     printf("%s the sample pack with Glovebox's cube plays with two players\n", failed != before ? "FAIL" : "ok  ");
 }
 
+/* The sample pack with a models.bin that only names retail banks: Carnival's texture bank (4) and one of its object
+   banks (20), which an Atlantis level does not load. The pack goes through the pack reader and the client's setter
+   (g64_instances_pack_retail), as netplay_begin passes them. The test: the reader keeps the numbers, the game loads
+   both banks into its table, and the level plays. */
+void G64PackTableCounts(int *numTex, int *numObj);
+static void sample_pack_retail(Engine *e, void *boot) {
+    static const char dir[] = "build/tests/retail-pack";
+    /* T and O are 0; flags 0; one texture bank and one object bank; the numbers; zeros up to 16 bytes. */
+    static const uint8_t retail[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 4, 20, 0, 0};
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    g64_pack pk;
+    g64_pack_banks banks;
+    g64_pack_layout l;
+    G64RomBanks *index;
+    char err[200];
+    float at[3];
+    unsigned counts[4];
+    int active = 0, before = failed, nt = 0, no = 0;
+    uint8_t *with;
+    if (g64_pack_load("packs/garib-island", NULL, &pk, err, sizeof err) != 0) {
+        check(0, "the sample pack loads");
+        return;
+    }
+#ifdef _WIN32
+    _mkdir(dir);
+#else
+    mkdir(dir, 0700);
+#endif
+    write_part(dir, "pack.txt", pk.manifest, pk.manifestSize);
+    write_part(dir, "level.lev", pk.lev, pk.levSize);
+    write_part(dir, "script.lua", pk.script, pk.scriptSize);
+    write_part(dir, "models.bin", retail, sizeof retail);
+    g64_pack_free(&pk);
+    index = g64_rombanks_build_game(rom, romSize);
+    banks.exists = g64_rombanks_game_range;
+    banks.user = NULL;
+    banks.rom = index;
+    if (!index || g64_pack_load(dir, &banks, &pk, err, sizeof err) != 0) {
+        printf("FAIL the sample pack with retail banks: %s\n", index ? err : "out of memory");
+        failed = 1;
+        g64_rombanks_free(index);
+        return;
+    }
+    g64_rombanks_free(index);
+    check(pk.models && pk.modelsInfo.texSize == 0 && pk.modelsInfo.numTex == 1 && pk.modelsInfo.tex[0] == 4 &&
+              pk.modelsInfo.numObj == 1 && pk.modelsInfo.obj[0] == 20 && pk.modelsInfo.flags == 0,
+          "the pack reader keeps the retail numbers");
+    {
+        /* The same pack with object bank 19 (Carnival's world bank) alone: its sprites need Carnival's textures,
+           which level 10 does not load. The client refuses it, as the game would stop the level. */
+        static const char dir19[] = "build/tests/retail-pack-19";
+        static const uint8_t alone[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 19, 0, 0, 0};
+        g64_pack p19;
+        size_t at19 = 0;
+        int rule = -1;
+        const char *why = g64_pack_check_ids_rom(&pk, rom, romSize, &rule, &at19);
+        check(why == NULL && rule == 0, "the client accepts the retail pack: its object bank has its textures");
+#ifdef _WIN32
+        _mkdir(dir19);
+#else
+        mkdir(dir19, 0700);
+#endif
+        write_part(dir19, "pack.txt", pk.manifest, pk.manifestSize);
+        write_part(dir19, "level.lev", pk.lev, pk.levSize);
+        write_part(dir19, "script.lua", pk.script, pk.scriptSize);
+        write_part(dir19, "models.bin", alone, sizeof alone);
+        index = g64_rombanks_build_game(rom, romSize);
+        banks.rom = index;
+        if (!index || g64_pack_load(dir19, &banks, &p19, err, sizeof err) != 0) {
+            check(0, "the pack with object bank 19 alone loads");
+        } else {
+            why = g64_pack_check_ids_rom(&p19, rom, romSize, &rule, &at19);
+            check(why != NULL && rule == 2 && at19 == 19,
+                  "the client refuses the pack with object bank 19 alone: its sprites' textures are not loaded");
+            g64_pack_free(&p19);
+        }
+        g64_rombanks_free(index);
+    }
+    g64_pack_layout_of(&pk, romSize, &l);
+    with = malloc(l.size);
+    if (!with) {
+        g64_pack_free(&pk);
+        return;
+    }
+    memcpy(with, rom, romSize);
+    g64_pack_layout_fill(&pk, &l, with);
+    engine_load(e, boot);
+    engine_set_rom(e, with, l.size);
+    g64_instances_pack(pk.level, (unsigned)l.levAt, (unsigned)pk.levSize);
+    g64_instances_pack_script((unsigned)l.scriptAt, (unsigned)pk.scriptSize);
+    g64_instances_pack_models(0, 0, 0, 0);
+    g64_instances_pack_retail(pk.modelsInfo.flags & 1, pk.modelsInfo.tex, pk.modelsInfo.numTex, pk.modelsInfo.obj,
+                              pk.modelsInfo.numObj);
+    two_players(e, boot, at, counts, &active);
+    G64PackTableCounts(&nt, &no);
+    check(!G64LevelUnplayable(), "the sample pack with retail banks plays");
+    check(nt == 1 && no == 1, "the game loaded the retail texture bank and object bank into its table");
+    g64_instances_pack(-1, 0, 0);
+    g64_instances_pack_script(0, 0);
+    g64_instances_pack_models(0, 0, 0, 0);
+    engine_set_rom(e, rom, romSize);
+    free(with);
+    g64_pack_free(&pk);
+    printf("%s the sample pack with retail banks plays with two players\n", failed != before ? "FAIL" : "ok  ");
+}
+
 /* A level pack's script. It counts its frames and, every 50 frames, moves player 0's glove 5 units along x. Its
    state is in the game's savestate: the games go back and run frames again, and the script's count must go back
    with them. The test: with the script the glove ends 30 units from where it ends without (6 moves), no machine
@@ -1252,6 +1360,7 @@ int main(int argc, char **argv) {
     script_run(e, boot);
     sample_pack(e, boot);
     sample_pack_models(e, boot);
+    sample_pack_retail(e, boot);
     script_session(e, boot);
     pack_unplayable(e, boot);
     free(boot);

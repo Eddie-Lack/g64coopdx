@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk packbanks-build packbanks models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -379,6 +379,28 @@ bankwalk: bankwalk-build
 	tr -d '\r' < build/tests/bankwalk-windows.raw > build/tests/bankwalk-windows.out
 	cmp build/tests/bankwalk.out build/tests/bankwalk-windows.out
 
+# Retail banks that a level pack names, loaded into the game's table (tests/rom/packbanks.c): each bank's cost, every
+# allowed object bank 4 at a time in every level with 16 players, the costliest banks, retail objects as scenery, the
+# ball's and the hand's names, save and load, and the end of the level, on Linux and under Wine; the two outputs must
+# be equal (needs the ROM in GLOVER_ROM).
+PACKBANKS_SRC := tests/rom/packbanks.c src/client/levcheck.c src/client/pack.c src/client/packrom.c $(MODELS_SRC) \
+    $(BANKRANGES_SRC) src/client/rombanks_game.c third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
+packbanks-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/packbanks $(PACKBANKS_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/packbanks.exe $(PACKBANKS_SRC) $(ENGINE_WINDOWS) -lm
+
+packbanks: packbanks-build
+	build/tests/packbanks "$$GLOVER_ROM" > build/tests/packbanks.out || { cat build/tests/packbanks.out; exit 1; }
+	grep -E '^(FAIL|every level|the costliest)' build/tests/packbanks.out || true
+	tail -1 build/tests/packbanks.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/packbanks.exe "$$GLOVER_ROM" \
+	    > build/tests/packbanks-windows.raw || { tr -d '\r' < build/tests/packbanks-windows.raw; exit 1; }
+	tr -d '\r' < build/tests/packbanks-windows.raw > build/tests/packbanks-windows.out
+	cmp build/tests/packbanks.out build/tests/packbanks-windows.out
+
 # May a pack's own models be platforms (tests/rom/models.c)? Platforms, bridges, debris and water with the pack's
 # models, on Linux and under Wine. Variant I has identity rotation keys: its two outputs must be equal. Variant Z has
 # keys of all zeros, past the bank check. It is a measurement: its exit statuses and the comparison are printed, and
@@ -447,8 +469,9 @@ bots: bots-build
 # Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
 # be equal (needs the ROM in GLOVER_ROM).
 INSTANCES_SRC := tests/rom/instances.c src/client/instances.c src/client/imsg.c src/rollback/engine_game.c \
-                 src/rollback/rollback.c src/client/levcheck.c src/client/pack.c $(MODELS_SRC) \
-                 src/client/rombanks_game.c third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
+                 src/rollback/rollback.c src/client/levcheck.c src/client/pack.c src/client/packrom.c $(MODELS_SRC) \
+                 $(BANKRANGES_SRC) src/client/rombanks_game.c third_party/monocypher/monocypher.c \
+                 weemitt/src/port/statehash.c
 instances-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/instances $(INSTANCES_SRC) $(ENGINE_LINUX) \

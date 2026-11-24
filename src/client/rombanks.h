@@ -3,7 +3,8 @@
  * A bank is one block of the ROM: a texture bank holds pictures, and an object bank holds objects that use them.
  * The index is built once from the player's ROM. It holds:
  *   - every object id: the crc of each entry in an object bank's directory, and which banks have it
- *   - every texture id: the crc of each texture record in a texture bank
+ *   - every texture id: the crc of each texture record in a texture bank, and which banks have it
+ *   - the texture ids that the sprites of each object bank's objects name
  *   - a 16-byte BLAKE2b hash of each texture's texels, each mesh's vertex array and each G_VTX block
  * The bank check uses it to refuse a pack's model that has a ROM id or holds the ROM's own data. The index never
  * leaves the process.
@@ -68,6 +69,11 @@ int g64_rombanks_bank_has_object(const G64RomBanks *b, unsigned num, uint32_t id
 size_t g64_rombanks_bank_object_count(const G64RomBanks *b, unsigned num);
 /* The same as a g64_bank_has_fn (pack.h): user is the index. */
 int g64_rombanks_bank_has(void *user, unsigned num, uint32_t id);
+/* 1 when texture bank num has a record with the id. */
+int g64_rombanks_texture_bank_has(const G64RomBanks *b, unsigned num, uint32_t id);
+/* The distinct texture ids that the sprites of object bank num's objects name, at any depth of their trees, sorted.
+ * Writes at most max ids and returns how many there are. The game looks each one up when it loads the bank. */
+size_t g64_rombanks_sprite_textures(const G64RomBanks *b, unsigned num, uint32_t *ids, size_t max);
 /* hash is 16 bytes. */
 int g64_rombanks_has_texels_hash(const G64RomBanks *b, const uint8_t *hash);
 int g64_rombanks_has_verts_hash(const G64RomBanks *b, const uint8_t *hash);

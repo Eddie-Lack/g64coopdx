@@ -175,11 +175,16 @@ static int check_objects(const g64_pack *p, const unsigned char *rom, size_t rom
     why = g64_pack_check_ids_rom(p, rom, romSize, &rule, &at);
     if (why && !rule)
         return fail("the level's objects could not be checked", why);
+    if (why && rule == 2) {
+        printf("the models: object bank %lu: %s\n", (unsigned long)at, why);
+        return fail("the models name a retail object bank that the game would not load", NULL);
+    }
     if (why) {
         printf("the level's objects: at byte %lu: %s\n", (unsigned long)at, why);
         return fail("the level names an object that the game would not find", NULL);
     }
-    printf("the level's objects: all in the level's banks\n");
+    printf("the level's objects: all in the level's banks, and the retail object banks have their sprites' "
+           "textures\n");
     return 0;
 }
 
@@ -241,15 +246,15 @@ static int check(const char *dir, const char *romPath) {
            and the ROM's rules (g64_pack_may_send). Without a ROM the tool cannot say the second: a host does not
            send a level file that is a copy of one of the ROM's levels, or models that fail the ROM's rules. With a
            ROM, a pack whose models fail those rules did not load. A host whose pack fails the rule for the level's
-           object ids stops its session before the offer. */
+           object ids, or the rule for the retail object banks' sprites, stops its session before the offer. */
         if (g64_pack_check_strict(&p, NULL) != NULL) {
             printf("from the host: not sent, the level file's structure has a warning; every player needs the "
                    "folder\n");
         } else if (level >= 0) {
             printf("from the host: not sent, the level file is one of the ROM's; every player needs the folder\n");
         } else if (objects != 0) {
-            printf("from the host: not sent, the host stops its session; the level names an object that the game "
-                   "would not find\n");
+            printf("from the host: not sent, the host stops its session; the level's objects or the models' retail "
+                   "banks did not pass the check above\n");
         } else if (rom == NULL) {
             printf("from the host: players can download this pack when they join, if it also passes the ROM's "
                    "rules (check %s --rom ROM)\n",

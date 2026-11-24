@@ -53,5 +53,9 @@ int g64_level_object_banks(int num, unsigned *banks, int max);
 /* The same from the game itself (G64LevelBankNumbers). Only a program that links the game has it
  * (rombanks_game.c). */
 int g64_level_object_banks_game(int num, unsigned *banks, int max);
+/* The texture banks that the game has loaded for level num (0 to 47) when it loads a pack's banks: the font's (10),
+ * GENERIC (2), then the level's own, as G64LevelTextureBanks (weemitt's g64packbanks.c) gives them. Writes at most
+ * max numbers and returns how many there are, or -1 for another level. The numbers are the retail game's. */
+int g64_level_texture_banks(int num, unsigned *banks, int max);
 
 #endif
