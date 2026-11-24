@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -312,8 +312,9 @@ rombanks-build: savestates
 rombanks: rombanks-build
 	build/tests/rombanks "$$GLOVER_ROM" > build/tests/rombanks.out || { cat build/tests/rombanks.out; exit 1; }
 	tail -1 build/tests/rombanks.out
-	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/rombanks.exe "$$GLOVER_ROM" | tr -d '\r' \
-	    > build/tests/rombanks-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/rombanks.exe "$$GLOVER_ROM" \
+	    > build/tests/rombanks-windows.raw || { tr -d '\r' < build/tests/rombanks-windows.raw; exit 1; }
+	tr -d '\r' < build/tests/rombanks-windows.raw > build/tests/rombanks-windows.out
 	cmp build/tests/rombanks.out build/tests/rombanks-windows.out
 
 # Every level built from the power-on state, twice, on Linux and under Wine (tests/rom/levelstart.c); the two outputs
@@ -619,20 +620,39 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
 	grep 'offline run' build/tests/loopback-windows.out > build/tests/hash-windows.txt
 	cmp build/tests/hash-linux.txt build/tests/hash-windows.txt
 
-# The message parsers under libFuzzer for FUZZ_TIME seconds (needs clang).
-fuzz: build/tests/rollback_fuzz build/tests/session_fuzz build/tests/relay_fuzz build/tests/instances_fuzz \
-      build/tests/pack_fuzz build/tests/lua_fuzz build/tests/levcheck_fuzz build/tests/fla2_fuzz
-	@mkdir -p build/fuzz-corpus build/fuzz-corpus-session build/fuzz-corpus-relay build/fuzz-corpus-instances \
-	    build/fuzz-corpus-pack build/fuzz-corpus-lua build/fuzz-corpus-levcheck build/fuzz-corpus-fla2
+# The message parsers under libFuzzer for FUZZ_TIME seconds each (needs clang). Each parser is its own target, and
+# make -j runs several at once. CI uses -j4.
+FUZZ_TARGETS := fuzz-fla2 fuzz-levcheck fuzz-lua fuzz-pack fuzz-instances fuzz-relay fuzz-relay-go fuzz-rollback \
+    fuzz-session
+fuzz: $(FUZZ_TARGETS)
+
+fuzz-fla2: build/tests/fla2_fuzz
+	@mkdir -p build/fuzz-corpus-fla2
 	build/tests/fla2_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-fla2
+fuzz-levcheck: build/tests/levcheck_fuzz
+	@mkdir -p build/fuzz-corpus-levcheck
 	build/tests/levcheck_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 build/fuzz-corpus-levcheck
+fuzz-lua: build/tests/lua_fuzz
+	@mkdir -p build/fuzz-corpus-lua
 	build/tests/lua_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 -timeout=20 -dict=tests/fuzz/lua.dict \
 	    build/fuzz-corpus-lua
+fuzz-pack: build/tests/pack_fuzz
+	@mkdir -p build/fuzz-corpus-pack
 	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-pack
+fuzz-instances: build/tests/instances_fuzz
+	@mkdir -p build/fuzz-corpus-instances
 	build/tests/instances_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1200 build/fuzz-corpus-instances
+fuzz-relay: build/tests/relay_fuzz
+	@mkdir -p build/fuzz-corpus-relay
 	build/tests/relay_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1220 build/fuzz-corpus-relay
-	cd server && go test -run=^$$ -fuzz=FuzzRelayHandle -fuzztime=$(FUZZ_TIME)s .
+# Go's fuzzer uses one worker here, as each libFuzzer target does.
+fuzz-relay-go:
+	cd server && go test -run=^$$ -fuzz=FuzzRelayHandle -fuzztime=$(FUZZ_TIME)s -parallel=1 .
+fuzz-rollback: build/tests/rollback_fuzz
+	@mkdir -p build/fuzz-corpus
 	build/tests/rollback_fuzz -max_total_time=$(FUZZ_TIME) -max_len=600 build/fuzz-corpus
+fuzz-session: build/tests/session_fuzz
+	@mkdir -p build/fuzz-corpus-session
 	build/tests/session_fuzz -max_total_time=$(FUZZ_TIME) -max_len=1201 build/fuzz-corpus-session
 
 # Every test that needs no ROM.
