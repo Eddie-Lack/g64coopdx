@@ -16,8 +16,9 @@
  *
  * The walk reads the banks as the game's loaders do (weemitt's LoadTextureBankAt, LoadObjectBankAt,
  * RestoreObjectPointers and RestoreDrawList), on the ROM's bytes, which it never writes. Every offset is checked. A
- * bank that would make the walk leave its bytes is skipped whole, and counted. FLA2 banks are decompressed with
- * fla2.h. */
+ * bank that would make the walk leave its bytes is skipped whole, and counted. So is an object bank whose hashes would
+ * cover more than four times its size and 1 MiB. Each object and each mesh is walked once. FLA2 banks are
+ * decompressed with fla2.h. */
 #ifndef G64_ROMBANKS_H
 #define G64_ROMBANKS_H
 

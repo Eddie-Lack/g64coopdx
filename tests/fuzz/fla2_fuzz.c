@@ -16,7 +16,7 @@
 #include "../../src/client/fla2.h"
 #include "../../src/client/rombanks.h"
 
-/* A size past this is refused, which keeps each run fast. */
+/* The reader refuses a size past this here. A run then allocates at most 1 MiB. */
 #define MAX_OUT (1u << 20)
 
 static size_t romSize;
@@ -62,7 +62,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
                 free(out);
             }
         }
-        /* The index allows larger banks. A size it would allocate stays below MAX_OUT here. */
+        /* The index allows larger banks. Here the header's size is at most MAX_OUT. */
         romSize = size;
         b = g64_rombanks_build(src, size, whole, NULL);
         g64_rombanks_free(b);

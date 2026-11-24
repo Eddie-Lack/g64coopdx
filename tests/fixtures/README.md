@@ -16,7 +16,7 @@ Glovebox made `cube.models.bin` with its own model converter. In a Glovebox chec
 
 The command needs no ROM. It converts the model at scale 1, with the file's name (`cube`) as the model's name. It
 gives the same bytes on every run. Glovebox's test `the_cube_clashes_with_no_game_id` checks that the cube's object
-id and texture id are in none of the game's banks.
+id and texture id are in none of the game's banks: it reads every object bank and texture bank in the ROM map.
 
 What the file holds:
 

@@ -132,25 +132,44 @@ static int walk_textures(G64RomBanks *b, const uint8_t *d, size_t n) {
 
 /* ---- Object banks. */
 
+/* The most bytes the hashes of one object bank may cover: four times the bank, and 1 MiB more. The shipped banks
+   hash at most 0.6 times their size. */
+#define HASH_BUDGET(n) ((size_t)(n) * 4 + ((size_t)1 << 20))
+
 typedef struct {
     G64RomBanks *b;
     const uint8_t *d;
     size_t n;
-    uint8_t *seen; /* one bit per byte offset: the objects already walked */
+    uint8_t *seen;     /* one bit per byte offset: the objects already put on the stack */
+    uint8_t *listSeen; /* one bit per byte offset: the display list commands already walked */
+    uint8_t *meshSeen; /* one bit per byte offset: the meshes already walked */
     uint32_t *stack;
     size_t top, cap;
+    size_t hashed, budget; /* the bytes hashed so far in this bank, and the most it may hash */
 } Walk;
 
-/* A display list, as RestoreDrawList reads it: commands of 8 bytes up to G_ENDDL (0xB8). It steps over the rest of
-   a texture load after G_SETTIMG (0xFD), by the opcode two words on. */
-static int walk_list(Walk *w, size_t pos) {
-    size_t steps = 0;
+/* Hashes len bytes at off into v. A bank whose hashes would cover more than its budget is a fault. Many meshes or
+   commands can point at one large array, and the budget keeps the work linear in the bank's size. */
+static int walk_hash(Walk *w, Vec *v, size_t off, size_t len) {
+    if (!inside(off, len, w->n) || len > w->budget - w->hashed)
+        return 0;
+    w->hashed += len;
+    return push_hash(w->b, v, w->d + off, len);
+}
 
+/* A display list, as RestoreDrawList reads it: commands of 8 bytes up to G_ENDDL (0xB8). It steps over the rest of
+   a texture load after G_SETTIMG (0xFD), by the opcode two words on. The walk from a command depends only on where
+   the command is. So a walk that reaches a command walked before stops there: the rest was walked and hashed. */
+static int walk_list(Walk *w, size_t pos) {
     for (;;) {
         uint32_t w0, w1;
 
-        if (!inside(pos, 8, w->n) || ++steps > w->n / 8 + 1)
+        /* pos only grows, so the walk ends at the end of the bank. */
+        if (!inside(pos, 8, w->n))
             return 0;
+        if (w->listSeen[pos >> 3] & (1 << (pos & 7)))
+            return 1;
+        w->listSeen[pos >> 3] |= (uint8_t)(1 << (pos & 7));
         w0 = be32(w->d + pos);
         w1 = be32(w->d + pos + 4);
         switch (w0 >> 24) {
@@ -158,10 +177,8 @@ static int walk_list(Walk *w, size_t pos) {
                 return 1;
             case 0x04: {
                 size_t at = w1 & 0xFFFFFF, len = (size_t)((w0 >> 10) & 0x3F) * 16;
-                if (len != 0) {
-                    if (!inside(at, len, w->n) || !push_hash(w->b, &w->b->vtx, w->d + at, len))
-                        return 0;
-                }
+                if (len != 0 && !walk_hash(w, &w->b->vtx, at, len))
+                    return 0;
                 pos += 8;
                 break;
             }
@@ -180,7 +197,14 @@ static int walk_list(Walk *w, size_t pos) {
     }
 }
 
+/* An object is marked when it goes on the stack, so each offset goes on it once at most. An offset outside the bank
+   goes on it unmarked, and the walk fails when it comes off. */
 static int push_object(Walk *w, uint32_t off) {
+    if (inside(off, 64, w->n)) {
+        if (w->seen[off >> 3] & (1 << (off & 7)))
+            return 1;
+        w->seen[off >> 3] |= (uint8_t)(1 << (off & 7));
+    }
     if (w->top == w->cap) {
         size_t cap = w->cap ? w->cap * 2 : 64;
         uint32_t *s = realloc(w->stack, cap * sizeof *s);
@@ -196,7 +220,7 @@ static int push_object(Walk *w, uint32_t off) {
 }
 
 /* An object tree, as RestoreObjectPointers walks it: the mesh, the display list, then the child and the sibling.
-   An object reached twice is walked once. */
+   An object reached twice is walked once, and so is a mesh. */
 static int walk_tree(Walk *w, uint32_t root) {
     w->top = 0;
     if (!push_object(w, root))
@@ -208,9 +232,6 @@ static int walk_tree(Walk *w, uint32_t root) {
 
         if (!inside(off, 64, w->n))
             return 0;
-        if (w->seen[off >> 3] & (1 << (off & 7)))
-            continue;
-        w->seen[off >> 3] |= (uint8_t)(1 << (off & 7));
         o = w->d + off;
         mesh = be32(o + 0x14);
         list = be32(o + 0x18);
@@ -222,11 +243,12 @@ static int walk_tree(Walk *w, uint32_t root) {
             if (!inside(m, 36, w->n))
                 return 0;
             numVerts = (int16_t)be16(w->d + m + 2);
-            if (numVerts > 0) {
+            if (!(w->meshSeen[m >> 3] & (1 << (m & 7))) && numVerts > 0) {
                 size_t v = be32(w->d + m + 4) & 0xFFFFFF, len = (size_t)numVerts * 12;
-                if (!inside(v, len, w->n) || !push_hash(w->b, &w->b->verts, w->d + v, len))
+                if (!walk_hash(w, &w->b->verts, v, len))
                     return 0;
             }
+            w->meshSeen[m >> 3] |= (uint8_t)(1 << (m & 7));
         }
         if (list && !walk_list(w, list & 0xFFFFFF))
             return 0;
@@ -250,8 +272,14 @@ static int walk_objects(G64RomBanks *b, const uint8_t *d, size_t n) {
     w.b = b;
     w.d = d;
     w.n = n;
+    w.budget = HASH_BUDGET(n);
     w.seen = calloc(n / 8 + 1, 1);
-    if (w.seen == NULL) {
+    w.listSeen = calloc(n / 8 + 1, 1);
+    w.meshSeen = calloc(n / 8 + 1, 1);
+    if (w.seen == NULL || w.listSeen == NULL || w.meshSeen == NULL) {
+        free(w.seen);
+        free(w.listSeen);
+        free(w.meshSeen);
         b->oom = 1;
         return 0;
     }
@@ -274,6 +302,8 @@ static int walk_objects(G64RomBanks *b, const uint8_t *d, size_t n) {
     ok = 1;
 done:
     free(w.seen);
+    free(w.listSeen);
+    free(w.meshSeen);
     free(w.stack);
     return ok;
 }
