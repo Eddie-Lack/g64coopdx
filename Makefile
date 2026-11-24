@@ -382,14 +382,14 @@ bankwalk: bankwalk-build
 # models, on Linux and under Wine. Variant I has identity rotation keys: its two outputs must be equal. Variant Z has
 # keys of all zeros, past the bank check. It is a measurement: its exit statuses and the comparison are printed, and
 # do not fail the target (needs the ROM in GLOVER_ROM).
-MODELS_SRC := tests/rom/models.c src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c src/client/levcheck.c \
+MODELTEST_SRC := tests/rom/models.c src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c src/client/levcheck.c \
     third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
 models-build: savestates
 	@mkdir -p build/tests
-	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/models $(MODELS_SRC) $(ENGINE_LINUX) \
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/models $(MODELTEST_SRC) $(ENGINE_LINUX) \
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
-	    -o build/tests/models.exe $(MODELS_SRC) $(ENGINE_WINDOWS) -lm
+	    -o build/tests/models.exe $(MODELTEST_SRC) $(ENGINE_WINDOWS) -lm
 
 models: models-build
 	build/tests/models "$$GLOVER_ROM" I > build/tests/models-I.out || { cat build/tests/models-I.out; exit 1; }
