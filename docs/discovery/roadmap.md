@@ -286,7 +286,7 @@ machines on two networks.
   ([mods.md](mods.md#the-lua-api)).
 - Game change 6: levels and banks from buffers, more bank slots, rotation and scale on every object type.
 - A tool that makes a pack from Glovebox's level file or built ROM (done: `tools/g64pack.c`); imported models in
-  banks of their own.
+  banks of their own (done: [model-banks.md](model-banks.md)).
 - Packs by hash, a prompt before download, path checks, a cache.
 
 Done so far: a level pack from a folder (`--pack FOLDER`). Its level file takes the place of
@@ -320,6 +320,11 @@ objects in a layout of its own, and made into a pack with Glovebox's `gbtool pac
 with the pack and a Windows joiner under Wine without it: the joiner downloaded it, both played the level, the
 script's line showed, and 300 hash checks found no mismatch. `sample_pack` in tests/rom/instances.c plays it with two
 players over a lossy network, on Linux and under Wine.
+
+Done: models in packs ([model-banks.md](model-banks.md)). A pack's `models.bin` holds the author's own models in a
+texture bank and an object bank of the pack's own, and names retail banks by number. Both ends check it on their own
+ROM, and it travels with the pack. Custom models may be platforms. The sample pack has a raft drawn from scratch, as
+scenery and as a moving platform that a glove rides, and a Carnival bell from the player's own ROM.
 
 ## Phase 6: release
 

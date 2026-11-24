@@ -80,8 +80,8 @@ the picture.
   bullets' without sprites, and the fixed names in the game's code. Every other such name is in the ROM, so the rule
   against a ROM id below covers it.
 - An object with the name of the ball or the hand. The game points the ball's and the hand's textures at those.
-  Glovebox names an object after its glTF file and does not refuse these five names today (`gball`, `cball`,
-  `GShinL`, `GShinR`, `gbl_bt`). Its pack export should refuse or change them.
+  Glovebox names an object after its glTF file. Its pack export refuses a model with one of these five names
+  (`gball`, `cball`, `GShinL`, `GShinR`, `gbl_bt`).
 - A float that is not finite, a position past 16384 or a scale past 64.
 - An object whose position, added up along its parents, is past 16384. The game translates a child by its position
   times its parent's scale, and keeps the parent's translation while the child draws. The sum counts each
@@ -330,10 +330,9 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
 - The rule runs in `g64_pack_check_ids_rom`, after the rule for the level's ids. The host runs it before its offer,
   a joiner on the download, and the pack tool on a folder. `check_pack_ids_and_models` in netplay.c runs it again
   with the game's own bank ranges. A refusal gives rule 2 and the object bank's number.
-- Glovebox's pack export does not keep this rule yet. It names a retail texture bank only when the level's placed
-  objects need one of its textures. So it can write a pack that names, say, object bank 19 alone. Such a pack is now
-  refused by the client. Glovebox's export should add the texture banks of every sprite of each object bank it names,
-  or refuse with the same message.
+- Glovebox's pack export keeps this rule (`pack::add_sprite_banks`). It adds texture banks until every sprite
+  texture of each object bank it names is in one, and it refuses a pack that would need more than 4 or a texture that
+  no bank has.
 
 `make packbanks` (`tests/rom/packbanks.c`) tests the table with the ROM. Its output is equal on Linux and under Wine.
 
@@ -372,9 +371,10 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
   the slots and `JallocInit`. It stays 0. Without the drop in `FreeLevel2` it is 2 (the lookups in `LoadFont`), and
   the test fails. Without the drop in `FreeScreen` or in frontend.c the test still passes: no test reaches those two
   places with a live table.
-- `make instances` plays the sample pack with a `models.bin` that names only retail banks. It goes through the pack
-  reader and `g64_instances_pack_retail`, and the game loads both banks into its table. The client accepts that pack,
-  and refuses the same pack with object bank 19 alone (rule 2).
+- `make instances` plays the sample pack, whose `models.bin` names Carnival's texture bank (4) and object bank 20
+  for a bell. It goes through the pack reader and `g64_instances_pack_retail`, and the game loads both banks into its
+  table. The bell is found in the table and in no slot. The client accepts that pack. It refuses the same pack with
+  object banks 19 and 20 and no texture bank (rule 2, bank 19), and the same pack without object bank 20 (rule 1).
 
 `make packbanks` also found a fault of level files that has nothing to do with retail banks. A level file with about
 107 of bank 29's objects as scenery crashes the game, in level 29 itself and with no pack banks: `CheckCollisions` and
@@ -535,6 +535,26 @@ four runs, on Linux and under Wine, on one machine). The test prints the time to
 Before this change, 700 small copies or 130 copies of 1500 faces made the game stop the program. Retail banks add
 at most 51 blocks and about 3.1 MB ("Retail banks" above), and their blocks count toward the parser's limit.
 
+## The sample pack
+
+The sample pack `packs/garib-island` has a model of its own and one retail model.
+
+- The raft is a flat box, 48 by 6 by 36 units, with one picture of four planks, 16 by 16. Both are drawn from scratch
+  by `packs/garib-island/models/make_raft.py`, which writes `raft.gltf` next to it. Its object id is 0x60CB35B6.
+- It was imported with `gbtool import ROM raft.gltf --home DIR` into a user folder outside the repository. `gbtool
+  pack ROM 0a level.xml OUTDIR "Garib Island" --home DIR` then wrote `pack.txt`, `level.lev` and `models.bin`.
+- The level places the raft twice: as scenery in the sea, and as a platform (tag 200) that moves along z between
+  z 145 and 205, at y 12. The glove falls onto that platform at the start and rides it.
+- The level also places a Carnival 1 bell (0x45F8316C) as scenery. `models.bin` names its banks by number: texture
+  bank 4 and object bank 20. It holds no retail data.
+- `models.bin` is 1,632 bytes: the header of 16 bytes, the texture bank (560 bytes) and the object bank (1,056 bytes).
+- `sample_pack` in tests/rom/instances.c checks the pack with the ROM's rules, finds the raft in the pack's object slot
+  and the bell in the retail table, checks that the platform moves and that a glove with no input rides it, and plays
+  the level with two players over a lossy network. The output is equal on Linux and under Wine.
+- Glovebox's level reader cannot read a level file whose name and commands leave an odd number of padding bytes
+  (`level::commands` reads the padding 2 bytes at a time). The level's name is `ISLANDS`, 7 characters. Its
+  padding is then even.
+
 ## Steps
 
 | Step | What | Done |
@@ -548,5 +568,5 @@ at most 51 blocks and about 3.1 MB ("Retail banks" above), and their blocks coun
 | 7 | The level file's object ids against the banks | yes |
 | 8 | The offer and the transfer (protocol 12) | yes |
 | 9 | Retail banks in the heap table, and their heap budget | yes |
-| 10 | Glovebox's pack export with models | |
-| 11 | A model in the sample pack | |
+| 10 | Glovebox's pack export with models | yes |
+| 11 | A model in the sample pack | yes |

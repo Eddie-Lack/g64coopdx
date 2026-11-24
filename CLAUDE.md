@@ -105,7 +105,7 @@ run locally: set `GLOVER_ROM`.
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
 | Level packs: the reader, the format, and the tool that makes them | src/client (`pack.h`), docs/discovery/level-pack.md, tools/g64pack.c (`make packtool`) |
-| The sample pack, Garib Island: its files and its Glovebox source (`level.xml`, written from scratch) | packs/garib-island; the test `sample_pack` in tests/rom/instances.c |
+| The sample pack, Garib Island: its files, its Glovebox source (`level.xml`, written from scratch) and its raft model (`models/make_raft.py`, drawn from scratch) | packs/garib-island; docs/discovery/model-banks.md ("The sample pack"); the test `sample_pack` in tests/rom/instances.c |
 | The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
 | The bounded reader of compressed (FLA2) banks, and the index of the ROM's banks (ids and hashes) | src/client (`fla2.h`, `rombanks.h`; the game's ranges in `rombanks_game.c`), docs/discovery/model-banks.md; the test tests/rom/rombanks.c |
 | The check of a pack's models.bin (its header, texture bank and object bank), and its rules that need the ROM | src/client (`bankcheck.h`), docs/discovery/model-banks.md; the test tests/net/bankcheck_test.c, the fixture tests/fixtures/cube.models.bin |
