@@ -130,118 +130,115 @@ void InitTextureBanks(void) {
     }
 }
 
+/* The ROM range of texture bank num, and its name for the log. Returns NULL for a number with no bank. */
+const char *TextureBankRange(u32 num, u32 *start, u32 *end) {
+    switch (num) {
+        case 18:
+            *start = PORT_ROM_ADDR(rcDemoTexBankRomStart);
+            *end = PORT_ROM_ADDR(genericObjBankRomStart);
+            return "RCDEMO_TEX_BANK";
+        case CKBONUS_TEX_BANK:
+            *start = PORT_ROM_ADDR(ckBonusTexBankRomStart);
+            *end = PORT_ROM_ADDR(ckCheat1TexBankRomStart);
+            return "CKBONUS_TEX_BANK";
+        case 16:
+            *start = PORT_ROM_ADDR(ckCheat1TexBankRomStart);
+            *end = PORT_ROM_ADDR(ckCheat2TexBankRomStart);
+            return "CKCHEAT1_TEX_BANK";
+        case 17:
+            *start = PORT_ROM_ADDR(ckCheat2TexBankRomStart);
+            *end = PORT_ROM_ADDR(ckCheat2TexBankRomEnd);
+            return "CKCHEAT2_TEX_BANK";
+        case FONT_TEX_BANK:
+            *start = PORT_ROM_ADDR(fontTexBankRomStart);
+            *end = PORT_ROM_ADDR(cameoTexBankRomStart);
+            return "FONT_TEX_BANK";
+        case HUB_TEX_BANK:
+            *start = PORT_ROM_ADDR(hubTexBankRomStart);
+            *end = PORT_ROM_ADDR(levelEndTexBankRomStart);
+            return "HUB_TEX_BANK";
+        case CAMEO_TEX_BANK:
+            *start = PORT_ROM_ADDR(cameoTexBankRomStart);
+            *end = PORT_ROM_ADDR(levelEnd2TexBankRomStart);
+            return "CAMEO_TEX_BANK";
+        case TITLE_TEX_BANK:
+            *start = PORT_ROM_ADDR(titleTexBankRomStart);
+            *end = PORT_ROM_ADDR(genericTexBankRomStart);
+            return "TITLE_TEX_BANK";
+        case LEVEND1_TEX_BANK:
+            *start = PORT_ROM_ADDR(levelEndTexBankRomStart);
+            *end = PORT_ROM_ADDR(fontTexBankRomStart);
+            return "LEVELEND_TEX_BANK";
+        case LEVEND2_TEX_BANK:
+            *start = PORT_ROM_ADDR(levelEnd2TexBankRomStart);
+            *end = PORT_ROM_ADDR(presentTexBankRomStart);
+            return "LEVELEND_TEX_BANK";
+        case GENERIC_TEX_BANK:
+            *start = PORT_ROM_ADDR(genericTexBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisTexBankRomStart);
+            return "GENERIC_TEX_BANK";
+        case ATLANTIS_TEX_BANK:
+            *start = PORT_ROM_ADDR(atlantisTexBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalTexBankRomStart);
+            return "ATLANTIS_TEX_BANK";
+        case CARNIVAL_TEX_BANK:
+            *start = PORT_ROM_ADDR(carnivalTexBankRomStart);
+            *end = PORT_ROM_ADDR(piratesTexBankRomStart);
+            return "CARNIVAL_TEX_BANK";
+        case PIRATES_TEX_BANK:
+            *start = PORT_ROM_ADDR(piratesTexBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricTexBankRomStart);
+            return "PIRATES_TEX_BANK";
+        case PREHISTORIC_TEX_BANK:
+            *start = PORT_ROM_ADDR(prehistoricTexBankRomStart);
+            *end = PORT_ROM_ADDR(fortressTexBankRomStart);
+            return "PREHISTORIC_TEX_BANK";
+        case FORTRESS_TEX_BANK:
+            *start = PORT_ROM_ADDR(fortressTexBankRomStart);
+            *end = PORT_ROM_ADDR(ootwTexBankRomStart);
+            return "FORTRESS_TEX_BANK";
+        case OOTW_TEX_BANK:
+            *start = PORT_ROM_ADDR(ootwTexBankRomStart);
+            *end = PORT_ROM_ADDR(hubTexBankRomStart);
+            return "OOTW_TEX_BANK";
+        case PRESENT_TEX_BANK:
+            *start = PORT_ROM_ADDR(presentTexBankRomStart);
+            *end = PORT_ROM_ADDR(flythruTexBankRomStart);
+            return "PRESENT_TEX_BANK";
+        case FLYTHRU_TEX_BANK:
+            *start = PORT_ROM_ADDR(flythruTexBankRomStart);
+            *end = PORT_ROM_ADDR(ckBonusTexBankRomStart);
+            return "FLYTHRU_TEX_BANK";
+    }
+    return NULL;
+}
+
+void LoadTextureBankAt(u32 num, u32 start, u32 end);
+
 void LoadTextureBank(u32 num) {
-    u32 *ptr;
     u32 start;
     u32 end;
+    const char *name = TextureBankRange(num, &start, &end);
+
+    if (name == NULL) {
+        PRINTF("Invalid texture bank!\n");
+        Crash("LOAD TEXTURE BANK");
+    } else {
+        sprintf(message, "%s", name);
+    }
+    LoadTextureBankAt(num, start, end);
+}
+
+/* Loads the texture bank at ROM range start to end. The font bank goes into its static buffer and slot 0. The log
+ * line names the bank in message. */
+void LoadTextureBankAt(u32 num, u32 start, u32 end) {
+    u32 *ptr;
     s32 size;
-    s16 slot = -1;
+    s16 slot = num == FONT_TEX_BANK ? 0 : -1;
     s16 i = 0;
     Texture *tex;
     Texture *cur;
 
-    switch (num) {
-        case 18:
-            start = PORT_ROM_ADDR(rcDemoTexBankRomStart);
-            end = PORT_ROM_ADDR(genericObjBankRomStart);
-            sprintf(message, "RCDEMO_TEX_BANK");
-            break;
-        case CKBONUS_TEX_BANK:
-            start = PORT_ROM_ADDR(ckBonusTexBankRomStart);
-            end = PORT_ROM_ADDR(ckCheat1TexBankRomStart);
-            sprintf(message, "CKBONUS_TEX_BANK");
-            break;
-        case 16:
-            start = PORT_ROM_ADDR(ckCheat1TexBankRomStart);
-            end = PORT_ROM_ADDR(ckCheat2TexBankRomStart);
-            sprintf(message, "CKCHEAT1_TEX_BANK");
-            break;
-        case 17:
-            start = PORT_ROM_ADDR(ckCheat2TexBankRomStart);
-            end = PORT_ROM_ADDR(ckCheat2TexBankRomEnd);
-            sprintf(message, "CKCHEAT2_TEX_BANK");
-            break;
-        case FONT_TEX_BANK:
-            start = PORT_ROM_ADDR(fontTexBankRomStart);
-            end = PORT_ROM_ADDR(cameoTexBankRomStart);
-            sprintf(message, "FONT_TEX_BANK");
-            slot = 0;
-            break;
-        case HUB_TEX_BANK:
-            start = PORT_ROM_ADDR(hubTexBankRomStart);
-            end = PORT_ROM_ADDR(levelEndTexBankRomStart);
-            sprintf(message, "HUB_TEX_BANK");
-            break;
-        case CAMEO_TEX_BANK:
-            start = PORT_ROM_ADDR(cameoTexBankRomStart);
-            end = PORT_ROM_ADDR(levelEnd2TexBankRomStart);
-            sprintf(message, "CAMEO_TEX_BANK");
-            break;
-        case TITLE_TEX_BANK:
-            start = PORT_ROM_ADDR(titleTexBankRomStart);
-            end = PORT_ROM_ADDR(genericTexBankRomStart);
-            sprintf(message, "TITLE_TEX_BANK");
-            break;
-        case LEVEND1_TEX_BANK:
-            start = PORT_ROM_ADDR(levelEndTexBankRomStart);
-            end = PORT_ROM_ADDR(fontTexBankRomStart);
-            sprintf(message, "LEVELEND_TEX_BANK");
-            break;
-        case LEVEND2_TEX_BANK:
-            start = PORT_ROM_ADDR(levelEnd2TexBankRomStart);
-            end = PORT_ROM_ADDR(presentTexBankRomStart);
-            sprintf(message, "LEVELEND_TEX_BANK");
-            break;
-        case GENERIC_TEX_BANK:
-            start = PORT_ROM_ADDR(genericTexBankRomStart);
-            end = PORT_ROM_ADDR(atlantisTexBankRomStart);
-            sprintf(message, "GENERIC_TEX_BANK");
-            break;
-        case ATLANTIS_TEX_BANK:
-            start = PORT_ROM_ADDR(atlantisTexBankRomStart);
-            end = PORT_ROM_ADDR(carnivalTexBankRomStart);
-            sprintf(message, "ATLANTIS_TEX_BANK");
-            break;
-        case CARNIVAL_TEX_BANK:
-            start = PORT_ROM_ADDR(carnivalTexBankRomStart);
-            end = PORT_ROM_ADDR(piratesTexBankRomStart);
-            sprintf(message, "CARNIVAL_TEX_BANK");
-            break;
-        case PIRATES_TEX_BANK:
-            start = PORT_ROM_ADDR(piratesTexBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricTexBankRomStart);
-            sprintf(message, "PIRATES_TEX_BANK");
-            break;
-        case PREHISTORIC_TEX_BANK:
-            start = PORT_ROM_ADDR(prehistoricTexBankRomStart);
-            end = PORT_ROM_ADDR(fortressTexBankRomStart);
-            sprintf(message, "PREHISTORIC_TEX_BANK");
-            break;
-        case FORTRESS_TEX_BANK:
-            start = PORT_ROM_ADDR(fortressTexBankRomStart);
-            end = PORT_ROM_ADDR(ootwTexBankRomStart);
-            sprintf(message, "FORTRESS_TEX_BANK");
-            break;
-        case OOTW_TEX_BANK:
-            start = PORT_ROM_ADDR(ootwTexBankRomStart);
-            end = PORT_ROM_ADDR(hubTexBankRomStart);
-            sprintf(message, "OOTW_TEX_BANK");
-            break;
-        case PRESENT_TEX_BANK:
-            start = PORT_ROM_ADDR(presentTexBankRomStart);
-            end = PORT_ROM_ADDR(flythruTexBankRomStart);
-            sprintf(message, "PRESENT_TEX_BANK");
-            break;
-        case FLYTHRU_TEX_BANK:
-            start = PORT_ROM_ADDR(flythruTexBankRomStart);
-            end = PORT_ROM_ADDR(ckBonusTexBankRomStart);
-            sprintf(message, "FLYTHRU_TEX_BANK");
-            break;
-        default:
-            PRINTF("Invalid texture bank!\n");
-            Crash("LOAD TEXTURE BANK");
-            break;
-    }
     size = end - start;
     if (num != FONT_TEX_BANK) {
         ptr = (u32 *)JallocAlloc(DMAGetSize(start, end), 0, "TexBank");
@@ -430,302 +427,263 @@ void RestoreObjectPointers(Object *obj, s32 base) {
     }
 }
 
+/* The ROM range of object bank num, and its name for the log. Returns NULL for a number with no bank. */
+const char *ObjectBankRange(u32 num, u32 *start, u32 *end) {
+    switch (num) {
+        case 71:
+            *start = PORT_ROM_ADDR(tweenObjBankRomStart);
+            *end = PORT_ROM_ADDR(ootwBonusObjBankRomStart);
+            return "TWEEN";
+        case 0:
+            *start = PORT_ROM_ADDR(systemObjBankRomStart);
+            *end = PORT_ROM_ADDR(presentationObjBankRomStart);
+            return "SYSTEM";
+        case 67:
+            *start = PORT_ROM_ADDR(wayroomObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart2ObjBankRomStart);
+            return "WAYROOM";
+        case 66:
+            *start = PORT_ROM_ADDR(outroObjBankRomStart);
+            *end = PORT_ROM_ADDR(systemObjBankRomStart);
+            return "OUTRO";
+        case 68:
+            *start = PORT_ROM_ADDR(presentationObjBankRomStart);
+            *end = PORT_ROM_ADDR(flythruObjBankRomStart);
+            return "PRESENTATION";
+        case 69:
+            *start = PORT_ROM_ADDR(flythruObjBankRomStart);
+            *end = PORT_ROM_ADDR(landscapeFilesRomStart);
+            return "FLYTHRU";
+        case 65:
+            *start = PORT_ROM_ADDR(introObjBankRomStart);
+            *end = PORT_ROM_ADDR(wayroomObjBankRomStart);
+            return "INTRO";
+        case 64:
+            *start = PORT_ROM_ADDR(hubSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart1ObjBankRomStart);
+            return "HUB_SHARED";
+        case 2:
+            *start = PORT_ROM_ADDR(hubPart1ObjBankRomStart);
+            *end = PORT_ROM_ADDR(piratesL3bObjBankRomStart);
+            return "HUB_PART1";
+        case 3:
+            *start = PORT_ROM_ADDR(hubPart2ObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart3ObjBankRomStart);
+            return "HUB_PART2";
+        case 4:
+            *start = PORT_ROM_ADDR(hubPart3ObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart4ObjBankRomStart);
+            return "HUB_PART3";
+        case 5:
+            *start = PORT_ROM_ADDR(hubPart4ObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart5ObjBankRomStart);
+            return "HUB_PART4";
+        case 6:
+            *start = PORT_ROM_ADDR(hubPart5ObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart6ObjBankRomStart);
+            return "HUB_PART5";
+        case 7:
+            *start = PORT_ROM_ADDR(hubPart6ObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart7ObjBankRomStart);
+            return "HUB_PART6";
+        case 8:
+            *start = PORT_ROM_ADDR(hubPart7ObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubPart8ObjBankRomStart);
+            return "HUB_PART7";
+        case 9:
+            *start = PORT_ROM_ADDR(hubPart8ObjBankRomStart);
+            *end = PORT_ROM_ADDR(assaultCourseObjBankRomStart);
+            return "HUB_PART8";
+        case 10:
+            *start = PORT_ROM_ADDR(caveObjBankRomStart);
+            *end = PORT_ROM_ADDR(introObjBankRomStart);
+            return "CAVE";
+        case 11:
+            *start = PORT_ROM_ADDR(assaultCourseObjBankRomStart);
+            *end = PORT_ROM_ADDR(titleObjBankRomStart);
+            return "ASSAULT COURSE";
+        case 1:
+            *start = PORT_ROM_ADDR(genericObjBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisSharedObjBankRomStart);
+            return "GENERIC";
+        case 12:
+            *start = PORT_ROM_ADDR(atlantisSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisL1ObjBankRomStart);
+            return "ATLANTIS_SHARED";
+        case 13:
+            *start = PORT_ROM_ADDR(atlantisL1ObjBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisL2ObjBankRomStart);
+            return "ATLANTIS_L1";
+        case 14:
+            *start = PORT_ROM_ADDR(atlantisL2ObjBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisL3aObjBankRomStart);
+            return "ATLANTIS_L2";
+        case 15:
+            *start = PORT_ROM_ADDR(atlantisL3aObjBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisBossObjBankRomStart);
+            return "ATLANTIS_L3A";
+        case 17:
+            *start = PORT_ROM_ADDR(atlantisBossObjBankRomStart);
+            *end = PORT_ROM_ADDR(atlantisBonusObjBankRomStart);
+            return "ATLANTIS_BOSS";
+        case 18:
+            *start = PORT_ROM_ADDR(atlantisBonusObjBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalSharedObjBankRomStart);
+            return "ATLANTIS_BONUS";
+        case 19:
+            *start = PORT_ROM_ADDR(carnivalSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalL1ObjBankRomStart);
+            return "CARNIVAL_SHARED";
+        case 20:
+            *start = PORT_ROM_ADDR(carnivalL1ObjBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalL2aObjBankRomStart);
+            return "CARNIVAL_L1";
+        case 21:
+            *start = PORT_ROM_ADDR(carnivalL2aObjBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalL3aObjBankRomStart);
+            return "CARNIVAL_L2A";
+        case 23:
+            *start = PORT_ROM_ADDR(carnivalL3aObjBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalBossObjBankRomStart);
+            return "CARNIVAL_L3A";
+        case 25:
+            *start = PORT_ROM_ADDR(carnivalBossObjBankRomStart);
+            *end = PORT_ROM_ADDR(carnivalBonusObjBankRomStart);
+            return "CARNIVAL_BOSS";
+        case 26:
+            *start = PORT_ROM_ADDR(carnivalBonusObjBankRomStart);
+            *end = PORT_ROM_ADDR(piratesSharedObjBankRomStart);
+            return "CARNIVAL_BONUS";
+        case 38:
+            *start = PORT_ROM_ADDR(piratesSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(piratesL1ObjBankRomStart);
+            return "PIRATES_SHARED";
+        case 39:
+            *start = PORT_ROM_ADDR(piratesL1ObjBankRomStart);
+            *end = PORT_ROM_ADDR(piratesL2aObjBankRomStart);
+            return "PIRATES_L1";
+        case 40:
+            *start = PORT_ROM_ADDR(piratesL2aObjBankRomStart);
+            *end = PORT_ROM_ADDR(piratesBossObjBankRomStart);
+            return "PIRATES_L2A";
+        case 43:
+            *start = PORT_ROM_ADDR(piratesL3bObjBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricL3bObjBankRomStart);
+            return "PIRATES_L3B";
+        case 44:
+            *start = PORT_ROM_ADDR(piratesBossObjBankRomStart);
+            *end = PORT_ROM_ADDR(piratesBonusObjBankRomStart);
+            return "PIRATES_BOSS";
+        case 45:
+            *start = PORT_ROM_ADDR(piratesBonusObjBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricSharedObjBankRomStart);
+            return "PIRATES_BONUS";
+        case 46:
+            *start = PORT_ROM_ADDR(prehistoricSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricL1aObjBankRomStart);
+            return "PREHISTORIC_SHARED";
+        case 47:
+            *start = PORT_ROM_ADDR(prehistoricL1aObjBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricL2aObjBankRomStart);
+            return "PREHISTORIC_L1A";
+        case 49:
+            *start = PORT_ROM_ADDR(prehistoricL2aObjBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricBossObjBankRomStart);
+            return "PREHISTORIC_L2A";
+        case 52:
+            *start = PORT_ROM_ADDR(prehistoricL3bObjBankRomStart);
+            *end = PORT_ROM_ADDR(ootwL2aObjBankRomStart);
+            return "PREHISTORIC_L3B";
+        case 53:
+            *start = PORT_ROM_ADDR(prehistoricBossObjBankRomStart);
+            *end = PORT_ROM_ADDR(prehistoricBonusObjBankRomStart);
+            return "PREHISTORIC_BOSS";
+        case 54:
+            *start = PORT_ROM_ADDR(prehistoricBonusObjBankRomStart);
+            *end = PORT_ROM_ADDR(fortressSharedObjBankRomStart);
+            return "PREHISTORIC_BONUS";
+        case 55:
+            *start = PORT_ROM_ADDR(fortressSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(fortressL1aObjBankRomStart);
+            return "FORTRESS_SHARED";
+        case 56:
+            *start = PORT_ROM_ADDR(fortressL1aObjBankRomStart);
+            *end = PORT_ROM_ADDR(fortressL2aObjBankRomStart);
+            return "FORTRESS_L1A";
+        case 58:
+            *start = PORT_ROM_ADDR(fortressL2aObjBankRomStart);
+            *end = PORT_ROM_ADDR(fortressL3bObjBankRomStart);
+            return "FORTRESS_L2A";
+        case 61:
+            *start = PORT_ROM_ADDR(fortressL3bObjBankRomStart);
+            *end = PORT_ROM_ADDR(fortressBonusObjBankRomStart);
+            return "FORTRESS_L3B";
+        case 63:
+            *start = PORT_ROM_ADDR(fortressBonusObjBankRomStart);
+            *end = PORT_ROM_ADDR(fortressBossObjBankRomStart);
+            return "FORTRESS_BONUS";
+        case 62:
+            *start = PORT_ROM_ADDR(fortressBossObjBankRomStart);
+            *end = PORT_ROM_ADDR(hubSharedObjBankRomStart);
+            return "FORTRESS_BOSS";
+        case 27:
+            *start = PORT_ROM_ADDR(ootwSharedObjBankRomStart);
+            *end = PORT_ROM_ADDR(caveObjBankRomStart);
+            return "OOTW_SHARED";
+        case 29:
+            *start = PORT_ROM_ADDR(ootwL2aObjBankRomStart);
+            *end = PORT_ROM_ADDR(ootwL2bObjBankRomStart);
+            return "OOTW_L2A";
+        case 30:
+            *start = PORT_ROM_ADDR(ootwL2bObjBankRomStart);
+            *end = PORT_ROM_ADDR(ootwL3ObjBankRomStart);
+            return "OOTW_L2B";
+        case 31:
+            *start = PORT_ROM_ADDR(ootwL3ObjBankRomStart);
+            *end = PORT_ROM_ADDR(ootwBoss1ObjBankRomStart);
+            return "OOTW_L3";
+        case 33:
+            *start = PORT_ROM_ADDR(ootwBoss1ObjBankRomStart);
+            *end = PORT_ROM_ADDR(tweenObjBankRomStart);
+            return "OOTW_BOSS1";
+        case 35:
+            *start = PORT_ROM_ADDR(ootwBonusObjBankRomStart);
+            *end = PORT_ROM_ADDR(ootwSharedObjBankRomStart);
+            return "OOTW_BONUS";
+        case 70:
+            *start = PORT_ROM_ADDR(titleObjBankRomStart);
+            *end = PORT_ROM_ADDR(outroObjBankRomStart);
+            return "TITLE_BANK";
+    }
+    return NULL;
+}
+
+void LoadObjectBankAt(u32 num, u32 start, u32 end);
+
 void LoadObjectBank(u32 num) {
-    s32 ptr;
     u32 start;
     u32 end;
+    const char *name = ObjectBankRange(num, &start, &end);
+
+    if (name == NULL) {
+        PRINTF("ERROR: no object bank specified....\n");
+        port_fatal("no object bank specified");
+    } else {
+        sprintf(message, "%s", name);
+    }
+    LoadObjectBankAt(num, start, end);
+}
+
+/* Loads the object bank at ROM range start to end. Bank 0 also sets up the fade overlay. The log line names the bank
+ * in message. */
+void LoadObjectBankAt(u32 num, u32 start, u32 end) {
+    s32 ptr;
     s32 size;
     s16 slot = -1;
     s16 i = 0;
     s32 rom;
     ObjectInstance *inst;
 
-    switch (num) {
-        case 71:
-            start = PORT_ROM_ADDR(tweenObjBankRomStart);
-            end = PORT_ROM_ADDR(ootwBonusObjBankRomStart);
-            sprintf(message, "TWEEN");
-            break;
-        case 0:
-            start = PORT_ROM_ADDR(systemObjBankRomStart);
-            end = PORT_ROM_ADDR(presentationObjBankRomStart);
-            sprintf(message, "SYSTEM");
-            break;
-        case 67:
-            start = PORT_ROM_ADDR(wayroomObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart2ObjBankRomStart);
-            sprintf(message, "WAYROOM");
-            break;
-        case 66:
-            start = PORT_ROM_ADDR(outroObjBankRomStart);
-            end = PORT_ROM_ADDR(systemObjBankRomStart);
-            sprintf(message, "OUTRO");
-            break;
-        case 68:
-            start = PORT_ROM_ADDR(presentationObjBankRomStart);
-            end = PORT_ROM_ADDR(flythruObjBankRomStart);
-            sprintf(message, "PRESENTATION");
-            break;
-        case 69:
-            start = PORT_ROM_ADDR(flythruObjBankRomStart);
-            end = PORT_ROM_ADDR(landscapeFilesRomStart);
-            sprintf(message, "FLYTHRU");
-            break;
-        case 65:
-            start = PORT_ROM_ADDR(introObjBankRomStart);
-            end = PORT_ROM_ADDR(wayroomObjBankRomStart);
-            sprintf(message, "INTRO");
-            break;
-        case 64:
-            start = PORT_ROM_ADDR(hubSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart1ObjBankRomStart);
-            sprintf(message, "HUB_SHARED");
-            break;
-        case 2:
-            start = PORT_ROM_ADDR(hubPart1ObjBankRomStart);
-            end = PORT_ROM_ADDR(piratesL3bObjBankRomStart);
-            sprintf(message, "HUB_PART1");
-            break;
-        case 3:
-            start = PORT_ROM_ADDR(hubPart2ObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart3ObjBankRomStart);
-            sprintf(message, "HUB_PART2");
-            break;
-        case 4:
-            start = PORT_ROM_ADDR(hubPart3ObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart4ObjBankRomStart);
-            sprintf(message, "HUB_PART3");
-            break;
-        case 5:
-            start = PORT_ROM_ADDR(hubPart4ObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart5ObjBankRomStart);
-            sprintf(message, "HUB_PART4");
-            break;
-        case 6:
-            start = PORT_ROM_ADDR(hubPart5ObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart6ObjBankRomStart);
-            sprintf(message, "HUB_PART5");
-            break;
-        case 7:
-            start = PORT_ROM_ADDR(hubPart6ObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart7ObjBankRomStart);
-            sprintf(message, "HUB_PART6");
-            break;
-        case 8:
-            start = PORT_ROM_ADDR(hubPart7ObjBankRomStart);
-            end = PORT_ROM_ADDR(hubPart8ObjBankRomStart);
-            sprintf(message, "HUB_PART7");
-            break;
-        case 9:
-            start = PORT_ROM_ADDR(hubPart8ObjBankRomStart);
-            end = PORT_ROM_ADDR(assaultCourseObjBankRomStart);
-            sprintf(message, "HUB_PART8");
-            break;
-        case 10:
-            start = PORT_ROM_ADDR(caveObjBankRomStart);
-            end = PORT_ROM_ADDR(introObjBankRomStart);
-            sprintf(message, "CAVE");
-            break;
-        case 11:
-            start = PORT_ROM_ADDR(assaultCourseObjBankRomStart);
-            end = PORT_ROM_ADDR(titleObjBankRomStart);
-            sprintf(message, "ASSAULT COURSE");
-            break;
-        case 1:
-            start = PORT_ROM_ADDR(genericObjBankRomStart);
-            end = PORT_ROM_ADDR(atlantisSharedObjBankRomStart);
-            sprintf(message, "GENERIC");
-            break;
-        case 12:
-            start = PORT_ROM_ADDR(atlantisSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(atlantisL1ObjBankRomStart);
-            sprintf(message, "ATLANTIS_SHARED");
-            break;
-        case 13:
-            start = PORT_ROM_ADDR(atlantisL1ObjBankRomStart);
-            end = PORT_ROM_ADDR(atlantisL2ObjBankRomStart);
-            sprintf(message, "ATLANTIS_L1");
-            break;
-        case 14:
-            start = PORT_ROM_ADDR(atlantisL2ObjBankRomStart);
-            end = PORT_ROM_ADDR(atlantisL3aObjBankRomStart);
-            sprintf(message, "ATLANTIS_L2");
-            break;
-        case 15:
-            start = PORT_ROM_ADDR(atlantisL3aObjBankRomStart);
-            end = PORT_ROM_ADDR(atlantisBossObjBankRomStart);
-            sprintf(message, "ATLANTIS_L3A");
-            break;
-        case 17:
-            start = PORT_ROM_ADDR(atlantisBossObjBankRomStart);
-            end = PORT_ROM_ADDR(atlantisBonusObjBankRomStart);
-            sprintf(message, "ATLANTIS_BOSS");
-            break;
-        case 18:
-            start = PORT_ROM_ADDR(atlantisBonusObjBankRomStart);
-            end = PORT_ROM_ADDR(carnivalSharedObjBankRomStart);
-            sprintf(message, "ATLANTIS_BONUS");
-            break;
-        case 19:
-            start = PORT_ROM_ADDR(carnivalSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(carnivalL1ObjBankRomStart);
-            sprintf(message, "CARNIVAL_SHARED");
-            break;
-        case 20:
-            start = PORT_ROM_ADDR(carnivalL1ObjBankRomStart);
-            end = PORT_ROM_ADDR(carnivalL2aObjBankRomStart);
-            sprintf(message, "CARNIVAL_L1");
-            break;
-        case 21:
-            start = PORT_ROM_ADDR(carnivalL2aObjBankRomStart);
-            end = PORT_ROM_ADDR(carnivalL3aObjBankRomStart);
-            sprintf(message, "CARNIVAL_L2A");
-            break;
-        case 23:
-            start = PORT_ROM_ADDR(carnivalL3aObjBankRomStart);
-            end = PORT_ROM_ADDR(carnivalBossObjBankRomStart);
-            sprintf(message, "CARNIVAL_L3A");
-            break;
-        case 25:
-            start = PORT_ROM_ADDR(carnivalBossObjBankRomStart);
-            end = PORT_ROM_ADDR(carnivalBonusObjBankRomStart);
-            sprintf(message, "CARNIVAL_BOSS");
-            break;
-        case 26:
-            start = PORT_ROM_ADDR(carnivalBonusObjBankRomStart);
-            end = PORT_ROM_ADDR(piratesSharedObjBankRomStart);
-            sprintf(message, "CARNIVAL_BONUS");
-            break;
-        case 38:
-            start = PORT_ROM_ADDR(piratesSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(piratesL1ObjBankRomStart);
-            sprintf(message, "PIRATES_SHARED");
-            break;
-        case 39:
-            start = PORT_ROM_ADDR(piratesL1ObjBankRomStart);
-            end = PORT_ROM_ADDR(piratesL2aObjBankRomStart);
-            sprintf(message, "PIRATES_L1");
-            break;
-        case 40:
-            start = PORT_ROM_ADDR(piratesL2aObjBankRomStart);
-            end = PORT_ROM_ADDR(piratesBossObjBankRomStart);
-            sprintf(message, "PIRATES_L2A");
-            break;
-        case 43:
-            start = PORT_ROM_ADDR(piratesL3bObjBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricL3bObjBankRomStart);
-            sprintf(message, "PIRATES_L3B");
-            break;
-        case 44:
-            start = PORT_ROM_ADDR(piratesBossObjBankRomStart);
-            end = PORT_ROM_ADDR(piratesBonusObjBankRomStart);
-            sprintf(message, "PIRATES_BOSS");
-            break;
-        case 45:
-            start = PORT_ROM_ADDR(piratesBonusObjBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricSharedObjBankRomStart);
-            sprintf(message, "PIRATES_BONUS");
-            break;
-        case 46:
-            start = PORT_ROM_ADDR(prehistoricSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricL1aObjBankRomStart);
-            sprintf(message, "PREHISTORIC_SHARED");
-            break;
-        case 47:
-            start = PORT_ROM_ADDR(prehistoricL1aObjBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricL2aObjBankRomStart);
-            sprintf(message, "PREHISTORIC_L1A");
-            break;
-        case 49:
-            start = PORT_ROM_ADDR(prehistoricL2aObjBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricBossObjBankRomStart);
-            sprintf(message, "PREHISTORIC_L2A");
-            break;
-        case 52:
-            start = PORT_ROM_ADDR(prehistoricL3bObjBankRomStart);
-            end = PORT_ROM_ADDR(ootwL2aObjBankRomStart);
-            sprintf(message, "PREHISTORIC_L3B");
-            break;
-        case 53:
-            start = PORT_ROM_ADDR(prehistoricBossObjBankRomStart);
-            end = PORT_ROM_ADDR(prehistoricBonusObjBankRomStart);
-            sprintf(message, "PREHISTORIC_BOSS");
-            break;
-        case 54:
-            start = PORT_ROM_ADDR(prehistoricBonusObjBankRomStart);
-            end = PORT_ROM_ADDR(fortressSharedObjBankRomStart);
-            sprintf(message, "PREHISTORIC_BONUS");
-            break;
-        case 55:
-            start = PORT_ROM_ADDR(fortressSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(fortressL1aObjBankRomStart);
-            sprintf(message, "FORTRESS_SHARED");
-            break;
-        case 56:
-            start = PORT_ROM_ADDR(fortressL1aObjBankRomStart);
-            end = PORT_ROM_ADDR(fortressL2aObjBankRomStart);
-            sprintf(message, "FORTRESS_L1A");
-            break;
-        case 58:
-            start = PORT_ROM_ADDR(fortressL2aObjBankRomStart);
-            end = PORT_ROM_ADDR(fortressL3bObjBankRomStart);
-            sprintf(message, "FORTRESS_L2A");
-            break;
-        case 61:
-            start = PORT_ROM_ADDR(fortressL3bObjBankRomStart);
-            end = PORT_ROM_ADDR(fortressBonusObjBankRomStart);
-            sprintf(message, "FORTRESS_L3B");
-            break;
-        case 63:
-            start = PORT_ROM_ADDR(fortressBonusObjBankRomStart);
-            end = PORT_ROM_ADDR(fortressBossObjBankRomStart);
-            sprintf(message, "FORTRESS_BONUS");
-            break;
-        case 62:
-            start = PORT_ROM_ADDR(fortressBossObjBankRomStart);
-            end = PORT_ROM_ADDR(hubSharedObjBankRomStart);
-            sprintf(message, "FORTRESS_BOSS");
-            break;
-        case 27:
-            start = PORT_ROM_ADDR(ootwSharedObjBankRomStart);
-            end = PORT_ROM_ADDR(caveObjBankRomStart);
-            sprintf(message, "OOTW_SHARED");
-            break;
-        case 29:
-            start = PORT_ROM_ADDR(ootwL2aObjBankRomStart);
-            end = PORT_ROM_ADDR(ootwL2bObjBankRomStart);
-            sprintf(message, "OOTW_L2A");
-            break;
-        case 30:
-            start = PORT_ROM_ADDR(ootwL2bObjBankRomStart);
-            end = PORT_ROM_ADDR(ootwL3ObjBankRomStart);
-            sprintf(message, "OOTW_L2B");
-            break;
-        case 31:
-            start = PORT_ROM_ADDR(ootwL3ObjBankRomStart);
-            end = PORT_ROM_ADDR(ootwBoss1ObjBankRomStart);
-            sprintf(message, "OOTW_L3");
-            break;
-        case 33:
-            start = PORT_ROM_ADDR(ootwBoss1ObjBankRomStart);
-            end = PORT_ROM_ADDR(tweenObjBankRomStart);
-            sprintf(message, "OOTW_BOSS1");
-            break;
-        case 35:
-            start = PORT_ROM_ADDR(ootwBonusObjBankRomStart);
-            end = PORT_ROM_ADDR(ootwSharedObjBankRomStart);
-            sprintf(message, "OOTW_BONUS");
-            break;
-        case 70:
-            start = PORT_ROM_ADDR(titleObjBankRomStart);
-            end = PORT_ROM_ADDR(outroObjBankRomStart);
-            sprintf(message, "TITLE_BANK");
-            break;
-        default:
-            PRINTF("ERROR: no object bank specified....\n");
-            port_fatal("no object bank specified");
-            break;
-    }
     size = end - start;
     ptr = PORT_P2W(JallocAlloc(DMAGetSize(start, end), 0, "ObjBank"));
     port_load_kind = PORT_LOAD_OBJECT_BANK;

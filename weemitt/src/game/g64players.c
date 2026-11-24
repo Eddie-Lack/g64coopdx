@@ -1335,6 +1335,17 @@ void G64SetPack(s32 level, u32 rom, u32 size) {
     g64PackSize = size;
 }
 
+const char *TextureBankRange(u32 num, u32 *start, u32 *end);
+const char *ObjectBankRange(u32 num, u32 *start, u32 *end);
+
+/* The ROM range of a bank, for the client's index of the ROM's banks (src/client/rombanks.c). kind is 0 for a
+   texture bank and 1 for an object bank. Returns 0 for a number with no bank, and 1 with the range otherwise. The
+   ranges come from the game's own switch, so the client and the game agree on them. */
+s32 G64BankRom(s32 kind, u32 num, u32 *start, u32 *end) {
+    const char *name = kind == 0 ? TextureBankRange(num, start, end) : ObjectBankRange(num, start, end);
+    return name != NULL;
+}
+
 /* One world at a time (the host's rule for the session, g64OneWorld). The session is in the world where players
    are: g64SessionWorld, or 0 while everyone is in the hub. The host works it out and sends it to every game as an
    event on a confirmed frame (G64SetSessionWorld). A portal from the hub to another world is shut: a player who

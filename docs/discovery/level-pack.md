@@ -129,5 +129,6 @@ size, which are the same on every machine. It holds no pointer to the pack.
   guards many of the values it reads. [level-file-safety.md](level-file-safety.md) lists what is still open. The
   joiner is told to take a pack only from a host they trust.
 - **A list of packs in the lobby.** A room's entry does not name its pack yet.
-- **More in a pack:** the author's own models and textures in banks of their own, more than one level, and more
-  for a script to call.
+- **Models in a pack:** the author's own models and textures in banks of their own, and retail banks named by
+  number. [model-banks.md](model-banks.md) is the plan.
+- **More in a pack:** more than one level, and more for a script to call.
