@@ -1323,7 +1323,8 @@ void ApplyAction(s32 action) {
         case HAND_FROG_TONGUE:
             PlaySample(8, &hand.pos, 100, 60);
             tongueBullet = FireBulletFromActor(&hand, TONGUE_BULLET, 0);
-            if (tongueBullet->target != NULL) {
+            /* The bullet list can be full, and then there is no tongue (MaintainAction ends the action). */
+            if (tongueBullet != NULL && tongueBullet->target != NULL) {
                 tongueTime = tTime1;
             } else {
                 tongueTime = tTime2;
@@ -2506,6 +2507,17 @@ void MaintainAction(void) {
         }
         break;
     case HAND_FROG_TONGUE:
+        /* With more players a tongue can be missing: the bullet list was full when it was fired, or this player was
+           copied from another during a tongue. Its bullet can also have gone, and another bullet now has its place.
+           The tongue then ends. With one player this happens only when the list was full, which made the original
+           crash. */
+        if (!G64TongueMine(tongueBullet)) {
+            tongueBullet = NULL;
+            if (deltaTick) {
+                ApplyAction(HAND_FROG_IDLE);
+            }
+            break;
+        }
         if (handControl.actionTime <= tongueTime) {
             tongueOffsetPos[handControl.actionTime].x = tongueBullet->actor.pos.x - hand.pos.x;
             tongueOffsetPos[handControl.actionTime].y = tongueBullet->actor.pos.y - hand.pos.y;
@@ -4414,7 +4426,10 @@ void DefrogHand(void) {
         }
     }
     if (tongueBullet) {
-        tongueBullet->actor.lifeTimer = 1;
+        /* Another player's bullet is not this player's to remove (G64TongueMine). */
+        if (G64TongueMine(tongueBullet)) {
+            tongueBullet->actor.lifeTimer = 1;
+        }
         tongueBullet = NULL;
     }
 }

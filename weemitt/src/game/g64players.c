@@ -91,6 +91,17 @@ typedef struct G64Cave {
 extern s16 garibTimer;
 extern s16 garibCount;
 
+/* The frog's tongue (hand.c, HAND_FROG_TONGUE): its bullet, how long it goes out, whether it has caught something,
+   and the points along it from the glove. Each player who is a frog has a tongue of their own. tongueOffsetPos is
+   used from 0 to the longest tongue's time plus 1 (tongue_points). */
+#define G64_TONGUE_POINTS 16
+extern PTR32(struct Bullet) tongueBullet;
+extern f32 tongueTime;
+extern s32 tongueStuck;
+extern Vec3 tongueOffsetPos[];
+extern s16 tTime1;
+extern s16 tTime2;
+
 /* The words in the glove's and the ball's display lists that name their textures and palettes. The game writes
    them when a power-up or a spell changes the look (ball.c, collect.c). They are each player's own: a swap
    exchanges them, and another player's glove and ball are drawn with that player's words (G64ActorTextures). */
@@ -193,6 +204,11 @@ typedef struct G64Slot {
     u8 caveStagePad[2];
     /* The state of this player's camera zones (puzzle.c, PuzzleSwapCameraState), made the first time they run. */
     PTR32(u8) puzzleState;
+    /* This player's frog tongue. */
+    PTR32(struct Bullet) tongueBullet;
+    f32 tongueTime;
+    s32 tongueStuck;
+    Vec3 tongueOffsetPos[G64_TONGUE_POINTS];
 } G64Slot;
 
 /* Each extra player's slot, on the game's heap. Slot 0 is unused: player 0 lives in the globals. */
@@ -220,6 +236,7 @@ static s32 startPosSet;
    G64EnemyBegin's or G64BulletBegin's target. */
 static s32 logicSlot;
 static void note_enemy_hits(void);
+static s32 tongue_of(struct Bullet *b, s32 player);
 static void forget_restart(s32 player);
 static void forget_restarts(void);
 static void copy_restart(s32 to, s32 from);
@@ -331,6 +348,15 @@ static size_t hand_block_size(void) {
     return (size_t)(((u8 *)&player + sizeof(Player)) - (u8 *)&handControl);
 }
 
+/* The points of tongueOffsetPos that the tongue uses. The tongue goes out for tTime1 or tTime2 frames, and the
+   game writes the point after the last one too. */
+static s32 tongue_points(void) {
+    s32 n = (tTime1 > tTime2 ? tTime1 : tTime2) + 2;
+    if (n < 0)
+        n = 0;
+    return n > G64_TONGUE_POINTS ? G64_TONGUE_POINTS : n;
+}
+
 /* Exchanges the globals with a slot. Doing it twice restores both. */
 static void swap_slot(G64Slot *s) {
     Actor *handActors[5];
@@ -393,6 +419,10 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&garibCount, &s->garibCount, sizeof(s16));
     swap_bytes(&gameInfo.caveStage, &s->caveStage, 1);
     swap_bytes(&disableZoom, &s->disableZoom, 1);
+    swap_bytes(&tongueBullet, &s->tongueBullet, sizeof(tongueBullet));
+    swap_bytes(&tongueTime, &s->tongueTime, sizeof(f32));
+    swap_bytes(&tongueStuck, &s->tongueStuck, sizeof(s32));
+    swap_bytes(tongueOffsetPos, s->tongueOffsetPos, tongue_points() * sizeof(Vec3));
     /* Online the globals' part of the cave exists before the first slot does (global_cave). */
     if (globalCave)
         swap_bytes((G64Cave *)globalCave, &s->cave, sizeof(G64Cave));
@@ -552,6 +582,12 @@ static G64Slot *copy_globals(void) {
         if (s->hand.state && s->hand.state->mode == HAND_LOCATE)
             s->hand.state->mode = HAND_IDLE;
     }
+    /* The first player's tongue is not the new player's either. A copy taken during a tongue has none, and its
+       tongue ends (hand.c, MaintainAction). */
+    s->tongueBullet = NULL;
+    s->tongueTime = 0.0f;
+    s->tongueStuck = 0;
+    memset(s->tongueOffsetPos, 0, sizeof s->tongueOffsetPos);
     return s;
 }
 
@@ -1731,6 +1767,9 @@ void G64RemovePlayer(s32 player) {
         /* The leaving player's slam ring would be nobody's and hurt the others: it ends now. */
         if (slots[i] && ((HandControl *)((G64Slot *)slots[i])->handBlock)->footprint)
             KillFootprint(((HandControl *)((G64Slot *)slots[i])->handBlock)->footprint);
+        /* So does their frog tongue: its bullet goes in the next update. */
+        if (slots[i] && tongue_of(((G64Slot *)slots[i])->tongueBullet, player))
+            ((struct Bullet *)((G64Slot *)slots[i])->tongueBullet)->actor.lifeTimer = 1;
         free_slot(i, blocks);
         for (j = i; j + 1 < slotCount; j++) {
             slots[j] = slots[j + 1];
@@ -2086,6 +2125,23 @@ void G64BulletEnd(struct Bullet *b, s32 i) {
     }
     bulletGone = NULL;
     G64TargetEnd(i);
+}
+
+/* 1 when b is the frog tongue of the player with this number (G64TongueMine). */
+static s32 tongue_of(struct Bullet *b, s32 player) {
+    G64BulletOwner *o;
+    if (!b)
+        return 0;
+    if (slotCount < 2)
+        return 1;
+    if (b->type != TONGUE_BULLET)
+        return 0;
+    o = find_bullet(b);
+    return !o || o->player == player;
+}
+
+s32 G64TongueMine(struct Bullet *b) {
+    return tongue_of(b, g64Member[logicSlot]);
 }
 
 s32 G64BulletMine(struct Bullet *b) {
