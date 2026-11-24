@@ -10,6 +10,10 @@ PORT_C_BEGIN
 #include "jalloc.h"
 
 void G64FindObjectTrace(u32 id);
+/* g64coopdx: the retail banks a level pack names, in a table on the heap (g64packbanks.c). */
+Texture *G64PackTexture(u32 id, s32 early);
+ObjectInstance *G64PackObject(u32 id);
+void G64PackTextureMissed(void);
 extern s32 numCyclingTextures;
 extern s32 numoftc;
 extern PTR32(u32) ballTextureData;
@@ -286,6 +290,11 @@ void FindTexture(PTR32(Texture) *texPtr, u32 texID, s32 verbose) {
     Texture *tex;
     u8 *p;
 
+    /* g64coopdx: with the pack's first flag, its retail texture banks come before the slots. */
+    if ((tex = G64PackTexture(texID, 1)) != NULL) {
+        *texPtr = tex;
+        return;
+    }
     for (i = 4; i >= 0; i--) {
         if (textureBanks[i].data) {
             p = PORT_W2P(u8, textureBanks[i].textures);
@@ -299,6 +308,12 @@ void FindTexture(PTR32(Texture) *texPtr, u32 texID, s32 verbose) {
             }
         }
     }
+    /* g64coopdx: then the pack's retail texture banks, without the first flag. */
+    if ((tex = G64PackTexture(texID, 0)) != NULL) {
+        *texPtr = tex;
+        return;
+    }
+    G64PackTextureMissed();
     *texPtr = NULL;
     if (verbose) {
         PRINTF(D_80106864, texID);
@@ -755,6 +770,14 @@ void FindObject(PTR32(ObjectInstance) *objCPtr, u32 objID, char *name, s32 vital
                     return;
                 }
             }
+        }
+    }
+    /* g64coopdx: then the retail object banks a level pack names. */
+    {
+        ObjectInstance *inst = G64PackObject(objID);
+        if (inst != NULL) {
+            *objCPtr = inst;
+            return;
         }
     }
     *objCPtr = NULL;

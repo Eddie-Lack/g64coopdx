@@ -87,8 +87,10 @@ the layout. The file is 4 MiB and 24 bytes at most.
 
 Every `models.bin` passes the bank check (`src/client/bankcheck.h`), from a folder the player chose too. The
 game's loaders trust every field of a bank. A bad one would make them write outside it. Once the program has the
-ROM, the models also pass the rules that need it (`g64_models_check_rom`). The game loads retail banks from step 9
-of the plan on. Until then a pack's retail numbers are checked and kept, and the game does not load them.
+ROM, the models also pass the rules that need it (`g64_models_check_rom`). Each player's game loads the retail banks
+that the file names from the player's own ROM ([model-banks.md](model-banks.md), "Retail banks"). A retail object
+bank needs the texture banks of all its sprites: the font's, GENERIC, the level's own, or retail texture banks that
+the file names. The client refuses a pack that lacks one.
 
 ## The pack's id
 

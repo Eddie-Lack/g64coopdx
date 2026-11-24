@@ -117,10 +117,13 @@ void g64_instances_one_world(int on) { oneWorldRule = on != 0; }
 void G64SetPack(int level, unsigned rom, unsigned size);
 void G64SetPackScript(unsigned rom, unsigned size);
 void G64SetPackModels(unsigned texRom, unsigned texSize, unsigned objRom, unsigned objSize);
+void G64SetPackRetail(int first, const unsigned *tex, int numTex, const unsigned *obj, int numObj);
 void G64LuaStart(void);
 static int packLevel = -1;
 static unsigned packRom, packSize, packScriptRom, packScriptSize;
 static unsigned packTexRom, packTexSize, packObjRom, packObjSize;
+static unsigned packRetailTex[4], packRetailObj[4];
+static int packNumRetailTex, packNumRetailObj, packRetailFirst;
 
 void g64_instances_pack(int level, unsigned rom, unsigned size) {
     packLevel = size ? level : -1;
@@ -138,6 +141,18 @@ void g64_instances_pack_models(unsigned texRom, unsigned texSize, unsigned objRo
     packTexSize = texSize;
     packObjRom = objRom;
     packObjSize = objSize;
+    packNumRetailTex = packNumRetailObj = packRetailFirst = 0;
+}
+
+void g64_instances_pack_retail(int first, const unsigned char *tex, int numTex, const unsigned char *obj, int numObj) {
+    int i;
+    packNumRetailTex = numTex < 0 ? 0 : numTex > 4 ? 4 : numTex;
+    packNumRetailObj = numObj < 0 ? 0 : numObj > 4 ? 4 : numObj;
+    for (i = 0; i < packNumRetailTex; i++)
+        packRetailTex[i] = tex[i];
+    for (i = 0; i < packNumRetailObj; i++)
+        packRetailObj[i] = obj[i];
+    packRetailFirst = first != 0;
 }
 
 static void build_setup(void *ctx) {
@@ -151,6 +166,7 @@ static void build_setup(void *ctx) {
     G64SetPack(packLevel, packRom, packSize);
     G64SetPackScript(packScriptRom, packScriptSize);
     G64SetPackModels(packTexRom, packTexSize, packObjRom, packObjSize);
+    G64SetPackRetail(packRetailFirst, packRetailTex, packNumRetailTex, packRetailObj, packNumRetailObj);
     G64SetSessionWorld(r->session_world);
     {
         unsigned values[G64_SCRIPT_KEYS];

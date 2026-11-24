@@ -19,6 +19,11 @@ struct G64RomBanks {
     Vec objectIds, textureIds, texels, verts, vtx;
     /* Each object bank's ids, as pairs of the bank's number and an id (BankId), sorted. */
     Vec bankIds;
+    /* The texture ids that the sprites of the objects of the bank being walked name, and then each object bank's
+       such ids (BankId), sorted. */
+    Vec spriteIds, bankSprites;
+    /* Each texture bank's texture ids (BankId), sorted. */
+    Vec bankTextures;
     G64RomBanksStats st;
     int oom;
 };
@@ -232,8 +237,29 @@ static int push_object(Walk *w, uint32_t off) {
     return 1;
 }
 
-/* An object tree, as RestoreObjectPointers walks it: the mesh, the display list, then the child and the sibling.
-   An object reached twice is walked once, and so is a mesh. */
+/* An object's sprites, as RestoreObjectPointers reads them: numSprites records of 0x18 bytes, each with a texture id
+   in its first word. The game looks each id up with FindTexture. Many objects can share one array, so the bytes read
+   count against the bank's budget, as the hashes do. */
+static int walk_sprites(Walk *w, const uint8_t *o) {
+    int32_t count = (int32_t)be32(o + 0x28);
+    size_t at = be32(o + 0x2C) & 0xFFFFFF, len, i;
+
+    if (be32(o + 0x2C) == 0 || count <= 0)
+        return 1;
+    len = (size_t)count * 0x18;
+    if ((size_t)count > w->n / 0x18 || !inside(at, len, w->n) || len > w->budget - w->hashed)
+        return 0;
+    w->hashed += len;
+    for (i = 0; i < (size_t)count; i++) {
+        uint32_t id = be32(w->d + at + i * 0x18);
+        if (!vec_push(w->b, &w->b->spriteIds, &id))
+            return 0;
+    }
+    return 1;
+}
+
+/* An object tree, as RestoreObjectPointers walks it: the mesh, the sprites, the display list, then the child and the
+   sibling. An object reached twice is walked once, and so is a mesh. */
 static int walk_tree(Walk *w, uint32_t root) {
     w->top = 0;
     if (!push_object(w, root))
@@ -263,6 +289,8 @@ static int walk_tree(Walk *w, uint32_t root) {
             }
             w->meshSeen[m >> 3] |= (uint8_t)(1 << (m & 7));
         }
+        if (!walk_sprites(w, o))
+            return 0;
         if (list && !walk_list(w, list & 0xFFFFFF))
             return 0;
         /* The sibling goes on the stack first, so the child is walked first, as in the game. */
@@ -324,7 +352,7 @@ done:
 /* ---- The build. */
 
 static void index_bank(G64RomBanks *b, int kind, const uint8_t *rom, size_t romSize, uint32_t start, uint32_t end) {
-    size_t mark[5] = {b->objectIds.n, b->textureIds.n, b->texels.n, b->verts.n, b->vtx.n};
+    size_t mark[6] = {b->objectIds.n, b->textureIds.n, b->texels.n, b->verts.n, b->vtx.n, b->spriteIds.n};
     unsigned unhashed = b->st.unhashedTextures;
     const uint8_t *d;
     uint8_t *buf = NULL;
@@ -368,24 +396,47 @@ static void index_bank(G64RomBanks *b, int kind, const uint8_t *rom, size_t romS
         b->texels.n = mark[2];
         b->verts.n = mark[3];
         b->vtx.n = mark[4];
+        b->spriteIds.n = mark[5];
         b->st.unhashedTextures = unhashed;
         b->st.skipped[kind]++;
     }
     free(buf);
 }
 
+/* Pairs each id that the walk of bank num put in from on with num, in to. */
+static void pair_ids(G64RomBanks *b, Vec *to, const Vec *from, size_t first, unsigned num) {
+    for (; first < from->n; first++) {
+        BankId e;
+        e.num = num;
+        memcpy(&e.id, from->p + first * 4, 4);
+        vec_push(b, to, &e);
+    }
+}
+
+/* Gives bank num the pairs that bank was of an earlier number has in v. */
+static void copy_pairs(G64RomBanks *b, Vec *v, unsigned was, unsigned num) {
+    size_t i, have = v->n;
+    for (i = 0; i < have; i++) {
+        BankId e = ((const BankId *)(const void *)v->p)[i];
+        if (e.num == was) {
+            e.num = num;
+            vec_push(b, v, &e);
+        }
+    }
+}
+
 G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_range_fn range, void *user) {
     G64RomBanks *b = calloc(1, sizeof *b);
     uint32_t seenStart[2][256], seenEnd[2][256];
     unsigned seenNum[2][256], seenCount[2] = {0, 0};
-    size_t first;
+    size_t first, firstTex;
     int kind;
     unsigned num, k;
 
     if (b == NULL)
         return NULL;
-    b->objectIds.elem = b->textureIds.elem = 4;
-    b->bankIds.elem = sizeof(BankId);
+    b->objectIds.elem = b->textureIds.elem = b->spriteIds.elem = 4;
+    b->bankIds.elem = b->bankSprites.elem = b->bankTextures.elem = sizeof(BankId);
     b->texels.elem = b->verts.elem = b->vtx.elem = 16;
     for (kind = 0; kind < 2; kind++) {
         for (num = 0; num < 256 && !b->oom; num++) {
@@ -397,13 +448,11 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
                 if (seenStart[kind][k] == start && seenEnd[kind][k] == end)
                     break;
             if (k < seenCount[kind]) {
-                size_t i, have = b->bankIds.n;
-                for (i = 0; kind == G64_BANK_OBJECT && i < have; i++) {
-                    BankId e = ((const BankId *)(const void *)b->bankIds.p)[i];
-                    if (e.num == seenNum[kind][k]) {
-                        e.num = num;
-                        vec_push(b, &b->bankIds, &e);
-                    }
+                if (kind == G64_BANK_OBJECT) {
+                    copy_pairs(b, &b->bankIds, seenNum[kind][k], num);
+                    copy_pairs(b, &b->bankSprites, seenNum[kind][k], num);
+                } else {
+                    copy_pairs(b, &b->bankTextures, seenNum[kind][k], num);
                 }
                 continue;
             }
@@ -412,13 +461,15 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
             seenNum[kind][seenCount[kind]] = num;
             seenCount[kind]++;
             first = b->objectIds.n;
+            firstTex = b->textureIds.n;
+            b->spriteIds.n = 0;
             index_bank(b, kind, rom, romSize, start, end);
             /* A bank that was skipped took its ids back out. */
-            for (; kind == G64_BANK_OBJECT && first < b->objectIds.n; first++) {
-                BankId e;
-                e.num = num;
-                memcpy(&e.id, b->objectIds.p + first * 4, 4);
-                vec_push(b, &b->bankIds, &e);
+            if (kind == G64_BANK_OBJECT) {
+                pair_ids(b, &b->bankIds, &b->objectIds, first, num);
+                pair_ids(b, &b->bankSprites, &b->spriteIds, 0, num);
+            } else {
+                pair_ids(b, &b->bankTextures, &b->textureIds, firstTex, num);
             }
         }
     }
@@ -428,6 +479,8 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
     }
     vec_unique(&b->objectIds, cmp_u32);
     vec_unique(&b->bankIds, cmp_bank_id);
+    vec_unique(&b->bankSprites, cmp_bank_id);
+    vec_unique(&b->bankTextures, cmp_bank_id);
     vec_unique(&b->textureIds, cmp_u32);
     vec_unique(&b->texels, cmp_h16);
     vec_unique(&b->verts, cmp_h16);
@@ -445,6 +498,9 @@ void g64_rombanks_free(G64RomBanks *b) {
         return;
     free(b->objectIds.p);
     free(b->bankIds.p);
+    free(b->spriteIds.p);
+    free(b->bankSprites.p);
+    free(b->bankTextures.p);
     free(b->textureIds.p);
     free(b->texels.p);
     free(b->verts.p);
@@ -484,6 +540,26 @@ int g64_rombanks_bank_has(void *user, unsigned num, uint32_t id) {
 
 int g64_rombanks_has_texture_id(const G64RomBanks *b, uint32_t id) {
     return vec_has(&b->textureIds, &id, cmp_u32);
+}
+
+int g64_rombanks_texture_bank_has(const G64RomBanks *b, unsigned num, uint32_t id) {
+    BankId e;
+    e.num = num;
+    e.id = id;
+    return vec_has(&b->bankTextures, &e, cmp_bank_id);
+}
+
+size_t g64_rombanks_sprite_textures(const G64RomBanks *b, unsigned num, uint32_t *ids, size_t max) {
+    size_t i, n = 0;
+    for (i = 0; i < b->bankSprites.n; i++) {
+        const BankId *e = (const BankId *)(const void *)b->bankSprites.p + i;
+        if (e->num == num) {
+            if (n < max)
+                ids[n] = e->id;
+            n++;
+        }
+    }
+    return n;
 }
 
 int g64_rombanks_has_texels_hash(const G64RomBanks *b, const uint8_t *hash) {

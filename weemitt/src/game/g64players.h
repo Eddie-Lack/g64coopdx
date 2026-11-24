@@ -311,12 +311,19 @@ extern s32 g64AnyBall;
 extern s32 g64PackLevel;
 extern u32 g64PackRom, g64PackSize;
 void G64SetPack(s32 level, u32 rom, u32 size);
-/* A level pack's own models (g64packbanks.c): where its texture bank and its object bank are in the ROM buffer.
-   G64LoadPackBanks loads them into free slots when the level is the pack's (LoadLevel, game.c). */
+/* A level pack's own models (g64packbanks.c): where its texture bank and its object bank are in the ROM buffer, and
+   the retail banks it names by number. G64LoadPackBanks loads the pack's banks into free slots and the retail banks
+   into a table on the heap when the level is the pack's (LoadLevel, game.c). G64DropPackBanks forgets the table
+   where the slots are freed. */
 extern u32 g64PackTexRom, g64PackTexSize, g64PackObjRom, g64PackObjSize;
 extern s32 g64PackHeapFree, g64PackHeapGap, g64PackHeapBlocks, g64PackHeapLastStatic;
+extern s32 g64PackTextureHits, g64PackObjectHits, g64PackTextureMisses;
 void G64SetPackModels(u32 texRom, u32 texSize, u32 objRom, u32 objSize);
+void G64SetPackRetail(s32 first, const u32 *tex, s32 numTex, const u32 *obj, s32 numObj);
 void G64LoadPackBanks(s32 num);
+void G64DropPackBanks(void);
+s32 G64PackBankLoading(void);
+void G64PackTableCounts(s32 *numTex, s32 *numObj);
 /* The object banks LoadLevel loads for a level before the pack's (g64packbanks.c). */
 s32 G64LevelBankNumbers(s32 num, u32 *banks, s32 max);
 /* For tests (g64packbanks.c): the ids in an object slot, and the ids of the objects the game finds by its own names. */

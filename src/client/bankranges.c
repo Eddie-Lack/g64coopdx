@@ -79,3 +79,27 @@ int g64_level_object_banks(int num, unsigned *banks, int max) {
     }
     return n;
 }
+
+/* Each level's texture banks besides the font's (10) and GENERIC (2), as LoadLevel loads them in an online game: the
+   world's bank (12 in PRESENT, level 43), the cameo bank (11) from INTRO (level 46) on, CKBONUS (15) in the carnival's
+   bonus level (19), and FLYTHRU's (13) in FLYTHRU (level 44). 0 ends a row early. tests/rom/packbanks.c pins every
+   row against G64LevelTextureBanks, and the rule that uses them against the game. */
+static const uint8_t levelTextures[48][2] = {
+    {9}, {9}, {9}, {9}, {9}, {9}, {9}, {9}, {9}, {9}, {3}, {3}, {3}, {3}, {3}, {4},
+    {4}, {4}, {4}, {4, 15}, {6}, {6}, {6}, {6}, {6}, {7}, {7}, {7}, {7}, {7}, {8}, {8},
+    {8}, {8}, {8}, {5}, {5}, {5}, {5}, {5}, {5}, {5}, {9}, {12}, {9, 13}, {9}, {11}, {11},
+};
+
+int g64_level_texture_banks(int num, unsigned *banks, int max) {
+    unsigned list[4];
+    int n = 0, k;
+    if (num < 0 || num >= 48)
+        return -1;
+    list[n++] = 10;
+    list[n++] = 2;
+    for (k = 0; k < 2 && levelTextures[num][k] != 0; k++)
+        list[n++] = levelTextures[num][k];
+    for (k = 0; k < n && k < max; k++)
+        banks[k] = list[k];
+    return n;
+}

@@ -492,6 +492,8 @@ void FreeScreen(void) {
     StopDrawing("freescn");
     ClearAllText();
     DestroyScreenDebris();
+    /* g64coopdx: the retail banks of a level pack go with the slots. */
+    G64DropPackBanks();
     for (i = 0; i < 5; i++) {
         for (j = 0; j < objectBanks[i].count; j++) {
             FreeOFTC(objectBanks[i].entries[j].inst->obj);
@@ -646,6 +648,8 @@ void FreeLevel2(s32 full) {
     DestroyOverlay(&tipOverlay3);
     DestroyOverlay(&timePicOL);
     FreeFGObjects();
+    /* g64coopdx: the retail banks of a level pack go with the slots. */
+    G64DropPackBanks();
     for (i = 0; i < 5; i++) {
         for (j = 0; j < objectBanks[i].count; j++) {
             FreeOFTC(objectBanks[i].entries[j].inst->obj);

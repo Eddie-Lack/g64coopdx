@@ -69,6 +69,11 @@ void g64_instances_pack_script(unsigned rom, unsigned size);
  * texRom and objRom of the ROM buffer. Both sizes 0 means none. The banks must have passed the bank check
  * (bankcheck.h). The game loads them in the pack's level (weemitt's g64packbanks.c). */
 void g64_instances_pack_models(unsigned texRom, unsigned texSize, unsigned objRom, unsigned objSize);
+/* The retail banks the pack's models.bin names by number, after g64_instances_pack_models, which clears them: numTex
+ * texture banks and numObj object banks, at most 4 of each. first is the header's flag: the retail texture banks are
+ * searched before the level's own. Each machine loads them from its own ROM in the pack's level (weemitt's
+ * g64packbanks.c). */
+void g64_instances_pack_retail(int first, const unsigned char *tex, int numTex, const unsigned char *obj, int numObj);
 /* The same for a session that players may join later: members has a bit for each player who is there at the start
  * (at least one), and colors has every player's colors (NULL: the game's own now). */
 g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned members,

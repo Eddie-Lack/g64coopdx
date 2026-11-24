@@ -115,6 +115,11 @@ void G64TexWordLoaded(s32 k) {
     texLoaded |= 1u << k;
 }
 
+/* For tests: the words this level's models have, a bit each. */
+u32 G64TexWordsLoaded(void) {
+    return texLoaded;
+}
+
 /* Word k's place in the game's memory, or NULL when the level has none. 0 to 5 are the ball's, 6 to 9 the glove's. */
 static u32 *tex_word(s32 k) {
     if (!(texLoaded & (1u << k)))

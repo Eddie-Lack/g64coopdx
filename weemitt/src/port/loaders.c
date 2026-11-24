@@ -482,6 +482,9 @@ static s32 name_is(Object *obj, const char *name) {
 
 /* g64coopdx: this level's model has texture word k (src/game/g64players.c, tex_word). */
 void G64TexWordLoaded(s32 k);
+/* g64coopdx: 1 while a level pack's banks load (g64packbanks.c). Retail banks hold the ball's and the hand's names,
+   and must not take the game's words for them. */
+s32 G64PackBankLoading(void);
 
 void RestoreDrawList(u8 *list, s32 base, Object *obj) {
     u32 *dl = (u32 *)list;
@@ -499,7 +502,9 @@ void RestoreDrawList(u8 *list, s32 base, Object *obj) {
                     if (tex != NULL) {
                         dl[1] = (u32)tex->data;
                     }
-                    if (name_is(obj, "gball")) {
+                    if (G64PackBankLoading()) {
+                        /* A pack's bank leaves the ball's and the hand's words as they are. */
+                    } else if (name_is(obj, "gball")) {
                         ballTextureData = &dl[1];
                         G64TexWordLoaded(0);
                     } else if (name_is(obj, "cball")) {
@@ -521,7 +526,9 @@ void RestoreDrawList(u8 *list, s32 base, Object *obj) {
                     if (tex != NULL) {
                         dl[1] = (u32)tex->palette;
                     }
-                    if (name_is(obj, "gball")) {
+                    if (G64PackBankLoading()) {
+                        /* A pack's bank leaves the ball's and the hand's words as they are. */
+                    } else if (name_is(obj, "gball")) {
                         ballTexturePalette = &dl[1];
                         G64TexWordLoaded(1);
                     } else if (name_is(obj, "cball")) {

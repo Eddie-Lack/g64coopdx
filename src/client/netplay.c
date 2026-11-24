@@ -520,6 +520,10 @@ static int host_offer_pack(char *err, size_t errSize) {
        game's tables when the game starts. */
     if (g64_pack_rom_level(&pack, baseRom, baseRomSize) < 0 && g64_pack_check_strict(&pack, NULL) == NULL) {
         idWhy = baseRom ? g64_pack_check_ids_rom(&pack, baseRom, baseRomSize, &rule, &at) : "there is no ROM";
+        if (idWhy && rule == 2) {
+            snprintf(err, errSize, "the level pack's models were refused: %s (object bank %u)", idWhy, (unsigned)at);
+            return -1;
+        }
         if (idWhy && rule) {
             snprintf(err, errSize,
                      "the level pack's level file did not pass the check of its objects: %s (at byte %u)", idWhy,
@@ -652,7 +656,10 @@ static int joiner_pack(void) {
             idWhy = baseRom ? g64_pack_check_ids_rom(&got, baseRom, baseRomSize, &rule, &at) : "there is no ROM";
             if (idWhy) {
                 g64_pack_free(&got);
-                if (rule)
+                if (rule == 2)
+                    snprintf(err, sizeof err, "the host's level pack was refused: %s (object bank %u)", idWhy,
+                             (unsigned)at);
+                else if (rule)
                     snprintf(err, sizeof err,
                              "the host's level pack was refused: its level file did not pass the check of its "
                              "objects: %s (at byte %u)",
@@ -673,7 +680,8 @@ static int joiner_pack(void) {
 
 /* The rules that need the ROM, on the session's pack before the game is built. models.bin must pass
  * g64_models_check_rom: the pack's models must not hold the ROM's own ids or data. Every object the level file names
- * must be in a bank the level will have (g64_pack_check_level_ids). The host checked both before it offered the
+ * must be in a bank the level will have (g64_pack_check_level_ids). The retail object banks that models.bin names
+ * must have their sprites' textures (g64_pack_check_retail_sprites). The host checked these before it offered the
  * pack, and a joiner checked a download, with the table of bankranges.h. Here the banks' ranges and the level's banks
  * are the game's own, read at power-on (rom_index). The index is built for the check and freed after it. Returns 0
  * when the pack passes. */
@@ -698,6 +706,15 @@ static int check_pack_ids_and_models(char *err, size_t errSize) {
         snprintf(err, errSize, "the level pack's models.bin did not pass the check: %s (at byte %u)", why,
                  (unsigned)at);
         return -1;
+    }
+    if (pack.models) {
+        unsigned bank;
+        why = g64_pack_check_retail_sprites(pack.level, &pack.modelsInfo, index, &bank);
+        if (why) {
+            g64_rombanks_free(index);
+            snprintf(err, errSize, "the level pack's models were refused: %s (object bank %u)", why, bank);
+            return -1;
+        }
     }
     if (!ids) {
         g64_rombanks_free(index);
@@ -1197,6 +1214,14 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
             plog_printf("g64coopdx: the level pack has models: a texture bank of %u bytes and an object bank of %u "
                         "bytes",
                         (unsigned)l.texSize, (unsigned)l.objSize);
+        }
+        if (pack.models && (pack.modelsInfo.numTex || pack.modelsInfo.numObj)) {
+            /* The retail banks it names: each machine loads them from its own ROM, which the hello showed is the
+               host's. */
+            g64_instances_pack_retail(pack.modelsInfo.flags & 1, pack.modelsInfo.tex, pack.modelsInfo.numTex,
+                                      pack.modelsInfo.obj, pack.modelsInfo.numObj);
+            plog_printf("g64coopdx: the level pack names %u retail texture banks and %u retail object banks",
+                        (unsigned)pack.modelsInfo.numTex, (unsigned)pack.modelsInfo.numObj);
         }
         engine_set_rom(e, packRom, (unsigned long)l.size);
         g64_instances_pack(pack.level, (unsigned)baseRomSize, (unsigned)pack.levSize);

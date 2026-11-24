@@ -200,7 +200,7 @@ game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
   SINEBRIDGE at 4, DESTRUCTIBLE (its debris) and ROPEBRIDGE at 6, ORBITBRIDGE at 8, WATER at 38. A DESTRUCTIBLE with
   id 0 has no debris, as in the game's own levels.
 - Every id must be in a bank the level will have: one of the level's own object banks, the pack's own object bank,
-  or a retail object bank that models.bin names. The game does not load retail banks until step 9.
+  or a retail object bank that models.bin names.
 - The level's own banks are the ones `LoadLevel` loads before the pack's: bank 0, the world's bank for a level before
   the intro, bank 1 (69 in the fly-through) and the level's bank. `G64LevelBankNumbers` (g64packbanks.c) reads them
   from the game's tables. The online program asks it right after power-on. The pack tool has no game, so it uses a
@@ -250,14 +250,140 @@ game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
 - The pack's banks are freed with the level's own, at the three places that free the five slots (`FreeLevel2`
   twice in game.c, and frontend.c). The end of level screen loads its banks only after `FreeLevel`.
 - `RestoreDrawList` points the ball's and the hand's texture words at an object named `gball`, `cball`, `GShinL`,
-  `GShinR` or `gbl_bt`. The check refuses those names in the pack's own bank, so its load needs no flag. Retail
-  banks hold them, and step 9 needs one.
-- Retail banks load into a table on the game's heap, not into slots. One free object slot cannot hold the pack's
-  bank and a retail bank. Also, the game searches texture slots from the last one down, so a retail bank in a slot
-  would win over the level's own. The table is searched after the slots, as in Glovebox's mod. This differs from
-  the default chosen at the start.
+  `GShinR` or `gbl_bt`. The check refuses those names in the pack's own bank. Retail banks hold them: OUTRO has
+  `GShinL` and `GShinR`, and FLYTHRU has `gball`. So `RestoreDrawList` skips those names while `G64LoadPackBanks`
+  runs (`G64PackBankLoading`). The flag is set and cleared within that one call, so no saved state holds it set.
+- Retail banks load into a table on the game's heap, not into slots ("Retail banks" below). This differs from the
+  default chosen at the start.
 - Everything loads onto the game's heap, inside the saved and hashed memory. Every machine has the same ROM and
   pack, so every machine makes the same allocations.
+
+### Retail banks
+
+`models.bin` may name up to 4 retail texture banks and 4 retail object banks by number. Each player's game loads
+them from the player's own ROM. Only the numbers cross the network, and the session's hello has already shown that
+every player has the same ROM.
+
+Why a table and not the slots:
+
+- A level always leaves one object slot free, and the pack's own bank may need it.
+- The game searches the texture slots from the last one down. A retail bank in a slot would win over the level's
+  own banks when an id is in both. Glovebox's mod searches the slots first, and the author tests the level with the
+  mod.
+
+How they load (`G64LoadPackBanks` in `weemitt/src/game/g64packbanks.c`):
+
+- The order is: each retail texture bank, the pack's texture bank, each retail object bank, the pack's object bank.
+  An object bank's load looks up its textures, so the texture banks come first.
+- The table is one block on the game's heap, `G64Banks`. It holds up to 4 texture bank records, up to 4 object bank
+  records, their counts and the header's first flag.
+- Each retail bank loads with the swap of Glovebox's mod: the five slots of its kind are put aside and emptied, the
+  game's own loader puts the bank in slot 0, slot 0 is copied into the table, and the five slots come back.
+- For a texture bank, `cyclingTextures` and its count are put back too. A retail texture in the table does not
+  animate, as in the mod. The game's list of 20 animated textures cannot overflow.
+- During an object bank's load the texture slots stay as they are. Its objects find the level's textures and the
+  table's.
+- The game skips a number that its bank switch lacks, the font and GENERIC texture banks, and object banks 0 and 1.
+  The client refuses the same numbers. A bad number never reaches the loaders' fatal default.
+- The client passes the numbers and the flag to the game with `g64_instances_pack_retail` (`src/client/instances.h`),
+  from the pack's checked header. The game keeps them with `G64SetPackRetail`.
+
+How the game finds them:
+
+- `FindTexture` (banks.c): with the first flag, the table first. Then slots 4 down to 0, as before. Then the table,
+  without the flag.
+- `FindObject` (banks.c): slots 0 to 4, as before, then the table.
+- A level's own picture therefore wins when a retail model's texture id is also in the level's world. That is what
+  the author sees in the emulator with Glovebox's mod.
+
+When the table is gone:
+
+- Two statics hold the table's address as the game stores it, and the value of `portHeapInits` when the table was
+  made. `JallocInit` raises `portHeapInits`, so a lookup never reads a table on a heap that was set up again.
+- The three places that free the five slots also forget the table (`G64DropPackBanks`): `FreeScreen` and
+  `FreeLevel2` in game.c, and frontend.c. The design said the stamp alone needs no edit there. But `LoadFont` looks up
+  textures after the frees and before `JallocInit`, while the stamp is still current.
+- The statics are in the game's saved sections (`gstate_bss`). objdump shows this on the Linux online program and
+  on the engine that the ROM tests link, for Linux and for Windows. A saved state holds them with the heap they
+  describe.
+
+An object bank may be named without the texture banks it needs. A texture that no bank has then stays missing:
+
+- A display list's texture word keeps the texture's id. The renderer reads a texture only inside the game's memory
+  (`gfx_mem` in gfx_mem.c), so a wrong word changes the picture only. This was read in the code. The ROM tests have no
+  renderer, so it did not run.
+- A face's texture is NULL. `LoadTexture` returns at once for NULL.
+- A sprite's texture is NULL. The game reads it with no test (`AddObjectsSpritesToSpriteList`, actor.c), and the
+  program crashes. `make packbanks` found this with bank 19. So `G64LoadPackBanks` walks each retail object bank after
+  its load, and a sprite with no texture stops the level as unplayable ("RETAIL TEXTURES").
+- The game checks every object of the bank, also the ones the level never places. The game can find an object of a
+  retail bank by a name of its own (an enemy's or a pick-up's), so a placed object is not the only way in.
+
+The client refuses the same packs before the game sees them (`g64_pack_check_retail_sprites`, `src/client/packrom.h`):
+
+- The index of the ROM's banks (`rombanks.h`) now also keeps each texture bank's ids, and the texture ids that each
+  object bank's sprites name. The walk reads the sprites as `RestoreObjectPointers` does. Their bytes count against
+  the bank's budget.
+- Every sprite texture of each retail object bank that `models.bin` names must be in one of these texture banks: the
+  font's (10), GENERIC (2), the level's own, and the retail texture banks that `models.bin` names. The level's own
+  come from a table in `bankranges.c` (`g64_level_texture_banks`), which `make packbanks` compares with the game's.
+- The rule runs in `g64_pack_check_ids_rom`, after the rule for the level's ids. The host runs it before its offer,
+  a joiner on the download, and the pack tool on a folder. `check_pack_ids_and_models` in netplay.c runs it again
+  with the game's own bank ranges. A refusal gives rule 2 and the object bank's number.
+- Glovebox's pack export does not keep this rule yet. It names a retail texture bank only when the level's placed
+  objects need one of its textures. So it can write a pack that names, say, object bank 19 alone. Such a pack is now
+  refused by the client. Glovebox's export should add the texture banks of every sprite of each object bank it names,
+  or refuse with the same message.
+
+`make packbanks` (`tests/rom/packbanks.c`) tests the table with the ROM. Its output is equal on Linux and under Wine.
+
+- It measures each allowed bank's cost in level 13: 17 texture banks and 54 object banks. The table takes 1 block.
+  A texture bank takes 1 block and at most 689,824 bytes. An object bank takes at most 22 blocks (bank 29, one for
+  each mesh with texture coordinates) and 288,096 bytes (bank 65).
+- With its world's texture banks, every object bank finds all its textures but FLYTHRU (69), which misses 2 in
+  level 13. Neither is a sprite's.
+- The 54 object banks make 14 groups of at most 4, each with its world's texture banks. Every group plays in every
+  level, with 16 players who press buttons at random, for 600 frames. Every bank loads, a level stops only where it
+  stops without the pack's banks too, and the program never stops. Every level keeps at least 200 blocks (level 15) and
+  19,675,600 bytes free. That is 672 runs. The whole test takes about 10 minutes on Linux and under Wine together.
+- The four costliest object banks by blocks, the four by bytes, and the four largest banks of each kind play in
+  levels 15, 35, 7 and 46. The least free is 180 blocks (level 15) and 17,781,632 bytes.
+- A level file that names 64 objects of a retail bank as scenery plays, and the table answers each lookup. Without
+  the retail number the level stops as unplayable, and `g64_pack_check_ids` refuses the file. The same objects play
+  with the first flag.
+- Every object bank alone, without its texture banks, with up to 64 of its objects that level 13 lacks as scenery:
+  the level plays, or stops as unplayable where a sprite's texture is missing (banks 19, 27, 38, 55, 62, 66 and 69).
+  The program never stops, and two runs give the same hash.
+- The lookup order: level 13's own world texture bank (3) as a retail bank, with an object bank of its world. Every
+  id is then in a slot and in the table. The table answers no lookup without the first flag, and 76 with it.
+- OUTRO and FLYTHRU in levels 13, 0 and 1 leave the ball's and the hand's texture words and their bits unchanged.
+  The table holds `GShinL`, `GShinR` and `gball`.
+- The client's rule agrees with the game in all 5,184 cases: every allowed object bank, alone and with its world's
+  texture banks, in every level. The game stops 300 of the cases alone and none with their texture banks, and the
+  client refuses exactly those. The table of the levels' texture banks equals `G64LevelTextureBanks`.
+- A save at frame 300 and a load give the same memory hash at frame 600. So does a save, then another level with no
+  retail banks or with other ones, then the load. After the load the table has the saved level's counts and ids. The
+  hash alone would not show a lost table: with the table dropped right after the load, the hash stays the same, and
+  only the table's counts differ. The build already refuses a static outside the saved sections (`checkgame` in the
+  engine's Makefile).
+- Level 1 ends offline, with the first flag, and the hub loads. It also ends as a completed level. Both runs free
+  the slots in `FreeLevel2`; neither reaches `FreeScreen`. The table is gone, and no lookup is answered from it after the level's end. A test counter counts lookups that reach a
+  live table while all five object slots are empty, outside `G64LoadPackBanks`: that happens only between the frees of
+  the slots and `JallocInit`. It stays 0. Without the drop in `FreeLevel2` it is 2 (the lookups in `LoadFont`), and
+  the test fails. Without the drop in `FreeScreen` or in frontend.c the test still passes: no test reaches those two
+  places with a live table.
+- `make instances` plays the sample pack with a `models.bin` that names only retail banks. It goes through the pack
+  reader and `g64_instances_pack_retail`, and the game loads both banks into its table. The client accepts that pack,
+  and refuses the same pack with object bank 19 alone (rule 2).
+
+`make packbanks` also found a fault of level files that has nothing to do with retail banks. A level file with about
+107 of bank 29's objects as scenery crashes the game, in level 29 itself and with no pack banks: `CheckCollisions` and
+`UpdateWater` find a broken list of actors. 100 of them play. The test names at most 64 objects of a bank.
+
+The caps stay at 4 and 4. The costs leave room for more: the table and 4 banks of each kind take at most 51 blocks of
+the 1,245 free where the banks load. The level parser already stops a level that would bring the blocks in use to 1,100
+(`G64_PARSE_BLOCKS`), and the table's blocks count. More banks would change the header and the bank check, and can
+come in a later step.
 
 ## Platforms
 
@@ -406,8 +532,8 @@ Each largest count plays 600 frames the same in two runs. One more copy stops th
 frames. The same cases in levels 15, 20 and 35 also play at the limit. Level 15 uses the most blocks in play, and
 keeps at least 166 free there. The 17 flat meshes take about half a second to start (0.45 to 0.52 s over
 four runs, on Linux and under Wine, on one machine). The test prints the time to stderr.
-Before this change, 700 small copies or 130 copies of 1500 faces made the game stop the program. Step 9 adds the
-budget for retail banks.
+Before this change, 700 small copies or 130 copies of 1500 faces made the game stop the program. Retail banks add
+at most 51 blocks and about 3.1 MB ("Retail banks" above), and their blocks count toward the parser's limit.
 
 ## Steps
 
@@ -421,6 +547,6 @@ budget for retail banks.
 | 6 | `models.bin` in the pack format, the pack tool and the cache | yes |
 | 7 | The level file's object ids against the banks | yes |
 | 8 | The offer and the transfer (protocol 12) | yes |
-| 9 | Retail banks in the heap table, and their heap budget | |
+| 9 | Retail banks in the heap table, and their heap budget | yes |
 | 10 | Glovebox's pack export with models | |
 | 11 | A model in the sample pack | |

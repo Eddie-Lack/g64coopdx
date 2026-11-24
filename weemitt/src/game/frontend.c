@@ -23,6 +23,9 @@ PORT_C_BEGIN
 #include "present.h"
 #include "delta.h"
 
+/* g64coopdx: forgets the retail banks of a level pack (g64packbanks.c). */
+void G64DropPackBanks(void);
+
 extern s32 introAnimTime;
 extern s32 aimBallX;
 extern s32 aimBallY;
@@ -467,6 +470,8 @@ void KillTitle(void) {
     InitBackdropList();
     InitBackgroundLightList();
     InitAmbientSoundList();
+    /* g64coopdx: the retail banks of a level pack go with the slots. */
+    G64DropPackBanks();
     for (i = 0; i < 5; i++) {
         for (j = 0; j < objectBanks[i].count; j++) {
             FreeOFTC(objectBanks[i].entries[j].inst->obj);
