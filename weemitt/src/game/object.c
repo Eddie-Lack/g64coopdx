@@ -905,6 +905,11 @@ void DeformTextureCoords(Object *obj) {
     s32 j;
     s32 i;
 
+    /* g64coopdx: a pack's mesh has no texture coordinates (src/client/bankcheck.c). A level can still mark its object
+       for this with WATER or MODGE. */
+    if (texCoord == NULL) {
+        return;
+    }
     if (texmode == 0) {
         for (i = 0; i < obj->mesh->numFaces; i++) {
             for (j = 0; j < 3; j++) {

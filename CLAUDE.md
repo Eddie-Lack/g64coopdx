@@ -66,6 +66,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make sound         # the online game's sound through rollbacks, on Linux and under Wine (needs the ROM)
     make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips, cameos, each player's ball texture and the any-ball rule with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
+    make meshguards    # the game with meshes that have no texture coordinates and no colors, as a pack's; Linux and Wine (needs the ROM)
     make levcheck      # the level file check reads every level as the game's parser does, on Linux and Wine (needs the ROM)
     make rombanks      # the index of the ROM's banks and the FLA2 reader against the game's loaders, on Linux and Wine (needs the ROM)
     make bots          # every level with 8 and with 16 players who play at random, on Linux and Wine (needs the ROM)
@@ -75,7 +76,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed
     make test-windows  # the loopback tests as a Windows program under Wine; its hash must equal Linux's
-    make fuzz          # the message parsers and the scripts' sandbox under libFuzzer (needs clang)
+    make fuzz          # the message parsers, the bank check and the scripts' sandbox under libFuzzer (needs clang)
     make image         # the lobby server's container image (needs Docker)
 
 CI (`.github/workflows/ci.yml`) runs the tests, also under Wine, and fuzzes the parsers. It builds the server and the
@@ -104,6 +105,8 @@ run locally: set `GLOVER_ROM`.
 | The sample pack, Garib Island: its files and its Glovebox source (`level.xml`, written from scratch) | packs/garib-island; the test `sample_pack` in tests/rom/instances.c |
 | The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
 | The bounded reader of compressed (FLA2) banks, and the index of the ROM's banks (ids and hashes) | src/client (`fla2.h`, `rombanks.h`; the game's ranges in `rombanks_game.c`), docs/discovery/model-banks.md; the test tests/rom/rombanks.c |
+| The check of a pack's models.bin (its header, texture bank and object bank), and its rules that need the ROM | src/client (`bankcheck.h`), docs/discovery/model-banks.md; the test tests/net/bankcheck_test.c, the fixture tests/fixtures/cube.models.bin |
+| The shadow walk (a copy of the game's bank loaders that stops at any access outside the bank), and the maker of test banks | tests/fuzz (`bankwalk.h`, `bankcheck_fuzz.c`), tests/net/bankbuild.h |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
 | How players host and join | docs/playing-online.md |
