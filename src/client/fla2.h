@@ -8,7 +8,8 @@
  *
  * The game's decompressor has no bounds. This one reads and writes only inside its buffers, and refuses a stream
  * that ends early, runs past its source, or gives more or fewer bytes than its header says. Every byte of the
- * source is untrusted. It is ported from Glovebox's fla2.rs (the owner's code). */
+ * source is untrusted. It is ported from Glovebox's fla2.rs (the owner's code), which was ported from libgarib
+ * (MIT, THIRD_PARTY_NOTICES.md). */
 #ifndef G64_FLA2_H
 #define G64_FLA2_H
 

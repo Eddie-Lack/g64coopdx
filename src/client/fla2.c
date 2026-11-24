@@ -1,5 +1,5 @@
 /* The bounded FLA2 reader (fla2.h). Ported from Glovebox's crates/core/src/fla2.rs (the owner's code), with the
- * end of a stream as the game reads it. */
+ * end of a stream as the game reads it. Glovebox ported it from libgarib (MIT, THIRD_PARTY_NOTICES.md). */
 #include "fla2.h"
 
 #include <string.h>
