@@ -1323,7 +1323,8 @@ void ApplyAction(s32 action) {
         case HAND_FROG_TONGUE:
             PlaySample(8, &hand.pos, 100, 60);
             tongueBullet = FireBulletFromActor(&hand, TONGUE_BULLET, 0);
-            if (tongueBullet->target != NULL) {
+            /* g64coopdx: with many players the bullets can run out, and the tongue then has none. */
+            if (tongueBullet != NULL && tongueBullet->target != NULL) {
                 tongueTime = tTime1;
             } else {
                 tongueTime = tTime2;
@@ -2506,7 +2507,11 @@ void MaintainAction(void) {
         }
         break;
     case HAND_FROG_TONGUE:
-        if (handControl.actionTime <= tongueTime) {
+        /* g64coopdx: a tongue with no bullet (FireBulletFromActor found none free) has no tip to follow and draws
+           no bits. */
+        if (tongueBullet == NULL) {
+            seg = -1;
+        } else if (handControl.actionTime <= tongueTime) {
             tongueOffsetPos[handControl.actionTime].x = tongueBullet->actor.pos.x - hand.pos.x;
             tongueOffsetPos[handControl.actionTime].y = tongueBullet->actor.pos.y - hand.pos.y;
             tongueOffsetPos[handControl.actionTime].z = tongueBullet->actor.pos.z - hand.pos.z;
@@ -2615,7 +2620,9 @@ void MaintainAction(void) {
         if (deltaTick && 2.0f * tongueTime + 2.0f <= handControl.actionTime) {
             bullet = tongueBullet;
             tongueBullet = NULL;
-            bullet->actor.lifeTimer = 1;
+            if (bullet != NULL) {
+                bullet->actor.lifeTimer = 1;
+            }
             ApplyAction(HAND_FROG_IDLE);
         }
         break;

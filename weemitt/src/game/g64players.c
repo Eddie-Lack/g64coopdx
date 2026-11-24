@@ -138,6 +138,13 @@ static u32 *tex_word(s32 k) {
     }
 }
 
+/* tongueOffsetPos holds 12 points: gen/ram.S gives it the 144 bytes up to the next variable. */
+#define G64_TONGUE_STEPS 12
+extern PTR32(struct Bullet) tongueBullet;
+extern f32 tongueTime;
+extern s32 tongueStuck;
+extern Vec3 tongueOffsetPos[];
+
 typedef struct G64Slot {
     u32 texWords[G64_TEX_WORDS];
     PTR32(ObjectInstance) crystalBall;
@@ -193,6 +200,11 @@ typedef struct G64Slot {
     u8 caveStagePad[2];
     /* The state of this player's camera zones (puzzle.c, PuzzleSwapCameraState), made the first time they run. */
     PTR32(u8) puzzleState;
+    /* The frog hand's tongue (hand.c): its bullet, its times and the tip's path. */
+    PTR32(struct Bullet) tongueBullet;
+    f32 tongueTime;
+    s32 tongueStuck;
+    Vec3 tongueOffsetPos[G64_TONGUE_STEPS];
 } G64Slot;
 
 /* Each extra player's slot, on the game's heap. Slot 0 is unused: player 0 lives in the globals. */
@@ -380,6 +392,10 @@ static void swap_slot(G64Slot *s) {
     swap_bytes(&spaceBossReload, &s->spaceBossReload, sizeof(s32));
     swap_bytes(&spbCrosshairAlpha, &s->spbCrosshairAlpha, 1);
     swap_bytes(&ballPain, &s->ballPain, 1);
+    swap_bytes(&tongueBullet, &s->tongueBullet, sizeof(s->tongueBullet));
+    swap_bytes(&tongueTime, &s->tongueTime, sizeof(f32));
+    swap_bytes(&tongueStuck, &s->tongueStuck, sizeof(s32));
+    swap_bytes(tongueOffsetPos, s->tongueOffsetPos, sizeof(s->tongueOffsetPos));
     {
         s32 k;
         for (k = 0; k < G64_TEX_WORDS; k++) {

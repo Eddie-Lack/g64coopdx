@@ -62,6 +62,9 @@ int main(int argc, char **argv) {
     unsigned frames = argc > 3 ? (unsigned)atoi(argv[3]) : 1000;
     /* A fourth word turns the host's "any ball" rule on: a glove may take any free ball. */
     int anyBall = argc > 4;
+    /* BOTS_SEED picks other inputs: seeds 1 and 3 with 8 players and 777 with 16 found the frog tongue's crash in
+       level 14 (hand.c). */
+    unsigned seedBase = getenv("BOTS_SEED") ? (unsigned)strtoul(getenv("BOTS_SEED"), NULL, 10) : 12345u;
     unsigned mask;
     int level, failed = 0;
     FILE *rom = argc > 1 ? fopen(argv[1], "rb") : NULL;
@@ -95,7 +98,7 @@ int main(int argc, char **argv) {
         memset(buttons, 0, sizeof buttons);
         memset(sx, 0, sizeof sx);
         memset(sy, 0, sizeof sy);
-        seed = 12345u + (unsigned)level;
+        seed = seedBase + (unsigned)level;
         engine_load(engine, boot);
         g64Online = 1;
         g64AnyBall = anyBall;
