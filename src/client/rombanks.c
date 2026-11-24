@@ -17,6 +17,8 @@ typedef struct {
 
 struct G64RomBanks {
     Vec objectIds, textureIds, texels, verts, vtx;
+    /* Each object bank's ids, as pairs of the bank's number and an id (BankId), sorted. */
+    Vec bankIds;
     G64RomBanksStats st;
     int oom;
 };
@@ -40,6 +42,17 @@ static int vec_push(G64RomBanks *b, Vec *v, const void *x) {
 static int cmp_u32(const void *a, const void *b) {
     uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
     return x < y ? -1 : x > y;
+}
+
+typedef struct {
+    uint32_t num, id;
+} BankId;
+
+static int cmp_bank_id(const void *a, const void *b) {
+    const BankId *x = a, *y = b;
+    if (x->num != y->num)
+        return x->num < y->num ? -1 : 1;
+    return x->id < y->id ? -1 : x->id > y->id;
 }
 
 static int cmp_h16(const void *a, const void *b) {
@@ -364,29 +377,49 @@ static void index_bank(G64RomBanks *b, int kind, const uint8_t *rom, size_t romS
 G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_range_fn range, void *user) {
     G64RomBanks *b = calloc(1, sizeof *b);
     uint32_t seenStart[2][256], seenEnd[2][256];
-    unsigned seenCount[2] = {0, 0};
+    unsigned seenNum[2][256], seenCount[2] = {0, 0};
+    size_t first;
     int kind;
     unsigned num, k;
 
     if (b == NULL)
         return NULL;
     b->objectIds.elem = b->textureIds.elem = 4;
+    b->bankIds.elem = sizeof(BankId);
     b->texels.elem = b->verts.elem = b->vtx.elem = 16;
     for (kind = 0; kind < 2; kind++) {
         for (num = 0; num < 256 && !b->oom; num++) {
             uint32_t start = 0, end = 0;
             if (!range(user, kind, num, &start, &end))
                 continue;
-            /* Two numbers can name one range. It is indexed once. */
+            /* Two numbers can name one range. It is indexed once, and the second number gets the first one's ids. */
             for (k = 0; k < seenCount[kind]; k++)
                 if (seenStart[kind][k] == start && seenEnd[kind][k] == end)
                     break;
-            if (k < seenCount[kind])
+            if (k < seenCount[kind]) {
+                size_t i, have = b->bankIds.n;
+                for (i = 0; kind == G64_BANK_OBJECT && i < have; i++) {
+                    BankId e = ((const BankId *)(const void *)b->bankIds.p)[i];
+                    if (e.num == seenNum[kind][k]) {
+                        e.num = num;
+                        vec_push(b, &b->bankIds, &e);
+                    }
+                }
                 continue;
+            }
             seenStart[kind][seenCount[kind]] = start;
             seenEnd[kind][seenCount[kind]] = end;
+            seenNum[kind][seenCount[kind]] = num;
             seenCount[kind]++;
+            first = b->objectIds.n;
             index_bank(b, kind, rom, romSize, start, end);
+            /* A bank that was skipped took its ids back out. */
+            for (; kind == G64_BANK_OBJECT && first < b->objectIds.n; first++) {
+                BankId e;
+                e.num = num;
+                memcpy(&e.id, b->objectIds.p + first * 4, 4);
+                vec_push(b, &b->bankIds, &e);
+            }
         }
     }
     if (b->oom) {
@@ -394,6 +427,7 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
         return NULL;
     }
     vec_unique(&b->objectIds, cmp_u32);
+    vec_unique(&b->bankIds, cmp_bank_id);
     vec_unique(&b->textureIds, cmp_u32);
     vec_unique(&b->texels, cmp_h16);
     vec_unique(&b->verts, cmp_h16);
@@ -410,6 +444,7 @@ void g64_rombanks_free(G64RomBanks *b) {
     if (b == NULL)
         return;
     free(b->objectIds.p);
+    free(b->bankIds.p);
     free(b->textureIds.p);
     free(b->texels.p);
     free(b->verts.p);
@@ -427,6 +462,24 @@ int g64_rombanks_complete(const G64RomBanksStats *s) {
 
 int g64_rombanks_has_object_id(const G64RomBanks *b, uint32_t id) {
     return vec_has(&b->objectIds, &id, cmp_u32);
+}
+
+int g64_rombanks_bank_has_object(const G64RomBanks *b, unsigned num, uint32_t id) {
+    BankId e;
+    e.num = num;
+    e.id = id;
+    return vec_has(&b->bankIds, &e, cmp_bank_id);
+}
+
+size_t g64_rombanks_bank_object_count(const G64RomBanks *b, unsigned num) {
+    size_t i, n = 0;
+    for (i = 0; i < b->bankIds.n; i++)
+        n += ((const BankId *)(const void *)b->bankIds.p)[i].num == num;
+    return n;
+}
+
+int g64_rombanks_bank_has(void *user, unsigned num, uint32_t id) {
+    return g64_rombanks_bank_has_object((const G64RomBanks *)user, num, id);
 }
 
 int g64_rombanks_has_texture_id(const G64RomBanks *b, uint32_t id) {

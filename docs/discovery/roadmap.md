@@ -294,7 +294,9 @@ one of the game's levels, and the session's hello carries the pack's id
 ([level-pack.md](level-pack.md); src/client/pack.h; `pack_level` in tests/rom/instances.c; tests/net/pack_test.c;
 tests/fuzz/pack_fuzz.c). A joiner who lacks the host's pack downloads it from the host over the sealed link, after
 the player said yes; the pack must pass the level file's check and have the id the host named, and it is kept in a
-folder named by that id (`test_pack` in tests/net/session_test.c; tests/fuzz/session_fuzz.c). The protocol is 11. What a level file must satisfy before a pack may come from another player is in
+folder named by that id (`test_pack` in tests/net/session_test.c; tests/fuzz/session_fuzz.c). A pack's
+`models.bin` travels with it, and both ends check it on their own ROM. The protocol is 12. What a level file must
+satisfy before a pack may come from another player is in
 [level-file-safety.md](level-file-safety.md). A trial of Lua on Linux and Windows is in
 [lua-trial.md](lua-trial.md): it settles the Lua version, one patch to it, and that the scripts' memory is saved but
 not hashed. Lua is in the game: Lua 5.4.8 with two small patches (`weemitt/third_party/lua`), a block of 2 MB in the

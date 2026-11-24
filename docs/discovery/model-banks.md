@@ -72,6 +72,13 @@ the picture.
 - A face index outside its mesh's vertices.
 - A display list command that Glovebox does not write, or a texture load in another form than Glovebox's. A
   texture load must hold the exact words Glovebox writes for the size of its texture.
+- An object whose id is the id of an enemy, a bullet or a pick-up that the game finds by its own name and that the
+  retail ROM lacks. Nine enemy kinds (kinds 0 to 6 share one name, and kinds 46 and 57 have one each) and three
+  pick-ups have such names (`g64_models_game_ids` in bankcheck.c). Such an object would be that enemy or pick-up,
+  which reads an animation. `make levcheck` checks the list against the game's names and the ROM. The names it
+  checks are those of `G64GameObjectIds` (g64packbanks.c): the enemies', the pick-ups' and garibs', the standard
+  bullets' without sprites, and the fixed names in the game's code. Every other such name is in the ROM, so the rule
+  against a ROM id below covers it.
 - An object with the name of the ball or the hand. The game points the ball's and the hand's textures at those.
   Glovebox names an object after its glTF file and does not refuse these five names today (`gball`, `cball`,
   `GShinL`, `GShinR`, `gbl_bt`). Its pack export should refuse or change them.
@@ -89,7 +96,8 @@ With the player's ROM, the client also refuses:
 - A pack id of an object or texture that the ROM already has.
 - A texture, a mesh's vertex list or a G_VTX block that is equal to one in the ROM. A vertex list or a block of
   less than 64 bytes is allowed, and so is a texture of one color.
-- A level file that names an object found in no bank the level will have.
+- A level file that names an object found in no bank the level will have, or a cameo of the pack's own model
+  ("The level's object ids").
 - A level whose actors would need more memory for their collision than the budget allows.
 
 The check's API is `g64_models_check` and `g64_models_check_rom` (`src/client/bankcheck.h`). Each returns a
@@ -97,13 +105,26 @@ message and the offset in `models.bin` of the fault. The caller gives the first 
 game's program asks `G64BankRom` (`g64_rombanks_game_range`). Programs that do not link the game, the pack tool and
 the tests, use a table of the game's bank switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`).
 `make rombanks` compares the table with `G64BankRom`. The second one applies the first two rules that need the
-ROM. The level rules come in step 7.
+ROM. The rule for the level file is apart ("The level's object ids").
 
 The pack reader (`src/client/pack.h`) runs the check on every `models.bin`, from a folder too. The online program
-runs the rules that need the ROM once, in `netplay_begin`, before the game is built. Only then has the game read
-the banks' places from the ROM's code. So a host whose models fail these rules finds out only when the game starts.
-`g64pack check DIR --rom ROM` runs the same rules. Both refuse an index of the ROM's banks that lacks banks of a
-kind or skipped a bank (`g64_rombanks_complete` in `src/client/rombanks.h`).
+runs the rules that need the ROM three times. They are the rules of `models.bin` and the rule for the level file's
+object ids ("The level's object ids"):
+
+- on the host, before it offers the pack (`host_offer_pack` in `src/client/netplay.c`). It runs the rule for the
+  level file's ids first (`g64_pack_check_ids_rom`), and a pack that fails it stops the session. It then runs
+  `g64_pack_may_send`. A pack that fails that is not offered, and the log says why.
+- on a joiner, on the downloaded bytes, before it says ready (`g64_pack_from_download`, called by `joiner_pack`). A
+  pack that fails ends the session. The joiner then runs the rule for the level file's ids on its own ROM
+  (`g64_pack_check_ids_rom`), and a pack that fails it ends the session too.
+- on every machine in `netplay_begin`, before the game is built.
+
+The first two run before the game has read the banks' places from the ROM's code. From the command line the game is
+not even powered on then. So they take the places from the table of `bankranges.h`, which reads the same code.
+`netplay_begin` takes them from the game. `make rombanks` shows that the two agree. `g64pack check DIR --rom ROM`
+runs the same rules with the table. All of them refuse an index of the ROM's banks that lacks banks of a kind or
+skipped a bank (`g64_rombanks_complete` in `src/client/rombanks.h`). The index takes about 40 ms to build on one
+machine.
 
 A fuzz target (`tests/fuzz/bankcheck_fuzz.c`) runs the check on random banks, on changes to Glovebox's cube, and
 on banks made from random shapes. For every bank the check accepts, it runs a copy of the game's loaders that stops
@@ -128,6 +149,92 @@ moves the texture coordinates of an object that WATER or MODGE marks. The space 
 boss.c) changes the colors of the first foreground object. Both now stop when the pointer is 0. `make meshguards`
 (`tests/rom/meshguards.c`) runs both cases with the ROM, on Linux and under Wine; without the guards the game
 crashes.
+
+## The network
+
+A pack with `models.bin` travels as the other files do ([level-pack.md](level-pack.md), "Packs that came from a
+host"). Protocol 12 adds one field to the offer (`src/session/session.h`):
+
+| Offset | Size | What |
+| --- | --- | --- |
+| 0 | 1 | 0x49 |
+| 1 | 16 | The pack's id |
+| 17 | 2 | The size of `pack.txt` |
+| 19 | 4 | The size of `level.lev` |
+| 23 | 4 | The size of `script.lua`, or 0 |
+| 27 | 4 | The size of `models.bin`, or 0 |
+| 31 | 1 to 32 | The pack's name |
+
+- The size of `models.bin` is 0, or 16 to 4 MiB and 24 bytes (`G64_PACK_MODELS_MIN`, `G64_PACK_MODELS_LIMIT`). 16
+  bytes is a file that names one retail bank and has no banks of its own. A joiner drops an offer outside these
+  bounds.
+- A second offer with another size of `models.bin` ends the session, as for the other sizes.
+- The bytes are the four files one after another, `models.bin` last. The joiner holds them in one block of at most
+  about 5.3 MB.
+- A joiner asks for 8 pieces of 1,024 bytes at a time, and asks again when they have come. So a download moves about
+  8 KB for each round trip between the joiner and the host. The host also sends at most 256 pieces a second, to all
+  players together.
+- A download of 1 MB takes about 5 seconds on a round trip of 10 ms, about 13 seconds at 100 ms and about 64 seconds
+  at 500 ms. A pack of the largest size, about 5.3 MB, takes about 25 seconds, 67 seconds and 5.6 minutes. These
+  times come from the real session on a simulated clock.
+- The host holds a place for a download for five minutes. For a pack larger than about 1.9 MB it holds the place for
+  one minute more than the download takes on a round trip of one second: about 12.5 minutes for a pack of the
+  largest size. `session_test` downloads such a pack with the host answering once a second, and it comes whole.
+- `packsend_test` sends a pack with the cube, a level and a script of 20,000 bytes from a host to a joiner through
+  the session. The host checks it with `g64_pack_may_send` and the joiner reads it with `g64_pack_from_download`,
+  each on a made-up ROM. A ROM with the cube's ids, a damaged `models.bin`, and bytes or a name that are not the
+  offer's are refused. The host's gate also runs the rule for the level file's object ids after
+  `g64_pack_may_send`: a level with a platform whose id is in no bank passes `g64_pack_may_send` and is refused.
+- Only the pack's own banks and the retail bank numbers cross the network. The banks pass the rules that need the
+  ROM on both ends: they hold none of the ROM's ids or data. The instances' messages do not change.
+
+## The level's object ids
+
+The game's level parser asks `FindObject` for an object by an id that the level file holds. An id that no loaded
+bank has makes the level unplayable. `g64_pack_check_ids` (src/client/pack.c) finds that on the host, before the
+game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
+
+- `g64_lev_object_ids` walks the file with the level check's token callback and reads each id after the check has
+  passed. The callback comes before the check of the token's length, so it only notes where the token starts.
+- Nine tokens carry an id, at these offsets of the token's fields: PLATFORM, BACKGROUND, LANDSCAPE and CAMEO_OBJ at 0,
+  SINEBRIDGE at 4, DESTRUCTIBLE (its debris) and ROPEBRIDGE at 6, ORBITBRIDGE at 8, WATER at 38. A DESTRUCTIBLE with
+  id 0 has no debris, as in the game's own levels.
+- Every id must be in a bank the level will have: one of the level's own object banks, the pack's own object bank,
+  or a retail object bank that models.bin names. The game does not load retail banks until step 9.
+- The level's own banks are the ones `LoadLevel` loads before the pack's: bank 0, the world's bank for a level before
+  the intro, bank 1 (69 in the fly-through) and the level's bank. `G64LevelBankNumbers` (g64packbanks.c) reads them
+  from the game's tables. The online program asks it right after power-on. The pack tool has no game, so it uses a
+  table of the same numbers (`g64_level_object_banks` in src/client/bankranges.c).
+- The index of the ROM's banks says which bank has an id (`g64_rombanks_bank_has_object`). Two bank numbers that
+  name one range both get its ids.
+- A CAMEO_OBJ may not name a model of the pack's own bank. A cameo actor is animated at once, and a pack's model has
+  no animation. An object of a retail bank may be a cameo.
+- An ENEMY names a kind of enemy, not an object, and a bullet's object comes from the enemy or the vent. Their
+  objects, and the pick-ups' and garibs', have the game's own names. A pack's model cannot have one of their ids
+  (the bank check's rules above). So no enemy, bullet or pick-up can use a pack's model.
+- The online host runs the rule before it offers its pack (`host_offer_pack` in src/client/netplay.c). The game has
+  not read its tables yet, so the host uses the committed tables, as the pack tool does
+  (`g64_pack_check_ids_rom` in src/client/packrom.c). It runs before `g64_pack_may_send`, on a pack whose level is
+  not one of the ROM's and whose level file passes the strict check. A pack that fails stops the session at once,
+  before any joiner downloads it. This holds even when its models would fail too.
+- A joiner runs the same rule on its own ROM after a download, before it keeps the pack and says ready. A pack that
+  fails ends the session.
+- The online program runs the rule again in `netplay_begin`, with the game's own tables and with the rules of
+  models.bin that need the ROM, also for a pack without models.bin. It skips a pack from a folder whose level file
+  fails the structure check. Such a pack is never sent, and the game still marks its level as unplayable when an
+  object is missing.
+
+`make levcheck` (tests/rom/levcheck.c) proves the rule against the game:
+
+- The game's `FindObject` records each id it is asked for while the parser reads a token (`G64FindObjectTrace`, for
+  tests). On all 48 levels, the ids of the nine tokens are the ids the check reads, at the same tokens. Every other
+  token that asks for an object asks for an id that is not a word of its fields.
+- No level of the ROM has a bridge. The test adds a ROPEBRIDGE, a SINEBRIDGE and an ORBITBRIDGE to a copy of level 13,
+  with an object of the level's banks, and compares again. It adds a LANDSCAPE with an id that no bank has: the rule
+  refuses that file, the rule with the committed tables refuses it at the same token, and the game stops the level.
+- After each level starts, the game's five object slots hold the banks that `G64LevelBankNumbers` names, slot by
+  slot, and nothing more. Right after power-on and after each start, its numbers equal the table's.
+- Each level's own file passes the rule with its own banks, from the game's tables and from the committed tables.
 
 ## Loading
 
@@ -175,11 +282,11 @@ Which actors read the key:
   LANDSCAPE and BACKGROUND both make a landscape actor, so they never read the key.
 - Platforms read it: PLATFORM, ROPEBRIDGE, SINEBRIDGE and ORBITBRIDGE make them (parse.c). So do a WATER actor and
   a broken platform's debris, which are drawn with `DrawActor`. A CAMEO_OBJ makes a cameo actor, which reads it too.
-  Step 7 is to add a level rule that refuses a pack object there.
+  The rule for the level's object ids refuses a pack's model there.
 - The glove reads the keys of what it rides or swings on, and sets its own rotation from them
   (`SetHandHopPosition` in hand.c, `HandSwish` in object.c). That is an enemy, a bullet or a cameo actor. An enemy's
   and a bullet's objects have the ids of the game's own objects, and the ROM check refuses a pack id that the ROM
-  has. A cameo is the case of step 7's rule above.
+  has. A cameo is refused by the rule for the level's object ids.
 - Platform collision uses the actor's rotation, not the key (collision.c, platform.c). Apart from the glove's case
   above, a key reaches only the drawn matrices. No game logic reads those, so they cannot change the game's state.
 - The first 256 object matrices of a frame are in Dynamic, in the game's memory, and the memory hash covers them.
@@ -299,8 +406,8 @@ Each largest count plays 600 frames the same in two runs. One more copy stops th
 frames. The same cases in levels 15, 20 and 35 also play at the limit. Level 15 uses the most blocks in play, and
 keeps at least 166 free there. The 17 flat meshes take about half a second to start (0.45 to 0.52 s over
 four runs, on Linux and under Wine, on one machine). The test prints the time to stderr.
-Before this change, 700 small copies or 130 copies of 1500 faces made the game stop the program. Step 7 adds the
-budget for retail banks and for the level file's object ids.
+Before this change, 700 small copies or 130 copies of 1500 faces made the game stop the program. Step 9 adds the
+budget for retail banks.
 
 ## Steps
 
@@ -312,8 +419,8 @@ budget for retail banks and for the level file's object ids.
 | 4 | The pack's own banks in free slots, and the proof that the check matches the loaders | yes |
 | 5 | The test of platforms with custom models, on Linux and under Wine | yes |
 | 6 | `models.bin` in the pack format, the pack tool and the cache | yes |
-| 7 | The level file's object ids against the banks, and the heap budget | |
-| 8 | The offer and the transfer (protocol 12) | |
-| 9 | Retail banks in the heap table | |
+| 7 | The level file's object ids against the banks | yes |
+| 8 | The offer and the transfer (protocol 12) | yes |
+| 9 | Retail banks in the heap table, and their heap budget | |
 | 10 | Glovebox's pack export with models | |
 | 11 | A model in the sample pack | |

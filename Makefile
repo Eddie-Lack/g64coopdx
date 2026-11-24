@@ -287,7 +287,8 @@ twoplayers: twoplayers-build
 
 # The level file check against the game's own parser, on every level of the ROM, on Linux and under Wine
 # (tests/rom/levcheck.c); the two outputs must be equal (needs the ROM in GLOVER_ROM).
-LEVCHECK_SRC := tests/rom/levcheck.c src/client/levcheck.c src/client/pack.c $(MODELS_SRC) third_party/monocypher/monocypher.c \
+LEVCHECK_SRC := tests/rom/levcheck.c src/client/levcheck.c src/client/pack.c src/client/packrom.c $(MODELS_SRC) src/client/rombanks_game.c \
+    $(BANKRANGES_SRC) third_party/monocypher/monocypher.c \
     weemitt/src/port/statehash.c
 levcheck-build: savestates
 	@mkdir -p build/tests
@@ -517,8 +518,8 @@ build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) $(SEAL_DEPS)
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/seal_test.c $(SEAL_SRC) -lbcrypt
 
 # The level pack reader (src/client/pack.h), with the hash it takes from the cryptography library.
-PACK_SRC := src/client/pack.c src/client/levcheck.c $(MODELS_SRC) $(BANKRANGES_SRC) third_party/monocypher/monocypher.c
-PACK_DEPS := src/client/pack.h src/client/levcheck.h $(MODELS_DEPS) third_party/monocypher/monocypher.h
+PACK_SRC := src/client/pack.c src/client/packrom.c src/client/levcheck.c $(MODELS_SRC) $(BANKRANGES_SRC) third_party/monocypher/monocypher.c
+PACK_DEPS := src/client/pack.h src/client/packrom.h src/client/levcheck.h $(MODELS_DEPS) third_party/monocypher/monocypher.h
 build/tests/pack_test: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/pack_test.c $(PACK_SRC) -lm
@@ -526,6 +527,18 @@ build/tests/pack_test: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 build/tests/pack_test.exe: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/pack_test.c $(PACK_SRC) -lm
+
+# A pack with models from a host to a joiner through the session (tests/net/packsend_test.c). The pack reader's
+# list holds monocypher already, so the session's part is listed without it.
+PACKSEND_SRC := tests/net/packsend_test.c $(PACK_SRC) src/session/session.c src/session/seal.c $(NET_SRC)
+PACKSEND_DEPS := $(PACK_DEPS) src/session/session.h $(SEAL_DEPS) src/net/udp.h tests/net/bankbuild.h
+build/tests/packsend_test: $(PACKSEND_SRC) $(PACKSEND_DEPS)
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ $(PACKSEND_SRC) -lm
+
+build/tests/packsend_test.exe: $(PACKSEND_SRC) $(PACKSEND_DEPS)
+	@mkdir -p build/tests
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ $(PACKSEND_SRC) -lm -lws2_32 -lbcrypt
 
 # The scripts' sandbox without the game: Lua, the game's script file, and a test that stands in for the game. Lua's
 # files are built with its options header, as in the game, and without -Werror. -fwrapv is one of the game's flags:
@@ -651,7 +664,8 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 
 # The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
-        build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test
+        build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test \
+        build/tests/packsend_test
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux tests/fixtures/cube.models.bin > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
@@ -675,12 +689,19 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	tail -1 build/tests/udp_test.out
 	build/tests/session_test > build/tests/session_test.out || { cat build/tests/session_test.out; exit 1; }
 	tail -1 build/tests/session_test.out
+	build/tests/packsend_test tests/fixtures/cube.models.bin > build/tests/packsend_test.out \
+	    || { cat build/tests/packsend_test.out; exit 1; }
+	tail -1 build/tests/packsend_test.out
 
 # The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
               build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
-              build/tests/levcheck_test.exe build/tests/bankcheck_test.exe test-c
+              build/tests/levcheck_test.exe build/tests/bankcheck_test.exe build/tests/packsend_test.exe test-c
 	@mkdir -p build/tests/pack-windows
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/packsend_test.exe tests/fixtures/cube.models.bin \
+	    | tr -d '\r' > build/tests/packsend_test-windows.out
+	tail -1 build/tests/packsend_test-windows.out
+	cmp build/tests/packsend_test.out build/tests/packsend_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows tests/fixtures/cube.models.bin | tr -d '\r' \
 	    > build/tests/pack_test-windows.out
 	tail -1 build/tests/pack_test-windows.out

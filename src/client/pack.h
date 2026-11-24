@@ -95,6 +95,27 @@ const char *g64_pack_check_models(const uint8_t *models, size_t n, const g64_pac
 int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint8_t *lev, size_t levSize,
                         const uint8_t *script, size_t scriptSize, const uint8_t *models, size_t modelsSize,
                         const g64_pack_banks *banks, int strict, g64_pack *out, char *err, size_t errSize);
+/* The pack's files one after another, as a host sends them: pack.txt, level.lev, script.lua and models.bin, with no
+ * bytes for a file the pack lacks. Returns a buffer that the caller frees and sets size, or NULL (no memory). */
+uint8_t *g64_pack_blob(const g64_pack *p, size_t *size);
+/* A pack from such bytes: blob holds n bytes, and the four sizes say where each file ends. A size of 0 is a file the
+ * pack lacks. The sizes must add up to n. Then as g64_pack_from_bytes. Every byte and every size is untrusted. */
+int g64_pack_from_blob(const uint8_t *blob, size_t n, size_t manifestSize, size_t levSize, size_t scriptSize,
+                       size_t modelsSize, const g64_pack_banks *banks, int strict, g64_pack *out, char *err,
+                       size_t errSize);
+/* On a joiner: the pack from the bytes it downloaded. The sizes, id and name are those of the host's offer. The pack
+ * is read in the strict form, and its models must pass the rules that need the ROM: banks->rom must be set when
+ * modelsSize is not 0. Then its id and name must be the offer's. Returns 0, or -1 with a message in err and out
+ * empty. Every byte, size and name is untrusted. */
+int g64_pack_from_download(const uint8_t *blob, size_t n, size_t manifestSize, size_t levSize, size_t scriptSize,
+                           size_t modelsSize, const uint8_t id[G64_PACK_ID], const char *name,
+                           const g64_pack_banks *banks, g64_pack *out, char *err, size_t errSize);
+/* On a host: 0 when its pack may be offered to joiners, or -1 with the reason in err. A pack whose level is a level
+ * of the ROM holds game data and never travels. The level file must pass the strict check, and models.bin the bank
+ * check and the rules that need the ROM (banks->rom must be set for a pack with models). These are the checks a
+ * joiner makes. */
+int g64_pack_may_send(const g64_pack *p, const uint8_t *rom, size_t romSize, const g64_pack_banks *banks, char *err,
+                      size_t errSize);
 /* Loads the pack in folder dir, without the check of the level file's structure. Its models.bin, if it has one,
  * passes the bank check with banks all the same. Returns 0, or -1 with a message in err. */
 int g64_pack_load(const char *dir, const g64_pack_banks *banks, g64_pack *out, char *err, size_t errSize);
@@ -105,6 +126,42 @@ const char *g64_pack_check_strict(const g64_pack *p, size_t *at);
 /* The number of the level in rom whose file has the same bytes as the pack's, or -1. Such a pack holds game data: it
  * is a copy of a level of the ROM, and must not be sent to anyone. */
 int g64_pack_rom_level(const g64_pack *p, const uint8_t *rom, size_t size);
+/* ---- The level file's object ids against the banks the level will have (docs/discovery/model-banks.md, "The
+ * level's object ids").
+ *
+ * The level parser (weemitt's parse.c) asks FindObject for an object by its id in these tokens, at these offsets of
+ * the token's fields: PLATFORM, BACKGROUND, LANDSCAPE and CAMEO_OBJ at 0, DESTRUCTIBLE at 6 (its debris; 0 is none),
+ * ROPEBRIDGE at 6, SINEBRIDGE at 4, ORBITBRIDGE at 8 and WATER at 38. Every other object the parser finds has a name
+ * of the game's own (an enemy's, a pick-up's, a garib's), which the file does not hold. tests/rom/levcheck.c compares
+ * the list with the ids FindObject is asked for on every level of the ROM. */
+
+/* Called for each object id a level file names, with its token's offset in the file and the token. */
+typedef void (*g64_lev_id_fn)(void *user, size_t offset, int token, uint32_t id);
+/* Reads a level file's object ids. The file must pass g64_lev_check, whose message it returns otherwise, with at
+ * set as that check sets it. Returns NULL when it read them all, or "out of memory". */
+const char *g64_lev_object_ids(const uint8_t *lev, size_t n, g64_lev_id_fn fn, void *user, size_t *at);
+
+/* The object banks a level loads before the pack's, by number (G64LevelBankNumbers in weemitt's g64packbanks.c, or
+ * the table of bankranges.h). */
+#define G64_LEVEL_BANKS_MAX 8
+typedef struct {
+    unsigned count;
+    unsigned num[G64_LEVEL_BANKS_MAX];
+} g64_level_banks;
+/* 1 when object bank num of the player's ROM has the id (g64_rombanks_bank_has in rombanks.h). */
+typedef int (*g64_bank_has_fn)(void *user, unsigned num, uint32_t id);
+
+/* The rule for a level file's object ids. Every id must be in a bank the level will have: one of banks, the pack's
+ * own object bank (info, from models.bin's check), or a retail object bank that models.bin names. A CAMEO_OBJ may
+ * not name an object of the pack's own bank: the game animates a cameo, and the pack's objects have no animation.
+ * models is NULL for a pack without models.bin. lev must pass g64_lev_check. Returns NULL, or a message, with the
+ * offset of the token in at. */
+const char *g64_pack_check_ids(const uint8_t *lev, size_t levSize, const uint8_t *models, const G64Models *info,
+                               const g64_level_banks *banks, g64_bank_has_fn has, void *user, size_t *at);
+/* The same rule on a pack. Returns NULL, or a message with the offset in the level file in at. */
+const char *g64_pack_check_level_ids(const g64_pack *p, const g64_level_banks *banks, g64_bank_has_fn has, void *user,
+                                     size_t *at);
+
 /* Where the game reads a pack's files: in one buffer, after the ROM's romSize bytes. The level file comes first, then
  * the script, then models.bin's two banks, the texture bank first, from an offset that is a multiple of 8. A part
  * the pack lacks has size 0. size is the whole buffer's. */

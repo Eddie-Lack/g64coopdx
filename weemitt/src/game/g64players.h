@@ -317,6 +317,11 @@ extern u32 g64PackTexRom, g64PackTexSize, g64PackObjRom, g64PackObjSize;
 extern s32 g64PackHeapFree, g64PackHeapGap, g64PackHeapBlocks, g64PackHeapLastStatic;
 void G64SetPackModels(u32 texRom, u32 texSize, u32 objRom, u32 objSize);
 void G64LoadPackBanks(s32 num);
+/* The object banks LoadLevel loads for a level before the pack's (g64packbanks.c). */
+s32 G64LevelBankNumbers(s32 num, u32 *banks, s32 max);
+/* For tests (g64packbanks.c): the ids in an object slot, and the ids of the objects the game finds by its own names. */
+s32 G64ObjectSlotIds(s32 slot, u32 *ids, s32 max);
+s32 G64GameObjectIds(u32 *ids, s32 max);
 const void *G64PackBankLoaded(s32 objects, u32 *word);
 /* The collision planes of the last level start (parse.c, G64PlanesFit): the blocks, bytes and work they would take.
    Also the last static block's number before them. For tests. */
@@ -363,6 +368,12 @@ void G64GaribGained(void);
 extern s32 g64ParseLogOn, g64ParseLogCount;
 extern s32 g64ParseLog[G64_PARSE_LOG][2];
 void G64ParseTrace(s32 offset, s32 token);
+/* For the same tests: while g64ParseLogOn is set, FindObject records each id it is asked for while the parser reads
+   a token, with the index of that token in g64ParseLog. The record starts again with the parser's. Entry k is
+   g64FindLog[k]: the token's index, then the id. */
+extern s32 g64FindLogCount;
+extern u32 g64FindLog[G64_PARSE_LOG][2];
+void G64FindObjectTrace(u32 id);
 
 /* Marks the level as one that cannot be played: the game's own state for a level without its file. The level
    parser and the code that makes enemies and pick-ups call it where a level file names something the game does not

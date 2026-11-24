@@ -11,6 +11,7 @@
  *   - neither bank starts with "FLA2"
  *   - the texture bank holds 1 to 1024 records of 16-bit RGBA as Glovebox writes them, then 4 zero bytes. Every
  *     record is used by the object bank
+ *   - no object's id is 0 or the id of an enemy or a pick-up that the game finds by its own name
  *   - the object bank's directory, instances, objects, meshes, keys and display lists lie inside the bank, are
  *     aligned, and share no bytes. Every byte that no structure reaches is 0
  *   - every value the game uses as a count, an index or a size is in range, and every float of a key or a vertex is
@@ -34,6 +35,10 @@
 #define G64_MODELS_RETAIL_MAX 4
 /* The largest header: 12 bytes and 8 numbers, rounded up to a multiple of 8. */
 #define G64_MODELS_HEADER_MAX 24
+
+/* The ids that no object of the pack's own bank may have, beyond 0 and the ROM's own (bankcheck.c). */
+#define G64_MODELS_GAME_IDS 6
+extern const uint32_t g64_models_game_ids[G64_MODELS_GAME_IDS];
 
 /* What the header says. The offsets and sizes are in bytes of models.bin. */
 typedef struct {

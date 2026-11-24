@@ -9,6 +9,7 @@ PORT_C_BEGIN
 #include "display.h"
 #include "jalloc.h"
 
+void G64FindObjectTrace(u32 id);
 extern s32 numCyclingTextures;
 extern s32 numoftc;
 extern PTR32(u32) ballTextureData;
@@ -743,6 +744,8 @@ void FindObject(PTR32(ObjectInstance) *objCPtr, u32 objID, char *name, s32 vital
     s32 y;
     s32 bank;
 
+    /* g64coopdx: for the test of the level file's object ids. */
+    G64FindObjectTrace(objID);
     for (x = 0; x < 5; x++) {
         if (objectBanks[x].data) {
             bank = objectBanks[x].unk00;

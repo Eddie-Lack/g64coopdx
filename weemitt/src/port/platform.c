@@ -2314,7 +2314,7 @@ int main(int argc, char **argv) {
             netplay_set_input_delay(opt.netInputDelay);
         }
         if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
-            char err[160];
+            char err[320];
 
             if (netplay_connect(opt.netJoin, opt.netHost, opt.netOnlineHost || opt.netRoom ? relay : NULL, opt.netRoom,
                                 g64Players > 1 ? g64Players : 2, opt.netDeadline, port_rom, port_rom_size, &level,
@@ -2382,7 +2382,7 @@ int main(int argc, char **argv) {
 #ifdef PORT_STUDIO
     studio_started();
     if (netplay_active()) {
-        char err[160];
+        char err[320];
 
         if (netplay_begin(studio_engine(), err, sizeof err) != 0) {
             fprintf(stderr, "g64coopdx: %s\n", err);

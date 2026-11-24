@@ -353,9 +353,14 @@ static void build_page(launcher *L) {
             G64TitleBig(room);
         note(netplay_wait_status(), 0xFFFFFF);
         if (netplay_pack_asking()) {
-            char line[200];
-            snprintf(line, sizeof line, "Level pack: %s (%u KB%s)", netplay_offer_name(),
-                     (unsigned)((netplay_offer_size() + 1023) / 1024), netplay_offer_script() ? ", with a script" : "");
+            char line[200], models[48] = "";
+            /* A pack's models are most of its size: up to 4 MB, about 16 seconds of download. */
+            if (netplay_offer_models() > 0) {
+                snprintf(models, sizeof models, ", models: %u KB", (unsigned)((netplay_offer_models() + 1023) / 1024));
+            }
+            snprintf(line, sizeof line, "Level pack: %s (%u KB%s%s)", netplay_offer_name(),
+                     (unsigned)((netplay_offer_size() + 1023) / 1024), netplay_offer_script() ? ", with a script" : "",
+                     models);
             note(line, 0xFFFFFF);
             note(netplay_pack_kept() ? "You downloaded this pack before. Play with it?"
                                      : "You do not have it. Download it from the host?",
