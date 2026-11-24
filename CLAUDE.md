@@ -72,7 +72,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make bankwalk      # a pack's own banks loaded by the game: the loaders change the shadow walk's words; they play as scenery; the heap with 16 players; the collision planes' limits; Linux and Wine (needs the ROM)
     make packbanks     # retail banks that a pack names, in the game's table: each bank's cost; every bank, 4 at a time, in every level with 16 players; retail objects as scenery; the client's rule for retail object banks against the game; the ball's and hand's names; save and load; the level's end; Linux and Wine (needs the ROM)
     make models        # may a pack's models be platforms: platforms, bridges, debris and water with identity rotation keys give equal output on Linux and Wine; also measures keys of all zeros (needs the ROM)
-    make bots          # every level with 8 and with 16 players who play at random, on Linux and Wine (needs the ROM)
+    make bots          # every level with 8 and with 16 players who play at random, and level 14 with the seeds that broke the frog's tongue; on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make swaps         # every level with every other level's file in its place: played or stopped, never a crash (needs the ROM)
     make scenery       # level files with hundreds of scenery objects, in 10 levels, also with 16 players: played or stopped, never a crash; Linux and Wine must print the same (needs the ROM)

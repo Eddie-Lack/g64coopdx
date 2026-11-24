@@ -7,15 +7,14 @@
  * for each player alone) and a hash of the game's memory. The run must not stop, and every player must have a
  * glove or have left through an exit. The control room (level 39) and the scenes from level 43 on give the other
  * players no glove.
- * The other players arrive when the level's opening cameo ends (G64ExtraPlayersStep). In FEARBOSS (level 33) that is
- * frame 701, and in SPACEBOSS3 (level 40) frame 627, whatever the inputs. A run needs at least 703 frames: in a
- * shorter one those two levels end with the first player alone, and fail.
  * make bots runs it on Linux and under Wine and compares the outputs: the same inputs must give the same game on
  * both.
  *
- * Usage: bots ROM [PLAYERS [FRAMES [any]]]. The last word turns the host's "any ball" rule on. Without a ROM file
- * it prints that it was skipped and exits with 0. BOTS_SEED sets the inputs' seed. BOTS_LEVEL runs that one level
- * only. */
+ * Usage: bots ROM [PLAYERS [FRAMES [WORD...]]]. The word "any" turns the host's "any ball" rule on. "seed=N" sets
+ * the generator's base: each level starts it at N plus the level's number (12345 without it). "level=N" runs only
+ * level N. "quiet=N" sets the frames before the bots start (300 without it). make bots also runs level 14 from frame
+ * 0 with seeds that once crashed the game: two players' frog tongues shared one bullet. Without a ROM file it prints
+ * that it was skipped and exits with 0. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,13 +63,9 @@ int main(int argc, char **argv) {
     void *boot;
     int players = argc > 2 ? atoi(argv[2]) : 8;
     unsigned frames = argc > 3 ? (unsigned)atoi(argv[3]) : 1000;
-    /* A fourth word turns the host's "any ball" rule on: a glove may take any free ball. */
-    int anyBall = argc > 4;
-    /* BOTS_SEED picks other inputs: seeds 1 and 3 with 8 players and 777 with 16 found the frog tongue's crash in
-       level 14 (hand.c), in the first 600 frames. */
-    unsigned seedBase = getenv("BOTS_SEED") ? (unsigned)strtoul(getenv("BOTS_SEED"), NULL, 10) : 12345u;
-    /* BOTS_LEVEL runs one level only, for a quick look at one failure. */
-    int only = getenv("BOTS_LEVEL") ? atoi(getenv("BOTS_LEVEL")) : -1;
+    /* "any" turns the host's "any ball" rule on: a glove may take any free ball. */
+    int anyBall = 0, only = -1, a;
+    unsigned base = 12345u, quiet = QUIET;
     unsigned mask;
     int level, failed = 0;
     FILE *rom = argc > 1 ? fopen(argv[1], "rb") : NULL;
@@ -79,6 +74,16 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(rom);
+    for (a = 4; a < argc; a++) {
+        if (strcmp(argv[a], "any") == 0)
+            anyBall = 1;
+        else if (strncmp(argv[a], "seed=", 5) == 0)
+            base = (unsigned)strtoul(argv[a] + 5, NULL, 10);
+        else if (strncmp(argv[a], "level=", 6) == 0)
+            only = atoi(argv[a] + 6);
+        else if (strncmp(argv[a], "quiet=", 6) == 0)
+            quiet = (unsigned)strtoul(argv[a] + 6, NULL, 10);
+    }
     if (players < 2 || players > 16)
         players = 8;
     mask = (1u << players) - 1;
@@ -101,12 +106,12 @@ int main(int argc, char **argv) {
         /* Each bot holds its stick and buttons for a while, then picks again. */
         unsigned short buttons[16];
         signed char sx[16], sy[16];
-        if (only >= 0 && level != only)
-            continue;
         memset(buttons, 0, sizeof buttons);
         memset(sx, 0, sizeof sx);
         memset(sy, 0, sizeof sy);
-        seed = seedBase + (unsigned)level;
+        if (only >= 0 && level != only)
+            continue;
+        seed = base + (unsigned)level;
         engine_load(engine, boot);
         g64Online = 1;
         g64AnyBall = anyBall;
@@ -124,7 +129,7 @@ int main(int argc, char **argv) {
                     g64StickX[p] = g64StickY[p] = 0;
                     continue;
                 }
-                if (f < QUIET) {
+                if (f < quiet) {
                     /* A now and then: it closes the tip that the first hub opens by itself. */
                     buttons[p] = f % 30 == 0 ? 0x8000 : 0;
                 } else if (next() % 12 == 0) {
@@ -156,8 +161,12 @@ int main(int argc, char **argv) {
         fflush(stdout);
         failed |= gloves + left < wanted;
     }
-    printf("%s every level runs with %d players%s\n", failed ? "FAIL" : "ok  ", players,
-           anyBall ? " and the any-ball rule" : "");
+    if (only >= 0)
+        printf("%s level %d runs with %d players from seed %u%s\n", failed ? "FAIL" : "ok  ", only, players, base,
+               anyBall ? " and the any-ball rule" : "");
+    else
+        printf("%s every level runs with %d players%s\n", failed ? "FAIL" : "ok  ", players,
+               anyBall ? " and the any-ball rule" : "");
     free(boot);
     engine_free(engine);
     return failed;

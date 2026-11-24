@@ -1323,7 +1323,7 @@ void ApplyAction(s32 action) {
         case HAND_FROG_TONGUE:
             PlaySample(8, &hand.pos, 100, 60);
             tongueBullet = FireBulletFromActor(&hand, TONGUE_BULLET, 0);
-            /* g64coopdx: with many players the bullets can run out, and the tongue then has none. */
+            /* The bullet list can be full, and then there is no tongue (MaintainAction ends the action). */
             if (tongueBullet != NULL && tongueBullet->target != NULL) {
                 tongueTime = tTime1;
             } else {
@@ -2507,11 +2507,18 @@ void MaintainAction(void) {
         }
         break;
     case HAND_FROG_TONGUE:
-        /* g64coopdx: a tongue with no bullet (FireBulletFromActor found none free) has no tip to follow and draws
-           no bits. */
-        if (tongueBullet == NULL) {
-            seg = -1;
-        } else if (handControl.actionTime <= tongueTime) {
+        /* With more players a tongue can be missing: the bullet list was full when it was fired, or this player was
+           copied from another during a tongue. Its bullet can also have gone, and another bullet now has its place.
+           The tongue then ends. With one player this happens only when the list was full, which made the original
+           crash. */
+        if (!G64TongueMine(tongueBullet)) {
+            tongueBullet = NULL;
+            if (deltaTick) {
+                ApplyAction(HAND_FROG_IDLE);
+            }
+            break;
+        }
+        if (handControl.actionTime <= tongueTime) {
             tongueOffsetPos[handControl.actionTime].x = tongueBullet->actor.pos.x - hand.pos.x;
             tongueOffsetPos[handControl.actionTime].y = tongueBullet->actor.pos.y - hand.pos.y;
             tongueOffsetPos[handControl.actionTime].z = tongueBullet->actor.pos.z - hand.pos.z;
@@ -2620,9 +2627,7 @@ void MaintainAction(void) {
         if (deltaTick && 2.0f * tongueTime + 2.0f <= handControl.actionTime) {
             bullet = tongueBullet;
             tongueBullet = NULL;
-            if (bullet != NULL) {
-                bullet->actor.lifeTimer = 1;
-            }
+            bullet->actor.lifeTimer = 1;
             ApplyAction(HAND_FROG_IDLE);
         }
         break;
@@ -4421,7 +4426,10 @@ void DefrogHand(void) {
         }
     }
     if (tongueBullet) {
-        tongueBullet->actor.lifeTimer = 1;
+        /* Another player's bullet is not this player's to remove (G64TongueMine). */
+        if (G64TongueMine(tongueBullet)) {
+            tongueBullet->actor.lifeTimer = 1;
+        }
         tongueBullet = NULL;
     }
 }

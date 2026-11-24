@@ -176,6 +176,10 @@ void G64EnemyHitsCleared(s32 enemy);
 /* 1 when a bullet homes in on the player in the globals, or has no record (RemoveHandAndBallBullets: a player's
    respawn removes only the bullets aimed at them). */
 s32 G64BulletMine(struct Bullet *b);
+/* 1 when b is the frog tongue of the player in the globals: a tongue bullet that the player made, or one with no
+   record. 0 for NULL. Online it is 0 for a bullet that is no longer that player's tongue: the tongue went, and its
+   place in the bullet list went to another bullet. With one player it is 1 for any bullet but NULL. */
+s32 G64TongueMine(struct Bullet *b);
 s32 G64BulletBegin(struct Bullet *b);
 void G64BulletEnd(struct Bullet *b, s32 slot);
 void G64BulletMade(struct Bullet *b);

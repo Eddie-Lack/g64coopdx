@@ -229,7 +229,10 @@ counted and a ball of size 0, and the ball's code divided by that size (platform
 freed while another player was in the globals, and its owner kept the pointer (debris.c, G64FakeballGone). The peaks
 are in item 9. With the "any ball" rule on, the bots found a third fault: a new player's copy of the first player
 shared the two sprites of a pointing glove, and wrote through them after the first player had freed them
-(copy_globals).
+(copy_globals). Level 14 with other seeds, and with the bots playing from the first frame, found a fourth. The frog's
+tongue was one set of globals for all players, so one frog's tongue could end another's and leave it with no bullet.
+Each player now has a tongue of their own (G64Slot), and a tongue whose bullet is missing or is not the player's own
+ends (hand.c, MaintainAction). `make bots` runs level 14 with those seeds too.
 
 Risk: the size. 225 functions and about 140 identity tests ([state-inventory.md](state-inventory.md)). The range is
 wide because each boss and each bonus level has its own code.
