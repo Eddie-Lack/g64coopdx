@@ -1543,6 +1543,44 @@ void G64SetPlayerHealth(s32 who, s32 health) {
     slot_player(i)->health = health;
 }
 
+/* For scripts: a life for player who, by the game's own extra life (GainExtraLife), with its sound. A player keeps at
+   most 99 lives. */
+void GainExtraLife(void);
+void G64GivePlayerLife(s32 who) {
+    s32 i = slot_of(who);
+    if (i == 0) {
+        if (player.lives < 99)
+            GainExtraLife();
+    } else if (i > 0 && G64HazardBegin(i)) {
+        if (player.lives < 99)
+            GainExtraLife();
+        G64HazardEnd(i);
+    }
+}
+
+/* For scripts: one of the game's pick-ups at a place, as a puzzle's action makes one (CreateNewPickup). kind is the
+   game's number for it, 0 to 14. The level reader leaves out kinds 7 and 9, and so does this. The pick-up's object
+   must be in the level's banks: without it there is no pick-up, and the level plays on. duration is how long its
+   effect lasts, in frames. A level holds at most 128 pick-ups. Returns 1 when the pick-up is there. */
+struct Collectable *CreateNewPickup(u8 type, Vec3 *pos, s16 time, s16 duration);
+extern PTR32(char) collectableFileName[];
+void FindObject(PTR32(ObjectInstance) *objCPtr, u32 objID, char *name, s32 vital);
+u32 UpdateCRC(char *ptr);
+s32 G64SpawnPickup(s32 kind, f32 x, f32 y, f32 z, s32 duration) {
+    PTR32(ObjectInstance) inst;
+    Vec3 pos;
+    if (kind < 0 || kind > 14 || kind == 7 || kind == 9 || duration < 0 || duration > 30000 ||
+        collectableList.count >= 128)
+        return 0;
+    FindObject(&inst, UpdateCRC(collectableFileName[kind]), NULL, 0);
+    if (inst == NULL)
+        return 0;
+    pos.x = x;
+    pos.y = y;
+    pos.z = z;
+    return CreateNewPickup((u8)kind, &pos, 0, (s16)duration) != NULL;
+}
+
 /* Tells the script that something happened to the player whose state is in the game's variables now
    (src/port/g64lua.c: 1 a garib taken, 2 a death). Without a script it does nothing. */
 void G64ScriptEvent(s32 kind) {

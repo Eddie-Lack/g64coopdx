@@ -303,8 +303,8 @@ session runs ([scripts.md](../scripts.md); `weemitt/src/port/g64lua.c`; `script_
 tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). A script reads the players' places, balls and
 counts, moves, hurts and heals a glove, shows a line of text to a player, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
 comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory, and a number made of the script's memory
-counts and random state in place of the scripts' block. Left: more events from inside the game's step, writes to garibs and
-lives, and spawns of a script's own. A script reads and sets the level's 100 puzzle variables, which ties it to
+counts and random state in place of the scripts' block. A script gives a player a life and puts one of the game's pick-ups in the
+level (`game.add_life`, `game.spawn_pickup`). Left: more events from inside the game's step, and writes to garibs. A script reads and sets the level's 100 puzzle variables, which ties it to
 every condition and action the level's puzzles have. A script keeps 16 values across levels: a level's script asks
 the host to add to one, and the new value reaches every instance as a session event.
 

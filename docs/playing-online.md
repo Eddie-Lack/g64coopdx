@@ -123,7 +123,7 @@ shows when you enter the level it replaces. A pack may also hold a script ([scri
 
 The game comes with one pack to try: `packs/garib-island`. It is a small level of its own in the place of Atlantis 1:
 a sand island with a row of 11 garibs, three boxes, a checkpoint and the exit. Its script counts each player's garibs
-on the screen and says who reaches the exit first. To play it, host with `--pack packs/garib-island`; the game
+on the screen, gives a life to a player who finds all 11, and says who reaches the exit first. To play it, host with `--pack packs/garib-island`; the game
 starts in the hub, and the level is behind Atlantis 1's door. Its Glovebox source is `level.xml` in the same folder.
 
 A player who joins without the pack can download it from the host:

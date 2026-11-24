@@ -305,6 +305,8 @@ int G64PlayerHealth(int p);
 int G64PlayerLives(int p);
 void G64HurtPlayer(int p);
 void G64SetPlayerHealth(int p, int health);
+void G64GivePlayerLife(int p);
+int G64SpawnPickup(int kind, float x, float y, float z, int duration);
 int G64PuzzleVar(int n);
 void G64SetPuzzleVar(int n, int value);
 float port_sinf(float x);
@@ -415,6 +417,27 @@ static int api_set_health(lua_State *L) {
         G64SetPlayerHealth(p, (int)n);
     }
     return 0;
+}
+
+/* game.add_life(p): one more life for the player, as an extra life gives it. A player keeps at most 99. */
+static int api_add_life(lua_State *L) {
+    int p = player_arg(L, 1);
+    if (G64PlayerInLevel(p)) {
+        G64GivePlayerLife(p);
+    }
+    return 0;
+}
+
+/* game.spawn_pickup(kind, x, y, z [, frames]): one of the game's pick-ups at a place. Gives true when it is there:
+   false for a kind the level's banks lack, and when the level holds 128 pick-ups. */
+static int api_spawn_pickup(lua_State *L) {
+    lua_Integer kind = luaL_checkinteger(L, 1);
+    float x = coord_arg(L, 2), y = coord_arg(L, 3), z = coord_arg(L, 4);
+    lua_Integer frames = luaL_optinteger(L, 5, 600);
+    luaL_argcheck(L, kind >= 0 && kind <= 14, 1, "a pick-up's kind is 0 to 14");
+    luaL_argcheck(L, frames >= 0 && frames <= 30000, 5, "a pick-up lasts 0 to 30000 frames");
+    lua_pushboolean(L, G64SpawnPickup((int)kind, x, y, z, (int)frames));
+    return 1;
 }
 
 /* game.show(p, text): a line of text on player p's screen for three seconds. game.show(p, text, frames): for that
@@ -580,6 +603,7 @@ static const luaL_Reg api[] = {{"frame", api_frame},         {"level", api_level
                                {"garibs", api_garibs},       {"health", api_health}, {"lives", api_lives},
                                {"random", api_random},       {"hurt", api_hurt},
                                {"set_health", api_set_health}, {"show", api_show},
+                               {"add_life", api_add_life},   {"spawn_pickup", api_spawn_pickup},
                                {"session", api_session},     {"add_session", api_add_session},
                                {"var", api_var},             {"set_var", api_set_var},
                                {NULL, NULL}};
