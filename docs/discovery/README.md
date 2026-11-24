@@ -68,6 +68,7 @@ playable or testable. [roadmap.md](roadmap.md).
 | [mods.md](mods.md) | 8 | Lua, custom levels and models from Glovebox, sharing mods without game data |
 | [level-pack.md](level-pack.md) | 8 | The level pack's format as g64coopdx reads it today |
 | [level-file-safety.md](level-file-safety.md) | 8 | What a level file must satisfy for the game's own parser to stay inside its memory |
+| [model-banks.md](model-banks.md) | 8 | The plan for models in a level pack: the file, the check of a bank, and how the game loads it |
 | [lua-trial.md](lua-trial.md) | 8 | A trial of Lua on Linux and Windows: what is the same on both, and what the design must do about the rest |
 | [repository.md](repository.md) | 12 | The layout, build, CI, license, ROM rules, a draft CLAUDE.md, names |
 | [roadmap.md](roadmap.md) | | Phases, sizes and dependencies |
