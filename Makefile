@@ -481,7 +481,7 @@ bots: bots-build
 	build/tests/bots "$$GLOVER_ROM" 8 1500 any >> build/tests/bots.out
 	BOTS_SEED=1 build/tests/bots "$$GLOVER_ROM" 8 1000 >> build/tests/bots.out
 	BOTS_SEED=3 build/tests/bots "$$GLOVER_ROM" 8 1000 >> build/tests/bots.out
-	BOTS_SEED=777 build/tests/bots "$$GLOVER_ROM" 16 600 >> build/tests/bots.out
+	BOTS_SEED=777 build/tests/bots "$$GLOVER_ROM" 16 1000 >> build/tests/bots.out
 	grep "every level" build/tests/bots.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1500 | tr -d '\r' \
 	    > build/tests/bots-windows.out
@@ -493,7 +493,7 @@ bots: bots-build
 	    | tr -d '\r' >> build/tests/bots-windows.out
 	BOTS_SEED=3 WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1000 \
 	    | tr -d '\r' >> build/tests/bots-windows.out
-	BOTS_SEED=777 WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 16 600 \
+	BOTS_SEED=777 WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 16 1000 \
 	    | tr -d '\r' >> build/tests/bots-windows.out
 	cmp build/tests/bots.out build/tests/bots-windows.out
 
