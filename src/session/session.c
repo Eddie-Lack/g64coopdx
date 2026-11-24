@@ -62,7 +62,7 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
 typedef struct {
     int used;
     net_addr addr;
-    uint32_t heard; /* when a message that only this peer could have made last came */
+    uint32_t heard; /* the last time a message came that only this peer could have made */
     /* The sealed link with this peer, the public key this side sent it, and the one it sent. On the host each
        player has a link of their own; on a joiner peer 0 is the host, and sealed is 0 until the welcome. */
     g64_seal seal;
@@ -73,8 +73,8 @@ typedef struct {
     /* On the host: a sealed message from this peer has opened, so the peer holds the key and the address is its
        own. Only then does the host send it the start, which is long and repeats. */
     int proven;
-    /* On the host: this player took the place after the start. The place may be one of a player of the start who
-       is gone; its new player is not one of the start's. */
+    /* On the host: this player took the place after the start. The place may have belonged to a player of the
+       start who is gone; its new player is not one of the start's. */
     int late;
     /* On the host: this player does not have the host's level pack yet. They hold a place and are not in the game:
        they are not counted, not sent the start, and their game and chat messages are dropped. since is when
@@ -742,7 +742,7 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             if (len < 1)
                 break;
             if (!h->opened) {
-                /* The link is the real host's: the secret key has done its work. */
+                /* The link is the real host's. The secret key is not needed any more. */
                 h->opened = 1;
                 g64_seal_wipe(g->secret, sizeof g->secret);
             }

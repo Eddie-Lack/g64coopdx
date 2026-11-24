@@ -7,7 +7,8 @@
  *
  *   - The note's case (model-banks.md): the objects of object bank 29 in the order of its directory, 64 to 200 of
  *     them, in level 35, whose own bank it is. They stand in rows of 8 from x 0 and z 0, as in make packbanks. The
- *     level check must accept each of these files. Before the fix, 104 of them crashed the game in CheckCollisions.
+ *     level check must accept each of these files. Before the guards listed below, 104 of them crashed the game in
+ *     CheckCollisions.
  *   - The same level with 128 of them and 16 players.
  *   - In 9 levels: the objects of the level's banks that play alone, in turn, and the one that asks for the most
  *     vertices again and again. The count goes up from 50 until the parser stops the level as too large.
@@ -232,8 +233,8 @@ static uint8_t *with_scenery(int level, const uint32_t *ids, unsigned numIds, un
     return lev;
 }
 
-/* Plays one case twice and prints it. The level stopped when it is unplayable right after its start or at the
-   end: online, the players of a stopped level go to the hub, which is a level that plays. Returns 1 when it
+/* Plays one case twice and prints it. The level counts as stopped when it is unplayable right after its start or
+   at the end: online, the players of a stopped level go to the hub, which is a level that plays. Returns 1 when it
    stopped. */
 static int run_case(const char *what, int level, const uint32_t *ids, unsigned numIds, unsigned count,
                     const float *at) {

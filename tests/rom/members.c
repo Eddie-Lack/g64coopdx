@@ -4,9 +4,9 @@
  * (G64SetPresent), as the confirmed inputs give them. At frame 600 player 0, who is in the game's globals, leaves:
  * player 1 takes the globals. At frame 900 player 3 joins; at frame 1200 player 2 leaves. At frame 1300 player 3
  * leaves the way an exit takes a player (G64RemovePlayer) while their bit is still on, and must stay out. Each player
- * walks with their own input. The test checks that a glove stays where it was when another player leaves, that the right players
- * are in the game after each change, and it prints the memory hash every 50 frames: make twoplayers runs it on Linux
- * and under Wine and compares the outputs.
+ * walks with their own input. The test checks that a glove stays where it was when another player leaves, and that
+ * the right players are in the game after each change. It prints the memory hash every 50 frames: make twoplayers
+ * runs it on Linux and under Wine and compares the outputs.
  *
  * Usage: members ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>

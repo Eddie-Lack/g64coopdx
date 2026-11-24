@@ -109,7 +109,7 @@ s32 G64SpriteTextureMissing(Object *obj);
    path's points, a puzzle, an enemy, a vent, a landscape piece, a group of garibs, a cameo or a buzzer without a
    test, and the parser kept its pointers to them from the level before. A level file whose tokens come in another
    order than the game's own levels' made a handler write through a pointer that was not set, or through one into
-   memory that was freed. ParseLandscapeFile now notes which of them this level's file has made, and asks here
+   memory that was freed. ParseLandscapeFile notes which of them this level's file has made, and asks here
    before each token. The notes are apart from the pointers: the pointers stay as the game left them, since they are
    in the game's memory, which the tests compare with the original's. */
 /* g64coopdx: what a level file may use of the game's memory while it is read, and the most pieces of one broken

@@ -2,7 +2,7 @@
  * g64_session_test_inner). The first byte of each input picks the receiver (a host or a joiner), one of four
  * senders, and whether the rest is a raw datagram or an opened message. The host has a level pack to send; one of
  * its players lacks it, and a second joiner is in the middle of a download. Both sessions live across
- * inputs and are polled now and then, so messages meet every state.
+ * inputs and are polled now and then. As a result, messages meet every state.
  *
  * Build and run: make fuzz (clang with -fsanitize=fuzzer). */
 #include <stddef.h>

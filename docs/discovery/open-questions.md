@@ -22,7 +22,7 @@ of the report it shapes.
 | Exits | Each player exits alone; the others play on | [README.md](README.md#level-exits) |
 | Ball pickup | A host option: own ball only, or any ball. Each ball keeps its real owner; a lost ball kills that owner | [README.md](README.md#the-ball) |
 | License | MIT for g64coopdx's own code | [repository.md](repository.md#license) |
-| Builds | Published | [repository.md](repository.md#what-may-be-distributed) |
+| Builds | Release builds are published | [repository.md](repository.md#what-may-be-distributed) |
 | Copyright holder | "The g64coopdx contributors" in the MIT `LICENSE` file; the owner may put a name there instead | [repository.md](repository.md#license) |
 | Memory layout | Not a rule. Player 0 stays at the N64 addresses; other players' state goes on the game's heap in `port_ram`; a global may grow where needed | [README.md](README.md#where-the-new-state-lives) |
 | ROM tests in CI | No self-hosted runner for now; the tests that need the ROM run locally | [repository.md](repository.md#ci) |
@@ -37,10 +37,10 @@ of the report it shapes.
 | The Lua API's first scope | Rules, HUD, puzzle conditions and actions, and spawns through the game's own functions | [mods.md](mods.md#what-the-api-exposes) |
 | Glovebox | An "Export level pack" action, and imported models in banks of their own, in phase 5 | [mods.md](mods.md#the-level-pack) |
 | Player models | Allowed, as packs, after phase 5 | [mods.md](mods.md#player-models) |
-| A custom level's world | The world of the shipped level whose row it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
+| A custom level's world | The world of the shipped level whose row in `levelInfo`, the game's table of levels, it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
 | Death in a bonus level | Sends only that player out; the others play on | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 | Cameos | The other players in that level are held still and hidden while a cameo runs | [README.md](README.md#bosses-bonus-levels-and-cameos) |
-| Where the services run | The lobby in a container on Fly.io; the relay and STUN from Cloudflare; builds on GitHub Releases; the lobby at lobby.slugs.io until the project's name is chosen. The owner left this decision to the report | [hosting.md](../hosting.md) |
+| Where the services run | The lobby in a container on Fly.io; the relay and STUN from Cloudflare; builds on GitHub Releases; the lobby at lobby.slugs.io, a subdomain of the owner's existing domain, until the project's name is chosen. The owner left this decision to the report | [hosting.md](../hosting.md) |
 
 ## Still open
 

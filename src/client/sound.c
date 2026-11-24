@@ -214,9 +214,9 @@ static int was_played(const g64_sound *s, shot_key k) {
     return 0;
 }
 
-/* After a rollback the table holds the corrected frames. A one-shot started for a step that they no longer have it
-   in was started by a wrong prediction: it stops. A step that the ring no longer holds in full cannot be checked: its
-   sounds play on. */
+/* After a rollback the table holds the corrected frames. A one-shot that the corrected frames no longer have in its
+   step was started by a wrong prediction: it stops. A step that the ring no longer holds in full cannot be checked:
+   its sounds play on. */
 static void check_played(g64_sound *s, const SoundTable *t) {
     unsigned whole = oldest_whole_step(t);
     int i;

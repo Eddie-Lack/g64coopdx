@@ -1,9 +1,9 @@
 /* g64coopdx: the sound table (game change 12, docs/discovery/netcode.md "Sound and rollback"). The online game runs
-   with the stand-in sound player, so its logic gets the same answers on every machine and after every rollback. The
-   table records what the game asks the sound player to play, with the positions and volumes from before the
-   distance cut, so each machine can mix the sound for its own player's camera. It lives in the stand-in's state:
-   savestates hold it and a rollback restores it, but the memory hash does not cover it. A reader outside the game
-   (g64coopdx's src/client/sound.c) compares it with what plays and drives a real sound player.
+   with the stand-in sound player. With it, the logic gets the same answers on every machine and after every rollback.
+   The table records what the game asks the sound player to play, with the positions and volumes from before the
+   distance cut. From these, each machine can mix the sound for its own player's camera. The table lives in the
+   stand-in's state: savestates hold it and a rollback restores it, but the memory hash does not cover it. A reader
+   outside the game (g64coopdx's src/client/sound.c) compares it with what plays and drives a real sound player.
 
    It holds three things:
    - one-shots with a place (PlaySample), as events by step: they play once, wherever the listener is;

@@ -1,9 +1,16 @@
 # Mods
 
-This file covers question 8: a scripting layer, custom levels from Glovebox, custom models and textures, and how mods
-reach other players without anyone sharing game data. The owner wants Lua and custom levels in the first version.
+This file answers question 8 of the discovery, on mods ([README.md](README.md#the-documents) lists the questions). It
+covers a scripting layer, custom levels from Glovebox, custom models and textures, and how mods reach other players
+without anyone sharing game data. The owner wants Lua and custom levels in the first version. The terms are defined
+in [README.md](README.md#terms).
 
-Paths start with the repository: `weemitt/`, `gloveworld/`, `Glovebox/`. **VERIFIED** means read in the code or docs.
+This file is the discovery's design. What was built from it is described in [level-pack.md](level-pack.md),
+[model-banks.md](model-banks.md) and [scripts.md](../scripts.md).
+
+Paths start with the repository: `weemitt/`, `gloveworld/`, `Glovebox/`. After a full path, a file in the same
+repository may appear by a shorter path. A short path in a sentence about sm64coopdx or Lua is in that project.
+**VERIFIED** means read in the code or docs.
 **INFERRED** means concluded from them. **UNKNOWN** means not found or not tried.
 
 ## Summary
@@ -13,11 +20,12 @@ Paths start with the repository: `weemitt/`, `gloveworld/`, `Glovebox/`. **VERIF
 - weemitt reads every ROM byte through a few functions over one memory buffer. Loading a level or a bank from a file
   at run time is a small change: about 30 lines for the level, a little more for banks (INFERRED).
 - Glovebox already writes levels and models in the game's own formats. It needs one new export, a **level pack**: a
-  zip file of one level, its scripts and the author's own models, with no game data ([details](#the-level-pack)). Its imported models must then go into banks of their own, which its
-  `modCustom` path already supports (VERIFIED: `Glovebox/docs/technical.md:907-911`).
-- Lua: vendor PUC Lua 5.4 (MIT), compile it with the game's float flags, and give it a fixed memory arena inside the
-  game's state. Then every rollback savestate holds the scripts' state too, at no extra cost per frame beyond the
-  pages the scripts write.
+  zip file of one level, its scripts and the author's own models, with no game data ([details](#the-level-pack)). Its
+  imported models must then go into banks of their own, which its `modCustom` path already supports (VERIFIED:
+  `Glovebox/docs/technical.md:907-911`). `modCustom` holds models that Glovebox stores behind its console mod.
+- Lua: vendor PUC Lua 5.4 (MIT). PUC Lua is the Lua of lua.org, made at PUC-Rio. Compile it with the game's float flags,
+  and give it a fixed memory arena inside the game's state. Then every rollback savestate holds the scripts' state too,
+  at no extra cost per frame beyond the pages the scripts write.
 - Mods reach other players as packs, by hash, from the host. Every player supplies the ROM. Nothing from the ROM goes
   over the network.
 
@@ -26,7 +34,7 @@ Paths start with the repository: `weemitt/`, `gloveworld/`, `Glovebox/`. **VERIF
 | Piece | What it is | Where |
 | --- | --- | --- |
 | Level file (`.lev`) | A big-endian stream: a length, a name, then 16-bit tokens with fields until token 0x7D00. It places actors, platforms, enemies, puzzles, garibs, power-ups, water, wind, the backdrop, the spawn points and the cameo | `gloveworld/src/parse.c:92-170` reads it |
-| Object banks | Models, named by the CRC of their file name. FLA2-compressed. 56 banks in the ROM | `gloveworld/src/banks.c:493-760`; `Glovebox/crates/core/data/rom_map.json` |
+| Object banks | Models, named by the CRC of their file name. Compressed with FLA2, the game's own LZ format. 56 banks in the ROM | `gloveworld/src/banks.c:493-760`; `Glovebox/crates/core/data/rom_map.json` |
 | Texture banks | Textures by CRC, 19 banks plus one static | `gloveworld/src/banks.c:132-290` |
 | Collision | Not stored. `InitPlanes` builds it from each landscape mesh at load | `gloveworld/src/parse.c:262-283` |
 | Level table | `levelInfo[]`, 0x38 bytes a level: name, object bank, sound distance, song, bonus clock | `gloveworld/include/game.h:45-53` |
@@ -35,15 +43,15 @@ The game keeps 5 object bank slots and 5 texture bank slots (`weemitt/include/ba
 `FindObject` and `FindTexture` search only those. A level normally uses about 3 (`Glovebox/docs/technical.md`).
 
 The load runs `StartNewLevel`, `LoadLevel` (`weemitt/src/game/game.c:808`), `InitMorePersonal` (`game.c:444`),
-`ParseLandscapeFile` and `LoadLandscapeFile`. weemitt converts banks as they load (`weemitt/src/port/loaders.c`) and
-parses the `.lev` from its big-endian bytes field by field (`PORT_COPY`).
+`ParseLandscapeFile` and `LoadLandscapeFile`. weemitt converts each bank to the PC's byte order as it loads
+(`weemitt/src/port/loaders.c`) and parses the `.lev` from its big-endian bytes field by field (`PORT_COPY`).
 
 ## Custom levels at run time
 
 ### Where ROM bytes come from (VERIFIED)
 
-- The ROM is one buffer that `load_rom` reads (`weemitt/src/port/platform.c:124-152`); the library copies the host's
-  ROM the same way (`weemitt/src/lib/glover.c:218`).
+- The ROM is one buffer that `load_rom` reads (`weemitt/src/port/platform.c:124-152`); the library copies the ROM
+  that the program loading it passes in, the same way (`weemitt/src/lib/glover.c:218`).
 - Reads go through `port_dma` (`weemitt/src/port/os.c:115-126`, a `memcpy` from `port_rom`), `osPiRawReadIo`, the
   sound player's reads, the main segment's load and the symbol reader (`loaders.c:21`, `loaders.c:93-94`).
 - The game never writes the ROM.
@@ -55,7 +63,7 @@ parses the `.lev` from its big-endian bytes field by field (`PORT_COPY`).
 | Option | What changes | Cost | Limits |
 | --- | --- | --- | --- |
 | A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level being loaded is the custom level (option C says which number that is) | about 30 lines | Uses the shipped banks only |
-| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM does not use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | More bank slots: either new lists that `FindObject` and `FindTexture` also search, or larger `objectBanks` and `textureBanks` arrays, which means regenerating `gen/` |
+| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM does not use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | More bank slots: either new lists that `FindObject` and `FindTexture` also search, or larger `objectBanks` and `textureBanks` arrays, which means regenerating `gen/`, weemitt's tables of every global's N64 offset |
 | C. Custom level slots | A custom level borrows a shipped level's number: its row in `levelInfo` (the game's table of levels: name, song, banks) and its world. It swaps in its own `.lev` and extra banks. Glovebox's console mod (next section) borrows Space levels' numbers the same way (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
 | D. Rebuild the ROM at start | Apply a Glovebox BPS patch (a binary diff against the retail ROM, which Glovebox exports) to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code does not run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
 
@@ -69,17 +77,17 @@ from `Glovebox/docs/technical.md`):
 
 | Feature | On the PC |
 | --- | --- |
-| Rotation and scale on every object type (`mod/transforms.c`) | Needs porting: weemitt's parser applies `TOKEN_LANDROT` and `TOKEN_LANDSCALE` to the last landscape actor only (`weemitt/src/game/parse.c:664-670`, VERIFIED). Only levels that use the new case behave differently |
-| The heap above 4 MB (`mod/heap.c`) | Not needed: weemitt's heap runs to 16 MB past RDRAM (`weemitt/docs/architecture.md`) |
+| Rotation and scale on every object type (`mod/transforms.c`) | Needs porting: weemitt's parser applies `TOKEN_LANDROT` and `TOKEN_LANDSCALE` to the last landscape actor only (`weemitt/src/game/parse.c:664-670`, VERIFIED). Only levels that rotate or scale another type of object behave differently |
+| The heap above 4 MB (`mod/heap.c`) | Not needed: weemitt's heap runs to 16 MB past RDRAM, the N64's main memory (`weemitt/docs/architecture.md`) |
 | More bank slots (`mod/banks.c`) | Option B |
 | The matrix guard (`mod/guard.c`) | Needed: the 256-matrix limit is in the game's C. With 8 or more gloves it is a real limit: see [state-inventory.md](state-inventory.md#the-frames-hard-limits) |
 | Extra level slots (`mod/slots.c`) | Option C |
 
 ### The host world and custom levels
 
-weemitt's host world (`weemitt/docs/host-world.md`) lets a host give the game triangles to collide with, moving
-bodies, water and a camera. It does not draw them (`host-world.md:340`). It suits a foreign engine that uses Glover
-as a character. A custom Glover level is better served by the game's own loader.
+weemitt's host world (`weemitt/docs/host-world.md`) lets a program that loads the library give the game triangles to
+collide with, moving bodies, water and a camera. It does not draw them (`host-world.md:340`). It suits a foreign engine
+that uses Glover as a character. A custom Glover level is better served by the game's own loader.
 
 ## Custom models and textures
 
@@ -110,12 +118,13 @@ the picture, so a player's look can be local: other players need the bank to see
 | Level XML of a level built from scratch | No: object ids, positions and scripts | Yes (INFERRED) |
 | Level XML of an edited shipped level | The unchanged parts are the original team's level design | Only as a diff against the shipped level, which the player's own ROM rebuilds (decided) |
 | Custom model set (`custom/<set>/`) | No: the packer builds the banks from the author's triangles and images | Yes, if the art is the author's |
-| Kit models | No (`technical.md:603-610`) | Yes |
+| Kit models (props that Glovebox's own code makes) | No (`technical.md:603-610`) | Yes |
 
 ## The level pack
 
 [level-pack.md](level-pack.md) has the format as g64coopdx reads it today: a folder with a manifest and one level
-file. The plan below is the first one, and holds what is still to come.
+file. The plan below is the discovery's first plan, and holds what is still to come. level-pack.md has its own list
+("Still to come").
 
 A level pack is a zip file or a folder:
 
@@ -156,7 +165,9 @@ sandbox matters more than the C dependency.
 ### Scripts in a rollback game
 
 The network model ([netcode.md](netcode.md)) is rollback: every machine runs the same game and the same scripts on
-the same inputs, and steps back and forth through savestates. Three rules follow.
+the same inputs, and steps back and forth through savestates. The game advances in updates. A tick is an update in
+which a game frame ends, and `deltaTick` is 1 in it (`weemitt/docs/delta-time.md`). Online every update is a whole
+frame, so every update is a tick. Three rules follow.
 
 1. **The scripts' state must be in the savestate.** Give Lua an allocator over a fixed arena, and link Lua and the
    arena into the game's object (`game.o`) of the brute forcer's engine. The engine saves all of the game's
@@ -187,8 +198,8 @@ The memory hash used for desync checks then covers the arena too.
 ### Hook points
 
 The port already has a hook pattern: function pointers in `weemitt/src/port/porthooks.h`, NULL by default
-(VERIFIED). The Lua layer uses the same pattern. Each hook below exists as a function today (VERIFIED); the hook
-itself is new.
+(VERIFIED). The Lua layer uses the same pattern. Each function below exists in the game (VERIFIED). The design adds
+a hook to it.
 
 | Event | Where |
 | --- | --- |
@@ -209,12 +220,12 @@ itself is new.
 
 - Read: the players (glove and ball positions, velocities, action, ball type, garibs, health), the level,
   the game mode, the actor lists, the puzzles' states.
-- Write, in tick hooks only: positions with velocities cleared (as `glover_place` does), the players' counters,
-  spawns through the game's own functions, puzzle actions through the puzzle system.
+- Write, in tick hooks only: positions with velocities cleared (as the library's `glover_place` does), the players'
+  counters, spawns through the game's own functions, puzzle actions through the puzzle system.
 - Actors as handles (an index and a generation number), checked on every use. A raw pointer dies with the level's
   heap.
 - Never: pointers, `Ptr32` words, display lists, the heap's block table, or a change of type or size of anything in
-  `port_ram`.
+  `port_ram`. A `Ptr32` word is a pointer as the game stores it: a 32-bit word made from an offset into `port_ram`.
 - Players by their **session index**, the same on every machine. sm64coopdx's player indices differ between
   machines, which its own docs call a trap (`docs/lua/lua.md`, "Important notes on player indices").
 - Script messages from a person (a vote, a chat command) enter the game as inputs stamped with a tick.

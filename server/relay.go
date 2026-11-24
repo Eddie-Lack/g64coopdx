@@ -1,6 +1,6 @@
 package main
 
-// The relay: it carries the game's UDP packets between a host and its joiners, so no player has to forward a port.
+// The relay: it carries the game's UDP packets between a host and its joiners. No player has to forward a port.
 // Every player sends to the relay; the relay passes each packet on inside its room. It never reads the game's
 // packets, which hold only inputs, session messages and hashes (docs/discovery/netcode.md).
 //
@@ -20,7 +20,7 @@ package main
 //	                                       take it off the list (open 0). The host repeats it while it waits.
 //	list      0x06, build (u32), padding   anyone -> relay: which listed rooms does this build have? The datagram
 //	                                       must be relayListMin bytes long: the answer is never longer than the
-//	                                       question, so the relay cannot be used to flood a forged address.
+//	                                       question. The relay then cannot be used to flood a forged address.
 //	rooms     0x86, count (u8), then for each room: code (6), wanted (u8), joined (u8), flags (u8), title length
 //	                                       (u8), title        relay -> the asker: up to relayListMax rooms
 //	ban       0x07, peer (u8)              host -> relay: put the peer out of the room and refuse their address
@@ -162,7 +162,7 @@ type relay struct {
 	byHost map[netip.AddrPort]*relayRoom
 	byPeer map[netip.AddrPort]*relayRoom
 	now    func() time.Time
-	// send writes one datagram; a field so the tests can watch it.
+	// send writes one datagram. It is a field: the tests watch what it sends.
 	send func(b []byte, to netip.AddrPort)
 }
 

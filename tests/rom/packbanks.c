@@ -13,8 +13,8 @@
  *   - The four object banks that take the most blocks, and the four that take the most bytes, with their texture
  *     banks, and the four largest banks of each kind: in the levels with the least room.
  *   - Every allowed object bank alone, without its texture banks, with all its objects that level 13 lacks as
- *     scenery: the level plays, or stops as unplayable when a sprite's texture is missing. Twice the same, and the
- *     program never stops.
+ *     scenery: the level plays, or stops as unplayable when a sprite's texture is missing. Two runs give the same
+ *     hash, and the program never stops.
  *   - The lookup order: the level's own world texture bank named as a retail bank. Every id is then in both, and the
  *     table answers a lookup only with the first flag.
  *   - A level whose file names objects of a retail bank as scenery: FindObject finds them in the table, and the level
@@ -735,7 +735,7 @@ static void reserved_names(void) {
 
 /* ---- The client's rule for retail object banks. */
 
-/* The game's verdict at level start: 1 when a retail object bank stopped the level for a missing sprite texture. */
+/* What the game does at level start: 1 when a retail object bank stopped the level for a missing sprite texture. */
 static int game_stops(int level, const Retail *r) {
     int stops;
     start(level, NULL, 0, r, 2, 1);

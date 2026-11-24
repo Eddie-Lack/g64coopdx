@@ -1,8 +1,14 @@
 # The repository
 
-This file covers question 12: g64coopdx's layout, build, CI, license, the ROM requirement, what may be distributed,
-a draft CLAUDE.md and candidate names. The owner's decisions on these points are in
-[open-questions.md](open-questions.md#decided).
+This file covers question 12 of the discovery ([README.md](README.md#the-documents) lists the 13 questions):
+g64coopdx's layout, build, CI, license, the ROM requirement, what may be distributed, a draft CLAUDE.md and candidate
+names. The owner's decisions on these points are in [open-questions.md](open-questions.md#decided). README.md's
+[terms](README.md#terms) define the words that this file uses without explaining them, such as the owner, the
+discovery, the brute forcer, the baseline, an instance, a game change and a phase. **VERIFIED** means read in a named
+source or measured here, and **INFERRED** means concluded from that ([README.md](README.md#method)).
+
+The layout, the build's targets and the draft CLAUDE.md below are what the discovery proposed. The repository's own
+`CLAUDE.md` says where things are now ("Where things go") and which commands exist ("Everyday work").
 
 ## Layout
 
@@ -44,7 +50,9 @@ Rules that the layout encodes:
   ([weemitt.md](weemitt.md#recommendation-b-as-a-vendored-copy)). Everything else lives in g64coopdx's own folders,
   and talks to the game through hooks and per-player state that the copy adds.
 - The network layer sits behind a table of functions, as sm64coopdx's `struct NetworkSystem` does
-  ([sm64coopdx.md](sm64coopdx.md)). The direct and the lobby modes then share all other code.
+  ([sm64coopdx.md](sm64coopdx.md)). The direct mode and the lobby mode then share all other code. In the direct mode
+  the host shares an address and port, and a joiner types it. In the lobby mode players find a session through the
+  lobby server ([netcode.md](netcode.md#services)).
 - The toy game stands in for the real one wherever a test does not need Glover itself.
 
 ## The build
@@ -52,8 +60,8 @@ Rules that the layout encodes:
 - GNU Make, as weemitt and the brute forcer. The Makefile reads weemitt's flags and source lists from
   the copy's `weemitt/Makefile` (the brute forcer does this with `make -pn`).
 - The game's files get weemitt's game flags. g64coopdx's own files get ordinary host flags. Lua gets the game's float
-  flags (`-ffp-contract=off`, SSE2, no fast math) and is linked into the game's object. Its arena is then part of the
-  savestate ([mods.md](mods.md#scripts-in-a-rollback-game)).
+  flags (`-ffp-contract=off`, SSE2, no fast math) and is linked into the game's object. Its arena, the fixed block of
+  memory that Lua allocates from, is then part of the savestate ([mods.md](mods.md#scripts-in-a-rollback-game)).
 - Targets: `make` (Linux), `make windows` (MinGW-w64, the first target that matters), `make headless` (no window,
   the test build), `make server` (the lobby server), `make test`.
 - **64-bit from the start**, for Windows and Linux (decided). The 64-bit Linux and Windows builds gave equal memory
@@ -103,7 +111,7 @@ Glovebox's CI works the same way: the tests that need the ROM skip themselves (`
 Facts (VERIFIED):
 
 - weemitt, gloveworld and Glovebox have no license file. gloveworld's README says its license "is not chosen yet";
-  Glovebox's Cargo.toml points at `THIRD_PARTY_NOTICES.md`.
+  Glovebox's Cargo.toml names `THIRD_PARTY_NOTICES.md` in its `license-file` field.
 - sm64coopdx has no license file, so no right to its code exists. g64coopdx does not use its code in any case.
 - CoopNet, sm64coopdx's lobby server, is AGPL-3.0. g64coopdx does not use it.
 - In the repository: Monocypher (BSD 2-Clause or CC0) in `third_party/monocypher`, for the session's encryption.
@@ -188,9 +196,9 @@ These commands are planned; none exists yet.
 
 ## Candidate names
 
-`g64coopdx` names the project after sm64coopdx. That shows the idea, but it can read as part of the coop-deluxe
-team's work, and it is hard to say. "Glover" is the game's name and a trademark of its rights holder, so a name
-without it is safer for a released program (INFERRED). weemitt already follows that pattern.
+`g64coopdx` names the project after sm64coopdx. That shows the idea, but it can read as part of the work of coop-deluxe,
+the team that publishes sm64coopdx, and it is hard to say. "Glover" is the game's name and a trademark of its rights
+holder, so a name without it is safer for a released program (INFERRED). weemitt already follows that pattern.
 
 | Name | Note |
 | --- | --- |

@@ -68,11 +68,11 @@ const char *netplay_pack_name(void);
  * netplay_set_pack_cache names the folder that keeps downloaded packs (in DIR/packs). netplay_set_pack_policy says
  * what a joiner does with the host's offer: ask the player (ask 1), take it (yes 1), or end the session with a
  * message (both 0, the default). Call both before netplay_start.
- * While netplay_pack_asking is 1 during netplay_poll, the offer waits: netplay_offer_name, netplay_offer_size (bytes,
- * all of the pack), netplay_offer_script (1 for a pack with a script) and netplay_offer_models (the bytes of its
- * models.bin, 0 for none) describe it, netplay_pack_kept is 1 when this machine has
- * kept that pack from an earlier download, and netplay_pack_answer gives the player's answer. A downloaded pack is
- * used only when it reads as a pack, passes the check, and has the id the host named. */
+ * While netplay_pack_asking is 1 during netplay_poll, the offer waits. These functions describe it: netplay_offer_name,
+ * netplay_offer_size (bytes, all of the pack), netplay_offer_script (1 for a pack with a script) and
+ * netplay_offer_models (the bytes of its models.bin, 0 for none). netplay_pack_kept is 1 when this machine has kept
+ * that pack from an earlier download. netplay_pack_answer gives the player's answer. A downloaded pack is used only
+ * when it reads as a pack, passes the check, and has the id the host named. */
 void netplay_set_pack_cache(const char *dir);
 void netplay_set_pack_policy(int ask, int yes);
 int netplay_pack_asking(void);

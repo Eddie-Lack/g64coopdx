@@ -727,8 +727,8 @@ void g64_ihost_tick(g64_ihost *h) {
             }
         if (p < h->players)
             continue;
-        /* A script's value that the instance does not have yet: one on a frame, the keys in turn, so a key that
-           changes often does not hold the others back. The event carries the value as it is now. */
+        /* A script's value that the instance does not have yet: one on a frame, the keys in turn. A key that changes
+           often does not hold the others back. The event carries the value as it is now. */
         for (p = 0; p < G64_SCRIPT_KEYS; p++) {
             int k = (in->next_key + p) % G64_SCRIPT_KEYS;
             if (in->values[k] == h->values[k])

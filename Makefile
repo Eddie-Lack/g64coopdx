@@ -99,7 +99,7 @@ rollback-game: rollback-game-build
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), enemies, puzzles, respawns, world hazards, garibs, pick-ups, bosses and bonus levels with more than one player
-# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c) each player's ball texture (tests/rom/textures.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c), each player's ball texture (tests/rom/textures.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -401,10 +401,10 @@ packbanks: packbanks-build
 	tr -d '\r' < build/tests/packbanks-windows.raw > build/tests/packbanks-windows.out
 	cmp build/tests/packbanks.out build/tests/packbanks-windows.out
 
-# Many scenery objects in one level file (tests/rom/scenery.c): the note's case of object bank 29 in level 35, also
-# with 16 players; each of 9 levels with its objects in turn and with one object again and again up to the parser's
-# limit; and every level with an unknown object. The level plays or stops as unplayable, on Linux and under Wine. The
-# two outputs must be equal (needs the ROM in GLOVER_ROM).
+# Many scenery objects in one level file (tests/rom/scenery.c): the case from docs/discovery/model-banks.md (object
+# bank 29 in level 35), also with 16 players; each of 9 levels with its objects in turn and with one object again and
+# again up to the parser's limit; and every level with an unknown object. The level plays or stops as unplayable, on
+# Linux and under Wine. The two outputs must be equal (needs the ROM in GLOVER_ROM).
 SCENERY_SRC := tests/rom/scenery.c src/client/levcheck.c src/client/rombanks.c src/client/fla2.c \
     src/client/rombanks_game.c $(BANKRANGES_SRC) third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
 scenery-build: savestates

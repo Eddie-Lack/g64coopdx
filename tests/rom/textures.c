@@ -1,6 +1,6 @@
 /* Each player's own ball texture (weemitt's g64players.c, G64ActorTextures), online, with the ROM.
  * The game names the ball's texture in one word of the ball's display list, and writes it when the ball changes.
- * With one word for all, a player who changed their ball changed the look of every ball. Each player now has the
+ * With one word for all, a player who changed their ball changed the look of every ball. Each player now has
  * words of their own.
  *   A. Two players. Player 1's ball changes into the next kind, as the R button makes it. Player 1's ball is
  *      another kind and has another texture than before. Player 0's ball keeps its kind and its texture.

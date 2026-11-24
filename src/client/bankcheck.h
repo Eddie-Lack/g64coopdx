@@ -21,7 +21,7 @@
  * Some rules allow only what Glovebox writes today. tests/fixtures/cube.models.bin is Glovebox's real output, and
  * tests/net/bankcheck_test.c pins those rules on it.
  *
- * The rules that need the player's ROM are apart: g64_models_check_rom. */
+ * The rules that need the player's ROM are separate: g64_models_check_rom. */
 #ifndef G64_BANKCHECK_H
 #define G64_BANKCHECK_H
 

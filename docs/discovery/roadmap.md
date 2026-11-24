@@ -2,8 +2,9 @@
 
 Each phase ends in something playable or testable. Sizes are rough: weeks of focused work for one developer who
 knows the code. Phase 3 is the least certain; its risk is named in its section. "Game change N" is row N of the list
-of changes g64coopdx makes to its copy of weemitt ([weemitt.md](weemitt.md#changes-to-the-game-code)). Each phase ends
-with a look through weemitt's log for fixes worth taking into the copy.
+of changes g64coopdx makes to its copy of weemitt ([weemitt.md](weemitt.md#changes-to-the-game-code)). Other terms are
+defined in [README.md](README.md#terms). Each phase ends with a look through weemitt's log for fixes worth taking into
+the copy.
 
 | Phase | Ends in | Size | Depends on |
 | --- | --- | --- | --- |
@@ -17,8 +18,9 @@ with a look through weemitt's log for fixes worth taking into the copy.
 
 In all: about 31 to 51 weeks with every phase done one after another, so roughly 7 to 12 months for one person
 (INFERRED). Phase 4 can run beside phase 3, which shortens the calendar time but not the work. g64coopdx does not have
-to prove that each change leaves the one-player game exactly as the original, which saves work in phases 1 and 3; keeping its own baseline and
-taking weemitt's fixes by hand costs a little in every phase.
+to prove that each change leaves the one-player game exactly as the original game, which saves work in phases 1
+and 3. Keeping its own baseline and taking weemitt's fixes by hand costs a little in every phase. A baseline is a set
+of recorded runs that a new build is checked against, frame by frame.
 
 ## Phase 0: the skeleton
 
@@ -58,13 +60,14 @@ Status (15 November 2026):
 
 ## Phase 1: two gloves offline
 
-Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`), and kept for now: it is the
-fastest way to two gloves for the first online tests. Each extra player's glove, ball, camera, pad and their control
-blocks live in a slot on the game's heap and are swapped into the globals for that player's part of the frame. The
-other players' gloves and balls are drawn as proxy actors. Four gloves play the first hub level for 3,000 frames with
-the same output and hashes on Linux and Windows (`make twoplayers`); with one player the game still equals the
-baseline. Each player's view is drawn with that player swapped in, and the gloves after the first have colors of
-their own. Known gap: enemies, collectables and puzzles see only player 1.
+Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`), and kept for now: it is the fastest
+way to two gloves for the first online tests. A spike is a prototype. Each extra player's glove, ball, camera, pad and
+their control blocks live in a slot on the game's heap and are swapped into the globals for that player's part of the
+frame. The other players' gloves and balls are drawn as proxy actors. A proxy actor is an actor in the game's actor list
+that only shows what a player's slot holds. Four gloves play the first hub level for 3,000 frames with the same output
+and hashes on Linux and Windows (`make twoplayers`); with one player the game still equals the baseline. Each player's
+view is drawn with that player swapped in, and the gloves after the first have colors of their own. Known gap: enemies,
+collectables and puzzles see only player 1. Phase 3 (below) records the later work on them.
 
 - Game change 1: a pad per player.
 - Game change 7: an option that turns off every PC addition of weemitt's that the controller can reach, such as the
@@ -89,7 +92,7 @@ same hashes on Linux and Windows (Wine), every frame.
 ## Phase 2: rollback on a LAN
 
 - The rollback core moves from the toy to the game. Savestates by the static build's sections (the brute forcer's
-  engine), full copies first.
+  engine), full copies first. Phase 0 already put the real game behind the rollback core (above).
 - Direct UDP with ENet; the host confirms inputs.
 - Game change 12, the sound split: the logical sound state apart from its output, so a rollback does not replay
   sounds ([netcode.md](netcode.md#sound-and-rollback)). Done: the sound table, the reader and the real sound player
@@ -139,16 +142,16 @@ harness at N players and by the determinism tests:
    (weemitt/src/game/g64players.c, "Garibs and pick-ups"; tests/rom/collect.c). The ball's and the glove's textures are each player's own: the words in their display lists that name the
    texture and the palette go with the player in a swap, with the crystal ball's model, and the renderer draws
    another player's glove and ball with that player's words (G64ActorTextures; gfx_dl.c; tests/rom/textures.c).
+   The run of garibs taken in quick succession is each player's own.
    Left: the drawn result has not been looked at in the window program. Two players with the same kind of ball
    share its palette, so a blend (a ball that is changing, a snowball) shows on both. The bits of a burst ball are
-   drawn with the viewer's own ball texture. The run of garibs taken in
-   quick succession is each player's own.
+   drawn with the viewer's own ball texture.
 4. Game change 11, the owner's rules: no lives; respawn at the player's own checkpoint without restarting the
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
    Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with
    their own countdown; a respawn after a death restarts no enemies; a death takes no life
    (weemitt/src/game/g64players.c, "Respawns"; tests/rom/respawn.c). Each player's shadow altitude is measured where
-   they are, so a fall into nothing kills every player. The pickup rule "own ball only" holds as the game is built:
+   they are, so any player who falls into nothing dies. The pickup rule "own ball only" holds as the game is built:
    a glove touches only its own ball, so a lost ball kills its owner. The host's other choice, "any ball", is done as an exchange: when a free glove touches another
    player's free ball, the two players' balls change places in their slots, and each ball keeps its real owner. A
    ball that is lost kills its real owner at the frame's end; the player who had it lets go of it, gets it back
@@ -164,27 +167,28 @@ harness at N players and by the determinism tests:
    where the glove lets go of the ball, and the boss deals with the player whose ball hit it or the nearest
    (weemitt/src/game/boss.c; tests/rom/bosses.c). In the Carnival boss's level each player has the turntable's
    push and the circling camera, the pie goes for the player the boss looks at, any player's ball sets the traps
-   off, and the bomb's blast reaches every glove and ball. The other players are made once a level's opening cameo
-   has ended: a copy taken during a cameo kept the cameo's camera. In the Fortress boss's level each player has the
-   camera over the arena's middle and can stun the boss with a slam; the boss goes for the platform of the glove
-   nearest to it; every glove hurts on a charged platform's edge and near the charged boss, and the stomp throws
-   every glove and ball. Who has the controls (the camera, the glove or the ball) is each player's own. In the
-   Fortress, Prehistoric and Atlantis bonus levels each player has the level's per-player part, and online a player
-   wins or loses a bonus level alone: the others play on (weemitt/src/game/bonus.c; tests/rom/bonus.c). The bonus
-   clock's end still takes everyone. An enemy's slam ring and a quake reach every player, and a player's own slam
-   ring hurts no other player (footprint.c, quake.c). Every player has the Atlantis boss's camera and the first
-   space boss's circling camera, with their own camera height; the robot's foot squashes every glove and bursts
-   every ball under it; any player can carry their ball to the robot's platform, and online that exit takes the
-   players at once (nmeprocess2.c; these have no test of their own). In the last space boss's level each player has a turret of their own: aim, camera, shield
-   and shots (boss.c; tests/rom/bosses.c). Every glove is held at one place there, so the boss takes the living
-   players in turn, 64 frames each. Left: that level's game over, which is one player's; the shield's glow and
-   the crosshair's fade, which follow the first player on every screen; a cameo during the fight, which moves the
-   first player's camera only. In the Carnival bonus level every player sits on the one cannon with an aim of
-   their own: their stick turns their aim and their camera, their A fires along it, and in their view the cannon
-   points where they aim (`CarnivalView`). The first player's aim is the cannon's own, as in the original; the
-   recoil and the turning sound are the first player's (bonus.c; tests/rom/bonus.c). The space bonus
-   level has no code of its own for the player: the changes above cover it. The Carnival
-   boss's pie and bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
+   off, and the bomb's blast reaches every glove and ball. The other players start as copies of the first player
+   (g64players.c). They are made once a level's opening cameo has ended: a copy taken during a cameo kept the cameo's
+   camera. In the Fortress boss's level each player has the camera over the arena's middle and can stun the boss with a
+   slam; the boss goes for the platform of the glove nearest to it; every glove hurts on a charged platform's edge and
+   near the charged boss, and the stomp throws every glove and ball. Who has the controls (the camera, the glove or the
+   ball) is each player's own. In the Fortress, Prehistoric and Atlantis bonus levels each player has the level's
+   per-player part, and online a player wins or loses a bonus level alone: the others play on (weemitt/src/game/bonus.c;
+   tests/rom/bonus.c). The bonus clock's end still takes everyone. An enemy's slam ring and a quake reach every player,
+   and a player's own slam ring hurts no other player (footprint.c, quake.c). Every player has the Atlantis boss's
+   camera and the first space boss's circling camera, with their own camera height; the robot's foot squashes every
+   glove and bursts every ball under it; any player can carry their ball to the robot's platform, and online that exit
+   takes the players at once (nmeprocess2.c; these have no test of their own). In the last space boss's level each
+   player has a turret of their own: aim, camera, shield and shots (boss.c; tests/rom/bosses.c). Every glove is held at
+   one place there, so the boss takes the living players in turn, 64 frames each. In the Carnival bonus level every
+   player sits on the one cannon with an aim of their own: their stick turns their aim and their camera, their A fires
+   along it, and in their view the cannon points where they aim (`CarnivalView`). The first player's aim is the cannon's
+   own, as in the original; the recoil and the turning sound are the first player's (bonus.c; tests/rom/bonus.c). The
+   space bonus level has no code of its own for the player: the changes above cover it. The Carnival boss's pie and
+   bomb, the Fortress boss's slam, pain and stomp and the slam rings have no test.
+   Left in the last space boss's level: its game over, which is one player's; the shield's glow and the crosshair's
+   fade, which follow the first player on every screen; a cameo during the fight, which moves the first player's
+   camera only.
 7. Cameos: which glove they move.
    Done: a cameo plays for the player who set it off, when a puzzle's condition on a player started it. Three
    cameos in the game start that way: one in the Atlantis hub and two in level 15. Every other cameo plays when a
@@ -208,16 +212,16 @@ harness at N players and by the determinism tests:
    one player needs up to 212), 1489 heap blocks (one player: 1146) and a display list task of 31320 bytes (one
    player: about 14000). The N64 game's limits were 256 matrices, 1280 blocks and 20000 bytes. From about 6 players
    the matrices ran past their table into the display list, and at about 13 the Atlantis hub ran out of blocks.
-   Now a frame has room for 1024 matrices (objectMtxMore, weemitt/include/display.h), the dynamic heap blocks move
-   to a table of 2048 when they meet the static ones (weemitt/src/game/jalloc.c), and a frame's tasks may fill the
-   whole display list buffer of 20000 commands, of which 16 players use 4196 (main.c). With one player nothing
-   moves: the tables in the game's memory hold what they held before. The vertices (peak 606 of 800) do not
+   In g64coopdx a frame has room for 1024 matrices (objectMtxMore, weemitt/include/display.h), the dynamic heap blocks
+   move to a table of 2048 when they meet the static ones (weemitt/src/game/jalloc.c), and a frame's tasks may fill the
+   whole display list buffer of 20000 commands, of which 16 players use 4196 (main.c). With one player nothing moves:
+   the tables in the game's memory hold what they held before. The vertices (peak 606 of 800) do not
    depend on the number of players. The sphere hit table matters only for part frames, which the online game
-   does not run (tests/rom/limits.c). The picture was looked at with 16 players in one level of the window
-   program, a host and 15 joiners on one machine: the renderer read memory only up to the heap's end and drew the
-   objects past the 256th with a stale matrix, which put a black shape over the screen. It now reads up to the end
-   of port_win (PORT_PTR_END, weemitt/src/port/ptr32.h). That session ran 2000 frames with 3200 hash checks and no
-   mismatch.
+   does not run (tests/rom/limits.c). A part frame is an update shorter than a whole frame. The picture was looked at
+   with 16 players in one level of the window program, a host and 15 joiners on one machine: the renderer read memory
+   only up to the heap's end and drew the objects past the 256th with a stale matrix, which put a black shape over the
+   screen. It now reads up to the end of port_win (PORT_PTR_END, weemitt/src/port/ptr32.h). That session ran 2000 frames
+   with 3200 hash checks and no mismatch. port_win is memory after the heap. It holds the matrices past the first 256.
 
 Playable: the whole game, start to end, with 8 players. Test: a scripted run of each level by N bots in the harness;
 the matrix and list peaks measured with 16 players.
@@ -244,9 +248,10 @@ wide because each boss and each bonus level has its own code.
 - libjuice for ICE; libsodium for encryption.
   Encryption is done, with Monocypher in place of libsodium: a key exchange in the hello and the welcome, then
   every message sealed, through the relay and in the direct mode ([netcode.md](netcode.md#encryption);
-  src/session/seal.h; `third_party/monocypher`; tests/net/seal_test.c). The protocol is 8.
+  src/session/seal.h; `third_party/monocypher`; tests/net/seal_test.c). Encryption came with protocol 8.
 - The relay: Cloudflare's managed TURN service, tested with libjuice first; coturn on a server as the fallback
-  ([hosting.md](../hosting.md)).
+  ([hosting.md](../hosting.md)). For now the relay is the lobby's own UDP relay (`server/relay.go`), with rooms joined
+  by code ([hosting.md](../hosting.md#the-decision)).
 - The lobby deployed where [hosting.md](../hosting.md) says; its placeholder is already in `server/`.
 - An HTTPS client in the game for the lobby: the system's own on Windows (WinHTTP), libcurl on Linux (INFERRED;
   chosen in this phase).
@@ -267,16 +272,16 @@ wide because each boss and each bonus level has its own code.
 - Fuzz targets for every parser.
 
 - Joining a game that has started (not in the first list; done). The host starts with the players who are in
-  (**Start now**, or `--start-alone`), and the number of players is the number of places. A hello after the start
-  gets a free place, or the place of a player who is gone. The host sends the start only to a player whose sealed
-  message has opened, then sends it every second as the list of players (who is in, with names and colors). The
-  new player's program has no game at first: it asks the host for one (the instances' ready message), and the host
-  puts it in the instance of the session's first level with a move, as after an exit. Colors are part of the
-  game's state, so a new player's colors reach every running instance as an event on a confirmed frame, and every
-  move carries the colors at the instance's start. A removed player's address stays out: the host's session
-  remembers it in the direct mode, and the relay bans it in a room. The room stays on the list while it has a
-  free place. The protocol is 9 (src/session/session.h, src/client/instances.h; tests/net/session_test.c,
-  tests/rom/instances.c).
+  (**Start now**, or `--start-alone`), and the number of players is the number of places. A place is room for one
+  player in the session. A hello after the start gets a free place, or the place of a player who is gone. The host sends
+  the start only to a player whose sealed message has opened, then sends it every second as the list of players (who is
+  in, with names and colors). The new player's program has no game at first: it asks the host for one (the instances'
+  ready message), and the host puts it in the instance of the session's first level with a move, as after an exit.
+  Colors are part of the game's state, so a new player's colors reach every running instance as an event on a confirmed
+  frame, and every move carries the colors at the instance's start. A removed player's address stays out: the host's
+  session remembers it in the direct mode, and the relay bans it in a room. The room stays on the list while it has a
+  free place. Joining a started game came with protocol 9 (src/session/session.h, src/client/instances.h;
+  tests/net/session_test.c, tests/rom/instances.c).
 
 Playable: up to 16 people from home networks (the design limit; the promise stays 8 until phase 3's 16-glove
 measurement passes). That measurement has passed, and a host and 15 joiners on one machine ran 1500 frames through
@@ -305,14 +310,16 @@ satisfy before a pack may come from another player is in
 not hashed. Lua is in the game: Lua 5.4.8 with two small patches (`weemitt/third_party/lua`), a block of 2 MB in the
 game's own data for the scripts, a sandbox with a limit on work, and a pack's `script.lua`, which every game of the
 session runs ([scripts.md](../scripts.md); `weemitt/src/port/g64lua.c`; `script_run` in tests/rom/instances.c;
-tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). A script reads the players' places, balls and
+tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). The trial's patch is the first of the two. The second
+keeps Lua from reading a hexadecimal number with the system's `strtod` (`weemitt/third_party/lua/README.md`). A script
+reads the players' places, balls and
 counts, moves, hurts and heals a glove, shows a line of text to a player, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
-comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory, and a number made of the script's memory
-counts and random state in place of the scripts' block. A script gives a player a life and puts one of the game's pick-ups in the
+comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory. In place of the scripts' block, it covers a
+number made of the script's memory counts and random state. A script gives a player a life and puts one of the game's pick-ups in the
 level (`game.add_life`, `game.spawn_pickup`), and hears when a player reaches a checkpoint or takes a pick-up
-(`on_checkpoint`, `on_pickup`). Left: writes to garibs. A script reads and sets the level's 100 puzzle variables, which ties it to
-every condition and action the level's puzzles have. A script keeps 16 values across levels: a level's script asks
-the host to add to one, and the new value reaches every instance as a session event.
+(`on_checkpoint`, `on_pickup`). A script reads and sets the level's 100 puzzle variables, which ties it to
+every condition and action that the level's puzzles have. A script keeps 16 values across levels: a level's script asks
+the host to add to one, and the new value reaches every instance as a session event. Left: writes to garibs.
 
 Playable: a session on a custom Glovebox level with a script, joined by players who did not have the pack. Test: the
 pack reader's fuzz target; a script's state equal on every client after rollbacks; a level built from scratch loads

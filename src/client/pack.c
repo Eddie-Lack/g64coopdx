@@ -64,8 +64,8 @@ int g64_pack_parse_manifest(const uint8_t *d, size_t n, g64_pack *out) {
         size_t end = at, len;
         while (end < n && d[end] != '\n')
             end++;
-        /* Every line ends with a line feed alone. A carriage return is refused like any other control character:
-           the pack's id is a hash of the file's bytes, so a manifest has one way to be written. */
+        /* Every line ends with a line feed alone. A carriage return is refused like any other control character. A
+           manifest has one way to be written: the pack's id is a hash of the file's bytes. */
         if (end == n)
             return -1;
         len = end - at;
@@ -633,8 +633,8 @@ static int make_dir(const char *path) {
     return errno == EEXIST ? 0 : -1;
 }
 
-/* Writes a file through another name, and gives it its own name only when every byte is on the disk's side of the
- * program: a file with a pack's name is whole. */
+/* Writes a file through another name, and gives it its own name only when every byte is written and the file is
+ * closed: a file with a pack's name is whole. */
 static int write_file(const char *dir, const char *name, const uint8_t *d, size_t n) {
     char path[1100], tmp[1100];
     FILE *f;

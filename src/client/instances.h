@@ -7,7 +7,7 @@
  * start record (the level, its world, the members at the start and the session's progress), and the instance's log
  * up to the frame the player joins at. Only inputs and these records cross the network; no game data does.
  *
- * The host part (g64_ihost) and the player part (g64_iclient) talk only through send functions, so a test can run a
+ * The host part (g64_ihost) and the player part (g64_iclient) talk only through send functions. A test can run a
  * host and several players in one process. The host's own player is a g64_iclient too.
  *
  * Messages (the payload of a session game message), all numbers little-endian:

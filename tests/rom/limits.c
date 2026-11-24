@@ -1,7 +1,7 @@
 /* The frame's limits with 16 players (weemitt's object.c, jalloc.c and main.c), online, with the ROM.
  * The N64 game has room for 256 object matrices a frame, 1280 heap blocks and 20000 bytes in a display list task.
  * One player stays inside them. Sixteen do not: a glove takes up to 14 matrices, and each player's glove, ball,
- * shadows and footprints take heap blocks. The game now has more room for each.
+ * shadows and footprints take heap blocks. g64coopdx's copy of the game has more room for each.
  * Three levels are built from the state right after power-on with 16 players and run for 800 frames, with every
  * player walking their own way from frame 500: the first hub (1), the Atlantis hub (12, the most heap blocks) and
  * the Prehistoric boss (28, the longest display list). For each level the test checks that
@@ -9,9 +9,9 @@
  *   - the frame used more than 256 matrices and no more than the room for them,
  *   - the heap's blocks stayed inside their room,
  *   - a frame's display list stayed inside its buffer.
- * Over the three levels it checks that the old limits were passed: more than 1280 blocks, and a task of more than
- * 20000 bytes. It prints the peaks and a memory hash per level: make twoplayers runs it on Linux and under Wine and
- * compares the outputs.
+ * Over the three levels it checks that the N64 game's limits were passed: more than 1280 blocks, and a task of more
+ * than 20000 bytes. It prints the peaks and a memory hash per level: make twoplayers runs it on Linux and under Wine
+ * and compares the outputs.
  *
  * Usage: limits ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>

@@ -409,7 +409,7 @@ int netplay_player_gone(int p) {
 }
 
 /* The ban goes to the relay five times, half a second apart: one lost packet does not lose it. The relay holds the
-   banned player's place for ten seconds, so the repeats cannot reach a newcomer. */
+   banned player's place for ten seconds. The repeats cannot reach a newcomer. */
 static void send_ban(void) {
     uint32_t t = now_ms();
     if (!banSends || !sock || (banTime && t - banTime < 500))
@@ -447,7 +447,7 @@ void netplay_kick(int p) {
 }
 
 /* This program's build id: the commit it was built from (weemitt/studio.mk writes g64build.h), or "dev" for a build
- * without one. Every change to the game's code plays another game, so players of different builds cannot play
+ * without one. Every change to the game's code makes another game, so players of different builds cannot play
  * together: the host refuses a joiner whose build differs. The Windows and Linux programs of one commit have the same
  * id. */
 #ifdef G64_BUILD_HEADER
@@ -1345,8 +1345,8 @@ static void restore_view(void) {
 }
 
 /* Each player's own pause menu. It does not stop the game: while it is open the player's glove gets no input. A
- * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames,
- * so the host confirms it even if one input is lost; doing it twice does nothing more. */
+ * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames.
+ * The host confirms it even if one input is lost. Doing it twice does nothing more. */
 #define ACTION_BUTTON 0x0080
 /* A player who came into a running level runs a little behind the host's clock, and on a slow connection their
    first inputs after a pause may come too late for the host: the choice is held for 8 frames. */

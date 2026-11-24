@@ -228,7 +228,7 @@ s32 IsCameraZoneAction(s16 type);
 
 /* Respawns (g64players.c, "Respawns"): 1 when each player respawns at their own checkpoint (online, or more than one
    player). The countdown, the camera's place and RestartPlayer's frame stamp k of the player in the globals for their
-   checkpoint gate; offline with one player, the gate's own fields and own. G64CheckRestartGate: the gate's touch test
+   checkpoint gate; offline with one player, the gate's own fields and `own`. G64CheckRestartGate: the gate's touch test
    for every player's ball. */
 s32 G64PerPlayerRestart(void);
 s16 *G64RestartTimer(struct Platform *gate);

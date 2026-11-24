@@ -1,7 +1,7 @@
 /* A libFuzzer target for the rollback core's message parsers (rb_host_receive and rb_client_receive).
  *
  * The first byte of each input picks the receiver and the sender; the rest is the message. One host and one client of
- * a 4-player toy game live across inputs, and both advance a frame now and then, so messages meet a moving state.
+ * a 4-player toy game live across inputs, and both advance a frame now and then. Messages meet a moving state.
  *
  * Build and run: make fuzz (clang with -fsanitize=fuzzer). */
 #include <stddef.h>

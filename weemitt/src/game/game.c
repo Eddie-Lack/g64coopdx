@@ -3876,7 +3876,7 @@ static s32 G64WayRoomDoorOpen(s32 tag) {
 
 /* g64coopdx: progress made in another instance, given to a running level at a confirmed frame (a session event). It
    only adds: the level bits, the all-garib bits and the worlds done are joined, and the hub counts take the larger
-   value, so progress this level made and has not yet reported stays. The world stays. A way room door that the new
+   value. Progress that this level made and has not yet reported stays. The world stays. A way room door that the new
    progress opens moves away, as at the level's start. Other things the progress changes in this level show at its
    next start. */
 void G64ApplyProgress(const G64Save *save) {

@@ -272,7 +272,7 @@ s32 G64SpriteTextureMissing(Object *obj) {
 /* Loads retail bank num into the table with the swap of Glovebox's mod (mod/banks.c): the five slots of its kind go
    aside and are emptied, the game's loader puts the bank in slot 0, and slot 0 is copied into the table. A texture
    bank's animated textures are dropped: cyclingTextures is put back as it was. During an object bank's load the
-   texture slots stay, so its objects find the level's textures and the table's. */
+   texture slots stay. Its objects find the level's textures and the table's. */
 static void LoadRetail(G64BankTable *t, s32 objects, u32 num) {
     TextureBank texSlots[5];
     ObjectBank objSlots[5];

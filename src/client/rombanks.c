@@ -19,8 +19,8 @@ struct G64RomBanks {
     Vec objectIds, textureIds, texels, verts, vtx;
     /* Each object bank's ids, as pairs of the bank's number and an id (BankId), sorted. */
     Vec bankIds;
-    /* The texture ids that the sprites of the objects of the bank being walked name, and then each object bank's
-       such ids (BankId), sorted. */
+    /* The texture ids named by the sprites of the objects in the bank being walked, and then those ids of each
+       object bank (BankId), sorted. */
     Vec spriteIds, bankSprites;
     /* Each texture bank's texture ids (BankId), sorted. */
     Vec bankTextures;
@@ -403,7 +403,7 @@ static void index_bank(G64RomBanks *b, int kind, const uint8_t *rom, size_t romS
     free(buf);
 }
 
-/* Pairs each id that the walk of bank num put in from on with num, in to. */
+/* Pairs num with each id that the walk of bank num put in from, at index first and after. The pairs go in to. */
 static void pair_ids(G64RomBanks *b, Vec *to, const Vec *from, size_t first, unsigned num) {
     for (; first < from->n; first++) {
         BankId e;
@@ -413,7 +413,7 @@ static void pair_ids(G64RomBanks *b, Vec *to, const Vec *from, size_t first, uns
     }
 }
 
-/* Gives bank num the pairs that bank was of an earlier number has in v. */
+/* Gives bank num a copy of each pair in v that belongs to bank was, an earlier number. */
 static void copy_pairs(G64RomBanks *b, Vec *v, unsigned was, unsigned num) {
     size_t i, have = v->n;
     for (i = 0; i < have; i++) {

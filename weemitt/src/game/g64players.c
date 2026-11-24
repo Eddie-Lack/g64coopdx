@@ -704,7 +704,7 @@ static void free_orbiter_proxies(void) {
             free_orbiter_proxy(i, k);
 }
 
-/* Makes and frees the orbiters' proxies. It runs in the logic with no slot swapped in, so the actor list is the
+/* Makes and frees the orbiters' proxies. It runs in the logic with no slot swapped in. The actor list is then the
    same on every machine. */
 static void sync_orbiters(void) {
     s32 i, k, world3;
@@ -1381,7 +1381,7 @@ const char *ObjectBankRange(u32 num, u32 *start, u32 *end);
 
 /* The ROM range of a bank, for the client's index of the ROM's banks (src/client/rombanks.c). kind is 0 for a
    texture bank and 1 for an object bank. Returns 0 for a number with no bank, and 1 with the range otherwise. The
-   ranges come from the game's own switch, so the client and the game agree on them. */
+   ranges come from the game's own switch. The client and the game agree on them. */
 s32 G64BankRom(s32 kind, u32 num, u32 *start, u32 *end) {
     const char *name = kind == 0 ? TextureBankRange(num, start, end) : ObjectBankRange(num, start, end);
     return name != NULL;
@@ -2360,11 +2360,11 @@ s32 G64PuzzleZone(s32 k, f32 *box) {
     return 0;
 }
 /* Respawns (phase 3, the owner's rules). Online, or with more than one player, each player respawns at their own
-   checkpoint: the gate their own ball last crossed first. A gate's countdown (restartTimer), the camera's place for
-   the respawn (cameraPos) and RestartPlayer's frame stamps are each player's own, here, by player number. The game
-   reaches them through G64RestartTimer, G64RestartCamera and G64RestartStamp, for the player in the globals. A
-   respawn after a death restarts no enemies (the level's opening does), and a death takes no life. Offline with one
-   player the gate's own fields are used, as before. */
+   checkpoint: the last gate that their own ball crossed for the first time. A gate's countdown (restartTimer), the
+   camera's place for the respawn (cameraPos) and RestartPlayer's frame stamps are each player's own, here, by player
+   number. The game reaches them through G64RestartTimer, G64RestartCamera and G64RestartStamp, for the player in the
+   globals. A respawn after a death restarts no enemies (the level's opening does), and a death takes no life. Offline
+   with one player the gate's own fields are used, as in the original. */
 #define G64_GATES 16
 typedef struct G64Restart {
     s32 valid;

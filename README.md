@@ -1,6 +1,6 @@
 # g64coopdx
 
-An online co-op version of Glover (N64) on PC, with mods, built on the weemitt PC port.
+An online co-op version of Glover (N64) on PC, with mods, built on the [weemitt](weemitt/README.md) PC port.
 
 **Nothing is playable yet.** The project has its design and a placeholder for its lobby server. The game work
 starts with phase 0 of the [roadmap](docs/discovery/roadmap.md).

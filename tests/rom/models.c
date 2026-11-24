@@ -26,10 +26,8 @@
  * object matrices past the first 256, which port_hash_ram does not cover. The NaN floats do not stay in memory, but
  * the converted matrices do. So the test also counts, in each frame's matrices, the matrices whose rotation part
  * holds those words, and apart from them the other words of 0x80008000 (two entries out of range, such as a far
- * translation). At frame SAVE_AT it
- * saves the game, runs 100 frames, loads the save and runs the 100 frames again. The two runs must give the same
- * hash on every frame.
- * In variant I no case may draw a NaN.
+ * translation). At frame SAVE_AT it saves the game, runs 100 frames, loads the save and runs the 100 frames again.
+ * The two runs must give the same hash on every frame. In variant I no case may draw a NaN.
  *
  * Guards, in both variants: the case's actors are in the level, the level never stops as unplayable, and calcMtx
  * stays 0. In the PLATFORM and the two bridge cases with a plank under the glove, a glove or a ball must stand on
@@ -121,8 +119,8 @@ static G64Models models;
 /* Makes the flat plate's collision mesh a square deck, 40 units on a side, centered on the object's origin. Its
    faces are two triangles, each in both windings, then the same four again. The builder's own mesh is made of thin
    triangles, which a glove standing on the plate seldom touches. The display list is left as it is. A glove on a
-   rope bridge's plank of this mesh touches 4 faces at once. Before collision.c bounded its loop over the touched
-   planes, that crashed the game; the ROPEBRIDGE case is its test. */
+   rope bridge's plank of this mesh touches 4 faces at once. collision.c bounds its loop over the touched planes.
+   The original loop had no bound, and that crashed the game. The ROPEBRIDGE case tests the bound. */
 static void make_deck(uint32_t flat) {
     static const float corner[4][2] = {{-20.0f, -20.0f}, {20.0f, -20.0f}, {20.0f, 20.0f}, {-20.0f, 20.0f}};
     static const uint8_t face[4][3] = {{0, 1, 2}, {0, 2, 3}, {0, 2, 1}, {0, 3, 2}};
