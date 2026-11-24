@@ -312,6 +312,12 @@ Playable: a session on a custom Glovebox level with a script, joined by players 
 pack reader's fuzz target; a script's state equal on every client after rollbacks; a level built from scratch loads
 and plays.
 
+Done: the sample pack `packs/garib-island`. Its level was written as Glovebox XML from scratch, with Atlantis 1's
+objects in a layout of its own, and made into a pack with Glovebox's `gbtool pack` and `g64pack make`. A Linux host
+with the pack and a Windows joiner under Wine without it: the joiner downloaded it, both played the level, the
+script's line showed, and 300 hash checks found no mismatch. `sample_pack` in tests/rom/instances.c plays it with two
+players over a lossy network, on Linux and under Wine.
+
 ## Phase 6: release
 
 - A 64-bit Windows release, with SDL2 and the notices.
