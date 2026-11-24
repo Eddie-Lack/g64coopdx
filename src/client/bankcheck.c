@@ -689,6 +689,9 @@ static int run(Check *c, const uint8_t *file, size_t n, g64_bank_range_fn exists
     for (i = 0; i < c->on; i++)
         if (c->o[i] && !(c->own[i >> 3] & (1 << (i & 7))))
             return fail(c, fo(c, i), "a byte that no structure reaches is not 0");
+    m->numEntries = c->entries;
+    m->numObjects = c->objects;
+    m->numTextures = c->ntex;
     return 1;
 }
 

@@ -55,7 +55,7 @@ STUDIO_OBJS := $(BUILD)/src/port/studio.o
 G64_ROOT := ..
 G64_SRCS := $(addprefix $(G64_ROOT)/src/,client/netplay.c client/instances.c client/imsg.c client/pack.c client/levcheck.c session/session.c session/seal.c \
             net/udp.c rollback/rollback.c rollback/engine_game.c client/sound.c client/soundout.c \
-            client/fla2.c client/rombanks.c client/rombanks_game.c)
+            client/fla2.c client/rombanks.c client/rombanks_game.c client/bankcheck.c)
 G64_OBJS := $(patsubst $(G64_ROOT)/src/%.c,$(BUILD)/g64/%.o,$(G64_SRCS))
 STUDIO_OBJS += $(G64_OBJS) $(BUILD)/src/port/g64launcher.o $(BUILD)/g64/monocypher.o
 

@@ -23,16 +23,23 @@
  * compares the outputs.
  *
  * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
- * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run).
+ * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run). The sample pack
+ * plays alone and with models (sample_pack, sample_pack_models).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#endif
 
 #include "../../src/client/instances.h"
 #include "../../src/client/levcheck.h"
 #include "../../src/client/pack.h"
+#include "../../src/client/rombanks.h"
 
 typedef struct {
     int level, frame, player, type;
@@ -544,7 +551,7 @@ static void sample_pack(Engine *e, void *boot) {
     unsigned counts[4];
     int active = 0, unplayable = 1, before = failed;
     uint8_t *with;
-    if (g64_pack_load("packs/garib-island", &pk, err, sizeof err) != 0) {
+    if (g64_pack_load("packs/garib-island", NULL, &pk, err, sizeof err) != 0) {
         check(0, "the sample pack loads from packs/garib-island");
         printf("FAIL the sample pack: %s\n", err);
         return;
@@ -585,6 +592,101 @@ static void sample_pack(Engine *e, void *boot) {
     free(with);
     g64_pack_free(&pk);
     printf("%s the sample pack Garib Island plays with two players\n", failed != before ? "FAIL" : "ok  ");
+}
+
+/* The sample pack with models: a folder with the sample pack's files and Glovebox's cube (tests/fixtures), read as the
+   online program reads the player's own folder. The models pass the bank check and the rules of the ROM, the game
+   reads the pack from a buffer laid out as the online program lays it out (g64_pack_layout_of), and two players play
+   it. The test: the game loads the pack's two banks in the pack's level, the level plays, and no machine
+   disagrees. */
+const void *G64PackBankLoaded(int objects, unsigned *word);
+static void write_part(const char *dir, const char *name, const void *d, size_t n) {
+    char path[300];
+    FILE *f;
+    snprintf(path, sizeof path, "%s/%s", dir, name);
+    f = fopen(path, "wb");
+    if (f) {
+        fwrite(d, 1, n, f);
+        fclose(f);
+    }
+}
+
+static void sample_pack_models(Engine *e, void *boot) {
+    static const char dir[] = "build/tests/models-pack";
+    static uint8_t cube[8192];
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    g64_pack pk;
+    g64_pack_banks banks;
+    g64_pack_layout l;
+    G64RomBanks *index;
+    char err[200];
+    float at[3];
+    unsigned counts[4], word = 0;
+    int active = 0, before = failed;
+    size_t cubeN;
+    uint8_t *with;
+    FILE *f = fopen("tests/fixtures/cube.models.bin", "rb");
+    if (!f) {
+        check(0, "the cube's models.bin is in tests/fixtures");
+        return;
+    }
+    cubeN = fread(cube, 1, sizeof cube, f);
+    fclose(f);
+    if (g64_pack_load("packs/garib-island", NULL, &pk, err, sizeof err) != 0) {
+        check(0, "the sample pack loads");
+        return;
+    }
+#ifdef _WIN32
+    _mkdir(dir);
+#else
+    mkdir(dir, 0700);
+#endif
+    write_part(dir, "pack.txt", pk.manifest, pk.manifestSize);
+    write_part(dir, "level.lev", pk.lev, pk.levSize);
+    write_part(dir, "script.lua", pk.script, pk.scriptSize);
+    write_part(dir, "models.bin", cube, cubeN);
+    g64_pack_free(&pk);
+    index = g64_rombanks_build_game(rom, romSize);
+    banks.exists = g64_rombanks_game_range;
+    banks.user = NULL;
+    banks.rom = index;
+    if (!index || g64_pack_load(dir, &banks, &pk, err, sizeof err) != 0) {
+        check(0, "the sample pack with models loads, and its models pass the rules of the ROM");
+        printf("FAIL the sample pack with models: %s\n", index ? err : "out of memory");
+        g64_rombanks_free(index);
+        return;
+    }
+    g64_rombanks_free(index);
+    check(pk.models && pk.modelsSize == cubeN && pk.modelsInfo.texSize > 0 && pk.modelsInfo.objSize > 0,
+          "the pack holds the cube's two banks");
+    g64_pack_layout_of(&pk, romSize, &l);
+    check(l.texAt % 8 == 0 && l.texAt >= l.scriptAt + pk.scriptSize && l.objAt == l.texAt + l.texSize &&
+              l.size == l.objAt + l.objSize,
+          "the buffer has the banks after the script, from a multiple of 8");
+    with = malloc(l.size);
+    if (!with) {
+        g64_pack_free(&pk);
+        return;
+    }
+    memcpy(with, rom, romSize);
+    g64_pack_layout_fill(&pk, &l, with);
+    engine_load(e, boot);
+    engine_set_rom(e, with, l.size);
+    g64_instances_pack(pk.level, (unsigned)l.levAt, (unsigned)pk.levSize);
+    g64_instances_pack_script((unsigned)l.scriptAt, (unsigned)pk.scriptSize);
+    g64_instances_pack_models((unsigned)l.texAt, (unsigned)l.texSize, (unsigned)l.objAt, (unsigned)l.objSize);
+    two_players(e, boot, at, counts, &active);
+    check(!G64LevelUnplayable(), "the sample pack with models plays");
+    check(G64PackBankLoaded(0, &word) != NULL && G64PackBankLoaded(1, &word) != NULL,
+          "the game loaded the pack's texture bank and object bank");
+    g64_instances_pack(-1, 0, 0);
+    g64_instances_pack_script(0, 0);
+    g64_instances_pack_models(0, 0, 0, 0);
+    engine_set_rom(e, rom, romSize);
+    free(with);
+    g64_pack_free(&pk);
+    printf("%s the sample pack with Glovebox's cube plays with two players\n", failed != before ? "FAIL" : "ok  ");
 }
 
 /* A level pack's script. It counts its frames and, every 50 frames, moves player 0's glove 5 units along x. Its
@@ -1149,6 +1251,7 @@ int main(int argc, char **argv) {
     pack_level(e, boot);
     script_run(e, boot);
     sample_pack(e, boot);
+    sample_pack_models(e, boot);
     script_session(e, boot);
     pack_unplayable(e, boot);
     free(boot);

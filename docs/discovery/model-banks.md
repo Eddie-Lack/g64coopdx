@@ -16,7 +16,8 @@ The owner decided these points.
   loads it from their own ROM. Only the number crosses the network. The session already checks that every player
   has the same ROM.
 - The models in a pack are at most 4 MB.
-- Custom models may be platforms, if a test shows that they give the same game on Linux and Windows.
+- Custom models may be platforms, if a test shows that they give the same game on Linux and Windows. The test
+  passed ("Platforms" below).
 
 ## The file
 
@@ -93,8 +94,16 @@ With the player's ROM, the client also refuses:
 
 The check's API is `g64_models_check` and `g64_models_check_rom` (`src/client/bankcheck.h`). Each returns a
 message and the offset in `models.bin` of the fault. The caller gives the first one the game's bank numbers: the
-game's program asks `G64BankRom`, and the tests use a table. The second one applies the first two rules that need
-the ROM. The level rules come in step 7.
+game's program asks `G64BankRom` (`g64_rombanks_game_range`). Programs that do not link the game, the pack tool and
+the tests, use a table of the game's bank switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`).
+`make rombanks` compares the table with `G64BankRom`. The second one applies the first two rules that need the
+ROM. The level rules come in step 7.
+
+The pack reader (`src/client/pack.h`) runs the check on every `models.bin`, from a folder too. The online program
+runs the rules that need the ROM once, in `netplay_begin`, before the game is built. Only then has the game read
+the banks' places from the ROM's code. So a host whose models fail these rules finds out only when the game starts.
+`g64pack check DIR --rom ROM` runs the same rules. Both refuse an index of the ROM's banks that lacks banks of a
+kind or skipped a bank (`g64_rombanks_complete` in `src/client/rombanks.h`).
 
 A fuzz target (`tests/fuzz/bankcheck_fuzz.c`) runs the check on random banks, on changes to Glovebox's cube, and
 on banks made from random shapes. For every bank the check accepts, it runs a copy of the game's loaders that stops
@@ -145,11 +154,103 @@ crashes.
 
 ## Platforms
 
-A rotation key of all zeros gives NaN values in the drawn matrices. Platforms, water and debris read the key, but
-scenery does not. The game then turns each NaN into an integer, which C leaves undefined. The check refuses the
-zero key, so no NaN from a pack reaches the game. Platforms are allowed if a test with the identity key gives the
-same output on Linux and under Wine. The test also records what the zero key gives, as a measurement only. This
-is stricter than the owner's rule.
+Custom models may be platforms. `make models` (`tests/rom/models.c`) decided it.
+
+Why a test was needed:
+
+- A rotation key is a quaternion. `QuaternionToMatrix` (maths.c) divides 2 by its squared length, with no test
+  for 0. A key of all zeros gives infinity, and 0 times infinity gives NaN (not a number). The whole rotation part
+  of the matrix is then NaN.
+- `guMtxF2L` (weemitt's gu.c) turns each entry times 65536 into a 32-bit integer. For NaN, C leaves that undefined.
+  Both 64-bit builds give 0x80000000 today, so a NaN entry becomes -32768.
+- Glovebox writes a key of all zeros today. The bank check refuses it, and the pack export writes the identity key
+  in its place. The test also measures the zero key.
+
+Which actors read the key:
+
+- `DrawObject` (object.c) reads an object's first rotation key unless the actor has a static matrix and `calcMtx`
+  is 0. Nothing in the game's code assigns `calcMtx`, and no memset, memclear or memcpy names it or the globals
+  before it. The test reads it on every frame, and it stays 0.
+- Only a landscape actor gets a static matrix (object.c). It is made from the actor's rotation in the level file.
+  LANDSCAPE and BACKGROUND both make a landscape actor, so they never read the key.
+- Platforms read it: PLATFORM, ROPEBRIDGE, SINEBRIDGE and ORBITBRIDGE make them (parse.c). So do a WATER actor and
+  a broken platform's debris, which are drawn with `DrawActor`. A CAMEO_OBJ makes a cameo actor, which reads it too.
+  Step 7 is to add a level rule that refuses a pack object there.
+- The glove reads the keys of what it rides or swings on, and sets its own rotation from them
+  (`SetHandHopPosition` in hand.c, `HandSwish` in object.c). That is an enemy, a bullet or a cameo actor. An enemy's
+  and a bullet's objects have the ids of the game's own objects, and the ROM check refuses a pack id that the ROM
+  has. A cameo is the case of step 7's rule above.
+- Platform collision uses the actor's rotation, not the key (collision.c, platform.c). Apart from the glove's case
+  above, a key reaches only the drawn matrices. No game logic reads those, so they cannot change the game's state.
+- The first 256 object matrices of a frame are in Dynamic, in the game's memory, and the memory hash covers them.
+  The rest are in `objectMtxMore`, in `port_win`. That is past the 0x1800000 bytes the memory hash covers. So the
+  test also prints a hash of `objectMtxMore`.
+
+The test builds a pack from scratch with `tests/net/bankbuild.h`: an 8 by 8 texture, a cube of 12 faces and a
+flat plate of 8 faces. The test replaces the plate's collision mesh with a square, 40 units on a side. It puts the
+objects in level 13, near the glove's place in the level's first frame. Each edited level file passes
+`g64_lev_check`. The cases:
+
+- two PLATFORMs, each with a SPIN, a path of two points, a SPEED and an ACCEL. The test checks that both move and
+  turn. The plate starts under the glove.
+- a ROPEBRIDGE of 6 planks, a SINEBRIDGE of 5 and an ORBITBRIDGE of 4. The first plank of the rope and sine
+  bridges starts under the glove.
+- a destructible PLATFORM with 12 pieces of debris. The test breaks it at frame 995 by setting its flag in the
+  game's memory. The debris then lives through the save and load at frame 1000.
+- a WATER actor
+- a LANDSCAPE and a BACKGROUND piece, as controls
+
+Each case runs 3000 frames, with 2 and with 16 players who press buttons at random, with the seeds of bots.c. Every
+100 frames it prints the memory hash, the hash of `objectMtxMore`, the count of NaN words in the game's memory,
+and the count of matrix words that a NaN gives. At frame 1000 it saves, runs 100 frames, loads and runs them
+again. It also checks that the pack's actors are in the level, that the level never stops as unplayable, and that
+`calcMtx` stays 0. In the PLATFORM, ROPEBRIDGE and SINEBRIDGE cases, a glove or a ball must stand on or touch one
+of the pack's platforms in some frame. The test reads each glove's and ball's platform and contact platform on
+every frame. The ORBITBRIDGE case has no such check. In the test no glove or ball touched one of its planks, even
+one that starts under the glove. The likely reason is in parse.c: it calls no `InitPlatformInfo` for these planks.
+So their collision radius stays 0, and their faces never get the normals that `RecalculatePlatformInfo` keeps for
+a platform with no motion and no rotation. There are two variants of the pack:
+
+- Variant I has the identity key. The bank check accepts it.
+- Variant Z has keys of all zeros. The bank check refuses it. The test loads it anyway, by setting the game's pack
+  globals directly. This is a measurement only. Its results do not fail `make models`.
+
+The rule, which is stricter than the owner's: platforms are allowed if variant I gives equal output on Linux and
+under Wine in every case, and every save and load gives equal hashes. The result on one machine, under Wine 64-bit:
+
+| Variant | Linux and Wine | Save and load | NaN in the drawn matrices |
+| --- | --- | --- | --- |
+| I | equal | equal in all 16 runs | none, in every case |
+| Z | equal | equal in all 16 runs | in every case but the two controls |
+
+- Variant Z draws a NaN in each platform, bridge, water and debris case. This shows that each of these cases drew
+  its actors.
+- It draws none in LANDSCAPE or BACKGROUND. The test does not show that it drew those actors, so this only agrees
+  with the code. The evidence that they do not read the key is the static matrix path in `DrawActor`.
+- In variant Z the debris drew NaN matrices from frame 997 to frame 1014 (2 players) and 1013 (16 players), after
+  the platform was gone. Debris reads the key.
+- The test counts a matrix as NaN when the integer halves of its rotation part are 0x80008000. A word of
+  0x80008000 elsewhere comes from two entries out of the range of the matrix's numbers, such as a far
+  translation. One such word appeared in 2 frames of SINEBRIDGE with 16 players, in both variants.
+- Both variants give the same count of frames with a glove or a ball on the pack's platforms, in every case.
+- The NaN floats themselves do not stay in memory. Every sample finds 13,018 to 15,359 NaN words in the game's
+  memory. At most 6 of them have the bits that 0 times infinity gives. Both variants give the same count of those, frame
+  by frame, so they come from the game's own data. What stays is the converted matrix, with
+  words of 0x80008000.
+- Variant Z's equal output shows only that both builds' compilers emit the same truncating conversion today. C
+  leaves the result undefined, so another compiler or other flags could change it. The bank check keeps refusing
+  the zero key.
+
+The test found a crash in the game's own code, and g64coopdx now fixes it:
+
+- `CollideActorWithPlane` (collision.c) handles a glove or a ball on a turning platform with motion, such as a rope
+  bridge's plank. It looks at each plane that the actor touches, in `planes[4]`, until it finds an empty one.
+- When the actor touches 4 planes, all 4 are full. The loop then reads the next word, `contactPos[0].x`, and uses a
+  float's bits as a pointer. The game crashed.
+- The test's plank mesh has coincident faces, so a glove on it touches 4 at once. Any level pack can do the same
+  with a rope bridge of a dense mesh, with or without custom models.
+- The fix stops the loop after 4 planes. With 4 planes, the old loop stopped only when that x was 0. Otherwise it
+  crashed, or, for a value near 1e-31, read garbage as a plane. The fix changes only those runs. `make regress` says 0 of 49 runs differ. The ROPEBRIDGE case is the fix's test.
 
 ## The heap
 
@@ -209,8 +310,8 @@ budget for retail banks and for the level file's object ids.
 | 2 | A bounded reader of compressed banks, and an index of the ROM's banks | yes |
 | 3 | The bank check, its tests and its fuzz target | yes |
 | 4 | The pack's own banks in free slots, and the proof that the check matches the loaders | yes |
-| 5 | The test of platforms with custom models, on Linux and under Wine | |
-| 6 | `models.bin` in the pack format, the pack tool and the cache | |
+| 5 | The test of platforms with custom models, on Linux and under Wine | yes |
+| 6 | `models.bin` in the pack format, the pack tool and the cache | yes |
 | 7 | The level file's object ids against the banks, and the heap budget | |
 | 8 | The offer and the transfer (protocol 12) | |
 | 9 | Retail banks in the heap table | |

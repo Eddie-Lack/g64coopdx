@@ -42,6 +42,9 @@ typedef struct {
     uint8_t flags;           /* bit 0: search the retail texture banks before the level's own */
     uint8_t numTex, numObj;  /* the retail bank numbers */
     uint8_t tex[G64_MODELS_RETAIL_MAX], obj[G64_MODELS_RETAIL_MAX];
+    /* What the pack's banks hold: the object bank's directory entries, every object in their trees, and the
+       texture records. All 0 when the file has no banks of its own. */
+    unsigned numEntries, numObjects, numTextures;
 } G64Models;
 
 /* Checks models.bin. exists says whether the game's bank switch has a bank of a kind (G64_BANK_TEXTURE or

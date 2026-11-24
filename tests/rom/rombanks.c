@@ -10,6 +10,8 @@
  *   C. The index of the whole ROM skips no bank, and its queries find every id of B. It finds the hashes of one
  *      texture's texels, one vertex array and one G_VTX block of the ROM, and not those of a copy with one byte
  *      changed. It prints its counts. The time it took goes to stderr.
+ *   D. The table of the game's bank switch (src/client/bankranges.h), for programs that do not link the game, has
+ *      the same bank numbers and gives the same ranges on this ROM as the game's own switch (G64BankRom).
  *
  * The output holds counts only, no ids or hashes. make rombanks runs it on Linux and under Wine and compares the
  * outputs.
@@ -21,6 +23,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "../../src/client/bankranges.h"
 #include "../../src/client/fla2.h"
 #include "../../src/client/rombanks.h"
 #include "../../weemitt/bruteforce/engine/engine.h"
@@ -525,6 +528,27 @@ int main(int argc, char **argv) {
     printf("ok   C: %u object ids, %u texture ids\n", st.objectIds, st.textureIds);
     printf("ok   C: %u texel hashes, %u vertex array hashes, %u G_VTX block hashes; %u textures not hashed\n",
            st.texels, st.verts, st.vtx, st.unhashedTextures);
+    {
+        /* D. The table against the game's switch. */
+        G64RomImage img;
+        unsigned same = 0;
+        img.rom = rom;
+        img.size = romSize;
+        for (kind = 0; kind < 2; kind++) {
+            for (num = 0; num < 256; num++) {
+                uint32_t s0 = 0, e0 = 0, s1 = 0, e1 = 0, s2, e2;
+                int game = range_of(kind, num, &s0, &e0), table = g64_bank_rom_range(&img, kind, num, &s1, &e1);
+                if (game != table || s0 != s1 || e0 != e1 || g64_bank_exists(NULL, kind, num, &s2, &e2) != game) {
+                    printf("FAIL D: %s bank %u: the table and the game's switch differ\n", kind ? "object" : "texture",
+                           num);
+                    failed = 1;
+                } else if (game) {
+                    same++;
+                }
+            }
+        }
+        printf("%s D: the table of the bank switch gives the game's %u ranges\n", failed ? "FAIL" : "ok  ", same);
+    }
     fprintf(stderr, "building the index took %.0f ms\n", (double)(t1 - t0) * 1000.0 / CLOCKS_PER_SEC);
     g64_rombanks_free(index);
     printf("%s the index of the ROM's banks lists what the game loads\n", failed ? "FAIL" : "ok  ");

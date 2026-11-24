@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -47,6 +47,12 @@ savestates-test: savestates
 # that make savestates builds.
 ENGINE_LINUX := weemitt/bruteforce/build/linux64/libglover.a
 ENGINE_WINDOWS := weemitt/bruteforce/build/windows64/libglover.a
+# The check of a pack's models.bin and what it needs, for every program that reads packs (src/client/pack.c). The
+# table of the game's bank switch (src/client/bankranges.h) is for programs that do not link the game;
+# tools/gen_bankranges.py writes it.
+BANKRANGES_SRC := src/client/bankranges.c src/client/bankranges_table.c
+MODELS_SRC := src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c
+MODELS_DEPS := src/client/bankcheck.h src/client/rombanks.h src/client/fla2.h src/client/bankranges.h
 ROLLBACK_GAME_SRC := tests/rom/rollback_game.c src/rollback/engine_game.c src/rollback/rollback.c \
                      weemitt/src/port/statehash.c
 
@@ -281,7 +287,7 @@ twoplayers: twoplayers-build
 
 # The level file check against the game's own parser, on every level of the ROM, on Linux and under Wine
 # (tests/rom/levcheck.c); the two outputs must be equal (needs the ROM in GLOVER_ROM).
-LEVCHECK_SRC := tests/rom/levcheck.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
+LEVCHECK_SRC := tests/rom/levcheck.c src/client/levcheck.c src/client/pack.c $(MODELS_SRC) third_party/monocypher/monocypher.c \
     weemitt/src/port/statehash.c
 levcheck-build: savestates
 	@mkdir -p build/tests
@@ -300,7 +306,7 @@ levcheck: levcheck-build
 # The index of the ROM's banks and the bounded FLA2 reader against the game's loaders and decompressor, on every bank
 # of the ROM, on Linux and under Wine (tests/rom/rombanks.c); the two outputs must be equal (needs the ROM in
 # GLOVER_ROM). The time the index took goes to stderr.
-ROMBANKS_SRC := tests/rom/rombanks.c src/client/rombanks.c src/client/rombanks_game.c src/client/fla2.c \
+ROMBANKS_SRC := tests/rom/rombanks.c src/client/rombanks.c src/client/rombanks_game.c src/client/fla2.c $(BANKRANGES_SRC) \
     third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
 rombanks-build: savestates
 	@mkdir -p build/tests
@@ -372,9 +378,39 @@ bankwalk: bankwalk-build
 	tr -d '\r' < build/tests/bankwalk-windows.raw > build/tests/bankwalk-windows.out
 	cmp build/tests/bankwalk.out build/tests/bankwalk-windows.out
 
+# May a pack's own models be platforms (tests/rom/models.c)? Platforms, bridges, debris and water with the pack's
+# models, on Linux and under Wine. Variant I has identity rotation keys: its two outputs must be equal. Variant Z has
+# keys of all zeros, past the bank check. It is a measurement: its exit statuses and the comparison are printed, and
+# do not fail the target (needs the ROM in GLOVER_ROM).
+MODELS_SRC := tests/rom/models.c src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c src/client/levcheck.c \
+    third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
+models-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/models $(MODELS_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/models.exe $(MODELS_SRC) $(ENGINE_WINDOWS) -lm
+
+models: models-build
+	build/tests/models "$$GLOVER_ROM" I > build/tests/models-I.out || { cat build/tests/models-I.out; exit 1; }
+	grep -E '^(FAIL|ok   variant)' build/tests/models-I.out || true
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/models.exe "$$GLOVER_ROM" I \
+	    > build/tests/models-I-windows.raw || { tr -d '\r' < build/tests/models-I-windows.raw; exit 1; }
+	tr -d '\r' < build/tests/models-I-windows.raw > build/tests/models-I-windows.out
+	cmp build/tests/models-I.out build/tests/models-I-windows.out
+	@echo "variant I: Linux and Windows give the same output"
+	build/tests/models "$$GLOVER_ROM" Z > build/tests/models-Z.out; echo "variant Z: the Linux program exits with $$?"
+	grep -E '^(FAIL|ok   variant)' build/tests/models-Z.out || true
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/models.exe "$$GLOVER_ROM" Z \
+	    > build/tests/models-Z-windows.raw; echo "variant Z: the Windows program exits with $$?"
+	tr -d '\r' < build/tests/models-Z-windows.raw > build/tests/models-Z-windows.out
+	@if cmp -s build/tests/models-Z.out build/tests/models-Z-windows.out; then \
+	    echo "variant Z (a measurement): Linux and Windows give the same output"; \
+	else echo "variant Z (a measurement): Linux and Windows differ"; fi
+
 # Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
 # "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
-SWAPS_SRC := tests/rom/swaps.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
+SWAPS_SRC := tests/rom/swaps.c src/client/levcheck.c src/client/pack.c $(MODELS_SRC) third_party/monocypher/monocypher.c \
     weemitt/src/port/statehash.c
 swaps-build: savestates
 	@mkdir -p build/tests
@@ -410,8 +446,8 @@ bots: bots-build
 # Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
 # be equal (needs the ROM in GLOVER_ROM).
 INSTANCES_SRC := tests/rom/instances.c src/client/instances.c src/client/imsg.c src/rollback/engine_game.c \
-                 src/rollback/rollback.c src/client/levcheck.c src/client/pack.c third_party/monocypher/monocypher.c \
-                 weemitt/src/port/statehash.c
+                 src/rollback/rollback.c src/client/levcheck.c src/client/pack.c $(MODELS_SRC) \
+                 src/client/rombanks_game.c third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
 instances-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/instances $(INSTANCES_SRC) $(ENGINE_LINUX) \
@@ -481,15 +517,15 @@ build/tests/seal_test.exe: tests/net/seal_test.c $(SEAL_SRC) $(SEAL_DEPS)
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/seal_test.c $(SEAL_SRC) -lbcrypt
 
 # The level pack reader (src/client/pack.h), with the hash it takes from the cryptography library.
-PACK_SRC := src/client/pack.c src/client/levcheck.c third_party/monocypher/monocypher.c
-PACK_DEPS := src/client/pack.h src/client/levcheck.h third_party/monocypher/monocypher.h
+PACK_SRC := src/client/pack.c src/client/levcheck.c $(MODELS_SRC) $(BANKRANGES_SRC) third_party/monocypher/monocypher.c
+PACK_DEPS := src/client/pack.h src/client/levcheck.h $(MODELS_DEPS) third_party/monocypher/monocypher.h
 build/tests/pack_test: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
-	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/pack_test.c $(PACK_SRC)
+	$(CC) $(CFLAGS_TEST) -std=gnu99 $(SANITIZE) -o $@ tests/net/pack_test.c $(PACK_SRC) -lm
 
 build/tests/pack_test.exe: tests/net/pack_test.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
-	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/pack_test.c $(PACK_SRC)
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tests/net/pack_test.c $(PACK_SRC) -lm
 
 # The scripts' sandbox without the game: Lua, the game's script file, and a test that stands in for the game. Lua's
 # files are built with its options header, as in the game, and without -Werror. -fwrapv is one of the game's flags:
@@ -551,15 +587,15 @@ build/tests/fla2_fuzz: tests/fuzz/fla2_fuzz.c $(FLA2_SRC) $(FLA2_DEPS)
 
 build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
 	@mkdir -p build
-	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC)
+	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC) -lm
 
 build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
 	@mkdir -p build
-	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC)
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC) -lm
 
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests
-	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/pack_fuzz.c $(PACK_SRC)
+	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/pack_fuzz.c $(PACK_SRC) -lm
 
 build/tests/lua_fuzz: tests/fuzz/lua_fuzz.c $(LUA_TEST_SRC) $(LUA_TEST_DEPS)
 	@mkdir -p build/tests
@@ -617,7 +653,7 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
         build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test
 	@mkdir -p build/tests/pack-linux
-	build/tests/pack_test build/tests/pack-linux > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
+	build/tests/pack_test build/tests/pack-linux tests/fixtures/cube.models.bin > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
 	build/tests/seal_test > build/tests/seal_test.out || { cat build/tests/seal_test.out; exit 1; }
 	tail -1 build/tests/seal_test.out
@@ -645,7 +681,7 @@ test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/sess
               build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
               build/tests/levcheck_test.exe build/tests/bankcheck_test.exe test-c
 	@mkdir -p build/tests/pack-windows
-	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows | tr -d '\r' \
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/pack_test.exe build/tests/pack-windows tests/fixtures/cube.models.bin | tr -d '\r' \
 	    > build/tests/pack_test-windows.out
 	tail -1 build/tests/pack_test-windows.out
 	cmp build/tests/pack_test.out build/tests/pack_test-windows.out
@@ -704,8 +740,12 @@ fuzz-lua: build/tests/lua_fuzz
 	@mkdir -p build/fuzz-corpus-lua
 	build/tests/lua_fuzz -max_total_time=$(FUZZ_TIME) -max_len=2000 -timeout=20 -dict=tests/fuzz/lua.dict \
 	    build/fuzz-corpus-lua
+# The pack's corpus starts with a whole pack with the cube's models: the six bytes that cut the input (24, 11 and 0
+# bytes), a manifest, a level file of 11 bytes, and the cube.
 fuzz-pack: build/tests/pack_fuzz
 	@mkdir -p build/fuzz-corpus-pack
+	{ printf '\030\000\013\000\000\000format=1\nname=A\nlevel=1\n\000\000\000\013t.ln\000}\000'; \
+	    cat tests/fixtures/cube.models.bin; } > build/fuzz-corpus-pack/cube
 	build/tests/pack_fuzz -max_total_time=$(FUZZ_TIME) -max_len=4000 build/fuzz-corpus-pack
 fuzz-instances: build/tests/instances_fuzz
 	@mkdir -p build/fuzz-corpus-instances

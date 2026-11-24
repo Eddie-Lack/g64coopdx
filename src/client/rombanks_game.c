@@ -5,7 +5,7 @@
 int G64BankRom(int kind, unsigned num, unsigned *start, unsigned *end);
 
 /* The game's ranges are device addresses. The ROM's offset is in their low 28 bits, as port_dma reads them. */
-static int game_range(void *user, int kind, unsigned num, uint32_t *start, uint32_t *end) {
+int g64_rombanks_game_range(void *user, int kind, unsigned num, uint32_t *start, uint32_t *end) {
     unsigned s, e;
 
     (void)user;
@@ -17,5 +17,5 @@ static int game_range(void *user, int kind, unsigned num, uint32_t *start, uint3
 }
 
 G64RomBanks *g64_rombanks_build_game(const uint8_t *rom, size_t romSize) {
-    return g64_rombanks_build(rom, romSize, game_range, NULL);
+    return g64_rombanks_build(rom, romSize, g64_rombanks_game_range, NULL);
 }
