@@ -10,8 +10,11 @@ A level pack is a folder with a custom level for a session. This file is the for
 - The host gives the pack's folder to the program (`--pack FOLDER`). A joiner who lacks the pack downloads it from
   the host, after the player said yes ("Packs that came from a host" below). A joiner may also have the folder
   already.
-- The level places objects that the borrowed level's own banks hold. A level file that names an object the banks
-  do not hold makes the game stop: there is no check for it yet.
+- The level places objects that the borrowed level's own banks hold, and the pack's own models
+  ([model-banks.md](model-banks.md)). A level file that names an object the banks do not hold makes the game stop:
+  there is no check for it yet.
+- A pack with models plays when every player has its folder. The session does not send `models.bin` yet. The host
+  does not offer such a pack.
 
 ## The folder
 
@@ -20,9 +23,10 @@ A level pack is a folder with a custom level for a session. This file is the for
 | `pack.txt` | the manifest |
 | `level.lev` | the level, in the game's own format, as Glovebox writes it |
 | `script.lua` | a script, as Lua source text. A pack may have none ([scripts.md](../scripts.md)) |
+| `models.bin` | the pack's own models and the numbers of retail banks. A pack may have none ([model-banks.md](model-banks.md)) |
 
 A pack holds no game data. The level file names models and textures by their ids, and each player's own ROM
-supplies them.
+supplies them. The models in `models.bin` are the author's own. They must hold none of the ROM's ids or data.
 
 ### `pack.txt`
 
@@ -52,27 +56,47 @@ level file is about 15 KB.
 
 ### Making a pack
 
-`g64pack` (`tools/g64pack.c`, `make packtool`, and in each release) writes a pack's three files and reads the pack
-back with the game's own reader. The level file comes from Glovebox: the `.lev` file its `.lev` button saves, or one
-level of a ROM it built. For a ROM, the tool finds the level files through the two code pointers of the game's
-loader, which Glovebox changes when it moves the files (`g64_pack_level_from_rom` in `src/client/pack.c`). For the
-same level, the tool's pack has the same bytes and the same id as a pack made by Glovebox's own builder.
+`g64pack` (`tools/g64pack.c`, `make packtool`, and in each release) writes a pack's files and reads the pack back
+with the game's own reader. `--script FILE` adds a script, and `--models FILE` adds a `models.bin`. The tool refuses
+to write into a folder that already holds a `script.lua` or a `models.bin` it was not given. The level file comes
+from Glovebox: the `.lev` file its `.lev` button saves, or one level of a ROM it built. For a ROM, the tool finds
+the level files through the two code pointers of the game's loader, which Glovebox changes when it moves the files
+(`g64_pack_level_from_rom` in `src/client/pack.c`). For the same level, the tool's pack has the same bytes and the
+same id as a pack made by Glovebox's own builder.
 
 `g64pack` also prints whether the level file's structure is as the game reads it
-([level-file-safety.md](level-file-safety.md), "What is checked today").
+([level-file-safety.md](level-file-safety.md), "What is checked today"). For `models.bin` it prints the banks'
+sizes, the counts of textures and objects, and the retail bank numbers. `g64pack check DIR --rom ROM` also runs the
+rules that need the player's ROM: the level file is not one of the ROM's, and the models hold none of the ROM's ids,
+textures or vertices. The tool does not link the game. It finds the ROM's banks with a table of the game's bank
+switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`; `make rombanks` compares it with the
+game's own).
 
 ### `script.lua`
 
 Lua source text: 1 byte to 256 KB, with no zero byte. Lua's compiled form is refused. The script runs in every game
 of the session, not only in the pack's level ([scripts.md](../scripts.md)).
 
+### `models.bin`
+
+A header, then the pack's own texture bank and object bank, at most 4 MiB together. The header may also name up to
+four retail texture banks and four retail object banks by number. [model-banks.md](model-banks.md), "The file", has
+the layout. The file is 4 MiB and 24 bytes at most.
+
+Every `models.bin` passes the bank check (`src/client/bankcheck.h`), from a folder the player chose too. The
+game's loaders trust every field of a bank. A bad one would make them write outside it. Once the program has the
+ROM, the models also pass the rules that need it (`g64_models_check_rom`). The game loads retail banks from step 9
+of the plan on. Until then a pack's retail numbers are checked and kept, and the game does not load them.
+
 ## The pack's id
 
 The id is the first 16 bytes of the BLAKE2b hash (32 bytes of output, no key) of the pack's canonical form:
 
 1. the text `g64pack 1` and a zero byte;
-2. for `pack.txt`, then `level.lev`, then `script.lua` if the pack has one: the file's name and a zero byte, the
-   file's length (4 bytes, little-endian), and the file's bytes.
+2. for `pack.txt`, then `level.lev`, then `script.lua` and `models.bin` if the pack has them: the file's name and a
+   zero byte, the file's length (4 bytes, little-endian), and the file's bytes.
+
+A pack without `models.bin` has the same id as before the file was part of the format.
 
 BLAKE2b comes with the cryptography library that g64coopdx already holds (`third_party/monocypher`).
 
@@ -107,21 +131,25 @@ offers its pack over the sealed link (`src/session/session.h`: offer, want, piec
 A pack whose level file is a shipped level with small changes does travel. The comparison catches exact copies
 only.
 
-- `g64_pack_from_bytes` reads a pack from its three files' bytes. Its strict form also holds the level file to the
+- `g64_pack_from_bytes` reads a pack from its files' bytes. Its strict form also holds the level file to the
   check of its structure ([level-file-safety.md](level-file-safety.md), "What is checked today"). A pack from
   another player is read this way. A pack from a folder the player chose is not held to that check.
 - A downloaded pack is kept in `packs/ID` in the program's folder for its own files, where `ID` is the pack's id as
   32 hexadecimal digits. No text from the network is part of a path. A kept pack is read with the strict form
-  again, and its files must give the id its folder names.
+  and the bank check again, and its files must give the id its folder names. Keeping a pack removes a `script.lua`
+  or `models.bin` in its folder that the pack does not have.
 - `g64_pack_rom_level` says whether a pack's level file has the same bytes as one of the ROM's levels. Such a pack
   holds game data, and a host must not send it.
 
 ## How the game reads it
 
-The client puts the level file, and the script after it, after the ROM's bytes in a buffer of its own, and the game reads its ROM from that
-buffer (`engine_set_rom`). The level's loader then reads the pack's file as it reads the ROM's (`LoadLandscapeFile`
-in `weemitt/src/port/loaders.c`). The game's state holds only the borrowed level's number and the file's offset and
-size, which are the same on every machine. It holds no pointer to the pack.
+The client puts the level file, the script and the models' two banks after the ROM's bytes in a buffer of its own,
+and the game reads its ROM from that buffer (`engine_set_rom`). The banks start at an offset that is a multiple of 8
+(`g64_pack_layout_of` in `src/client/pack.h`). The level's loader then reads the pack's file as it reads the ROM's
+(`LoadLandscapeFile` in `weemitt/src/port/loaders.c`). The game's state holds only the borrowed level's number and
+the file's offset and size, and the banks' offsets and sizes, which are the same on every machine. It holds no
+pointer to the pack. The game loads the pack's banks when the pack's level starts
+(`weemitt/src/game/g64packbanks.c`).
 
 ## Still to come
 
@@ -129,6 +157,6 @@ size, which are the same on every machine. It holds no pointer to the pack.
   guards many of the values it reads. [level-file-safety.md](level-file-safety.md) lists what is still open. The
   joiner is told to take a pack only from a host they trust.
 - **A list of packs in the lobby.** A room's entry does not name its pack yet.
-- **Models in a pack:** the author's own models and textures in banks of their own, and retail banks named by
-  number. [model-banks.md](model-banks.md) is the plan.
+- **The rest of models in a pack:** the check of the level file's object ids against the banks, the transfer of
+  `models.bin` from the host, and the loading of retail banks. [model-banks.md](model-banks.md) is the plan.
 - **More in a pack:** more than one level, and more for a script to call.

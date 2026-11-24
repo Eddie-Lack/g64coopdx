@@ -117,7 +117,7 @@ void netplay_set_any_ball(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_BA
 
 /* The level pack for the session (pack.h), the ROM this program was started with, and the buffer that holds that
    ROM with the pack's level file after it, which the game reads from once the session has begun. */
-static g64_pack pack = {"", -1, {0}, NULL, 0, NULL, 0, NULL, 0};
+static g64_pack pack = {.level = -1};
 static const uint8_t *baseRom;
 static size_t baseRomSize;
 static uint8_t *packRom;
@@ -130,7 +130,10 @@ enum { PACK_NO, PACK_ASK, PACK_YES };
 static int packPolicy = PACK_NO;
 /* The offer that waits for the player's answer: 1 while it waits, and whether this machine has kept that pack. */
 static int packAsking, packKept;
-static g64_pack keptPack = {"", -1, {0}, NULL, 0, NULL, 0, NULL, 0};
+static g64_pack keptPack = {.level = -1};
+/* What the check of a pack's models.bin asks the game: the retail bank numbers its bank switch has. The rules that
+   need the ROM's index run before the game is built (check_pack_models). */
+static const g64_pack_banks gameBanks = {.exists = g64_rombanks_game_range};
 
 void netplay_set_pack_cache(const char *dir) { snprintf(packCache, sizeof packCache, "%s", dir ? dir : ""); }
 void netplay_set_pack_policy(int ask, int yes) { packPolicy = yes ? PACK_YES : ask ? PACK_ASK : PACK_NO; }
@@ -163,7 +166,7 @@ int netplay_set_pack(const char *dir, char *err, size_t errSize) {
         return -1;
     }
     snprintf(ownPackDir, sizeof ownPackDir, "%s", dir);
-    return g64_pack_load(dir, &pack, err, errSize);
+    return g64_pack_load(dir, &gameBanks, &pack, err, errSize);
 }
 
 const char *netplay_pack_name(void) { return pack.lev ? pack.name : ""; }
@@ -475,6 +478,13 @@ static void host_offer_pack(void) {
                     g64_pack_check_strict(&pack, NULL));
         return;
     }
+    /* The session's offer carries three files. A joiner would download a pack with models without its models.bin,
+       and its id would not be the host's. */
+    if (pack.models) {
+        plog_printf("g64coopdx: the pack has models, and the session cannot send them yet: the pack is not sent to "
+                    "other players");
+        return;
+    }
     packBlob = malloc(pack.manifestSize + pack.levSize + pack.scriptSize);
     if (!packBlob)
         return;
@@ -524,7 +534,7 @@ static int joiner_pack(void) {
     if (st == G64_PACK_OFFERED && !packAsking) {
         if (o->manifestSize + o->levSize + o->scriptSize == 0) {
             /* The host plays without a pack: so does this machine. */
-            g64_pack none = {"", -1, {0}, NULL, 0, NULL, 0, NULL, 0};
+            g64_pack none = {.level = -1};
             plog_printf("g64coopdx: the host plays without a level pack; this game does too");
             take_pack(&none);
             return 0;
@@ -534,7 +544,7 @@ static int joiner_pack(void) {
         /* A pack that was downloaded before is read from its folder, and checked in full again. The player is
            asked all the same: the pack changes the game. */
         g64_pack_free(&keptPack);
-        packKept = packCache[0] && g64_pack_cache_load(packCache, o->id, &keptPack, err, sizeof err) == 0 &&
+        packKept = packCache[0] && g64_pack_cache_load(packCache, o->id, &gameBanks, &keptPack, err, sizeof err) == 0 &&
                    strcmp(keptPack.name, o->name) == 0;
         if (packPolicy == PACK_NO) {
             g64_pack_free(&keptPack);
@@ -556,8 +566,8 @@ static int joiner_pack(void) {
         g64_pack got;
         char why[160];
         if (g64_pack_from_bytes(d, o->manifestSize, d + o->manifestSize, o->levSize,
-                                o->scriptSize ? d + o->manifestSize + o->levSize : NULL, o->scriptSize, 1, &got, why,
-                                sizeof why) != 0) {
+                                o->scriptSize ? d + o->manifestSize + o->levSize : NULL, o->scriptSize, NULL, 0,
+                                &gameBanks, 1, &got, why, sizeof why) != 0) {
             snprintf(err, sizeof err, "the host's level pack was refused: %s", why);
             return fail_connect(err);
         }
@@ -569,6 +579,43 @@ static int joiner_pack(void) {
             plog_printf("g64coopdx: the level pack was not kept for the next time");
         plog_printf("g64coopdx: downloaded the level pack \"%s\" from the host", got.name);
         take_pack(&got);
+    }
+    return 0;
+}
+
+/* The rules of models.bin that need the ROM (g64_models_check_rom), on the session's pack before the game is built:
+ * the pack's models must not hold the ROM's own ids or data. The index of the ROM's banks is built for the check and
+ * freed after it. The game's bank ranges come from the ROM's code, which the game reads at power-on
+ * (port_set_rom_symbols). Before that every range is empty: an index without banks, or one that skipped a bank, is
+ * refused (g64_rombanks_complete). Returns 0 when the pack has no models or they pass. */
+static int check_pack_models(char *err, size_t errSize) {
+    G64RomBanks *index;
+    G64RomBanksStats st;
+    const char *why;
+    size_t at = 0;
+    if (!pack.models)
+        return 0;
+    if (!baseRom) {
+        snprintf(err, errSize, "there is no ROM to check the level pack's models with");
+        return -1;
+    }
+    index = g64_rombanks_build_game(baseRom, baseRomSize);
+    if (!index) {
+        snprintf(err, errSize, "out of memory");
+        return -1;
+    }
+    g64_rombanks_stats(index, &st);
+    if (!g64_rombanks_complete(&st)) {
+        g64_rombanks_free(index);
+        snprintf(err, errSize, "the ROM's banks could not be read to check the level pack's models");
+        return -1;
+    }
+    why = g64_models_check_rom(pack.models, pack.modelsSize, index, &at);
+    g64_rombanks_free(index);
+    if (why) {
+        snprintf(err, errSize, "the level pack's models.bin did not pass the check: %s (at byte %u)", why,
+                 (unsigned)at);
+        return -1;
     }
     return 0;
 }
@@ -619,7 +666,7 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
         char why[200];
         g64_pack_free(&pack);
         packTaken = 0;
-        if (ownPackDir[0] && g64_pack_load(ownPackDir, &pack, why, sizeof why) != 0) {
+        if (ownPackDir[0] && g64_pack_load(ownPackDir, &gameBanks, &pack, why, sizeof why) != 0) {
             snprintf(err, errSize, "%s", why);
             return fail_connect(err);
         }
@@ -1016,32 +1063,42 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
     /* The host's rule for the ball, before any game is built. */
     g64_instances_any_ball(netplay_any_ball());
     g64_instances_one_world(!netplay_any_world());
-    /* The pack's level file goes after the ROM's bytes in a buffer of this program's own, and the game reads its
-       ROM from there: the level's loader then finds the file as it finds the ROM's. The host has checked that
-       every player has the same pack. */
+    /* The pack's level file, script and models go after the ROM's bytes in a buffer of this program's own, and the
+       game reads its ROM from there: the level's loader then finds the file as it finds the ROM's. The host has
+       checked that every player has the same pack. */
     g64_instances_pack(-1, 0, 0);
     g64_instances_pack_script(0, 0);
+    g64_instances_pack_models(0, 0, 0, 0);
     if (pack.lev && (!baseRom || baseRomSize >= 0x0F000000u)) {
         /* The other machines play the pack: this one must not start without it. */
         snprintf(err, errSize, "the ROM is too large to play a level pack with");
         return -1;
     }
+    if (pack.lev && check_pack_models(err, errSize) != 0)
+        return -1;
     if (pack.lev) {
+        g64_pack_layout l;
+        g64_pack_layout_of(&pack, baseRomSize, &l);
         free(packRom);
-        packRom = malloc(baseRomSize + pack.levSize + pack.scriptSize);
+        packRom = malloc(l.size);
         if (!packRom) {
             snprintf(err, errSize, "out of memory");
             return -1;
         }
         memcpy(packRom, baseRom, baseRomSize);
-        memcpy(packRom + baseRomSize, pack.lev, pack.levSize);
-        if (pack.script)
-            memcpy(packRom + baseRomSize + pack.levSize, pack.script, pack.scriptSize);
-        engine_set_rom(e, packRom, (unsigned long)(baseRomSize + pack.levSize + pack.scriptSize));
+        g64_pack_layout_fill(&pack, &l, packRom);
+        if (l.texSize) {
+            /* The game loads the pack's own banks in the pack's level (weemitt's g64packbanks.c). */
+            g64_instances_pack_models((unsigned)l.texAt, (unsigned)l.texSize, (unsigned)l.objAt, (unsigned)l.objSize);
+            plog_printf("g64coopdx: the level pack has models: a texture bank of %u bytes and an object bank of %u "
+                        "bytes",
+                        (unsigned)l.texSize, (unsigned)l.objSize);
+        }
+        engine_set_rom(e, packRom, (unsigned long)l.size);
         g64_instances_pack(pack.level, (unsigned)baseRomSize, (unsigned)pack.levSize);
         /* The pack's script, after the level file. Every game runs it from its start. */
         if (pack.script) {
-            g64_instances_pack_script((unsigned)(baseRomSize + pack.levSize), (unsigned)pack.scriptSize);
+            g64_instances_pack_script((unsigned)l.scriptAt, (unsigned)pack.scriptSize);
             plog_printf("g64coopdx: the level pack has a script of %u bytes", (unsigned)pack.scriptSize);
         }
         plog_printf("g64coopdx: level pack \"%s\" takes the place of level %d", pack.name, pack.level);

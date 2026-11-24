@@ -421,6 +421,10 @@ void g64_rombanks_stats(const G64RomBanks *b, G64RomBanksStats *s) {
     *s = b->st;
 }
 
+int g64_rombanks_complete(const G64RomBanksStats *s) {
+    return s->banks[0] != 0 && s->banks[1] != 0 && s->skipped[0] == 0 && s->skipped[1] == 0;
+}
+
 int g64_rombanks_has_object_id(const G64RomBanks *b, uint32_t id) {
     return vec_has(&b->objectIds, &id, cmp_u32);
 }

@@ -1541,7 +1541,9 @@ s32 CollideActorWithPlane(Actor *actor, CollFace *plane, Platform *platform) {
                 SUB_VECTORS(&e, &actor->pos, &q);
                 ADD_TO_VECTOR(&e, &globalRot[loop]);
                 if ((&rotvel.x)[k] != 0.0f && (platform->flags & 0x10)) {
-                    for (j = 0; actor->obj->planes[j] != NULL; j++) {
+                    /* g64coopdx: at most 4. With 4 planes touched, the original read on past the array, into
+                       contactPos[0].x, and used its bits as a pointer. That crashed the game. */
+                    for (j = 0; j < 4 && actor->obj->planes[j] != NULL; j++) {
                         if ((Plane *)plane != actor->obj->planes[j]
                             && DOT_PRODUCT(&dir, actor->obj->planes[j]) < -0.5) {
                             platform->motion->rotVel[k] = -platform->motion->rotVel[k] * actor->phys->bounce;

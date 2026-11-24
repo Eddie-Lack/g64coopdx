@@ -161,7 +161,8 @@ int g64_pack_check_script(const uint8_t *script, size_t n) {
 }
 
 void g64_pack_make_id(const uint8_t *manifest, size_t manifestSize, const uint8_t *lev, size_t levSize,
-                      const uint8_t *script, size_t scriptSize, uint8_t id[G64_PACK_ID]) {
+                      const uint8_t *script, size_t scriptSize, const uint8_t *models, size_t modelsSize,
+                      uint8_t id[G64_PACK_ID]) {
     static const char head[] = "g64pack 1";
     uint8_t hash[32];
     crypto_blake2b_ctx ctx;
@@ -171,6 +172,8 @@ void g64_pack_make_id(const uint8_t *manifest, size_t manifestSize, const uint8_
     hash_file(&ctx, "level.lev", lev, levSize);
     if (script)
         hash_file(&ctx, "script.lua", script, scriptSize);
+    if (models)
+        hash_file(&ctx, "models.bin", models, modelsSize);
     crypto_blake2b_final(&ctx, hash);
     memcpy(id, hash, G64_PACK_ID);
 }
@@ -204,9 +207,30 @@ static uint8_t *copy_bytes(const uint8_t *d, size_t n) {
     return c;
 }
 
+const char *g64_pack_check_models(const uint8_t *models, size_t n, const g64_pack_banks *banks, G64Models *info,
+                                  size_t *at) {
+    G64Models m;
+    size_t where = 0;
+    const char *why;
+    if (!models || n == 0 || n > G64_PACK_MODELS_MAX) {
+        why = "models.bin is empty or larger than 4 MiB and its header";
+    } else {
+        why = g64_models_check(models, n, banks ? banks->exists : NULL, banks ? banks->user : NULL, &m, &where);
+        if (!why && banks && banks->rom)
+            why = g64_models_check_rom(models, n, banks->rom, &where);
+    }
+    if (at)
+        *at = why ? where : 0;
+    if (!why && info)
+        *info = m;
+    return why;
+}
+
 int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint8_t *lev, size_t levSize,
-                        const uint8_t *script, size_t scriptSize, int strict, g64_pack *out, char *err,
-                        size_t errSize) {
+                        const uint8_t *script, size_t scriptSize, const uint8_t *models, size_t modelsSize,
+                        const g64_pack_banks *banks, int strict, g64_pack *out, char *err, size_t errSize) {
+    G64Models info;
+    memset(&info, 0, sizeof info);
     memset(out, 0, sizeof *out);
     out->level = -1;
     if (!manifest || manifestSize > G64_PACK_MANIFEST_MAX || g64_pack_parse_manifest(manifest, manifestSize, out) != 0) {
@@ -227,6 +251,17 @@ int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint
         snprintf(err, errSize, "the level pack's script.lua is empty, too long, or not Lua source text");
         return -1;
     }
+    if (models) {
+        size_t at = 0;
+        const char *why = g64_pack_check_models(models, modelsSize, banks, &info, &at);
+        if (why) {
+            memset(out, 0, sizeof *out);
+            out->level = -1;
+            snprintf(err, errSize, "the level pack's models.bin did not pass the check: %s (at byte %u)", why,
+                     (unsigned)at);
+            return -1;
+        }
+    }
     if (strict) {
         size_t at = 0;
         const char *why = g64_lev_check(lev, levSize, NULL, NULL, &at);
@@ -245,18 +280,39 @@ int g64_pack_from_bytes(const uint8_t *manifest, size_t manifestSize, const uint
         out->script = copy_bytes(script, scriptSize);
         out->scriptSize = scriptSize;
     }
-    if (!out->manifest || !out->lev || (script && !out->script)) {
+    if (models) {
+        out->models = copy_bytes(models, modelsSize);
+        out->modelsSize = modelsSize;
+        out->modelsInfo = info;
+    }
+    if (!out->manifest || !out->lev || (script && !out->script) || (models && !out->models)) {
         g64_pack_free(out);
         snprintf(err, errSize, "no memory for the level pack");
         return -1;
     }
-    g64_pack_make_id(manifest, manifestSize, lev, levSize, script, scriptSize, out->id);
+    g64_pack_make_id(manifest, manifestSize, lev, levSize, script, scriptSize, models, modelsSize, out->id);
     return 0;
 }
 
-int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize) {
-    size_t manifestSize = 0, levSize = 0, scriptSize = 0;
-    uint8_t *manifest, *lev = NULL, *script = NULL;
+/* Reads an optional file. Returns 0 when it is not there (data stays NULL) or was read, and -1 when it is there but
+ * is empty, cannot be read or is larger than max. */
+static int read_optional(const char *dir, const char *name, size_t max, uint8_t **data, size_t *size) {
+    char path[1024];
+    FILE *f = NULL;
+    *data = NULL;
+    *size = 0;
+    if (snprintf(path, sizeof path, "%s/%s", dir, name) < (int)sizeof path)
+        f = fopen(path, "rb");
+    if (!f)
+        return 0;
+    fclose(f);
+    *data = read_file(dir, name, max, size);
+    return *data ? 0 : -1;
+}
+
+int g64_pack_load(const char *dir, const g64_pack_banks *banks, g64_pack *out, char *err, size_t errSize) {
+    size_t manifestSize = 0, levSize = 0, scriptSize = 0, modelsSize = 0;
+    uint8_t *manifest, *lev = NULL, *script = NULL, *models = NULL;
     int r = -1;
     memset(out, 0, sizeof *out);
     out->level = -1;
@@ -268,24 +324,19 @@ int g64_pack_load(const char *dir, g64_pack *out, char *err, size_t errSize) {
     lev = read_file(dir, "level.lev", G64_PACK_LEVEL_MAX, &levSize);
     if (!lev) {
         snprintf(err, errSize, "the level pack has no level.lev, or it is not a level file");
+    } else if (read_optional(dir, "script.lua", G64_PACK_SCRIPT_MAX, &script, &scriptSize) != 0) {
+        /* The script and the models are optional: a file that is there must be one. */
+        snprintf(err, errSize, "the level pack's script.lua is empty, too long, or not Lua source text");
+    } else if (read_optional(dir, "models.bin", G64_PACK_MODELS_MAX, &models, &modelsSize) != 0) {
+        snprintf(err, errSize, "the level pack's models.bin is empty, or larger than 4 MiB and its header");
     } else {
-        /* The script is optional: a file that is there must be a script. */
-        char path[1024];
-        FILE *f = NULL;
-        if (snprintf(path, sizeof path, "%s/script.lua", dir) < (int)sizeof path)
-            f = fopen(path, "rb");
-        if (f) {
-            fclose(f);
-            script = read_file(dir, "script.lua", G64_PACK_SCRIPT_MAX, &scriptSize);
-            if (!script)
-                snprintf(err, errSize, "the level pack's script.lua is empty, too long, or not Lua source text");
-        }
-        if (!f || script)
-            r = g64_pack_from_bytes(manifest, manifestSize, lev, levSize, script, scriptSize, 0, out, err, errSize);
+        r = g64_pack_from_bytes(manifest, manifestSize, lev, levSize, script, scriptSize, models, modelsSize, banks, 0,
+                                out, err, errSize);
     }
     free(manifest);
     free(lev);
     free(script);
+    free(models);
     return r;
 }
 
@@ -310,6 +361,31 @@ int g64_pack_rom_level(const g64_pack *p, const uint8_t *rom, size_t size) {
             return num;
     }
     return -1;
+}
+
+void g64_pack_layout_of(const g64_pack *p, size_t romSize, g64_pack_layout *l) {
+    memset(l, 0, sizeof *l);
+    l->levAt = romSize;
+    l->scriptAt = romSize + p->levSize;
+    l->size = l->scriptAt + p->scriptSize;
+    if (p->models && p->modelsInfo.texSize) {
+        l->texAt = (l->size + 7) & ~(size_t)7;
+        l->texSize = p->modelsInfo.texSize;
+        l->objAt = l->texAt + l->texSize;
+        l->objSize = p->modelsInfo.objSize;
+        l->size = l->objAt + l->objSize;
+    }
+}
+
+void g64_pack_layout_fill(const g64_pack *p, const g64_pack_layout *l, uint8_t *buf) {
+    memset(buf + l->levAt, 0, l->size - l->levAt);
+    if (p->lev)
+        memcpy(buf + l->levAt, p->lev, p->levSize);
+    if (p->script)
+        memcpy(buf + l->scriptAt, p->script, p->scriptSize);
+    /* models.bin holds the object bank right after the texture bank. */
+    if (l->texSize)
+        memcpy(buf + l->texAt, p->models + p->modelsInfo.texAt, l->texSize + l->objSize);
 }
 
 /* Makes a folder. Returns 0 when it is there afterwards. */
@@ -362,8 +438,18 @@ int g64_pack_cache_dir(const char *base, const uint8_t id[G64_PACK_ID], char *ou
     return 0;
 }
 
+/* Writes an optional file of a kept pack, or removes one that the pack does not have. */
+static int keep_optional(const char *dir, const char *name, const uint8_t *d, size_t n) {
+    char path[1100];
+    if (d)
+        return write_file(dir, name, d, n);
+    if (snprintf(path, sizeof path, "%s/%s", dir, name) < (int)sizeof path)
+        remove(path);
+    return 0;
+}
+
 int g64_pack_cache_save(const char *base, const g64_pack *p, char *err, size_t errSize) {
-    char packs[1024], dir[1024], script[1100];
+    char packs[1024], dir[1024];
     if (!p || !p->manifest || !p->lev || g64_pack_cache_dir(base, p->id, dir, sizeof dir) != 0 ||
         snprintf(packs, sizeof packs, "%s/packs", base) >= (int)sizeof packs) {
         snprintf(err, errSize, "there is no folder to keep the level pack in");
@@ -375,19 +461,18 @@ int g64_pack_cache_save(const char *base, const g64_pack *p, char *err, size_t e
         snprintf(err, errSize, "the level pack could not be written to %s", dir);
         return -1;
     }
-    /* The folder may hold what an earlier, cut write left. A script that is not this pack's would change the id. */
-    if (p->script) {
-        if (write_file(dir, "script.lua", p->script, p->scriptSize) != 0) {
-            snprintf(err, errSize, "the level pack could not be written to %s", dir);
-            return -1;
-        }
-    } else if (snprintf(script, sizeof script, "%s/script.lua", dir) < (int)sizeof script) {
-        remove(script);
+    /* The folder may hold what an earlier, cut write left. A script or models that are not this pack's would change
+       the id. */
+    if (keep_optional(dir, "script.lua", p->script, p->scriptSize) != 0 ||
+        keep_optional(dir, "models.bin", p->models, p->modelsSize) != 0) {
+        snprintf(err, errSize, "the level pack could not be written to %s", dir);
+        return -1;
     }
     return 0;
 }
 
-int g64_pack_cache_load(const char *base, const uint8_t id[G64_PACK_ID], g64_pack *out, char *err, size_t errSize) {
+int g64_pack_cache_load(const char *base, const uint8_t id[G64_PACK_ID], const g64_pack_banks *banks, g64_pack *out,
+                        char *err, size_t errSize) {
     char dir[1024];
     memset(out, 0, sizeof *out);
     out->level = -1;
@@ -395,7 +480,7 @@ int g64_pack_cache_load(const char *base, const uint8_t id[G64_PACK_ID], g64_pac
         snprintf(err, errSize, "there is no folder that keeps level packs");
         return -1;
     }
-    if (g64_pack_load(dir, out, err, errSize) != 0)
+    if (g64_pack_load(dir, banks, out, err, errSize) != 0)
         return -1;
     /* The folder's name is only where to look. The files' own id and the check decide. */
     if (memcmp(out->id, id, G64_PACK_ID) != 0) {
@@ -420,6 +505,7 @@ void g64_pack_free(g64_pack *p) {
         free(p->manifest);
         free(p->lev);
         free(p->script);
+        free(p->models);
         memset(p, 0, sizeof *p);
         p->level = -1;
     }

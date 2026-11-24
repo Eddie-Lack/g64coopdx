@@ -49,9 +49,16 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
 /* The same with the game's own bank ranges (G64BankRom). Only a program that links the game has it
  * (rombanks_game.c). */
 G64RomBanks *g64_rombanks_build_game(const uint8_t *rom, size_t romSize);
+/* The game's own bank ranges as a g64_bank_range_fn: G64BankRom, with ROM offsets. user is not used. Only a program
+ * that links the game has it (rombanks_game.c). */
+int g64_rombanks_game_range(void *user, int kind, unsigned num, uint32_t *start, uint32_t *end);
 
 void g64_rombanks_free(G64RomBanks *b);
 void g64_rombanks_stats(const G64RomBanks *b, G64RomBanksStats *s);
+/* 1 when the index can check a pack's models: it has banks of both kinds and skipped none. A bank it skipped holds
+ * ids and data that the check would not see. The pack tool and the online program both refuse an index for which
+ * this is 0. */
+int g64_rombanks_complete(const G64RomBanksStats *s);
 
 int g64_rombanks_has_object_id(const G64RomBanks *b, uint32_t id);
 int g64_rombanks_has_texture_id(const G64RomBanks *b, uint32_t id);
