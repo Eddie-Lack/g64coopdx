@@ -909,7 +909,7 @@ static void call_event(lua_State *L, const char *name, int p) {
 
 /* The script's functions for the events of the game's step, by kind (G64LuaEvent). Kind 0 is unused. Kind 3 is a
    session event, and carries a key in the place of a player. */
-static const char *const eventName[] = {NULL, "on_garib", "on_death", "on_session"};
+static const char *const eventName[] = {NULL, "on_garib", "on_death", "on_session", "on_checkpoint", "on_pickup"};
 #define EVENT_KINDS ((int)(sizeof eventName / sizeof eventName[0]))
 
 /* From the game, inside its step: something happened to a player. The script must not run here, since one

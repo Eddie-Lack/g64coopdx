@@ -473,6 +473,8 @@ void UpdatePickups(void) {
             }
             {
                 G64PickupTaken(collectable);
+                /* g64coopdx: a level pack's script hears of the pick-up (src/port/g64lua.c, kind 5). */
+                G64ScriptEvent(5);
                 collectable->active = 0;
                 collectable->timer = 10;
                 collectable->actor.shadow->shadowTarget = 0;

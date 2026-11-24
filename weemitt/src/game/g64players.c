@@ -2424,7 +2424,8 @@ void G64CheckRestartGate(Platform *platform) {
         v.x = 8.0f;
         v.y = 0.0f;
         v.z = 0.0f;
-        RotateVector2D(&v, &v, platform->motion->rot.y);
+        /* A gate of another level's file may have no motion. */
+        RotateVector2D(&v, &v, platform->motion ? platform->motion->rot.y : 0.0f);
         for (k = 0; k < 6; k++) {
             RotateVector2D(&v, &v, 1.0f);
             AddPuff(&platform->actor.pos, &v, 2.0f);
@@ -2436,6 +2437,8 @@ void G64CheckRestartGate(Platform *platform) {
         gate->untouched = 0;
         gate->targetScale = 0.0f;
         slot_hand_control(i)->checkpoint = platform;
+        /* A level pack's script hears of the new checkpoint (src/port/g64lua.c, kind 4). */
+        G64LuaEvent(4, g64Member[i]);
         if (r->gate != platform)
             r->timer = 0;
         r->gate = platform;
