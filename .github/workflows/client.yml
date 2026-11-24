@@ -50,6 +50,7 @@ jobs:
           cp build/g64pack.exe "$d/"
           cp weemitt/deps/SDL2-mingw/x86_64-w64-mingw32/bin/SDL2.dll "$d/"
           cp docs/playing-online.md "$d/README.md"
+          cp -r packs "$d/"
           cp LICENSE "$d/LICENSE.txt"
           cp weemitt/LICENSE "$d/LICENSE-weemitt.txt"
           cp THIRD_PARTY_NOTICES.md "$d/"
@@ -78,6 +79,7 @@ jobs:
           make packtool
           cp build/g64pack "$d/"
           cp docs/playing-online.md "$d/README.md"
+          cp -r packs "$d/"
           cp LICENSE "$d/LICENSE.txt"
           cp weemitt/LICENSE "$d/LICENSE-weemitt.txt"
           cp THIRD_PARTY_NOTICES.md "$d/"

@@ -100,6 +100,7 @@ run locally: set `GLOVER_ROM`.
 | Instances: one game per occupied level, and moving players between them | src/client (`instances.h`, `imsg.h`) |
 | The online game's sound: the reader and the real sound player | src/client (`sound.h`, `soundout.h`); the table in weemitt/src/port/soundtable.h |
 | Level packs: the reader, the format, and the tool that makes them | src/client (`pack.h`), docs/discovery/level-pack.md, tools/g64pack.c (`make packtool`) |
+| The sample pack, Garib Island: its files and its Glovebox source (`level.xml`, written from scratch) | packs/garib-island; the test `sample_pack` in tests/rom/instances.c |
 | The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |

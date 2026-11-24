@@ -1,0 +1,85 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Level name="ISLAND" libgarib-version="unknown+gcf87929" data-format-version="87197ff">
+  <Platform object_id="0x70210547" name="hoop.nd">
+    <PlatSetInitialPos x="0.0" y="30.0" z="140.0"/>
+    <PlatCheckpoint u16_0x17="0" theta="3.14159"/>
+    <PlatConstantSpin axis="y" initial_theta="0.0" speed="0.05000000074505806"/>
+    <PlatNoClip/>
+  </Platform>
+  <Water left="-1010.0" top="-78.0" front="-50.0" width="2150.0" bottom="60.0" depth="800.0" surface_y="-20.0" current_x="0.0" current_z="0.0" puzzle_tag="0" object_id="0x8B283AD7" name="at1sea." x="5.0" y="-25.0" z="208.0"/>
+  <LandActor object_id="0xA4FD6A56" name="at1land" x="40.0" y="49.0" z="215.0"/>
+  <Platform object_id="0x70210547" name="hoop.nd">
+    <PlatSetInitialPos x="0.0" y="30.0" z="400.0"/>
+    <PlatCheckpoint u16_0x17="0" theta="3.14159"/>
+    <PlatConstantSpin axis="y" initial_theta="0.0" speed="0.05000000074505806"/>
+    <PlatNoClip/>
+  </Platform>
+  <GaribGroup group_id="0" initial_state="1">
+    <Garib x="40.0" y="30.0" z="200.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="1" initial_state="1">
+    <Garib x="40.0" y="30.0" z="240.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="2" initial_state="1">
+    <Garib x="-40.0" y="30.0" z="280.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="3" initial_state="1">
+    <Garib x="-40.0" y="30.0" z="320.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="4" initial_state="1">
+    <Garib x="40.0" y="30.0" z="360.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="0" initial_state="1">
+    <Garib x="40.0" y="30.0" z="400.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="1" initial_state="1">
+    <Garib x="-40.0" y="30.0" z="440.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="2" initial_state="1">
+    <Garib x="-40.0" y="30.0" z="480.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="3" initial_state="1">
+    <Garib x="40.0" y="30.0" z="520.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="4" initial_state="1">
+    <Garib x="40.0" y="30.0" z="560.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <GaribGroup group_id="0" initial_state="1">
+    <Garib x="-40.0" y="30.0" z="600.0" type="garib" dynamic_shadow="0"/>
+  </GaribGroup>
+  <Platform object_id="0x7E4201EC" name="smashbo">
+    <PlatScale x="0.72" y="0.72" z="0.72"/>
+    <PlatSetInitialPos x="70.0" y="20.0" z="300.0"/>
+    <PlatDestructible flags="3" num_fragments="3" fragment_object_id="0x8772DC01" name="atfragd"/>
+    <PlatSetTag tag="76"/>
+    <PlatDestructibleSound sound_id="315" volume="100" pitch="128"/>
+  </Platform>
+  <Platform object_id="0x7E4201EC" name="smashbo">
+    <PlatScale x="0.83" y="0.83" z="0.83"/>
+    <PlatSetInitialPos x="-70.0" y="20.0" z="420.0"/>
+    <PlatDestructible flags="3" num_fragments="3" fragment_object_id="0x8772DC01" name="atfragd"/>
+    <PlatSetTag tag="122"/>
+    <PlatDestructibleSound sound_id="315" volume="100" pitch="128"/>
+  </Platform>
+  <Platform object_id="0x7E4201EC" name="smashbo">
+    <PlatScale x="0.78" y="0.78" z="0.78"/>
+    <PlatSetInitialPos x="70.0" y="20.0" z="540.0"/>
+    <PlatDestructible flags="3" num_fragments="3" fragment_object_id="0x8772DC01" name="atfragd"/>
+    <PlatSetTag tag="77"/>
+    <PlatDestructibleSound sound_id="315" volume="100" pitch="128"/>
+  </Platform>
+  <GaribGroup group_id="0" initial_state="1">
+    <Garib x="15.0" y="40.0" z="580.0" type="extra_life" dynamic_shadow="0"/>
+  </GaribGroup>
+  <Platform object_id="0x7FDADB91" name="exitpos">
+    <PlatSetInitialPos x="18.0" y="-26.0" z="600.0"/>
+    <SetExit behavior="1" type="solid_platform"/>
+  </Platform>
+  <AmbientLight r="110" g="110" b="150"/>
+  <DiffuseLight r="160" g="160" b="220" theta_x="0.0" theta_y="3.700000047683716"/>
+  <DiffuseLight r="160" g="160" b="160" theta_x="4.28000020980835" theta_y="0.0"/>
+  <FogConfiguration fog_enabled="1" r="200" g="200" b="255" fog_distance="996" near_clip="1500"/>
+  <BallSpawnPoint type="0" x="0.0" y="9.0" z="75.0"/>
+  <MrTip x="40.0" y="12.0" z="160.0" message_id="14"/>
+  <EndLevelData/>
+</Level>

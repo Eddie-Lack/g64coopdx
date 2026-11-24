@@ -529,6 +529,63 @@ static void two_players(Engine *e, void *boot, float at[3], unsigned counts[4], 
     g64_ihost_free(host);
 }
 
+/* The sample pack in packs/garib-island: a level of its own, made in Glovebox from an XML file written for it, with a
+   script. It takes Atlantis 1's place. Two players play it over the slow, lossy network. The test: the pack loads
+   and passes the check for packs from another player, the level is not stopped as unplayable, its first garib is
+   where the XML puts it, the script runs, and no machine disagrees. */
+int G64LevelUnplayable(void);
+static void sample_pack(Engine *e, void *boot) {
+    unsigned long romSize = 0;
+    const uint8_t *rom = engine_rom(e, &romSize);
+    g64_pack pk;
+    char err[200];
+    float at[3];
+    unsigned counts[4];
+    int active = 0, unplayable = 1, before = failed;
+    uint8_t *with;
+    if (g64_pack_load("packs/garib-island", &pk, err, sizeof err) != 0) {
+        check(0, "the sample pack loads from packs/garib-island");
+        printf("FAIL the sample pack: %s\n", err);
+        return;
+    }
+    check(g64_pack_check_strict(&pk, NULL) == NULL && pk.level == ATLANTIS1 && pk.script != NULL,
+          "the sample pack takes Atlantis 1's place, has a script and passes the check for packs from a host");
+    check(g64_pack_rom_level(&pk, rom, romSize) < 0, "the sample pack's level is not one of the ROM's own");
+    with = malloc(romSize + pk.levSize + pk.scriptSize);
+    if (!with) {
+        g64_pack_free(&pk);
+        return;
+    }
+    memcpy(with, rom, romSize);
+    memcpy(with + romSize, pk.lev, pk.levSize);
+    memcpy(with + romSize + pk.levSize, pk.script, pk.scriptSize);
+    engine_load(e, boot);
+    engine_set_rom(e, with, romSize + pk.levSize + pk.scriptSize);
+    g64_instances_pack(ATLANTIS1, (unsigned)romSize, (unsigned)pk.levSize);
+    g64_instances_pack_script((unsigned)(romSize + pk.levSize), (unsigned)pk.scriptSize);
+    two_players(e, boot, at, counts, &active);
+    /* two_players leaves player 0's game in the globals. */
+    unplayable = G64LevelUnplayable();
+    check(!unplayable, "the sample pack's level plays");
+    check(active, "the sample pack's script runs");
+    /* The XML's row of garibs: z from 200 to 600 in steps of 40, x 40 or -40 in pairs, y 30. */
+    {
+        int k, row = -1;
+        for (k = 0; k <= 10; k++)
+            if (garibAt[2] == 200.0f + 40.0f * k)
+                row = k;
+        snprintf(err, sizeof err, "a garib of the level is at (%.0f, %.0f, %.0f), a place of the XML's row",
+                 garibAt[0], garibAt[1], garibAt[2]);
+        check(row >= 0 && garibAt[1] == 30.0f && garibAt[0] == ((row / 2) % 2 == 0 ? 40.0f : -40.0f), err);
+    }
+    g64_instances_pack(-1, 0, 0);
+    g64_instances_pack_script(0, 0);
+    engine_set_rom(e, rom, romSize);
+    free(with);
+    g64_pack_free(&pk);
+    printf("%s the sample pack Garib Island plays with two players\n", failed != before ? "FAIL" : "ok  ");
+}
+
 /* A level pack's script. It counts its frames and, every 50 frames, moves player 0's glove 5 units along x. Its
    state is in the game's savestate: the games go back and run frames again, and the script's count must go back
    with them. The test: with the script the glove ends 30 units from where it ends without (6 moves), no machine
@@ -1056,6 +1113,7 @@ int main(int argc, char **argv) {
     one_world(e, boot);
     pack_level(e, boot);
     script_run(e, boot);
+    sample_pack(e, boot);
     script_session(e, boot);
     pack_unplayable(e, boot);
     free(boot);
