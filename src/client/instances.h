@@ -65,6 +65,10 @@ void g64_instances_pack(int level, unsigned rom, unsigned size);
  * buffer. A size of 0 means no script. Each game runs it at its start, and its on_frame function once a frame
  * (weemitt/src/port/g64lua.c). */
 void g64_instances_pack_script(unsigned rom, unsigned size);
+/* The pack's own models for every game that is built from now on: its texture bank and its object bank, at offsets
+ * texRom and objRom of the ROM buffer. Both sizes 0 means none. The banks must have passed the bank check
+ * (bankcheck.h). The game loads them in the pack's level (weemitt's g64packbanks.c). */
+void g64_instances_pack_models(unsigned texRom, unsigned texSize, unsigned objRom, unsigned objSize);
 /* The same for a session that players may join later: members has a bit for each player who is there at the start
  * (at least one), and colors has every player's colors (NULL: the game's own now). */
 g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned members,

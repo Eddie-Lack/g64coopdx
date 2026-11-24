@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BASE 0x40000000u
-#define TEXBASE 0x20000000u
+#define BASE G64_SHADOW_BASE
+#define TEXBASE G64_SHADOW_TEXBASE
 #define G_VTX 0x04
 #define G_ENDDL 0xB8
 
@@ -524,6 +524,11 @@ static void draw_all(void) {
 }
 
 const char *g64_bank_shadow(const uint8_t *tex, size_t tn, const uint8_t *obj, size_t on, size_t *at, int *bank) {
+    return g64_bank_shadow_images(tex, tn, obj, on, NULL, at, bank);
+}
+
+const char *g64_bank_shadow_images(const uint8_t *tex, size_t tn, const uint8_t *obj, size_t on, G64BankImages *out,
+                                   size_t *at, int *bank) {
     const char *result = NULL;
 
     T.b = malloc(tn ? tn : 1);
@@ -545,9 +550,17 @@ const char *g64_bank_shadow(const uint8_t *tex, size_t tn, const uint8_t *obj, s
         why = NULL;
         if (setjmp(stop) == 0) {
             convert_texture_bank();
+            if (out)
+                memcpy(out->texConverted, T.b, tn);
             load_texture_bank();
+            if (out)
+                memcpy(out->texLoaded, T.b, tn);
             convert_object_bank();
+            if (out)
+                memcpy(out->objConverted, O.b, on);
             load_object_bank();
+            if (out)
+                memcpy(out->objLoaded, O.b, on);
             draw_all();
         } else {
             result = why;

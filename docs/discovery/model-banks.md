@@ -98,8 +98,20 @@ the ROM. The level rules come in step 7.
 
 A fuzz target (`tests/fuzz/bankcheck_fuzz.c`) runs the check on random banks, on changes to Glovebox's cube, and
 on banks made from random shapes. For every bank the check accepts, it runs a copy of the game's loaders that stops
-at any read or write outside the bank (`tests/fuzz/bankwalk.c`). Step 4's ROM test (`make bankwalk`) will prove
-that this copy does what the game does.
+at any read or write outside the bank (`tests/fuzz/bankwalk.c`).
+
+`make bankwalk` (`tests/rom/bankwalk.c`) proves that this copy does what the game does. The game loads the test's
+banks through `G64LoadPackBanks` in a real level: Glovebox's cube and banks made by `tests/net/bankbuild.h` (a
+cube, a tree of three objects, two textures with three G_VTX batches each, a display list with 400 more texture
+loads, ten levels of children, a mesh of 1500 faces). For each bank:
+
+- the check accepts it, and the shadow walk ends without a fault
+- the port's converter gives the same bytes as the shadow walk's converter
+- the words that the game's loaders change are the words that the shadow walk changes, in both banks
+- each changed word holds the shadow walk's value, with the shadow's base replaced by the bank's address
+
+Then each level plays 600 frames with the pack's objects as scenery, twice, with the same memory hash. The output
+is equal on Linux and under Wine.
 
 A pack's mesh has no texture coordinates and no vertex colors, and the bank check cannot see what a level does to
 its object. Two places in the game wrote through those pointers with no test. `DeformTextureCoords` (object.c)
@@ -112,8 +124,18 @@ crashes.
 
 - The game's switch of bank numbers moves into `TextureBankRange` and `ObjectBankRange`. `G64BankRom` gives the
   same ranges to the client.
-- The pack's own banks load into free slots of the game's five, right after the level's own object bank. A level
-  always leaves one object slot free. If none is free, the level stops as unplayable.
+- The pack's own banks load into free slots of the game's five, right after the level's own object bank
+  (`G64LoadPackBanks` in `weemitt/src/game/g64packbanks.c`, called from `LoadLevel`). A level always leaves one
+  object slot free. If either kind has no free slot, the level stops as unplayable before anything loads. The
+  game's loaders take a slot only after the load, and their search for one has no bound. `make bankwalk` loads a
+  pack a second time in a level whose slots it has filled, and the level stops with nothing more loaded.
+- `G64SetPackModels` says where the two banks are in the ROM buffer, after the pack's other files. Its values are
+  statics in the game's saved data, and hold no pointer. The client sets them with `g64_instances_pack_models`.
+- The pack's banks are freed with the level's own, at the three places that free the five slots (`FreeLevel2`
+  twice in game.c, and frontend.c). The end of level screen loads its banks only after `FreeLevel`.
+- `RestoreDrawList` points the ball's and the hand's texture words at an object named `gball`, `cball`, `GShinL`,
+  `GShinR` or `gbl_bt`. The check refuses those names in the pack's own bank, so its load needs no flag. Retail
+  banks hold them, and step 9 needs one.
 - Retail banks load into a table on the game's heap, not into slots. One free object slot cannot hold the pack's
   bank and a retail bank. Also, the game searches texture slots from the last one down, so a retail bank in a slot
   would win over the level's own. The table is searched after the slots, as in Glovebox's mod. This differs from
@@ -132,8 +154,52 @@ is stricter than the owner's rule.
 ## The heap
 
 A full heap stops the game. So the limits on banks, retail banks and collision come from a measurement: the free
-heap and the free blocks at the point where the banks load, in the fullest level, with 16 players. A test loads a
-pack at those limits and checks that the level plays or stops as unplayable, and never stops the game.
+heap and the free blocks at the point where the banks load, in the fullest level, with 16 players. `make bankwalk`
+measures it in every level, and loads a pack at the limit.
+
+The heap has 22 MiB. Where the banks load, with 16 players:
+
+| What | Least | Level |
+| --- | --- | --- |
+| Free bytes | 21,204,000 | 46, the intro |
+| Free bytes in a played level | 21,334,272 | 7 |
+| Free blocks | 1,245 | 35 |
+
+The free bytes all lie between the static and the dynamic blocks there. While a level starts and runs 600 frames
+with 16 players, every level keeps at least 20,895,424 bytes and 230 blocks free (both in level 15).
+
+So 4 MiB of banks always fit, and `G64LoadPackBanks` has no test of the heap. The level parser already stops a
+level that leaves less than 4 MiB free (`G64_PARSE_FREE`, parse.c). The test's largest pack has a texture bank of
+4,144 bytes and an object bank of 4,164,488 bytes: 60 objects with meshes of 1500 faces and 4500 vertices. With all
+60 as scenery and 16 players:
+
+- level 7 plays 600 frames, with at least 5,949,936 bytes and 757 blocks free
+- level 35 plays 600 frames, with at least 5,953,152 bytes and 388 blocks free
+- level 46 stops as unplayable: the intro reads its first actor's animation, and the pack's scenery has none
+
+Collision costs more than the banks. After the parser, every scenery, landscape or water actor gets one more block
+and 120 bytes for each face of its mesh (parse.c, "Obj_Planes"). That is 180,000 bytes for a mesh of 1500 faces.
+A landscape actor with collision also compares every face of its mesh with every later face. The parser's test
+before each token cannot see these. So `G64PlanesFit` (parse.c) adds them up before any plane is made. The level
+stops as unplayable when they would leave less than 4 MiB free, would bring the blocks in use to 1,100, or when the
+sum of the squares of the landscape face counts is above 40,000,000. With 16 players, the game's own levels need
+at most 101 blocks (level 21), 288,048 bytes (level 29) and a sum of 340,884 (level 43). `make bankwalk` puts one
+object in level 13 many times, with 16 players, and finds the largest count that starts:
+
+| Object | Most copies | What stops one more | Least free in 600 frames |
+| --- | --- | --- | --- |
+| A pack's mesh of 1 face, as scenery | 471 | the blocks | 170 blocks |
+| A pack's mesh of 1 face, as landscape | 471 | the blocks | 170 blocks |
+| Level 13's own landscape object, as scenery, with no pack | 472 | the blocks | 170 blocks |
+| A pack's mesh of 1500 faces, as scenery | 94 | the bytes | 4,230,176 bytes |
+| A pack's flat mesh of 1500 faces, as landscape | 17 | the work | 18,106,400 bytes |
+
+Each largest count plays 600 frames the same in two runs. One more copy stops the level, and the game runs 60 more
+frames. The same cases in levels 15, 20 and 35 also play at the limit. Level 15 uses the most blocks in play, and
+keeps at least 166 free there. The 17 flat meshes take about half a second to start (0.45 to 0.52 s over
+four runs, on Linux and under Wine, on one machine). The test prints the time to stderr.
+Before this change, 700 small copies or 130 copies of 1500 faces made the game stop the program. Step 7 adds the
+budget for retail banks and for the level file's object ids.
 
 ## Steps
 
@@ -142,7 +208,7 @@ pack at those limits and checks that the level plays or stops as unplayable, and
 | 1 | This page, and the bank switch split out of the loaders with no change to the game | yes |
 | 2 | A bounded reader of compressed banks, and an index of the ROM's banks | yes |
 | 3 | The bank check, its tests and its fuzz target | yes |
-| 4 | The pack's own banks in free slots, and the proof that the check matches the loaders | |
+| 4 | The pack's own banks in free slots, and the proof that the check matches the loaders | yes |
 | 5 | The test of platforms with custom models, on Linux and under Wine | |
 | 6 | `models.bin` in the pack format, the pack tool and the cache | |
 | 7 | The level file's object ids against the banks, and the heap budget | |

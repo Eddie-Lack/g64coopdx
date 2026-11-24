@@ -11,9 +11,14 @@
 #include <stdint.h>
 #include <string.h>
 
+/* A user may set the largest bank and the most textures before including this file. */
+#ifndef BB_BANK
 #define BB_BANK (1 << 21)
+#endif
 #define BB_ENTRIES 16
+#ifndef BB_TEXTURES
 #define BB_TEXTURES 8
+#endif
 
 typedef struct {
     uint8_t tex[BB_BANK], obj[BB_BANK];
@@ -36,6 +41,7 @@ typedef struct {
     unsigned reloads; /* after that, this many more loads of the first texture, each with one triangle */
     uint32_t child, sibling;
     float pos[3], scale[3];
+    int flat; /* every vertex at y 0: all faces in one plane */
 } BBObject;
 
 static void bb_put32(uint8_t *p, uint32_t v) {
@@ -162,7 +168,7 @@ static uint32_t bb_object(BB *b, const BBObject *s) {
     verts = bb_alloc(b, s->verts * 12);
     for (i = 0; i < s->verts && !b->full; i++) {
         bb_putf(b->obj + verts + 12 * i, (float)(i % 5) * 2.5f - 5.0f);
-        bb_putf(b->obj + verts + 12 * i + 4, (float)(i % 3) * 4.0f);
+        bb_putf(b->obj + verts + 12 * i + 4, s->flat ? 0.0f : (float)(i % 3) * 4.0f);
         bb_putf(b->obj + verts + 12 * i + 8, -(float)i * 1.5f);
     }
     faces = bb_alloc(b, s->faces * 6);

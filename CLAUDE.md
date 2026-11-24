@@ -69,6 +69,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
     make meshguards    # the game with meshes that have no texture coordinates and no colors, as a pack's; Linux and Wine (needs the ROM)
     make levcheck      # the level file check reads every level as the game's parser does, on Linux and Wine (needs the ROM)
     make rombanks      # the index of the ROM's banks and the FLA2 reader against the game's loaders, on Linux and Wine (needs the ROM)
+    make bankwalk      # a pack's own banks loaded by the game: the loaders change the shadow walk's words; they play as scenery; the heap with 16 players; the collision planes' limits; Linux and Wine (needs the ROM)
     make bots          # every level with 8 and with 16 players who play at random, on Linux and Wine (needs the ROM)
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make swaps         # every level with every other level's file in its place: played or stopped, never a crash (needs the ROM)
@@ -107,6 +108,7 @@ run locally: set `GLOVER_ROM`.
 | The bounded reader of compressed (FLA2) banks, and the index of the ROM's banks (ids and hashes) | src/client (`fla2.h`, `rombanks.h`; the game's ranges in `rombanks_game.c`), docs/discovery/model-banks.md; the test tests/rom/rombanks.c |
 | The check of a pack's models.bin (its header, texture bank and object bank), and its rules that need the ROM | src/client (`bankcheck.h`), docs/discovery/model-banks.md; the test tests/net/bankcheck_test.c, the fixture tests/fixtures/cube.models.bin |
 | The shadow walk (a copy of the game's bank loaders that stops at any access outside the bank), and the maker of test banks | tests/fuzz (`bankwalk.h`, `bankcheck_fuzz.c`), tests/net/bankbuild.h |
+| A pack's own models in the game: where its banks are, their load into free slots, and the test against the shadow walk | weemitt/src/game/g64packbanks.c (`G64SetPackModels`, `G64LoadPackBanks`), src/client (`instances.h`, `g64_instances_pack_models`); the test tests/rom/bankwalk.c |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
 | How players host and join | docs/playing-online.md |

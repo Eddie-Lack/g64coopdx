@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -350,6 +350,27 @@ meshguards: meshguards-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/meshguards.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/meshguards-windows.out
 	cmp build/tests/meshguards.out build/tests/meshguards-windows.out
+
+# A level pack's own banks loaded by the real game (tests/rom/bankwalk.c): the words the game's loaders change are the
+# words the bank check's shadow walk changes, the banks play as scenery, the heap with 16 players, and the collision
+# planes' limits, on Linux and under Wine; the two outputs must be equal (needs the ROM in GLOVER_ROM).
+BANKWALK_SRC := tests/rom/bankwalk.c tests/fuzz/bankwalk.c src/client/bankcheck.c src/client/rombanks.c \
+    src/client/fla2.c src/client/levcheck.c third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
+bankwalk-build: savestates
+	@mkdir -p build/tests
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/bankwalk $(BANKWALK_SRC) $(ENGINE_LINUX) \
+	    -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/bankwalk.exe $(BANKWALK_SRC) $(ENGINE_WINDOWS) -lm
+
+bankwalk: bankwalk-build
+	build/tests/bankwalk "$$GLOVER_ROM" > build/tests/bankwalk.out || { cat build/tests/bankwalk.out; exit 1; }
+	grep -E '^(FAIL|heap:|the largest)' build/tests/bankwalk.out || true
+	tail -1 build/tests/bankwalk.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bankwalk.exe "$$GLOVER_ROM" \
+	    > build/tests/bankwalk-windows.raw || { tr -d '\r' < build/tests/bankwalk-windows.raw; exit 1; }
+	tr -d '\r' < build/tests/bankwalk-windows.raw > build/tests/bankwalk-windows.out
+	cmp build/tests/bankwalk.out build/tests/bankwalk-windows.out
 
 # Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
 # "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).

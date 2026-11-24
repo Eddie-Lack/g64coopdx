@@ -897,6 +897,8 @@ void LoadLevel(s32 num) {
     }
     LoadObjectBank(x);
     LoadObjectBank(levelInfo[gameInfo.level].objBank);
+    /* g64coopdx: a level pack's own models, before the level's file is read. */
+    G64LoadPackBanks(num);
     InitObjects();
     InitMorePersonal(num);
     dispFrameCount = 0;
@@ -4076,6 +4078,11 @@ void DoOutroEffects(void) {
         outrospeed = 1;
         originalFog.r = originalFog.g = originalFog.b = fog.r = fog.g = fog.b = 255;
     }
+    if (actorList.head.next->anim == NULL) {
+        /* g64coopdx: as in the intro, the first actor of a level pack's file may have no animation. */
+        G64Unplayable("OUTRO ACTOR");
+        return;
+    }
     /* The animation time steps in ticks. The effects keyed on it and on frameCount happen once per original frame. */
     time = actorList.head.next->anim->time;
     if (deltaTick && time > 200.0f && time < 260.0f) {
@@ -4186,6 +4193,12 @@ void DoIntroEffects(void) {
     s32 x;
     f32 dim;
 
+    if (actor->anim == NULL) {
+        /* g64coopdx: the scene reads the first actor's animation. A level pack's file can put an actor without one
+           first, such as a piece of scenery. */
+        G64Unplayable("INTRO ACTOR");
+        return;
+    }
     /* The animation time and frameCount step in ticks. The events keyed on them happen once per original frame,
        and the captions' countdown and fade step with them. */
     if (deltaTick && frameCount < 2) {

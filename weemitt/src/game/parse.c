@@ -112,7 +112,53 @@ void G64Unplayable(const char *what);
 #define G64_PARSE_FREE (4 * 1024 * 1024)
 #define G64_PARSE_BLOCKS 1100
 #define G64_DEBRIS_MAX 64
+/* g64coopdx: the most work the collision planes of one level may take at its start. For each landscape actor that
+   has collision, the game compares every face of its mesh with every later face (CheckForInnerEdges in
+   collision.c). The work is counted as the sum of the squares of those face counts. */
+#define G64_PLANES_WORK 40000000LL
+/* g64coopdx: what the collision planes of the last level start would take, before they were made: the blocks, the
+   bytes and the work. Also the last static block's number before them. For tests. */
+s32 g64PlanesBlocks, g64PlanesLastStatic;
+s64 g64PlanesBytes, g64PlanesWork;
 static s32 madePuzzle, madeVent, madeLandscape, madeCameo, madeGaribGroup, madeBuzzer;
+
+/* g64coopdx: 1 when the collision planes that the loop after the parse makes fit the game's heap and its list of
+   blocks, and take no more work than G64_PLANES_WORK. Otherwise the level stops as unplayable. The parse's own test
+   (G64_PARSE_FREE and G64_PARSE_BLOCKS) runs before each token, so it cannot see the planes. Each landscape or water
+   actor takes one more block and 120 bytes for each face of its mesh. A level file that names an object many times
+   filled the heap or the list here, and the game stopped the program. The test runs before any plane is made: a
+   level that stops has no actor with planes, as when the parse stops. The sums are 64-bit integers: a mesh of a
+   retail bank may have up to 32,767 faces. With 16 players the game's own levels need at most 101 blocks, 288,048
+   bytes and work 340,884 here (make bankwalk). */
+static s32 G64PlanesFit(void) {
+    Actor *actor;
+    s64 faces;
+    s32 free = jallocControl.heapSize - jallocControl.staticUsed - jallocControl.dynamicUsed;
+
+    g64PlanesLastStatic = jallocControl.lastStatic;
+    g64PlanesBlocks = 0;
+    g64PlanesBytes = 0;
+    g64PlanesWork = 0;
+    for (actor = actorList.head.next; actor != &actorList.head; actor = actor->next) {
+        if ((actor->type == LANDSCAPE_ACTOR || actor->type == WATER_ACTOR) && actor->inst->obj->mesh->numFaces > 0) {
+            faces = actor->inst->obj->mesh->numFaces;
+            g64PlanesBlocks++;
+            g64PlanesBytes += (faces * (s64)sizeof(CollFace) + 15) / 16 * 16;
+            if (actor->type == LANDSCAPE_ACTOR && !(actor->flags & 4)) {
+                g64PlanesWork += faces * faces;
+            }
+        }
+    }
+    if ((s64)free - g64PlanesBytes < G64_PARSE_FREE || jallocControl.lastStatic + g64PlanesBlocks >= G64_PARSE_BLOCKS) {
+        G64Unplayable("TOO LARGE");
+        return 0;
+    }
+    if (g64PlanesWork > G64_PLANES_WORK) {
+        G64Unplayable("COLLISION");
+        return 0;
+    }
+    return 1;
+}
 
 static s32 TokenAllowed(s16 token, Platform *platform) {
     s32 points = platform != NULL && platform->path != NULL ? platform->path->numPoints : 0;
@@ -511,6 +557,9 @@ void ParseLandscapeFile(s32 num) {
     G64ParseTrace((s32)(data - file), token);
     JallocFree(&file);
     if (gameInfo.mode == 13) {
+        return;
+    }
+    if (!G64PlanesFit()) {
         return;
     }
     for (actor = actorList.head.next; actor != &actorList.head; actor = actor2) {
