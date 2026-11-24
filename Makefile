@@ -446,6 +446,9 @@ swaps: swaps-build
 	tail -1 build/tests/swaps.out
 
 BOTS_SRC := tests/rom/bots.c weemitt/src/port/statehash.c
+# Level 14 from frame 0 with seeds that once crashed the game: two players' frog tongues shared one bullet. Each run
+# is PLAYERS,FRAMES and its words, split at the commas.
+BOTS_TONGUES := 8,1000,level=14,seed=1,quiet=0 8,1000,level=14,seed=3,quiet=0 16,600,level=14,seed=777,quiet=0
 bots-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/bots $(BOTS_SRC) $(ENGINE_LINUX) \
@@ -457,13 +460,17 @@ bots: bots-build
 	build/tests/bots "$$GLOVER_ROM" 8 1500 > build/tests/bots.out
 	build/tests/bots "$$GLOVER_ROM" 16 1500 >> build/tests/bots.out
 	build/tests/bots "$$GLOVER_ROM" 8 1500 any >> build/tests/bots.out
-	grep "every level" build/tests/bots.out
+	for run in $(BOTS_TONGUES); do build/tests/bots "$$GLOVER_ROM" $$(echo $$run | tr , ' ') >> build/tests/bots.out \
+	    || exit 1; done
+	grep "every level\|level 14 runs" build/tests/bots.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1500 | tr -d '\r' \
 	    > build/tests/bots-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 16 1500 | tr -d '\r' \
 	    >> build/tests/bots-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe "$$GLOVER_ROM" 8 1500 any | tr -d '\r' \
 	    >> build/tests/bots-windows.out
+	for run in $(BOTS_TONGUES); do WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/bots.exe \
+	    "$$GLOVER_ROM" $$(echo $$run | tr , ' ') | tr -d '\r' >> build/tests/bots-windows.out; done
 	cmp build/tests/bots.out build/tests/bots-windows.out
 
 # Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
