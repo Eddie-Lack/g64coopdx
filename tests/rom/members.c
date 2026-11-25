@@ -1,7 +1,7 @@
 /* Players who join and leave a running game, by player number (weemitt/src/game/g64players.c), with the ROM.
  *
  * Players 0, 1 and 2 start in the first hub level. The players present come as a bit per player before each frame
- * (G64SetPresent), as the confirmed inputs give them. At frame 600 player 0, who is in the game's globals, leaves:
+ * (G64SetPresent), as the confirmed inputs give them. At frame 600 player 0, who's in the game's globals, leaves:
  * player 1 takes the globals. At frame 900 player 3 joins; at frame 1200 player 2 leaves. At frame 1300 player 3
  * leaves the way an exit takes a player (G64RemovePlayer) while their bit is still on, and must stay out. Each player
  * walks with their own input. The test checks that a glove stays where it was when another player leaves, and that

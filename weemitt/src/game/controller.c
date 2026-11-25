@@ -387,7 +387,7 @@ void ProcessInput(void) {
     s32 index;
 
     /* g64coopdx: in the online game the pause would stop the level for every player in it, and its choices would act
-       on all of them: Start does not pause there. */
+       on all of them: Start doesn't pause there. */
     if (pad[ActiveController].pressed[BUTTON_START] && !pauseMode && !gameInfo.fade && !gameOverCount && !disablePause
         && !g64Online) {
         PlaySampleNot3D(179, 120, 128, 128);

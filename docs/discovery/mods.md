@@ -64,16 +64,16 @@ The load runs `StartNewLevel`, `LoadLevel` (`weemitt/src/game/game.c:808`), `Ini
 | Option | What changes | Cost | Limits |
 | --- | --- | --- | --- |
 | A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level being loaded is the custom level (option C says which number that is) | about 30 lines | Uses the shipped banks only |
-| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM does not use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | More bank slots: either new lists that `FindObject` and `FindTexture` also search, or larger `objectBanks` and `textureBanks` arrays, which means regenerating `gen/`, weemitt's tables of every global's N64 offset |
+| B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM doesn't use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | More bank slots: either new lists that `FindObject` and `FindTexture` also search, or larger `objectBanks` and `textureBanks` arrays, which means regenerating `gen/`, weemitt's tables of every global's N64 offset |
 | C. Custom level slots | A custom level borrows a shipped level's number: its row in `levelInfo` (the game's table of levels: name, song, banks) and its world. It swaps in its own `.lev` and extra banks. Glovebox's console mod (next section) borrows Space levels' numbers the same way (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
-| D. Rebuild the ROM at start | Apply a Glovebox BPS patch (a binary diff against the retail ROM, which Glovebox exports) to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code does not run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
+| D. Rebuild the ROM at start | Apply a Glovebox BPS patch (a binary diff against the retail ROM, which Glovebox exports) to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code doesn't run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
 
 Recommendation: A, B and C together. They keep the game's own loader, drawing, puzzles, enemies and platforms.
 
 ### The Glovebox console mod's features on the PC
 
-Glovebox's console mod (about 13.5 KB of MIPS code, `Glovebox/mod/`) lifts limits of the retail game. weemitt does
-not run MIPS code, so each feature needs C in g64coopdx's copy of the game code, as part of game change 6 (VERIFIED
+Glovebox's console mod (about 13.5 KB of MIPS code, `Glovebox/mod/`) lifts limits of the retail game. weemitt doesn't
+run MIPS code, so each feature needs C in g64coopdx's copy of the game code, as part of game change 6 (VERIFIED
 from `Glovebox/docs/technical.md`):
 
 | Feature | On the PC |
@@ -87,7 +87,7 @@ from `Glovebox/docs/technical.md`):
 ### The host world and custom levels
 
 weemitt's host world (`weemitt/docs/host-world.md`) lets a program that loads the library give the game triangles to
-collide with, moving bodies, water and a camera. It does not draw them (`host-world.md:340`). It suits a foreign engine
+collide with, moving bodies, water and a camera. It doesn't draw them (`host-world.md:340`). It suits a foreign engine
 that uses Glover as a character. A custom Glover level is better served by the game's own loader.
 
 ## Custom models and textures
@@ -97,7 +97,7 @@ that uses Glover as a character. A custom Glover level is better served by the g
 - Glovebox already makes such banks: `custom/<set>/<id>.obj.bin` and `textures.tex.bin`
   (`Glovebox/docs/technical.md:910-922`). They are in the game's own format, so weemitt's converters
   (`port_convert_object_bank`, `port_convert_texture_bank`) should take them as they are (INFERRED). These files
-  were not tried as they are. A pack carries its models in `models.bin`. Glovebox's pack export writes that file
+  weren't tried as they are. A pack carries its models in `models.bin`. Glovebox's pack export writes that file
   (`model_banks` in `Glovebox/crates/core/src/custom/pack.rs`). The export links the level's imported models into one
   object bank and puts the textures they use in one texture bank. It writes the identity rotation key, (0, 0, 0, 1), in
   place of a key of all zeros. `make bankwalk` loads such a file, a cube, in a real level
@@ -108,7 +108,7 @@ that uses Glover as a character. A custom Glover level is better served by the g
 - A custom model with an all-zero first rotation key, used as a platform, gives NaN (not a number) in weemitt's
   `QuaternionToMatrix` (VERIFIED). The bank check refuses such a key, and Glovebox's pack export writes the identity
   key in its place. Custom models may be platforms: `make models` (`tests/rom/models.c`) tested it
-  ([model-banks.md](model-banks.md#platforms)). Glovebox's builder does not allow custom models as platforms on the
+  ([model-banks.md](model-banks.md#platforms)). Glovebox's builder doesn't allow custom models as platforms on the
   console.
 
 ### Player models
@@ -165,7 +165,7 @@ What each project needs:
 | 32-bit Windows (MinGW) | plain C99 | needs SSE2, harder to build | C++17, interpreter only on 32-bit |
 | Determinism | portable C; the basic float operations are exact with SSE2 and no fused multiply-add | the JIT and the interpreter can take different paths; its bytecode "is not deterministic" (luajit.org/extensions.html) | interpreter is portable |
 | Sandbox | by hand | by hand; its FFI escapes any sandbox | built in |
-| Memory and step limits | custom allocator; `lua_sethook` with a count | the count hook does not reach compiled loops | interrupt callback |
+| Memory and step limits | custom allocator; `lua_sethook` with a count | the count hook doesn't reach compiled loops | interrupt callback |
 
 **Recommendation: PUC Lua 5.4, vendored at a fixed version**, compiled with the game's flags (`-ffp-contract=off`,
 SSE2, no fast math). sm64coopdx uses Lua 5.3 the same way ([sm64coopdx.md](sm64coopdx.md)). Choose Luau only if its
@@ -182,10 +182,10 @@ frame, so every update is a tick. Three rules follow.
    arena into the game's object (`game.o`) of the brute forcer's engine. The engine saves all of the game's
    variables outside `port_ram` (`weemitt/bruteforce/docs/engine.md`, "Savestates"). The arena is one of those variables. The
    page tracker copies only the pages a script wrote. The arena holds pointers into the machine's own memory, so
-   such a state loads only in the same process. That is enough for rollback; late join uses the inputs ([netcode.md](netcode.md#instances)).
+   such a state loads only in the same process. That's enough for rollback; late join uses the inputs ([netcode.md](netcode.md#instances)).
 2. **Scripts must be deterministic.** Every machine must reach the same bits.
 3. **Scripts run per instance.** Players may be in different levels, and each occupied level is its own simulation
-   ([netcode.md](netcode.md#instances)). A script's state in one instance is not seen by another. State that a mod
+   ([netcode.md](netcode.md#instances)). A script's state in one instance isn't seen by another. State that a mod
    keeps across levels (a score for the whole session, say) lives in the session and changes only through session
    events, which the host puts into each instance's confirmed inputs ([netcode.md](netcode.md#session-events)).
 
@@ -202,7 +202,7 @@ frame, so every update is a tick. Three rules follow.
 | Bytecode | Never accepted; source only |
 | Lua built with other options on another machine | One vendored Lua, one set of options, in the version handshake |
 
-The memory hash used for desync checks does not cover the arena. The arena holds addresses, and they differ between
+The memory hash used for desync checks doesn't cover the arena. The arena holds addresses, and they differ between
 machines. With a script, the hash that machines compare also covers a number made from the scripts' state, such as
 its memory counts and its random numbers' state (`G64LuaHash` in `weemitt/src/port/g64lua.c`, `game_hash` in
 `src/rollback/engine_game.c`, [lua-trial.md](lua-trial.md)).
@@ -258,12 +258,12 @@ the game. Each other row names a function of the game (VERIFIED), and the design
 7. Every player's ROM must have the SHA-1 the pack names. The ROM itself never travels.
 
 What never goes over the network: the ROM, banks or textures from it, memory dumps, savestates (they hold the
-game's memory, which holds ROM data). See [netcode.md](netcode.md#instances) for why late join does not need them.
+game's memory, which holds ROM data). See [netcode.md](netcode.md#instances) for why late join doesn't need them.
 
 ## Open points
 
 - Glovebox's custom banks: its pack export writes them into a pack's `models.bin`, and the game loads that file
-  ([Custom models and textures](#custom-models-and-textures)). The set's own files were not tried as they are.
+  ([Custom models and textures](#custom-models-and-textures)). The set's own files weren't tried as they are.
 - The custom-platform NaN question above is settled: custom models may be platforms
   ([model-banks.md](model-banks.md#platforms)).
 - The Lua API's first scope is decided: rules, HUD, puzzle conditions and actions, and spawns through the game's own

@@ -1,7 +1,7 @@
 /* Levels built from the power-on state (weemitt's port_game_boot and port_game_start_level), with the ROM.
  *
  * g64coopdx builds every level the same way on every machine: it loads a state saved right after power-on, then
- * starts the level. A level reached by play is not used: it keeps the camera of the level before, so its logic
+ * starts the level. A level reached by play isn't used: it keeps the camera of the level before, so its logic
  * drifts from a fresh start of the same level (docs/discovery/netcode.md, "Instances").
  *
  * For each level, the test starts it from the power-on state and runs it, then plays another level, goes back to

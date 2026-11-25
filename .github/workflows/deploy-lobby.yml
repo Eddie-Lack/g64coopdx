@@ -30,10 +30,10 @@ jobs:
           if [ -n "$FLY_API_TOKEN" ]; then
             echo "set=true" >> "$GITHUB_OUTPUT"
           elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "::error::The secret FLY_API_TOKEN is not set. See docs/hosting.md."
+            echo "::error::The secret FLY_API_TOKEN isn't set. See docs/hosting.md."
             exit 1
           else
-            echo "::notice::The secret FLY_API_TOKEN is not set, so nothing was deployed. See docs/hosting.md."
+            echo "::notice::The secret FLY_API_TOKEN isn't set, so nothing was deployed. See docs/hosting.md."
           fi
       - name: Test
         if: steps.token.outputs.set == 'true'

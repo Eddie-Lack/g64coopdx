@@ -207,7 +207,7 @@ static void case_cd(char name, int target) {
     start(CAVE, 0x3, 0, target);
     for (f = 0; f < 400; f++) {
         frame(f, 0x3, 0);
-        /* Where each ball goes while it is still above the floor (a ball put in moves to y -5000). */
+        /* Where each ball goes while it's still above the floor (a ball put in moves to y -5000). */
         for (p = 0; p < 2; p++) {
             float at[3];
             ball_at(p, at);
@@ -322,7 +322,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     engine = engine_create(argv[1], &opt, err, sizeof err);
     if (!engine) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(engine));

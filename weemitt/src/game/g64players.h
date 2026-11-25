@@ -70,11 +70,11 @@ void G64ExtraPlayersStart(void);
 void G64ExtraPlayersFree(void);
 /* In MainGameLoop, after the first player's part of the frame: the extra players' parts. */
 void G64ExtraPlayersStep(void);
-/* Before a draw: the proxies take the gloves and balls of the players who are not in the globals. */
+/* Before a draw: the proxies take the gloves and balls of the players who aren't in the globals. */
 void G64UpdateProxies(void);
 /* Swaps a player's slot with the globals, by the player's number (twice restores). For drawing that player's view:
    the globals then hold the player, and the proxies show the others. Nothing for the player in the globals or one
-   who is not in this game. */
+   who isn't in this game. */
 void G64SwapPlayer(s32 player);
 void G64TipView(s32 player);
 void G64CannonView(s32 player);
@@ -90,18 +90,18 @@ u32 G64ActorTint(struct Actor *a);
 void G64GaribRuns(void);
 /* The texture words of another player's glove or ball that differ from the viewer's (g64players.c). */
 s32 G64ActorTextures(struct Actor *a, u32 *from, u32 *to, s32 max);
-/* A player's glove position, by number; 0 when the player is not in this game. */
+/* A player's glove position, by number; 0 when the player isn't in this game. */
 s32 G64PlayerPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* The same for a player's ball. */
 s32 G64BallPosition(s32 player, f32 *x, f32 *y, f32 *z);
 /* The cave's scene for each player online (game.c, DoCaveStuff), for the player in the globals: the frames since they
    came into the level, whether a crystal was due then, their flight's pedestal (a platform tag, 1 to 7), and when
-   they came. G64CavePlayers runs G64CavePlayer for each player who is not in the globals. G64Arrive starts a player who
+   they came. G64CavePlayers runs G64CavePlayer for each player who isn't in the globals. G64Arrive starts a player who
    came into a running level afresh. */
 s32 G64CaveFramesHere(void);
 s32 G64CaveDue(void);
 s32 G64CaveTarget(void);
-/* The highest pedestal of the flights of the players who are not in the globals, or 0. */
+/* The highest pedestal of the flights of the players who aren't in the globals, or 0. */
 s32 G64CaveTargetsInAir(void);
 void G64SetCaveTarget(s32 tag);
 void G64SetCaveArrival(s32 frame, s32 due);
@@ -109,11 +109,11 @@ void G64CavePlayers(void);
 void G64CavePlayer(void);
 void G64Arrive(void);
 /* Where a player hears from (the online game's sound, g64coopdx's src/client/sound.c): their camera's position and
-   turn, and the level's sound distance (MAX_SFX_DIST). 0 when the player is not in this game. */
+   turn, and the level's sound distance (MAX_SFX_DIST). 0 when the player isn't in this game. */
 s32 G64SoundListener(s32 player, f32 *pos, f32 *yaw, s32 *maxDist);
-/* For tests: the point a player's camera looks at; 0 when the player is not in this game. */
+/* For tests: the point a player's camera looks at; 0 when the player isn't in this game. */
 s32 G64CameraTarget(s32 player, f32 *x, f32 *y, f32 *z);
-/* For tests: the position of the level's first platform with a tag; 0 when there is none. */
+/* For tests: the position of the level's first platform with a tag; 0 when there's none. */
 s32 G64PlatformPosition(s32 tag, f32 *x, f32 *y, f32 *z);
 /* Moves a player's glove and ball, by number. For drawing only: the online program shifts the other players on a
    state it loads again after the draw. */
@@ -128,7 +128,7 @@ void G64PlayerAction(s32 player, s32 action);
 s32 G64HasPlayer(s32 player);
 /* Between two frames: a player joins (a copy of the player in the globals: beside it before the level's first frame
    of play, at the level's start after it) or leaves. When the player in the globals leaves, the player in slot 1
-   takes the globals. The last player cannot leave. */
+   takes the globals. The last player can't leave. */
 void G64AddPlayer(s32 player);
 void G64RemovePlayer(s32 player);
 /* The players in a game, as a bit per player number, from the session's confirmed inputs. G64StartPlayers sets them
@@ -153,7 +153,7 @@ void G64SetPresent(u32 present);
 /* Enemies and bullets look at one player each (g64players.c, "Enemies and bullets"). G64EnemyBegin swaps that player
    into the globals before enemy x's update and returns their slot; G64EnemyEnd swaps them back. G64BulletBegin and
    G64BulletEnd do the same for a bullet. G64BulletMade and G64BulletGone keep the record of whom each bullet homes in
-   on. G64EnemyNear: 1 when a player who is not in the globals holds the actor's ball, or their camera is within the
+   on. G64EnemyNear: 1 when a player who isn't in the globals holds the actor's ball, or their camera is within the
    range (squared) of it. */
 s32 G64EnemyBegin(s32 enemy);
 /* Inside an enemy's update, for code that is for every player (g64players.c): the number of players to go through
@@ -165,7 +165,7 @@ void G64OtherEnd(s32 k);
 /* Sets the camera's height above its target for every player. */
 void G64SetLevelCamHeight(s32 height);
 /* The first space boss's carrier, the player who brought their ball to the robot's platform. G64CarrierSet(1) notes
-   the player in the globals, G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the globals:
+   the player in the globals, G64CarrierSet(0) that there's none. G64CarrierBegin puts the carrier in the globals:
    it returns a value for G64CarrierEnd, 0 when nothing was swapped, or -1 when the carrier has left the game. */
 void G64CarrierSet(s32 on);
 s32 G64CarrierBegin(void);
@@ -177,15 +177,15 @@ void G64EnemyHitsCleared(s32 enemy);
    respawn removes only the bullets aimed at them). */
 s32 G64BulletMine(struct Bullet *b);
 /* 1 when b is the frog tongue of the player in the globals: a tongue bullet that the player made, or one with no
-   record. 0 for NULL. Online it is 0 for a bullet that is no longer that player's tongue: the tongue went, and its
-   place in the bullet list went to another bullet. With one player it is 1 for any bullet but NULL. */
+   record. 0 for NULL. Online it's 0 for a bullet that is no longer that player's tongue: the tongue went, and its
+   place in the bullet list went to another bullet. With one player it's 1 for any bullet but NULL. */
 s32 G64TongueMine(struct Bullet *b);
 s32 G64BulletBegin(struct Bullet *b);
 void G64BulletEnd(struct Bullet *b, s32 slot);
 void G64BulletMade(struct Bullet *b);
 void G64BulletGone(struct Bullet *b);
 s32 G64EnemyNear(struct Actor *a, f32 rangeSq);
-/* For tests: enemy i's position, and its type plus 1 while it is active; 0 when it is not, or there is none. */
+/* For tests: enemy i's position, and its type plus 1 while it's active; 0 when it isn't, or there's none. */
 s32 G64EnemyInfo(s32 i, f32 *x, f32 *y, f32 *z);
 /* For tests: the number of bullets, and the positions (x, y, z) of the first max of them. */
 s32 G64BulletPositions(f32 *xyz, s32 max);
@@ -194,7 +194,7 @@ s32 G64BallHolder(s32 player);
 
 /* Puzzles and platforms (g64players.c). G64PuzzleSlots: how many slots a puzzle's condition on the player is tested
    in (1 with one player). G64PuzzleSlotBegin swaps slot i's player into the globals (0 when the slot is empty);
-   G64PuzzleSlotEnd swaps them back. G64AnyBallOn and G64AnyGloveOn: 1 when the ball or glove of a player who is not
+   G64PuzzleSlotEnd swaps them back. G64AnyBallOn and G64AnyGloveOn: 1 when the ball or glove of a player who isn't
    in the globals stands on the platform. G64NearestBall and G64NearestGlove: the nearest player's ball or glove. */
 s32 G64PuzzleSlots(void);
 s32 G64PuzzleSlotBegin(s32 i);
@@ -204,7 +204,7 @@ s32 G64AnyGloveOn(struct Platform *p);
 struct Actor *G64NearestBall(const Vec3 *p);
 struct Actor *G64NearestGlove(const Vec3 *p);
 
-/* For tests: puzzle k's state (in the order CheckPuzzles runs them) and its condition j; 0 when there is none. A
+/* For tests: puzzle k's state (in the order CheckPuzzles runs them) and its condition j; 0 when there's none. A
    player's ball put at a position, at rest. */
 s32 G64PuzzleInfo(s32 k, s32 *timesLeft, s32 *active, s32 *count);
 s32 G64PuzzleCondition(s32 k, s32 j, s32 *type, s32 *tag, s32 *value);
@@ -244,8 +244,8 @@ void G64CheckRestartGate(struct Platform *platform);
 s32 G64RestartCountdown(s32 player);
 /* After CalculateShadows' own actors: the shadow altitude of every other player's glove, ball and fake ball. */
 void G64SlotShadows(void);
-/* For tests: the position of the k-th platform with a restart gate (0 when there is none); a player's checkpoint as
-   that k (-1 for none, -2 when the player is not in this game); a player's lives. */
+/* For tests: the position of the k-th platform with a restart gate (0 when there's none); a player's checkpoint as
+   that k (-1 for none, -2 when the player isn't in this game); a player's lives. */
 s32 G64GatePosition(s32 k, f32 *x, f32 *y, f32 *z);
 s32 G64PlayerCheckpoint(s32 player);
 s32 G64PlayerLives(s32 player);
@@ -253,12 +253,12 @@ s32 G64PlayerLives(s32 player);
 f32 G64PlayerAltitude(s32 player);
 
 /* World hazards (g64players.c): the number of slots to go through after the actor list (0 with one player, or while
-   a slot is swapped in), and slot i's glove and ball (i from 1; NULL for an empty slot). They are read and changed in
+   a slot is swapped in), and slot i's glove and ball (i from 1; NULL for an empty slot). They're read and changed in
    place. */
 s32 G64SlotCount(void);
 struct Actor *G64SlotGlove(s32 i);
 struct Actor *G64SlotBall(s32 i);
-/* A hazard that hit slot i's glove or ball: G64HazardBegin swaps that player into the globals (0 when it cannot),
+/* A hazard that hit slot i's glove or ball: G64HazardBegin swaps that player into the globals (0 when it can't),
    G64HazardEnd swaps them back. G64SlotBallBursting: 1 when slot i's ball is bursting. */
 s32 G64HazardBegin(s32 i);
 void G64HazardEnd(s32 i);
@@ -266,7 +266,7 @@ s32 G64SlotBallBursting(s32 i);
 /* A bonus level ends for the player in the globals (g64players.c): 1 when they took the exit alone, online; 0 when
    the caller must end the level for everyone. */
 s32 G64PlayerExits(s32 type, s32 complete);
-/* 1 when a footprint is the slam ring of a player who is not in the globals (footprint.c). G64FootprintGone: a
+/* 1 when a footprint is the slam ring of a player who isn't in the globals (footprint.c). G64FootprintGone: a
    footprint is freed, and the players whose ring it was forget it. */
 s32 G64IsPlayerFootprint(const void *footprint);
 void G64FootprintGone(const void *footprint);
@@ -274,7 +274,7 @@ void G64FootprintGone(const void *footprint);
    player in the globals is the one whose distance set it (pos NULL: the quake has no place). G64QuakeStrength gives
    the quake's strength for the player in the globals at the point `blend` between its two ends: it leaves *str as it
    is for one player, for a quake without a place and for the player whose distance set it, and else works it out
-   from that player's own distance. It returns 0 when the quake does not reach them. */
+   from that player's own distance. It returns 0 when the quake doesn't reach them. */
 void G64QuakeAt(const struct Vec3 *pos, f32 maxStrength, f32 minStrength);
 s32 G64QuakeStrength(f32 blend, f32 *str);
 /* Cameos (g64players.c, "Cameos"). A cameo plays for the player who set it off, or for the first player.
@@ -292,7 +292,7 @@ void G64CameoSwapOut(s32 i);
 void G64CameoAfter(void);
 void G64CameoView(void);
 s32 G64CameoHeld(void);
-/* Tips (g64players.c, "Tips"). Online a tip does not stop the level: each player reads it on their own, and only
+/* Tips (g64players.c, "Tips"). Online a tip doesn't stop the level: each player reads it on their own, and only
    the reader is held. G64TipsOwn is 1 then. G64TipReaders gives the players (a bit each, by player number) whose
    glove is at a tip and who have just pressed B, G64TipEveryone all the players in the game. G64TipOpen opens the
    tip for those of them who read none, with the tip's sound, and returns 1 if it opened for any. G64TipsStep runs
@@ -346,9 +346,9 @@ s32 G64SessionWorld(void);
 s32 G64PortalShut(s32 player);
 void G64AnyBallStep(void);
 s32 G64BallLostElsewhere(void);
-/* debris.c: a piece of debris is freed, and no player who is not in the globals keeps it as their fake ball. */
+/* debris.c: a piece of debris is freed, and no player who isn't in the globals keeps it as their fake ball. */
 void G64FakeballGone(const void *debris);
-/* DisableControl(time) for every player who is not in the globals. */
+/* DisableControl(time) for every player who isn't in the globals. */
 void G64DisableControlAll(s32 time);
 /* Water (water.c): the key of an actor's water events. With a slot swapped in for a hazard, its glove and ball are
    keyed by the slot's own actors, not by the globals' addresses. G64SlotWaterReset clears the other players'
@@ -356,7 +356,7 @@ void G64DisableControlAll(s32 time);
 struct Actor *G64EventKey(struct Actor *a);
 void G64SlotWaterReset(void);
 /* For tests: the place of the k-th hazard of a kind (0 a wind's middle, 1 a water's middle at its surface, 2 a
-   spike, 3 a buzzer's middle: 2 when it is buzzing); 0 when there is none. A player's health, their glove's
+   spike, 3 a buzzer's middle: 2 when it's buzzing); 0 when there's none. A player's health, their glove's
    velocity, and their glove's water state (-1 when not in this game). */
 s32 G64HazardPlace(s32 kind, s32 k, f32 *x, f32 *y, f32 *z);
 s32 G64PlayerHealth(s32 player);
@@ -367,7 +367,7 @@ s32 G64PlayerInWater(s32 player);
    a group of garibs. G64GaribTaker: the slot of the player who takes the garib at pos, the one whose glove or ball
    reaches it from the nearest; 0 for the first player or nobody. G64GaribGained adds a garib to every other player's
    count: the count is the team's. G64PickupTaker: the first slot whose glove is within the pick-up's radius; -1 when
-   there is none. */
+   there's none. */
 s32 G64GaribGroupNear(const struct Vec3 *pos, f32 radius);
 s32 G64GaribTaker(const struct Vec3 *pos);
 void G64GaribGained(void);
@@ -379,15 +379,15 @@ void G64GaribGained(void);
 extern s32 g64ParseLogOn, g64ParseLogCount;
 extern s32 g64ParseLog[G64_PARSE_LOG][2];
 void G64ParseTrace(s32 offset, s32 token);
-/* For the same tests: while g64ParseLogOn is set, FindObject records each id it is asked for while the parser reads
+/* For the same tests: while g64ParseLogOn is set, FindObject records each id it's asked for while the parser reads
    a token, with the index of that token in g64ParseLog. The record starts again with the parser's. Entry k is
    g64FindLog[k]: the token's index, then the id. */
 extern s32 g64FindLogCount;
 extern u32 g64FindLog[G64_PARSE_LOG][2];
 void G64FindObjectTrace(u32 id);
 
-/* Marks the level as one that cannot be played: the game's own state for a level without its file. The level
-   parser and the code that makes enemies and pick-ups call it where a level file names something the game does not
+/* Marks the level as one that can't be played: the game's own state for a level without its file. The level
+   parser and the code that makes enemies and pick-ups call it where a level file names something the game doesn't
    have. Online, the level's players then go back to the hub. */
 void G64Unplayable(const char *what);
 

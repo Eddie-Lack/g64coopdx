@@ -13,7 +13,7 @@ unsigned int G64LuaHash(void);
 
 /* The hash that machines compare: the game's memory in the low half. With a script, the high half is the script's
    own number (weemitt's g64lua.c, G64LuaHash): its memory counts, its random numbers' state and the players it has
-   seen. The scripts' block itself holds addresses and cannot be compared, but two machines whose scripts ran
+   seen. The scripts' block itself holds addresses and can't be compared, but two machines whose scripts ran
    differently soon differ in that number. The top bit is set: a machine whose script was stopped differs from one
    whose script runs. Without a script the hash is the game's memory alone. */
 static uint64_t game_hash(void) {

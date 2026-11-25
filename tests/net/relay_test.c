@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
     check(ready == PLAYERS - 1, "two joiners join the room by its code");
     {
         /* The list of rooms. The host lists its room for build 77; a player of that build finds it with its title,
-           and a player of another build does not. */
+           and a player of another build doesn't. */
         net_socket *asker = net_open(0, err, sizeof err);
         net_room rooms[4];
         int found = -2, foundOther = -2;
@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
     check(ok && wrong == 0 && rb_host_hash_mismatches(host) == 0 && rb_host_hash_matches(host) > 0,
           "the toy game through the relay: every machine has the same state on every frame");
     {
-        /* A ban: the host puts joiner 1 out of the room. That socket is told, and its address cannot join again. */
+        /* A ban: the host puts joiner 1 out of the room. That socket is told, and its address can't join again. */
         net_socket *again = net_open(0, err, sizeof err);
         int banned = 0;
         net_relay_ban(m[0].sock, 1);

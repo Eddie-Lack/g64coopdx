@@ -26,7 +26,7 @@ typedef struct {
     uint32_t texId[BB_TEXTURES];
     uint16_t texW[BB_TEXTURES], texH[BB_TEXTURES];
     unsigned ntex, nentries, maxEntries;
-    int full; /* a structure did not fit */
+    int full; /* a structure didn't fit */
 } BB;
 
 /* One object: its name, flags, mesh size and display list. The display list loads each texture of tex in turn, with
@@ -272,7 +272,7 @@ static void bb_entry(BB *b, uint32_t id, uint32_t obj, int anim) {
 }
 
 /* Writes models.bin into out, which has room for cap bytes, with the retail numbers given. Returns its size, or 0
- * when it does not fit. With no texture and no entry the file has no banks of its own. */
+ * when it doesn't fit. With no texture and no entry the file has no banks of its own. */
 static size_t bb_end(BB *b, uint8_t *out, size_t cap, uint8_t flags, const uint8_t *rtex, unsigned a,
                      const uint8_t *robj, unsigned nobj) {
     uint32_t h = (12 + a + nobj + 7) & ~7u, t = 0, o = 0;

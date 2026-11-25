@@ -124,7 +124,7 @@ static void models(const char *dir, const char *cubePath, const uint8_t *lev, si
     bad[8] = 2;
     write_file(dir, "models.bin", bad, cubeN);
     check(g64_pack_load(dir, &table, &p, err, sizeof err) != 0 && !p.lev &&
-              strcmp(err, "the level pack's models.bin did not pass the check: a flag that the format does not have "
+              strcmp(err, "the level pack's models.bin didn't pass the check: a flag that the format doesn't have "
                           "(at byte 8)") == 0,
           "a bad models.bin in a folder is refused with the check's message");
     printf("pack: %s\n", err);
@@ -413,7 +413,7 @@ static void level_ids(const uint8_t *cube, size_t cubeN) {
     why = g64_pack_check_ids(idLev, idLevN, cube, &info, &banks, made_up_banks, NULL, &at);
     check(why != NULL && at == plat && strstr(why, "CAMEO_OBJ") != NULL, "a CAMEO_OBJ with the pack's model is refused");
 
-    /* A retail bank that models.bin names counts. models is not NULL, and the pack has no bank of its own. */
+    /* A retail bank that models.bin names counts. models isn't NULL, and the pack has no bank of its own. */
     memset(&retail, 0, sizeof retail);
     retail.numObj = 1;
     retail.obj[0] = 13;
@@ -426,7 +426,7 @@ static void level_ids(const uint8_t *cube, size_t cubeN) {
     check(g64_pack_check_ids(idLev, idLevN, NULL, NULL, &banks, made_up_banks, NULL, &at) != NULL,
           "the same without models.bin is refused");
 
-    /* The table of the levels' banks, for programs that do not link the game. */
+    /* The table of the levels' banks, for programs that don't link the game. */
     check(g64_level_object_banks(0, nums, G64_LEVEL_BANKS_MAX) == 4 && nums[0] == 0 && nums[2] == 1,
           "level 0 loads four object banks, 0 first");
     check(g64_level_object_banks(44, nums, G64_LEVEL_BANKS_MAX) == 4 && nums[2] == 69, "FLYTHRU loads bank 69");

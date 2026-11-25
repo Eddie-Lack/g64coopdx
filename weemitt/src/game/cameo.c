@@ -194,7 +194,7 @@ static s32 CameoEnemy(s32 e) {
 
 /* g64coopdx: 1 when every instruction of a cameo names things that are there. The game used an instruction's
    target, trigger and arguments from the level file as they came: as an enemy's number, as the number of another
-   instruction of the cameo, and as one of an actor's 8 spheres. A cameo that fails does not start. */
+   instruction of the cameo, and as one of an actor's 8 spheres. A cameo that fails doesn't start. */
 static s32 CameoUsable(Cameo *cameo) {
     s32 k;
     for (k = 0; k < cameo->count && k < 20; k++) {

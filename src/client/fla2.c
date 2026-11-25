@@ -28,7 +28,7 @@ const char *g64_fla2_decompress(const uint8_t *src, size_t n, uint8_t *dst, size
     if (why)
         return why;
     if (length != dstSize)
-        return "the FLA2 stream's size is not the buffer's";
+        return "the FLA2 stream's size isn't the buffer's";
     memset(window, 0, sizeof window);
     for (;;) {
         unsigned cmd;

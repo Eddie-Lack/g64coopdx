@@ -93,11 +93,11 @@ void NMEGetNewInstruction(Enemy *enemy, s32 instructionNum, s32 overrideConditio
 void DestroyAndFreeActor(Actor *actor);
 /* g64coopdx: a test's record of the tokens read (g64players.c). */
 void G64ParseTrace(s32 offset, s32 token);
-/* g64coopdx: marks the level as one that cannot be played (g64players.c). The parser's loop stops at its next
+/* g64coopdx: marks the level as one that can't be played (g64players.c). The parser's loop stops at its next
    token. */
 void G64Unplayable(const char *what);
 /* g64coopdx: 1 when an object's instance is there, has a mesh, and each of its sprites has a texture. The parser
-   used what the lookup gave without a test; a level file that names an object the level's banks do not hold made
+   used what the lookup gave without a test; a level file that names an object the level's banks don't hold made
    it use a null pointer. An object bank can hold objects whose sprite textures are in a texture bank of another
    level. The lookup of such a texture gives NULL (FindTexture, banks.c), and AddActor reads the texture's size with
    no test (AddObjectsSpritesToSpriteList, actor.c). */
@@ -108,11 +108,11 @@ s32 G64SpriteTextureMissing(Object *obj);
 /* g64coopdx: 1 when the parser has what a token's handler uses. The handlers use a platform, an orbit, a spin, a
    path's points, a puzzle, an enemy, a vent, a landscape piece, a group of garibs, a cameo or a buzzer without a
    test, and the parser kept its pointers to them from the level before. A level file whose tokens come in another
-   order than the game's own levels' made a handler write through a pointer that was not set, or through one into
+   order than the game's own levels' made a handler write through a pointer that wasn't set, or through one into
    memory that was freed. ParseLandscapeFile notes which of them this level's file has made, and asks here
-   before each token. The notes are apart from the pointers: the pointers stay as the game left them, since they are
+   before each token. The notes are apart from the pointers: the pointers stay as the game left them, since they're
    in the game's memory, which the tests compare with the original's. */
-/* g64coopdx: what a level file may use of the game's memory while it is read, and the most pieces of one broken
+/* g64coopdx: what a level file may use of the game's memory while it's read, and the most pieces of one broken
    platform. */
 #define G64_PARSE_FREE (4 * 1024 * 1024)
 #define G64_PARSE_BLOCKS 1100
@@ -129,7 +129,7 @@ static s32 madePuzzle, madeVent, madeLandscape, madeCameo, madeGaribGroup, madeB
 
 /* g64coopdx: 1 when the collision planes that the loop after the parse makes fit the game's heap and its list of
    blocks, and take no more work than G64_PLANES_WORK. Otherwise the level stops as unplayable. The parse's own test
-   (G64_PARSE_FREE and G64_PARSE_BLOCKS) runs before each token, so it cannot see the planes. Each landscape or water
+   (G64_PARSE_FREE and G64_PARSE_BLOCKS) runs before each token, so it can't see the planes. Each landscape or water
    actor takes one more block and 120 bytes for each face of its mesh. A level file that names an object many times
    filled the heap or the list here, and the game stopped the program. The test runs before any plane is made: a
    level that stops has no actor with planes, as when the parse stops. The sums are 64-bit integers: a mesh of a
@@ -532,7 +532,7 @@ void ParseLandscapeFile(s32 num) {
             PORT_COPY(&z, &data, 4);
             PORT_COPY(&w, &data, 4);
             /* g64coopdx: the type picks one of the game's 59 enemy kinds, and the level holds 30 enemies. An enemy
-               whose object the level's banks do not hold has marked the level as one that cannot be played. */
+               whose object the level's banks don't hold has marked the level as one that can't be played. */
             if (nme < 0 || nme > 58 || numberOfEnemies >= 30) {
                 G64Unplayable("ENEMY");
                 continue;
@@ -1011,7 +1011,7 @@ s32 ParseTokenGeneric(s16 token, u8 **data) {
         AddActor(tempActor);
         water->actor = tempActor;
         if (tempActor->inst == NULL) {
-            /* g64coopdx: InitActor2 has marked the level as one that cannot be played. */
+            /* g64coopdx: InitActor2 has marked the level as one that can't be played. */
             return TRUE;
         }
         tempActor->inst->obj->flags |= 0x20;
@@ -1351,7 +1351,7 @@ s32 ParseTokenPlatformInteraction(s16 token, u8 **data, Platform *platform) {
                 platform->parent = TagToFirstPlatform(buf[0]);
                 if (platform->parent == platform) {
                     /* g64coopdx: a platform that is its own parent. The game walks from a platform up its parents
-                       until there is none. */
+                       until there's none. */
                     platform->parent = NULL;
                     G64Unplayable("PARENT TAG");
                 }
@@ -2358,8 +2358,8 @@ s32 ParseTokenPlatformGeneric(s16 token, u8 **data, Platform *platform) {
         PORT_COPY(tempName, data, 8);
         {
             /* g64coopdx: the pieces a broken platform leaves are drawn with this object, and the game made as many
-               as the file said. An object the level's banks do not hold, or more pieces than G64_DEBRIS_MAX, mark
-               the level as one that cannot be played. An id of 0 means no object, as in the game's own levels. */
+               as the file said. An object the level's banks don't hold, or more pieces than G64_DEBRIS_MAX, mark
+               the level as one that can't be played. An id of 0 means no object, as in the game's own levels. */
             u32 debrisId;
 
             memcpy(&debrisId, &platform->destruct->inst, 4);

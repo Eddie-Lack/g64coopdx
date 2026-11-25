@@ -1,5 +1,5 @@
 /* Tests of the session's sealed messages (src/session/seal.h): known answers for the primitives, then the link:
- * both ends get the same keys, a changed, repeated, too old or foreign datagram does not open, and datagrams may
+ * both ends get the same keys, a changed, repeated, too old or foreign datagram doesn't open, and datagrams may
  * overtake each other. It prints a hash of what a fixed "random" source gives; Linux and Windows must print the
  * same. No ROM needed. */
 #include <stdio.h>
@@ -103,7 +103,7 @@ int main(void) {
         check(g64_seal_unlock(&join, d, n, plain, sizeof plain) < 0, "it does not open at its sender");
         check(g64_seal_lock(&join, plain, 250, d, sizeof d) == 0, "a message too long for the datagram is not sealed");
 
-        /* Datagrams may overtake each other, each still opens once, and one older than the window does not. */
+        /* Datagrams may overtake each other, each still opens once, and one older than the window doesn't. */
         n = g64_seal_lock(&join, (const uint8_t *)"two", 3, d, sizeof d);
         n2 = g64_seal_lock(&join, (const uint8_t *)"three", 5, d2, sizeof d2);
         check(g64_seal_unlock(&host, d2, n2, plain, sizeof plain) == 5, "the later datagram first");

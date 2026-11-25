@@ -435,7 +435,7 @@ int main(void) {
     }
 
     /* The session's values: a script reads the values the game started with, asks for amounts to be added (8 in a
-       frame), and hears of a value that comes in. The host's part, which adds, is not here. */
+       frame), and hears of a value that comes in. The host's part, which adds, isn't here. */
     {
         static const char script[] =
             "local s = game.session(2) .. ' ' .. game.session(15)\n"

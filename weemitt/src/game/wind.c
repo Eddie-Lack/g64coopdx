@@ -93,7 +93,7 @@ void UpdateFan(Platform *platform) {
             FanPushActor(platform, fan, actor);
         }
     }
-    /* g64coopdx: the other players' gloves and balls, which are not in the actor list (g64players.c). */
+    /* g64coopdx: the other players' gloves and balls, which aren't in the actor list (g64players.c). */
     for (i = 1; i < G64SlotCount(); i++) {
         if ((actor = G64SlotGlove(i)) != NULL && fan->strength > 0.0f && (actor->flags & 0x800)) {
             FanPushActor(platform, fan, actor);
@@ -202,7 +202,7 @@ void UpdateWinds(void) {
             }
             WindPushActor(wind, actor);
         }
-        /* g64coopdx: the other players' gloves and balls, which are not in the actor list (g64players.c). */
+        /* g64coopdx: the other players' gloves and balls, which aren't in the actor list (g64players.c). */
         for (i = 1; i < G64SlotCount(); i++) {
             if ((actor = G64SlotGlove(i)) != NULL && (actor->flags & 0x800)) {
                 WindPushActor(wind, actor);

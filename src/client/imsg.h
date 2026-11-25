@@ -28,7 +28,7 @@
 #define G64_READY_SIZE 2
 #define G64_LOG_HEAD 9
 #define G64_LOGACK_SIZE 10
-/* The most frames a log may hold: 4 hours at 20 frames a second. A longer instance cannot take a new player. */
+/* The most frames a log may hold: 4 hours at 20 frames a second. A longer instance can't take a new player. */
 #define G64_MAX_LOG (20 * 3600 * 4)
 /* The most instances at once: one per player. */
 #define G64_MAX_INSTANCES 16

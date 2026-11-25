@@ -81,7 +81,7 @@ static g64_ihost *ihost;
 static g64_iclient *iclient;
 static void *boot; /* the state right after power-on: every level is built from it */
 static char status[160];
-/* The local player's view: it is drawn from the local game with that player swapped into the globals, from a saved
+/* The local player's view: it's drawn from the local game with that player swapped into the globals, from a saved
  * state that is loaded again at the next frame. */
 static Engine *engine;
 static void *viewState;
@@ -92,7 +92,7 @@ static int dropped[G64_SESSION_MAX_PLAYERS];
 int netplay_active(void) { return active; }
 int netplay_failed(void) { return failed; }
 
-/* Connecting, step by step (netplay_start, then netplay_poll until it is not 0). */
+/* Connecting, step by step (netplay_start, then netplay_poll until it isn't 0). */
 enum { C_IDLE, C_RELAY, C_SESSION, C_STARTED, C_FAILED };
 static int cstate = C_IDLE;
 static int chost; /* this machine hosts */
@@ -225,7 +225,7 @@ static uint32_t listAsked;
 /* This player's name (netplay_set_name), and the chat's latest lines with the time each came. Names and chat are
  * the players' own words: they stay out of the game's state and out of its inputs. */
 static char myName[G64_NAME_MAX + 1] = "Player";
-/* 1 after netplay_set_name: the start screen then keeps the given name and does not read the saved one. */
+/* 1 after netplay_set_name: the start screen then keeps the given name and doesn't read the saved one. */
 static int nameChosen;
 /* The players whose removal the chat has already said (netplay_kick). */
 static int kickNoted[G64_SESSION_MAX_PLAYERS];
@@ -367,7 +367,7 @@ void netplay_rooms_refresh(const char *relay) {
         for (i = 0; i < listRelayCount; i++)
             known |= net_addr_equal(&from, &listRelays[i]);
         if (known) {
-            /* A list that does not parse leaves the last good one as it was. */
+            /* A list that doesn't parse leaves the last good one as it was. */
             net_room fresh[sizeof listRooms / sizeof listRooms[0]];
             int got = net_rooms_parse(d, n, fresh, (int)(sizeof fresh / sizeof fresh[0]));
             if (got >= 0) {
@@ -408,8 +408,8 @@ int netplay_player_gone(int p) {
     return session && g64_session_me(session) == 0 && p > 0 && g64_session_gone(session, p);
 }
 
-/* The ban goes to the relay five times, half a second apart: one lost packet does not lose it. The relay holds the
-   banned player's place for ten seconds. The repeats cannot reach a newcomer. */
+/* The ban goes to the relay five times, half a second apart: one lost packet doesn't lose it. The relay holds the
+   banned player's place for ten seconds. The repeats can't reach a newcomer. */
 static void send_ban(void) {
     uint32_t t = now_ms();
     if (!banSends || !sock || (banTime && t - banTime < 500))
@@ -447,7 +447,7 @@ void netplay_kick(int p) {
 }
 
 /* This program's build id: the commit it was built from (weemitt/studio.mk writes g64build.h), or "dev" for a build
- * without one. Every change to the game's code makes another game, so players of different builds cannot play
+ * without one. Every change to the game's code makes another game, so players of different builds can't play
  * together: the host refuses a joiner whose build differs. The Windows and Linux programs of one commit have the same
  * id. */
 #ifdef G64_BUILD_HEADER
@@ -465,14 +465,14 @@ static uint32_t build_hash(void) { return g64_rom_hash((const uint8_t *)G64_BUIL
  * rule for the level file's object ids. With game 1 the banks' ranges come from the game, which reads them from the
  * ROM's code at power-on (port_set_rom_symbols). Before the game is built they come from the table of bankranges.h,
  * which reads the same code: the host offers its pack and a joiner checks a download before then, and from the
- * command line the game is not even powered on. make rombanks shows that the two give the same ranges. An index
+ * command line the game isn't even powered on. make rombanks shows that the two give the same ranges. An index
  * without banks, or one that skipped a bank, is refused (g64_rombanks_complete). Returns NULL with a message in err. */
 static G64RomBanks *rom_index(int game, char *err, size_t errSize) {
     G64RomImage img;
     G64RomBanks *index;
     G64RomBanksStats st;
     if (!baseRom) {
-        snprintf(err, errSize, "there is no ROM to check the level pack with");
+        snprintf(err, errSize, "there's no ROM to check the level pack with");
         return NULL;
     }
     img.rom = baseRom;
@@ -486,16 +486,16 @@ static G64RomBanks *rom_index(int game, char *err, size_t errSize) {
     g64_rombanks_stats(index, &st);
     if (!g64_rombanks_complete(&st)) {
         g64_rombanks_free(index);
-        snprintf(err, errSize, "the ROM's banks could not be read to check the level pack");
+        snprintf(err, errSize, "the ROM's banks couldn't be read to check the level pack");
         return NULL;
     }
     return index;
 }
 
 /* On the host: lets the session send the pack to joiners who lack it, when the pack may travel
- * (g64_pack_may_send). A pack whose level is a level of the ROM holds game data and never travels. A pack that does
- * not pass the checks a joiner makes is not offered either: a joiner would download it and then refuse it. Joiners
- * of such a pack need its folder. The log says why a pack is not offered. A pack whose level is not the ROM's, whose
+ * (g64_pack_may_send). A pack whose level is a level of the ROM holds game data and never travels. A pack that doesn't
+ * pass the checks a joiner makes isn't offered either: a joiner would download it and then refuse it. Joiners
+ * of such a pack need its folder. The log says why a pack isn't offered. A pack whose level isn't the ROM's, whose
  * level file passes the strict check, and whose level names an object that no bank of the level has stops the session
  * here, before anyone downloads it. Returns 0, or -1 with the message in err. */
 static int host_offer_pack(char *err, size_t errSize) {
@@ -512,33 +512,33 @@ static int host_offer_pack(char *err, size_t errSize) {
         g64_session_send_pack(session, NULL, NULL);
         return 0;
     }
-    /* The rule for the level file's object ids runs first, as soon as the pack's level is not one of the ROM's and its
+    /* The rule for the level file's object ids runs first, as soon as the pack's level isn't one of the ROM's and its
        level file passes the strict check: on any other file it would give the structure's message as a refused id.
        A failure stops the session even when the models rules below would refuse the pack too. The game's own tables
-       are not read yet: the ROM's code is read at power-on, after this. The rule runs here with the committed tables
+       aren't read yet: the ROM's code is read at power-on, after this. The rule runs here with the committed tables
        (packrom.h), which make levcheck compares with the game's. check_pack_ids_and_models runs it again with the
        game's tables when the game starts. */
     if (g64_pack_rom_level(&pack, baseRom, baseRomSize) < 0 && g64_pack_check_strict(&pack, NULL) == NULL) {
-        idWhy = baseRom ? g64_pack_check_ids_rom(&pack, baseRom, baseRomSize, &rule, &at) : "there is no ROM";
+        idWhy = baseRom ? g64_pack_check_ids_rom(&pack, baseRom, baseRomSize, &rule, &at) : "there's no ROM";
         if (idWhy && rule == 2) {
             snprintf(err, errSize, "the level pack's models were refused: %s (object bank %u)", idWhy, (unsigned)at);
             return -1;
         }
         if (idWhy && rule) {
             snprintf(err, errSize,
-                     "the level pack's level file did not pass the check of its objects: %s (at byte %u)", idWhy,
+                     "the level pack's level file didn't pass the check of its objects: %s (at byte %u)", idWhy,
                      (unsigned)at);
             return -1;
         }
         if (idWhy) {
-            snprintf(err, errSize, "the level pack's objects could not be checked: %s", idWhy);
+            snprintf(err, errSize, "the level pack's objects couldn't be checked: %s", idWhy);
             return -1;
         }
     }
     if (pack.models) {
         index = rom_index(0, why, sizeof why);
         if (!index) {
-            plog_printf("g64coopdx: %s: the pack is not sent to other players", why);
+            plog_printf("g64coopdx: %s: the pack isn't sent to other players", why);
             return 0;
         }
         banks.rom = index;
@@ -546,7 +546,7 @@ static int host_offer_pack(char *err, size_t errSize) {
     bad = g64_pack_may_send(&pack, baseRom, baseRomSize, &banks, why, sizeof why);
     g64_rombanks_free(index);
     if (bad) {
-        plog_printf("g64coopdx: %s: the pack is not sent to other players", why);
+        plog_printf("g64coopdx: %s: the pack isn't sent to other players", why);
         return 0;
     }
     packBlob = g64_pack_blob(&pack, &blobSize);
@@ -579,7 +579,7 @@ void netplay_pack_answer(int yes) {
         return;
     packAsking = 0;
     if (!yes) {
-        fail_connect("you did not take the host's level pack");
+        fail_connect("you didn't take the host's level pack");
         return;
     }
     if (packKept)
@@ -653,7 +653,7 @@ static int joiner_pack(void) {
             const char *idWhy;
             size_t at = 0;
             int rule = 0;
-            idWhy = baseRom ? g64_pack_check_ids_rom(&got, baseRom, baseRomSize, &rule, &at) : "there is no ROM";
+            idWhy = baseRom ? g64_pack_check_ids_rom(&got, baseRom, baseRomSize, &rule, &at) : "there's no ROM";
             if (idWhy) {
                 g64_pack_free(&got);
                 if (rule == 2)
@@ -661,17 +661,17 @@ static int joiner_pack(void) {
                              (unsigned)at);
                 else if (rule)
                     snprintf(err, sizeof err,
-                             "the host's level pack was refused: its level file did not pass the check of its "
+                             "the host's level pack was refused: its level file didn't pass the check of its "
                              "objects: %s (at byte %u)",
                              idWhy, (unsigned)at);
                 else
-                    snprintf(err, sizeof err, "the host's level pack was refused: its objects could not be checked: %s",
+                    snprintf(err, sizeof err, "the host's level pack was refused: its objects couldn't be checked: %s",
                              idWhy);
                 return fail_connect(err);
             }
         }
         if (!packCache[0] || g64_pack_cache_save(packCache, &got, why, sizeof why) != 0)
-            plog_printf("g64coopdx: the level pack was not kept for the next time");
+            plog_printf("g64coopdx: the level pack wasn't kept for the next time");
         plog_printf("g64coopdx: downloaded the level pack \"%s\" from the host", got.name);
         take_pack(&got);
     }
@@ -703,7 +703,7 @@ static int check_pack_ids_and_models(char *err, size_t errSize) {
     why = pack.models ? g64_models_check_rom(pack.models, pack.modelsSize, index, &at) : NULL;
     if (why) {
         g64_rombanks_free(index);
-        snprintf(err, errSize, "the level pack's models.bin did not pass the check: %s (at byte %u)", why,
+        snprintf(err, errSize, "the level pack's models.bin didn't pass the check: %s (at byte %u)", why,
                  (unsigned)at);
         return -1;
     }
@@ -724,14 +724,14 @@ static int check_pack_ids_and_models(char *err, size_t errSize) {
     n = g64_level_object_banks_game(pack.level, banks.num, G64_LEVEL_BANKS_MAX);
     if (n < 1 || n > G64_LEVEL_BANKS_MAX) {
         g64_rombanks_free(index);
-        snprintf(err, errSize, "the banks of the level pack's level could not be read from the game");
+        snprintf(err, errSize, "the banks of the level pack's level couldn't be read from the game");
         return -1;
     }
     banks.count = (unsigned)n;
     why = g64_pack_check_level_ids(&pack, &banks, g64_rombanks_bank_has, index, &at);
     g64_rombanks_free(index);
     if (why) {
-        snprintf(err, errSize, "the level pack's level file did not pass the check of its objects: %s (at byte %u)",
+        snprintf(err, errSize, "the level pack's level file didn't pass the check of its objects: %s (at byte %u)",
                  why, (unsigned)at);
         return -1;
     }
@@ -769,7 +769,7 @@ static int make_session(void) {
     }
     if (!session) {
         char why[96];
-        snprintf(why, sizeof why, "cannot start the session (2 to %d players)", G64_SESSION_MAX_PLAYERS);
+        snprintf(why, sizeof why, "can't start the session (2 to %d players)", G64_SESSION_MAX_PLAYERS);
         return fail_connect(why);
     }
     cstate = C_SESSION;
@@ -808,7 +808,7 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
     snprintf(cjoin, sizeof cjoin, "%s", join ? join : "");
     snprintf(croom, sizeof croom, "%s", room ? room : "");
     if (net_init() != 0) {
-        snprintf(err, errSize, "the network did not start");
+        snprintf(err, errSize, "the network didn't start");
         return fail_connect(err);
     }
     sock = net_open(join || relay ? 0 : (uint16_t)hostPort, err, errSize);
@@ -852,7 +852,7 @@ int netplay_poll(void) {
         if (net_relay_state(sock) < 0)
             return fail_connect(net_relay_refusal(sock) == 2   ? "that room is full"
                                 : net_relay_refusal(sock) == 3 ? "the host has removed you from that room"
-                                                               : "there is no room with that code");
+                                                               : "there's no room with that code");
         if (net_relay_state(sock) == 0) {
             if ((int32_t)(t - cstart) > 15000) {
                 char why[300];
@@ -871,7 +871,7 @@ int netplay_poll(void) {
         g64_session_state st = g64_session_poll(session, t, NULL, NULL);
         if (st == G64_SESSION_FAILED)
             return fail_connect(g64_session_error(session));
-        /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word is not sealed, so
+        /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word isn't sealed, so
            it counts only once the host has also been silent for three seconds. */
         if (!chost && crelay[0] && net_relay_state(sock) < 0 && g64_session_host_silent(session, t) > 3000)
             return fail_connect("the host has removed you from that room");
@@ -970,7 +970,7 @@ int netplay_connect(const char *join, int hostPort, const char *relay, const cha
     *outPlayers = players;
     if (room)
         printf("g64coopdx: joined room %s\n", room);
-    printf("g64coopdx: the game starts; you are player %d of %d\n", me + 1, players);
+    printf("g64coopdx: the game starts; you're player %d of %d\n", me + 1, players);
     fflush(stdout);
     return 0;
 }
@@ -1051,8 +1051,8 @@ static void read_test_exits(void) {
 }
 
 /* The host's self-check. On the host, its own player's game and the host's reference copy of the same instance run
- * in one process. Every 10th confirmed frame, their states must be equal. When they are not, the log lists where the
- * game's memory differs, as N64 addresses (no contents): the place to look for what is not deterministic. */
+ * in one process. Every 10th confirmed frame, their states must be equal. When they aren't, the log lists where the
+ * game's memory differs, as N64 addresses (no contents): the place to look for what isn't deterministic. */
 #define CHECK_EVERY 10
 #define CHECK_KEEP 4
 #define CHECK_REPORTS 5
@@ -1244,7 +1244,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
         if (me == 0) {
             ihost = g64_ihost_new_with(e, boot, players, members, colors, clevel, deadline, host_send, NULL);
             if (!ihost) {
-                snprintf(err, errSize, "cannot start the host's instances");
+                snprintf(err, errSize, "can't start the host's instances");
                 return -1;
             }
             for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++) {
@@ -1253,7 +1253,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
                 dropped[p] = 0;
             }
         }
-        /* Who is in now: a player who comes later is not told of everyone who came before. */
+        /* Who is in now: a player who comes later isn't told of everyone who came before. */
         seenPresent = 0;
         for (p = 0; p < players; p++)
             seenPresent |= (unsigned)g64_session_present(session, p) << p;
@@ -1261,7 +1261,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
                                        NULL);
     }
     if (!iclient) {
-        snprintf(err, errSize, "cannot start the game");
+        snprintf(err, errSize, "can't start the game");
         return -1;
     }
     g64_iclient_set_input_delay(iclient, inputDelay);
@@ -1290,7 +1290,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize) {
  * keeps the old place, and the gap closes over a few frames: offset is the gap still to close, per player. Only the
  * drawn picture changes, never the game. */
 #define SMOOTH_KEEP 0.7f    /* the part of the gap that remains after each game frame */
-#define SMOOTH_LIMIT 400.0f /* a larger jump is a real move (a respawn): it is not smoothed */
+#define SMOOTH_LIMIT 400.0f /* a larger jump is a real move (a respawn): it isn't smoothed */
 static float before[G64_SESSION_MAX_PLAYERS][3], offset[G64_SESSION_MAX_PLAYERS][3];
 static int haveBefore[G64_SESSION_MAX_PLAYERS];
 static float corrected; /* the distance corrections moved other gloves since the last status line */
@@ -1344,7 +1344,7 @@ static void restore_view(void) {
     }
 }
 
-/* Each player's own pause menu. It does not stop the game: while it is open the player's glove gets no input. A
+/* Each player's own pause menu. It doesn't stop the game: while it's open the player's glove gets no input. A
  * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames.
  * The host confirms it even if one input is lost. Doing it twice does nothing more. */
 #define ACTION_BUTTON 0x0080
@@ -1355,7 +1355,7 @@ enum { PAUSE_RESUME, PAUSE_CHECKPOINT, PAUSE_HUB, PAUSE_LEAVE, PAUSE_ITEMS };
 static const char *const pauseItems[PAUSE_ITEMS] = {"Resume", "Back to checkpoint", "Back to the hub",
                                                     "Leave the online game"};
 static int pauseOpen, pauseSelection, pauseQuit, actionFrames, action;
-/* The game the choice was made in: it is not repeated in the next one. */
+/* The game the choice was made in: it isn't repeated in the next one. */
 static int actionInstance;
 static uint16_t lastButtons;
 /* The buttons held when the menu opened or closed. The game gets none of them until each is released: the press that
@@ -1489,7 +1489,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
         return -1;
     }
-    /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word is not sealed, so it
+    /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word isn't sealed, so it
        counts only once the host has also been silent for three seconds. */
     if (!chost && crelay[0] && net_relay_state(sock) < 0 && g64_session_host_silent(session, now_ms()) > 3000) {
         failed = 1;
@@ -1665,12 +1665,12 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         }
     }
     {
-        /* The level this player is in cannot be played (a level pack's level names something the game does not
+        /* The level this player is in can't be played (a level pack's level names something the game doesn't
            have): they are told once, and the game sends them back to the hub. */
         static uint32_t told;
         if (G64LevelUnplayable() && (told == 0 || now_ms() - told > 5000)) {
             told = now_ms() ? now_ms() : 1;
-            chat_add(-1, "This level could not be loaded. You go back to the hub.");
+            chat_add(-1, "This level couldn't be loaded. You go back to the hub.");
         }
     }
     /* The line of text that a level pack's script shows to this player, if any (weemitt's g64lua.c). It is read from

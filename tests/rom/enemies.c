@@ -117,7 +117,7 @@ static float run(int k, int who, unsigned present, float *at) {
     return dist(e, at);
 }
 
-/* The distance from player p to the nearest bullet; 1e9 when there is none. */
+/* The distance from player p to the nearest bullet; 1e9 when there's none. */
 static float nearest_bullet(int p) {
     float b[64 * 3], at[3], best = 1e9f;
     int n = G64BulletPositions(b, 64), i;

@@ -3,7 +3,7 @@
 Before g64coopdx had any scripting code, a trial answered five questions about Lua in a game where every machine
 must reach the same state ([mods.md](mods.md#scripts-in-a-rollback-game)). It ran on 22 November 2026 with Lua 5.4.8,
 built for 64-bit Linux (gcc) and for 64-bit Windows (MinGW-w64, static), the Windows program under Wine. Both builds
-used the game's float flag (`-ffp-contract=off`). The trial's program is not in the repository; this file holds what
+used the game's float flag (`-ffp-contract=off`). The trial's program isn't in the repository; this file holds what
 it found and what follows from it. [roadmap.md](roadmap.md), phase 5, says what g64coopdx built after it.
 
 ## The source
@@ -37,20 +37,20 @@ full collection. The program then printed the allocator's own counts and a hash 
    game, in the same process, where the addresses are still right. The state hash that machines compare must leave
    it out. At the time of the trial, the brute forcer's engine saved and hashed the game's data sections together
    (`weemitt/bruteforce/engine/engine.c`). The trial proposed a section for the block that is saved and tracked but
-   not hashed. g64coopdx did not make one. The block is a global of the game's code (`g64LuaArena` in
+   not hashed. g64coopdx didn't make one. The block is a global of the game's code (`g64LuaArena` in
    weemitt/src/port/g64lua.c). It lies in the game's data sections, and the engine's savestate holds it. The hash
-   that machines compare is not the engine's (`game_hash` in src/rollback/engine_game.c). It covers the game's memory
-   (`port_ram`), which does not hold the block. With a script, it also covers a number made from the scripts' state.
+   that machines compare isn't the engine's (`game_hash` in src/rollback/engine_game.c). It covers the game's memory
+   (`port_ram`), which doesn't hold the block. With a script, it also covers a number made from the scripts' state.
 3. **A script's state is compared through numbers, not bytes.** The allocator's counts were equal on both systems.
-   Kept as game variables, they are in the hash, and a script that went another way on one machine shows as a
+   Kept as game variables, they're in the hash, and a script that went another way on one machine shows as a
    mismatch soon after. A script also changes the game only through the scripts' API
    ([mods.md](mods.md#the-lua-api)), so the game's own hash shows a difference that matters.
 4. **C functions as table keys** all hash to 0, because their addresses are outside the block. Such keys work, and
    their order is the order they were put in.
 5. **Number to text and text to number go through the C library** (`snprintf` with `%.14g`, `strtod`). They agreed
-   in the trial, on Linux and under Wine. Wine's C library is not Windows's, so this is not proven for a real Windows
-   machine. MinGW's own `printf` and `strtod` (`__USE_MINGW_ANSI_STDIO`) are linked into the Windows program and do
-   not depend on the system: build with them, and keep number to text out of a script's logic as [mods.md](mods.md)
+   in the trial, on Linux and under Wine. Wine's C library isn't Windows's, so this isn't proven for a real Windows
+   machine. MinGW's own `printf` and `strtod` (`__USE_MINGW_ANSI_STDIO`) are linked into the Windows program and don't
+   depend on the system: build with them, and keep number to text out of a script's logic as [mods.md](mods.md)
    already says.
 6. **The `math` library's functions come from the C library too.** They agreed in the trial for the values tried.
    The plan in [mods.md](mods.md) is to replace them with the game's own sine and cosine and with functions made of

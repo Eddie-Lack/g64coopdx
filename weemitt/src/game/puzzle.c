@@ -579,7 +579,7 @@ void PuzzleExecuteAction(PuzzleAction *action) {
         case ACTION_SET_BACKDROP:
             FindTexture(&backdropList.head.next->tex, *(u32 *)action->cam, 1);
             if (backdropList.head.next->tex == NULL) {
-                /* g64coopdx: the level's banks do not hold the texture. FindTexture has stopped the level. */
+                /* g64coopdx: the level's banks don't hold the texture. FindTexture has stopped the level. */
                 return;
             }
             backdropList.head.next->tex->height--;
@@ -641,7 +641,7 @@ void PuzzleExecuteAction(PuzzleAction *action) {
         case ACTION_DROP_PICKUP:
             collectable = CreateNewPickup(action->tag, (Vec3 *)action->data, 0, action->flags);
             if (collectable == NULL) {
-                /* g64coopdx: the game does not have this pick-up in this level. */
+                /* g64coopdx: the game doesn't have this pick-up in this level. */
                 return;
             }
             collectable->tag = action->value;

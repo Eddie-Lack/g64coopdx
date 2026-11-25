@@ -1,7 +1,7 @@
 # Experiments
 
 Small tools from the discovery, the study that [README.md](../README.md) reports. The terms are defined in
-[README.md](../README.md#terms). They are not part of the project's code yet; `determinism.py` is meant to grow into its
+[README.md](../README.md#terms). They aren't part of the project's code yet; `determinism.py` is meant to grow into its
 N-player determinism test. They hold no game data: each reads the player's own ROM at run time. Keep their output
 (dumps, saves, traces) outside the repository.
 
@@ -46,7 +46,7 @@ WEEMITT=~/weemitt python3 determinism.py --rom ROM --exe ~/weemitt/build/libhost
 
 `memdiff.py` reads three dumps that weemitt writes with `--dump`; its header says how to make them. The inventory needs
 clang (and gdb for the probes): `sh inventory/run_all.sh`, with `REPO` set to the weemitt checkout. Unlike
-`determinism.py`, this script does not read `WEEMITT`.
+`determinism.py`, this script doesn't read `WEEMITT`.
 
 For the brute forcer's savestate numbers, build it first (`cd bruteforce && make` in weemitt), then run
 `bruteforce/build/linux/glover bench --rom ROM --level 13 --seconds 3 --workers 1`, and the same with

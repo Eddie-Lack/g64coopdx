@@ -198,7 +198,7 @@ void KillDebris(Debris *index) {
         if (index == handControl.fakeball) {
             handControl.fakeball = NULL;
         }
-        /* g64coopdx: the same for the players who are not in the globals. */
+        /* g64coopdx: the same for the players who aren't in the globals. */
         G64FakeballGone(index);
         ReleaseActor((Actor *)index, 0x1E);
     }

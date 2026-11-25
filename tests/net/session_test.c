@@ -299,7 +299,7 @@ static void test_join_later(uint32_t start) {
         net_close(a);
         net_close(b);
     }
-    /* The place of a player of the start, taken by a newcomer after that player is gone: the newcomer is not one of
+    /* The place of a player of the start, taken by a newcomer after that player is gone: the newcomer isn't one of
        the start's players, and must not build the first game. */
     {
         net_socket *hs2 = net_open(0, err, sizeof err), *a = net_open(0, err, sizeof err), *b = net_open(0, err, sizeof err);
@@ -340,7 +340,7 @@ static void test_join_later(uint32_t start) {
     }
 }
 
-/* A level pack from the host. The pack's bytes here are made up: the session moves bytes and does not read them. They
+/* A level pack from the host. The pack's bytes here are made up: the session moves bytes and doesn't read them. They
    stand for four files: a manifest of 40 bytes, a level file of 20000, a script of 660 and a models.bin of 3000. */
 #define PACK_TOTAL (40 + 20000 + 660 + 3000)
 static uint8_t packBytes[PACK_TOTAL];
@@ -440,7 +440,7 @@ static void test_pack(uint32_t *clock) {
                   g64_session_start_members(host) == 1 && g64_session_poll(a, *clock, NULL, NULL) == G64_SESSION_WAITING,
               "the game starts without the player who lacks the pack");
         check(g64_session_pack_accept(a) == 0 && g64_session_pack_state(a) == G64_PACK_LOADING, "the player says yes");
-        /* Pieces that are not the next one, or that go past the end. */
+        /* Pieces that aren't the next one, or that go past the end. */
         piece[1] = 0, piece[2] = 4;
         g64_session_test_inner(a, 0, piece, sizeof piece, *clock, NULL, NULL);
         check(g64_session_pack_have(a) == 0, "a piece from a later offset is dropped");
@@ -485,7 +485,7 @@ static void test_pack(uint32_t *clock) {
     }
     {
         /* A joiner who asks for the first pieces again and again gets the pack three times over and no more, and
-           loses the place. A start that comes while the offer is open does not count. */
+           loses the place. A start that comes while the offer is open doesn't count. */
         net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err);
         g64_session *host = g64_session_host(hs, 2, ROM, 0, 3), *a;
         uint8_t want[21] = {0x4A, 7, 7, 7, 1}, start[9 + 24 * 2] = {0x43, 2, 0, 3, 0, 3, 0, 3, 0};
@@ -512,7 +512,7 @@ static void test_pack(uint32_t *clock) {
         net_close(hs), net_close(s1);
     }
     {
-        /* Offers that are not as they must be are dropped. */
+        /* Offers that aren't as they must be are dropped. */
         static const uint8_t oneId[G64_PACK_ID_SIZE] = {1};
         static const uint8_t noId[G64_PACK_ID_SIZE] = {0};
         static const struct {
@@ -768,7 +768,7 @@ int main(void) {
     }
     check(ok && wrong == 0 && rb_host_hash_mismatches(m[0].host) == 0 && rb_host_hash_matches(m[0].host) > 0,
           "the toy game through the session: every machine has the same state on every frame");
-    /* Names: every machine has every player's, and a byte that is not printable ASCII is a question mark. */
+    /* Names: every machine has every player's, and a byte that isn't printable ASCII is a question mark. */
     check(!strcmp(g64_session_name(m[1].session, 0), "Hosty?") &&
               !strcmp(g64_session_name(m[1].session, g64_session_me(m[2].session)), "friend") &&
               !strcmp(g64_session_name(m[0].session, g64_session_me(m[1].session)), "friend") &&
@@ -812,7 +812,7 @@ int main(void) {
         check(chatCount[0] == before0 && chatCount[2] == before2, "a chat line in the clear is dropped");
     }
     /* A kick in the clear, as if from the host's address: the joiner stays. It also stays after a sealed-looking
-       datagram that does not open. */
+       datagram that doesn't open. */
     {
         uint8_t kick = 0x47, junk[40] = {0x48, 1};
         g64_session_receive(m[1].session, &hostAddr, &kick, 1, clock, on_game, &m[1]);

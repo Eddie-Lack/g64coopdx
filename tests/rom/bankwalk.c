@@ -115,7 +115,7 @@ static void find_end(void *user, size_t offset, int token) {
 }
 
 /* A copy of level's file from the ROM, in a new buffer. With ids, a BACKGROUND token for each of them is put before
-   the end token. Returns NULL when the ROM has no such file or the copy does not pass the level check. */
+   the end token. Returns NULL when the ROM has no such file or the copy doesn't pass the level check. */
 static uint8_t *level_file(int level, const uint32_t *ids, unsigned count, size_t *n) {
     unsigned size = 0, at = G64LevelFileRom(level, &size), i;
     size_t at2 = 0, grown;
@@ -185,7 +185,7 @@ static void start(int level, const uint8_t *lev, size_t levN, const uint8_t *fil
     memset(&s, 0, sizeof s);
     s.levels = 1;
     G64SetStartRecord(0, &s);
-    /* Not a count: the planes test did not run. */
+    /* Not a count: the planes test didn't run. */
     g64PlanesBlocks = -1;
     port_game_start_level(level);
 }
@@ -201,7 +201,7 @@ static void stop(void) {
 /* Runs the game with players who press buttons at random, as tests/rom/bots.c does, with its seed for the level.
    Other inputs can crash the game in level 14 with 16 players: a frog hand's tongue with no bullet (MaintainAction,
    hand.c), a fault of the game that has nothing to do with packs. Gives the smallest free heap and block count seen
-   when minFree and minBlocks are not NULL. */
+   when minFree and minBlocks aren't NULL. */
 static int stoppedSeen;
 
 static void play(int players, unsigned count, int level, int *minFree, int *minBlocks) {
@@ -546,7 +546,7 @@ static size_t largest(void) {
 
    After the parse, the game makes collision planes for each landscape and water actor: one more block, 120 bytes a
    face, and for landscape with collision a comparison of every face with every later face. The planes test in the
-   parser (G64PlanesFit, parse.c) stops the level when they would not fit or take too long. Each case here puts one
+   parser (G64PlanesFit, parse.c) stops the level when they wouldn't fit or take too long. Each case here puts one
    object in level 13 many times, with 16 players. The largest count that starts must play FRAMES frames the same in
    two runs. One more copy must stop as unplayable at the planes test, and the program must go on. */
 
@@ -563,7 +563,7 @@ static void find_landscape(void *user, size_t offset, int token) {
     }
 }
 
-/* Starts level 13 with copies copies of id. Returns 1 when the level did not stop. */
+/* Starts level 13 with copies copies of id. Returns 1 when the level didn't stop. */
 static int planes_start(uint32_t id, unsigned copies, const uint8_t *file, const G64Models *m) {
     static uint32_t ids[4096];
     size_t levN = 0;
@@ -574,7 +574,7 @@ static int planes_start(uint32_t id, unsigned copies, const uint8_t *file, const
         ids[i] = id;
     lev = level_file(planesLevel, ids, copies, &levN);
     if (!lev) {
-        printf("FAIL the level's file with %u copies does not pass the level check\n", copies);
+        printf("FAIL the level's file with %u copies doesn't pass the level check\n", copies);
         failed = 1;
         return 0;
     }
@@ -805,7 +805,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     engine = engine_create(argv[1], &opt, err, sizeof err);
     if (!engine) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(engine));

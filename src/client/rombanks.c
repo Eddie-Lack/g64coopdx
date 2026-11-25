@@ -443,7 +443,7 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
             uint32_t start = 0, end = 0;
             if (!range(user, kind, num, &start, &end))
                 continue;
-            /* Two numbers can name one range. It is indexed once, and the second number gets the first one's ids. */
+            /* Two numbers can name one range. It's indexed once, and the second number gets the first one's ids. */
             for (k = 0; k < seenCount[kind]; k++)
                 if (seenStart[kind][k] == start && seenEnd[kind][k] == end)
                     break;

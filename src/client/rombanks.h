@@ -11,7 +11,7 @@
  *
  * What each hash covers, in the ROM's big-endian bytes:
  *   - texels: width * height * bits per texel / 8 bytes from the record's byte 36. The bits per texel are 4, 8, 16
- *     or 32 for siz 0 to 3. A texture whose texels do not fit before its palette or the record's end is not hashed.
+ *     or 32 for siz 0 to 3. A texture whose texels don't fit before its palette or the record's end isn't hashed.
  *   - a vertex array: numVerts * 12 bytes at the mesh's verts
  *   - a G_VTX block: n * 16 bytes at the command's second word, n = (w0 >> 10) & 0x3F
  *
@@ -40,7 +40,7 @@ typedef struct {
     unsigned compressed; /* the indexed banks that were FLA2 streams */
     unsigned objectIds, textureIds;
     unsigned texels, verts, vtx; /* the distinct hashes of each kind */
-    unsigned unhashedTextures;   /* textures whose texels do not fit in their record */
+    unsigned unhashedTextures;   /* textures whose texels don't fit in their record */
 } G64RomBanksStats;
 
 /* Builds the index from a ROM buffer, asking range for bank numbers 0 to 255 of each kind. Returns NULL when out of
@@ -50,14 +50,14 @@ G64RomBanks *g64_rombanks_build(const uint8_t *rom, size_t romSize, g64_bank_ran
 /* The same with the game's own bank ranges (G64BankRom). Only a program that links the game has it
  * (rombanks_game.c). */
 G64RomBanks *g64_rombanks_build_game(const uint8_t *rom, size_t romSize);
-/* The game's own bank ranges as a g64_bank_range_fn: G64BankRom, with ROM offsets. user is not used. Only a program
+/* The game's own bank ranges as a g64_bank_range_fn: G64BankRom, with ROM offsets. user isn't used. Only a program
  * that links the game has it (rombanks_game.c). */
 int g64_rombanks_game_range(void *user, int kind, unsigned num, uint32_t *start, uint32_t *end);
 
 void g64_rombanks_free(G64RomBanks *b);
 void g64_rombanks_stats(const G64RomBanks *b, G64RomBanksStats *s);
 /* 1 when the index can check a pack's models: it has banks of both kinds and skipped none. A bank it skipped holds
- * ids and data that the check would not see. The pack tool and the online program both refuse an index for which
+ * ids and data that the check wouldn't see. The pack tool and the online program both refuse an index for which
  * this is 0. */
 int g64_rombanks_complete(const G64RomBanksStats *s);
 

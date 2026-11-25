@@ -12,7 +12,7 @@
 #include "../../../src/client/netplay.h"
 #include "../../../src/session/session.h"
 
-/* A room code's character in capitals, or 0 when a room code cannot hold it. */
+/* A room code's character in capitals, or 0 when a room code can't hold it. */
 static char code_char(char c) {
     if (c >= 'a' && c <= 'z')
         c = (char)(c - 'a' + 'A');
@@ -20,7 +20,7 @@ static char code_char(char c) {
 }
 
 /* The player's colors: a palette, or custom. Each color is chosen (G64_COLOR_SET plus 0xRRGGBB) or automatic (0, the
-   color of the player's number). The colors multiply the glove's and the ball's own: white keeps them. They are kept in
+   color of the player's number). The colors multiply the glove's and the ball's own: white keeps them. They're kept in
    colors.txt, in the program's own folder: the palette's number and the two custom colors. */
 typedef struct {
     const char *name;
@@ -333,7 +333,7 @@ static void build_page(launcher *L) {
             break;
     }
 
-    /* The chosen row is one that is not grayed out. */
+    /* The chosen row is one that isn't grayed out. */
     if (L->selected >= rowCount)
         L->selected = rowCount - 1;
     if (L->selected < 0)
@@ -363,7 +363,7 @@ static void build_page(launcher *L) {
                      models);
             note(line, 0xFFFFFF);
             note(netplay_pack_kept() ? "You downloaded this pack before. Play with it?"
-                                     : "You do not have it. Download it from the host?",
+                                     : "You don't have it. Download it from the host?",
                  0xFFFFFF);
             note("A pack changes the game on your computer. The program checks it before use, but the check does "
                  "not catch everything. Take a pack only from a host you trust.",
@@ -513,7 +513,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 snprintf(typed, sizeof typed, "%.*s", (int)(n - 2), keys + 2);
             keys = end ? end + 1 : keys + n;
         }
-        /* The controller, as the game reads it. A move repeats every quarter second while it is held; A and B act
+        /* The controller, as the game reads it. A move repeats every quarter second while it's held; A and B act
            once for each press. */
         {
             int held = g64_title_pad(), dir = held & (G64_PAD_UP | G64_PAD_DOWN | G64_PAD_LEFT | G64_PAD_RIGHT);

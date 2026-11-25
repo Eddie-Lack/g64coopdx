@@ -8,7 +8,7 @@
  * The test also pins the rule for the level file's object ids (g64_pack_check_ids in src/client/pack.c):
  *   - the ids that g64_lev_object_ids reads are the ids FindObject is asked for while the parser reads those tokens
  *     (weemitt's G64FindObjectTrace), at the same tokens. Any other token that asks FindObject for an object asks
- *     for one of the game's own names: its id is not a word of the token's fields
+ *     for one of the game's own names: its id isn't a word of the token's fields
  *   - G64LevelBankNumbers names the object banks that LoadLevel put in the game's slots, slot by slot, and the
  *     table of bankranges.h has the same numbers
  *   - each level's own file passes g64_pack_check_ids with its own banks, and g64_pack_check_ids_rom (packrom.h),
@@ -19,7 +19,7 @@
  *     same token, and the game stops the level as unplayable
  *   - every object the game finds by a name of its own (G64GameObjectIds: the enemies', the pick-ups' and garibs',
  *     the standard bullets' without sprites, and the fixed names in the game's code) is in the ROM or in the bank
- *     check's list, so a pack's model cannot be an enemy's, a bullet's or a pick-up's
+ *     check's list, so a pack's model can't be an enemy's, a bullet's or a pick-up's
  *
  * Usage: levcheck ROM. Without a ROM file it prints that it was skipped and exits with 0. make levcheck also runs
  * it under Wine and compares the outputs. */
@@ -133,7 +133,7 @@ static int same_ids(int level, const uint8_t *lev, size_t levSize) {
         for (k = 0; k < g64FindLogCount && k < 8192 && !found; k++)
             found = (size_t)g64ParseLog[g64FindLog[k][0]][0] == ids[j].offset && g64FindLog[k][1] == ids[j].id;
         if (!found) {
-            printf("FAIL level %d: the check read id %08x at byte %lu, token %d; FindObject was not asked for it "
+            printf("FAIL level %d: the check read id %08x at byte %lu, token %d; FindObject wasn't asked for it "
                    "there\n", level, ids[j].id, (unsigned long)ids[j].offset, ids[j].token);
             return 0;
         }
@@ -435,7 +435,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     e = engine_create(argv[1], &opt, err, sizeof err);
     if (!e) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(e));
@@ -456,7 +456,7 @@ int main(int argc, char **argv) {
         int count = G64GameObjectIds(own, 256), k, missing = 0, absent = 0;
         g64_rombanks_stats(index, &st);
         if (!g64_rombanks_complete(&st)) {
-            printf("FAIL the index of the ROM's banks is not complete\n");
+            printf("FAIL the index of the ROM's banks isn't complete\n");
             failed++;
         }
         /* An id that the ROM lacks must be 0 or in the bank check's list, and every id of the list must be one. */
@@ -477,7 +477,7 @@ int main(int argc, char **argv) {
             for (j = 0; j < count && j < 256; j++)
                 named |= own[j] == g64_models_game_ids[k];
             if (!named || g64_rombanks_has_object_id(index, g64_models_game_ids[k])) {
-                printf("FAIL the bank check's list has %08x, which is not a name of the game's that the ROM lacks\n",
+                printf("FAIL the bank check's list has %08x, which isn't a name of the game's that the ROM lacks\n",
                        g64_models_game_ids[k]);
                 missing++;
             }

@@ -7,7 +7,7 @@
    bank. The level parser runs later, so the level file finds the pack's objects as it finds the level's own.
 
    A pack may also name up to 4 retail texture banks and 4 retail object banks by number. A retail bank is one of the
-   ROM's own. They do not go into the slots. They go into one block on the game's heap, the table, with the swap of
+   ROM's own. They don't go into the slots. They go into one block on the game's heap, the table, with the swap of
    Glovebox's mod: the five slots are put aside and emptied, the game's own loader puts the bank in slot 0, the slot
    is copied into the table, and the five slots come back. FindTexture and FindObject (banks.c) search the table
    after the slots. With the header's first flag, FindTexture searches it before the slots too.
@@ -54,7 +54,7 @@ extern WorldInfo worldInfo[];
 void LoadTextureBankAt(u32 num, u32 start, u32 end);
 void LoadObjectBankAt(u32 num, u32 start, u32 end);
 
-/* The bank number the loaders get for a pack's bank. It is neither the font bank, which has its own buffer, nor
+/* The bank number the loaders get for a pack's bank. It's neither the font bank, which has its own buffer, nor
    object bank 0, which also sets up the fade overlay. */
 #define PACK_BANK 0xFFFFFFFFu
 
@@ -85,13 +85,13 @@ typedef struct G64BankTable {
 
 /* The table's address as the game stores it, or 0, and portHeapInits when it was made. */
 static u32 tableWord, tableHeapInits;
-/* 1 while G64LoadPackBanks runs. It is set and cleared within one call, so a saved state never holds it set. */
+/* 1 while G64LoadPackBanks runs. It's set and cleared within one call, so a saved state never holds it set. */
 static s32 packBankLoading;
 /* For tests: the texture and object lookups that the table answered in this game, and the texture lookups that found
    nothing while the banks here loaded at the last level start. */
 s32 g64PackTextureHits, g64PackObjectHits, g64PackTextureMisses;
 /* For tests: the lookups that reached a live table while all five object slots were empty, outside
-   G64LoadPackBanks. That is only between the frees of a level's slots and JallocInit (FreeLevel2 and FreeScreen in
+   G64LoadPackBanks. That's only between the frees of a level's slots and JallocInit (FreeLevel2 and FreeScreen in
    game.c, and frontend.c), where G64DropPackBanks has dropped the table. In a level, object slot 0 holds bank 0. */
 s32 g64PackFreedSlotReads;
 /* For tests: the retail object banks that stopped the level at the last level start because a sprite's texture was
@@ -129,7 +129,7 @@ s32 G64PackBankLoading(void) {
     return packBankLoading;
 }
 
-/* The table, or NULL when there is none on the heap as it is now. */
+/* The table, or NULL when there's none on the heap as it is now. */
 static G64BankTable *LiveTable(void) {
     s32 i;
 
@@ -367,7 +367,7 @@ void G64LoadPackBanks(s32 num) {
     packBankLoading = 0;
 }
 
-/* For tests: the table's counts of retail banks loaded, or -1 for each when there is no live table. */
+/* For tests: the table's counts of retail banks loaded, or -1 for each when there's no live table. */
 void G64PackTableCounts(s32 *numTex, s32 *numObj) {
     G64BankTable *t = LiveTable();
 
@@ -376,7 +376,7 @@ void G64PackTableCounts(s32 *numTex, s32 *numObj) {
 }
 
 /* For tests: the directory ids of the table's object bank i. Writes at most max ids and returns how many the bank
-   has, or -1 when there is no such bank. */
+   has, or -1 when there's no such bank. */
 s32 G64PackTableObjectIds(s32 i, u32 *ids, s32 max) {
     G64BankTable *t = LiveTable();
     s32 j;
@@ -436,7 +436,7 @@ s32 G64PackGameLevel(void) {
 
 /* For tests: the texture banks that LoadLevel (game.c) loads for level num besides the font and GENERIC, as an
    online game loads them (no demo, no cheat). Writes at most max numbers and returns how many there are, or -1 for a
-   level that is not 0 to 47. */
+   level that isn't 0 to 47. */
 s32 G64LevelTextureBanks(s32 num, u32 *banks, s32 max) {
     u32 list[3];
     s32 n = 0, i;
@@ -463,7 +463,7 @@ s32 G64LevelTextureBanks(s32 num, u32 *banks, s32 max) {
 }
 
 /* For tests: the pack's loaded bank of a kind (0 textures, 1 objects) in this game's memory, and its address as the
-   game stores it, or NULL when it is not loaded. */
+   game stores it, or NULL when it isn't loaded. */
 const void *G64PackBankLoaded(s32 objects, u32 *word) {
     s32 slot = objects ? packObjSlot : packTexSlot;
 
@@ -482,8 +482,8 @@ const void *G64PackBankLoaded(s32 objects, u32 *word) {
    in the order of the slots they take: bank 0, which FreeLevel2 loads before every level, the world's bank for a
    level before INTRO, bank 1 (69 in FLYTHRU), and the level's own bank. The level parser finds an object only in
    these and the pack's. The numbers come from the game's tables levelInfo and worldInfo. Writes at most max numbers
-   to banks and returns how many there are, or -1 for a level that is not 0 to 47 or a number that the game's bank
-   switch does not have. The client checks a level file's object ids with these (src/client/pack.c). */
+   to banks and returns how many there are, or -1 for a level that isn't 0 to 47 or a number that the game's bank
+   switch doesn't have. The client checks a level file's object ids with these (src/client/pack.c). */
 s32 G64LevelBankNumbers(s32 num, u32 *banks, s32 max) {
     u32 list[4];
     u32 start, end;

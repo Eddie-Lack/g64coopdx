@@ -2,7 +2,7 @@
  * src/rollback/engine_game.c over a simulated network with delay, jitter and loss.
  *
  * The test: every hash check between the clients and the host passes, and every client's final state equals one
- * offline run of the host's confirmed inputs at every 10th frame. Player 0 drives the game; the clients that do not
+ * offline run of the host's confirmed inputs at every 10th frame. Player 0 drives the game; the clients that don't
  * control it still predict its input and roll back when the prediction was wrong.
  *
  * Usage: rollback_game ROM [frames]. Without a ROM file it prints that it was skipped and exits with 0. */

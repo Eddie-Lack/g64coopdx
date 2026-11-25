@@ -57,7 +57,7 @@ All words are big-endian, as in the game's banks.
 A bank from a pack is untrusted. The game trusts every field of a bank: its loaders follow its offsets and counts with
 no bounds. So the client (g64coopdx's own code in `src/client/`) checks each bank in full before the game sees it, as it
 checks a level file ([level-file-safety.md](level-file-safety.md)). The check is `src/client/bankcheck.c`. It reads the
-bytes as the game's loaders do, and it refuses anything it does not understand.
+bytes as the game's loaders do, and it refuses anything it doesn't understand.
 
 Some rules allow only what Glovebox writes today. `tests/net/bankcheck_test.c` holds each of them to Glovebox's real
 output: a cube that Glovebox wrote, `tests/fixtures/cube.models.bin` (Glovebox's cube below). The cube passes, and one
@@ -98,7 +98,7 @@ In short, the check refuses these:
 - A float that is not finite, a position past 16384 or a scale past 64.
 - An object whose position, added up along its parents, is past 16384. The game translates a child by its position
   times its parent's scale, and keeps the parent's translation while the child draws. The sum counts each
-  position's length times the largest part of the parent's scale. A rotation does not change a length. The bound
+  position's length times the largest part of the parent's scale. A rotation doesn't change a length. The bound
   holds for an actor at the origin with scale 1: `guMtxF2L` turns each matrix entry times 65536 into a 32-bit
   integer, which overflows past 32768. The actor's own position and scale come from the level file, and add to this
   sum.
@@ -114,13 +114,13 @@ With the player's ROM, the client also refuses:
 - A level file that names an object found in no bank the level will have, or a cameo of the pack's own model
   ("The level's object ids").
 
-The client does not limit the memory for a level's collision. The game's parser does: a level whose collision
+The client doesn't limit the memory for a level's collision. The game's parser does: a level whose collision
 would need more memory than the budget allows stops as unplayable (`G64PlanesFit` in parse.c, "The heap" below).
 
 The check's API is `g64_models_check` and `g64_models_check_rom` (`src/client/bankcheck.h`). Each returns a message and
 the offset in `models.bin` of the fault. The caller gives the first one a function that says which bank numbers the game
 has, and each bank's range in the ROM. A program that links the game, such as the online program, asks `G64BankRom`
-(`g64_rombanks_game_range`). The pack tool, the pack tests in `tests/net` and the pack fuzz target do not link
+(`g64_rombanks_game_range`). The pack tool, the pack tests in `tests/net` and the pack fuzz target don't link
 the game. They use a table of the game's bank switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`).
 `make rombanks` compares the table with `G64BankRom`. `g64_models_check_rom` applies the first two rules of the list
 above that need the ROM: the ROM's ids, and data equal to the ROM's. The rule for the level file is a separate one
@@ -132,7 +132,7 @@ level's object ids"). It runs them three times:
 
 - on the host, before it offers the pack (`host_offer_pack` in `src/client/netplay.c`). It runs the rule for the
   level file's ids first (`g64_pack_check_ids_rom`), and a pack that fails it stops the session. It then runs
-  `g64_pack_may_send`. A pack that fails that is not offered, and the log says why. Joiners then need the pack's
+  `g64_pack_may_send`. A pack that fails that isn't offered, and the log says why. Joiners then need the pack's
   folder.
 - on a joiner, on the downloaded bytes, before it says ready (`g64_pack_from_download`, called by `joiner_pack`). A
   pack that fails ends the session. The joiner then runs the rule for the level file's ids on its own ROM
@@ -140,7 +140,7 @@ level's object ids"). It runs them three times:
 - on every machine in `netplay_begin`, before the game is built.
 
 The first two run before the game has read the banks' places (their ranges in the ROM) from the ROM's code, which it
-reads at power-on. From the command line the game is not even powered on then. So they take the places from the table of
+reads at power-on. From the command line the game isn't even powered on then. So they take the places from the table of
 `bankranges.h`, which reads the same code. `netplay_begin` takes them from the game. `make rombanks` shows that the two
 agree. `g64pack check DIR --rom ROM` runs the same rules with the table. They use an index of the ROM's banks
 (`src/client/rombanks.h`): every object id and texture id of the player's ROM, and hashes of its textures, vertex lists
@@ -167,7 +167,7 @@ Then, for each bank, level 13 plays 600 frames with the pack's objects as scener
 output is equal on Linux and under Wine.
 
 A pack's mesh has no texture coordinates and no vertex colors: Glovebox writes neither, and the bank check refuses them.
-The bank check cannot see what a level does to its object. Two places in the game wrote through those pointers with no
+The bank check can't see what a level does to its object. Two places in the game wrote through those pointers with no
 test. `DeformTextureCoords` (object.c) moves the texture coordinates of an object that a WATER or MODGE token of the
 level file marks. The space boss's shield (`DoSpaceBoss3`, boss.c) changes the colors of the first foreground object. In
 g64coopdx's copy, both stop when the pointer is 0. `make meshguards` (`tests/rom/meshguards.c`) runs both cases with the
@@ -210,7 +210,7 @@ its pack (`src/session/session.h`):
 - `packsend_test` (tests/net/packsend_test.c) sends a pack with the cube, a level and a script of 20,000 bytes from a
   host to a joiner through the session. The host checks it with `g64_pack_may_send` and the joiner reads it with
   `g64_pack_from_download`, each on a made-up ROM. These are refused: a ROM with the cube's ids, a damaged `models.bin`,
-  and bytes or a name that are not the offer's. The host's gate also runs the rule for the level file's object ids after
+  and bytes or a name that aren't the offer's. The host's gate also runs the rule for the level file's object ids after
   `g64_pack_may_send`: a level with a platform whose id is in no bank passes `g64_pack_may_send` and is refused.
 - Only the pack's own banks and the retail bank numbers cross the network. The banks pass the rules that need the
   ROM on both ends: they hold none of the ROM's ids or data. Protocol 12 leaves the instances' messages
@@ -240,10 +240,10 @@ game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
 - An ENEMY names a kind of enemy, not an object, and a bullet's object comes from the enemy or the vent that makes it.
   Their objects, and the pick-ups' and garibs', have the game's own names. A pack's model cannot have one of their ids
   (the bank check's rules above). So no enemy, bullet or pick-up can use a pack's model.
-- The online host runs the rule before it offers its pack (`host_offer_pack` in src/client/netplay.c). The game has not
+- The online host runs the rule before it offers its pack (`host_offer_pack` in src/client/netplay.c). The game hasn't
   read its tables yet, so the host uses the committed tables, as the pack tool does (`g64_pack_check_ids_rom` in
   src/client/packrom.c, which runs `g64_pack_check_ids` with them). It runs before `g64_pack_may_send`, on a pack whose
-  level file is not a copy of one of the ROM's and passes the structure check (`g64_pack_check_strict`, the check of
+  level file isn't a copy of one of the ROM's and passes the structure check (`g64_pack_check_strict`, the check of
   [level-file-safety.md](level-file-safety.md)). A pack that fails stops the session at once, before any joiner
   downloads it. This holds even when its models would fail too.
 - A joiner runs the same rule on its own ROM after a download, before it keeps the pack and says ready. A pack that
@@ -257,7 +257,7 @@ game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
 
 - The game's `FindObject` records each id it is asked for while the parser reads a token (`G64FindObjectTrace`, for
   tests). On all 48 levels, the ids of the nine tokens are the ids the check reads, at the same tokens. Every other
-  token that asks for an object asks for an id that is not a word of its fields.
+  token that asks for an object asks for an id that isn't a word of its fields.
 - No level of the ROM has a bridge. The test adds a ROPEBRIDGE, a SINEBRIDGE and an ORBITBRIDGE to a copy of level 13,
   with an object of the level's banks, and compares again. It adds a LANDSCAPE with an id that no bank has: the rule
   refuses that file, the rule with the committed tables refuses it at the same token, and the game stops the level.
@@ -311,7 +311,7 @@ How they load (`G64LoadPackBanks` in `weemitt/src/game/g64packbanks.c`):
   records, their counts and the header's first flag.
 - Each retail bank loads with the swap of Glovebox's mod: the five slots of its kind are put aside and emptied, the
   game's own loader puts the bank in slot 0, slot 0 is copied into the table, and the five slots come back.
-- For a texture bank, `cyclingTextures` and its count are put back too. A retail texture in the table does not
+- For a texture bank, `cyclingTextures` and its count are put back too. A retail texture in the table doesn't
   animate, as in the mod. The game's list of 20 animated textures cannot overflow.
 - During an object bank's load the texture slots stay as they are. Its objects find the level's textures and the
   table's.
@@ -327,7 +327,7 @@ How the game finds them:
   Then the table, without the flag.
 - `FindObject` (banks.c): slots 0 to 4, as in the original game, then the table.
 - Without the first flag, a level's own picture therefore wins when a retail model's texture id is also in the level's
-  world. That is what the author sees in the emulator with Glovebox's mod.
+  world. That's what the author sees in the emulator with Glovebox's mod.
 
 When the table is gone:
 
@@ -352,7 +352,7 @@ An object bank may be named without the texture banks it needs. A texture that n
   and a sprite with no texture stops the level as unplayable ("RETAIL TEXTURES", the reason that the error screen
   shows).
 - The game checks every object of the bank, also the ones the level never places. The game can find an object of a
-  retail bank by a name of its own (an enemy's or a pick-up's), so a placed object is not the only way in.
+  retail bank by a name of its own (an enemy's or a pick-up's), so a placed object isn't the only way in.
 
 The client refuses the same packs before the game sees them (`g64_pack_check_retail_sprites`, `src/client/packrom.h`):
 
@@ -380,7 +380,7 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
 - With its world's texture banks, every object bank finds all its textures but FLYTHRU (69), which misses 2 in
   level 13. Neither is a sprite's.
 - The 54 object banks make 14 groups of at most 4, each with its world's texture banks. Every group plays in every
-  level, with 16 players who press buttons at random, for 600 frames. That is 672 runs. Every bank loads, a level
+  level, with 16 players who press buttons at random, for 600 frames. That's 672 runs. Every bank loads, a level
   stops only where it stops without the pack's banks too, and the program never stops. Every level keeps at least
   200 blocks (level 15) and 19,675,600 bytes free. The whole test takes about 10 minutes on Linux and under Wine
   together.
@@ -401,13 +401,13 @@ The client refuses the same packs before the game sees them (`g64_pack_check_ret
   client refuses exactly those. The table of the levels' texture banks equals `G64LevelTextureBanks`.
 - A save at frame 300 and a load give the same memory hash at frame 600. So does a save, then another level with no
   retail banks or with other ones, then the load. After the load the table has the saved level's counts and ids. The
-  hash alone would not show a lost table: with the table dropped right after the load, the hash stays the same, and
+  hash alone wouldn't show a lost table: with the table dropped right after the load, the hash stays the same, and
   only the table's counts differ. The build already refuses a static outside the saved sections (`checkgame` in the
   engine's Makefile).
 - Level 1 ends offline, with the first flag, and the hub loads. It also ends as a completed level. Both runs free
   the slots in `FreeLevel2`; neither reaches `FreeScreen`. The table is gone, and no lookup is answered from it after the level's end. A test counter counts lookups that reach a
   live table while all five object slots are empty, outside `G64LoadPackBanks`: that happens only between the frees of
-  the slots and `JallocInit`. It stays 0. Without the drop in `FreeLevel2` it is 2 (the lookups in `LoadFont`), and
+  the slots and `JallocInit`. It stays 0. Without the drop in `FreeLevel2` it's 2 (the lookups in `LoadFont`), and
   the test fails. Without the drop in `FreeScreen` or in frontend.c the test still passes: no test reaches those two
   places with a live table.
 - `make instances` plays the sample pack (`packs/garib-island`, "The sample pack" below), whose `models.bin` names
@@ -448,19 +448,19 @@ Which actors read the key:
 - `DrawObject` (object.c) reads an object's first rotation key unless the actor has a static matrix and `calcMtx`
   is 0. Nothing in the game's code assigns `calcMtx`, and no memset, memclear or memcpy names it or the globals
   before it. The test reads it on every frame, and it stays 0.
-- Only a landscape actor gets a static matrix (object.c). It is made from the actor's rotation in the level file.
+- Only a landscape actor gets a static matrix (object.c). It's made from the actor's rotation in the level file.
   LANDSCAPE and BACKGROUND both make a landscape actor, so they never read the key.
 - Platforms read it: PLATFORM, ROPEBRIDGE, SINEBRIDGE and ORBITBRIDGE make them (parse.c). So do a WATER actor and
   a broken platform's debris, which are drawn with `DrawActor`. A CAMEO_OBJ makes a cameo actor, which reads it too.
   The rule for the level's object ids refuses a pack's model there.
 - The glove reads the keys of what it rides or swings on, and sets its own rotation from them
-  (`SetHandHopPosition` in hand.c, `HandSwish` in object.c). That is an enemy, a bullet or a cameo actor. An enemy's
+  (`SetHandHopPosition` in hand.c, `HandSwish` in object.c). That's an enemy, a bullet or a cameo actor. An enemy's
   and a bullet's objects have the ids of the game's own objects, and the ROM check refuses a pack id that the ROM
   has. A cameo is refused by the rule for the level's object ids.
 - Platform collision uses the actor's rotation, not the key (collision.c, platform.c). Apart from the glove's case
   above, a key reaches only the drawn matrices. No game logic reads those, so they cannot change the game's state.
 - The first 256 object matrices of a frame are in Dynamic, in the game's memory, and the memory hash covers them.
-  The rest are in `objectMtxMore`, in `port_win`. That is past the 0x1800000 bytes the memory hash covers. So the
+  The rest are in `objectMtxMore`, in `port_win`. That's past the 0x1800000 bytes the memory hash covers. So the
   test also prints a hash of `objectMtxMore`.
 
 The test builds a pack from scratch with `tests/net/bankbuild.h`: an 8 by 8 texture, a cube of 12 faces and a
@@ -492,7 +492,7 @@ There are two variants of the pack:
 
 - Variant I has the identity key. The bank check accepts it.
 - Variant Z has keys of all zeros. The bank check refuses it. The test loads it anyway, by setting the game's pack
-  globals directly. This is a measurement only. Its results do not fail `make models`.
+  globals directly. This is a measurement only. Its results don't fail `make models`.
 
 Platforms are allowed if variant I gives equal output on Linux and under Wine in every case, and every save and load
 gives equal hashes. This rule is stricter than the owner's. The result on one machine, under Wine 64-bit:
@@ -504,15 +504,15 @@ gives equal hashes. This rule is stricter than the owner's. The result on one ma
 
 - Variant Z draws a NaN in each platform, bridge, water and debris case. This shows that each of these cases drew
   its actors.
-- It draws none in LANDSCAPE or BACKGROUND. The test does not show that it drew those actors, so this only agrees
-  with the code. The evidence that they do not read the key is the static matrix path in `DrawActor`.
+- It draws none in LANDSCAPE or BACKGROUND. The test doesn't show that it drew those actors, so this only agrees
+  with the code. The evidence that they don't read the key is the static matrix path in `DrawActor`.
 - In variant Z the debris drew NaN matrices from frame 997 to frame 1014 (2 players) and 1013 (16 players), after
   the platform was gone. Debris reads the key.
 - The test counts a matrix as NaN when the integer halves of its rotation part are 0x80008000. A word of
   0x80008000 elsewhere comes from two entries out of the range of the matrix's numbers, such as a far
   translation. One such word appeared in 2 frames of SINEBRIDGE with 16 players, in both variants.
 - Both variants give the same count of frames with a glove or a ball on the pack's platforms, in every case.
-- The NaN floats themselves do not stay in memory. Every sample finds 13,018 to 15,359 NaN words in the game's
+- The NaN floats themselves don't stay in memory. Every sample finds 13,018 to 15,359 NaN words in the game's
   memory. At most 6 of them have the bits that 0 times infinity gives. Both variants give the same count of those, frame
   by frame, so they come from the game's own data. What stays is the converted matrix, with
   words of 0x80008000.
@@ -558,9 +558,9 @@ level that leaves less than 4 MiB free (`G64_PARSE_FREE`, parse.c). The test's l
 - level 46 stops as unplayable: the intro reads its first actor's animation, and the pack's scenery has none
 
 Collision costs more than the banks. After the parser, every scenery, landscape or water actor gets one more block
-and 120 bytes for each face of its mesh (parse.c, "Obj_Planes"). That is 180,000 bytes for a mesh of 1500 faces.
+and 120 bytes for each face of its mesh (parse.c, "Obj_Planes"). That's 180,000 bytes for a mesh of 1500 faces.
 A landscape actor with collision also compares every face of its mesh with every later face. The parser's test
-before each token cannot see these. So `G64PlanesFit` (parse.c) adds them up before any plane is made. The level
+before each token can't see these. So `G64PlanesFit` (parse.c) adds them up before any plane is made. The level
 stops as unplayable when they would leave less than 4 MiB free, would bring the blocks in use to 1,100, or when the
 sum of the squares of the landscape face counts is above 40,000,000. With 16 players, the game's own levels need
 at most 101 blocks (level 21), 288,048 bytes (level 29) and a sum of 340,884 (level 43). `make bankwalk` puts one
@@ -598,7 +598,7 @@ The sample pack `packs/garib-island` has a model of its own and one retail model
 - `sample_pack` in tests/rom/instances.c checks the pack with the ROM's rules, finds the raft in the pack's object slot
   and the bell in the retail table, checks that the platform moves and that a glove with no input rides it, and plays
   the level with two players over a lossy network. The output is equal on Linux and under Wine.
-- Glovebox's level reader cannot read a level file whose name and commands leave an odd number of padding bytes
+- Glovebox's level reader can't read a level file whose name and commands leave an odd number of padding bytes
   (`level::commands` reads the padding 2 bytes at a time). The level's name is `ISLANDS`, 7 characters. Its
   padding is then even.
 

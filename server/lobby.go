@@ -76,7 +76,7 @@ type relayInfo struct {
 	Players int `json:"players"`
 }
 
-// activeRelay is the running relay, which /v1/info describes; nil when it is off.
+// activeRelay is the running relay, which /v1/info describes; nil when it's off.
 var (
 	activeRelay     *relay
 	activeRelayPort int

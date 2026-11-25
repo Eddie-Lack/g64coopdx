@@ -306,7 +306,7 @@ static void reach(void) {
     n = bb_end(&b, out, sizeof out, 0, NULL, 0, NULL, 0);
     expect("a root at 9000 on all three axes", out, n, NULL, 0);
 
-    /* Siblings share their parent: one sibling's position does not add to the next one's. */
+    /* Siblings share their parent: one sibling's position doesn't add to the next one's. */
     bb_begin(&b, 1);
     bb_texture(&b, 0x0A000001, 8, 8, 0);
     memset(&s, 0, sizeof s);
@@ -391,28 +391,28 @@ static void mutations(void) {
     /* The header. */
     header_only("5 retail texture banks", 0, five, 5, NULL, 0, "more than 4 retail texture banks", 9);
     header_only("5 retail object banks", 0, NULL, 0, five, 5, "more than 4 retail object banks", 10);
-    header_only("the font texture bank", 0, font, 1, NULL, 0, "the font and generic texture banks cannot be named", 12);
+    header_only("the font texture bank", 0, font, 1, NULL, 0, "the font and generic texture banks can't be named", 12);
     header_only("the generic texture bank", 0, generic, 1, NULL, 0,
-                "the font and generic texture banks cannot be named", 12);
-    header_only("retail object bank 0", 0, NULL, 0, zero, 1, "object banks 0 and 1 cannot be named", 12);
-    header_only("retail object bank 1", 0, NULL, 0, one, 1, "object banks 0 and 1 cannot be named", 12);
+                "the font and generic texture banks can't be named", 12);
+    header_only("retail object bank 0", 0, NULL, 0, zero, 1, "object banks 0 and 1 can't be named", 12);
+    header_only("retail object bank 1", 0, NULL, 0, one, 1, "object banks 0 and 1 can't be named", 12);
     header_only("an object bank the game does not have", 0, NULL, 0, none, 1,
-                "a retail bank number that the game does not have", 12);
+                "a retail bank number that the game doesn't have", 12);
     header_only("a number named twice", 0, two3, 2, NULL, 0, "a retail bank number named twice", 13);
     header_only("a file with nothing", 0, NULL, 0, NULL, 0, "the file holds no models and names no bank", 0);
     header_only("the flag with no retail texture bank", 1, NULL, 0, two3, 1,
                 "the flag for retail textures, with no retail texture bank", 8);
-    header_only("a flag that does not exist", 2, two3, 1, NULL, 0, "a flag that the format does not have", 8);
+    header_only("a flag that does not exist", 2, two3, 1, NULL, 0, "a flag that the format doesn't have", 8);
     expect("a file of 11 bytes", fixture, 11, "the file is shorter than its header", 11);
 
     cube()[0x0B] = 1;
-    expect("header byte 11", buf, bufN, "a header byte that must be 0 is not", 11);
+    expect("header byte 11", buf, bufN, "a header byte that must be 0 isn't", 11);
     cube()[13] = 1;
-    expect("a header padding byte", buf, bufN, "a padding byte of the header is not 0", 13);
+    expect("a header padding byte", buf, bufN, "a padding byte of the header isn't 0", 13);
     put32(cube(), 0x400000);
     expect("T + O over 4 MiB", buf, bufN, "the banks are larger than 4 MiB", 0);
     put32(cube(), 172);
-    expect("T not a multiple of 8", buf, bufN, "the texture bank's size is not a multiple of 8", 0);
+    expect("T not a multiple of 8", buf, bufN, "the texture bank's size isn't a multiple of 8", 0);
     put32(cube() + 4, 0);
     expect("a texture bank with no object bank", buf, bufN,
            "the file has one bank of the pack's own without the other", 4);
@@ -429,34 +429,34 @@ static void mutations(void) {
     put32(cube() + TEX, 2);
     expect("a count past the end", buf, bufN, "a texture record runs past the end of the bank", 188);
     put32(cube() + TEX, 0);
-    expect("a count of 0", buf, bufN, "the texture bank's count is not 1 to 1024", TEX);
+    expect("a count of 0", buf, bufN, "the texture bank's count isn't 1 to 1024", TEX);
     put32(cube() + REC, 0);
     expect("a texture id of 0", buf, bufN, "a texture id is 0", REC);
     cube()[REC + 4] = 1;
-    expect("a cycle range", buf, bufN, "a texture's cycle range is not 0", REC + 4);
+    expect("a cycle range", buf, bufN, "a texture's cycle range isn't 0", REC + 4);
     cube()[REC + 7] = 4;
-    expect("flags value 4: a cycling texture", buf, bufN, "a texture's flags are not 0", REC + 6);
+    expect("flags value 4: a cycling texture", buf, bufN, "a texture's flags aren't 0", REC + 6);
     cube()[REC + 9] = 1;
-    expect("a cycle speed", buf, bufN, "a texture's cycle speed or count is not 0", REC + 8);
+    expect("a cycle speed", buf, bufN, "a texture's cycle speed or count isn't 0", REC + 8);
     cube()[REC + 13] = 12;
-    expect("a width that is not a power of two", buf, bufN, "a texture's size is not one Glovebox writes", REC + 12);
+    expect("a width that is not a power of two", buf, bufN, "a texture's size isn't one Glovebox writes", REC + 12);
     cube()[REC + 17] = 2;
-    expect("a mask that does not match", buf, bufN, "a texture's masks do not match its size", REC + 16);
+    expect("a mask that does not match", buf, bufN, "a texture's masks don't match its size", REC + 16);
     cube()[REC + 27] = 1;
-    expect("8-bit texels", buf, bufN, "a texture is not 16-bit RGBA", REC + 24);
+    expect("8-bit texels", buf, bufN, "a texture isn't 16-bit RGBA", REC + 24);
     cube()[REC + 31] = 40;
-    expect("a data field of 40", buf, bufN, "a texture's data field is not 36", REC + 28);
+    expect("a data field of 40", buf, bufN, "a texture's data field isn't 36", REC + 28);
     cube()[REC + 35] = 0x40;
     expect("palette not 0", buf, bufN, "a texture has a palette", REC + 32);
     cube()[REC + 23] = 176;
-    expect("a size field of 176", buf, bufN, "a texture's size field does not match its texels", REC + 20);
+    expect("a size field of 176", buf, bufN, "a texture's size field doesn't match its texels", REC + 20);
     cube()[REC + 164] = 1;
-    expect("a texture's padding", buf, bufN, "a padding byte of a texture is not 0", REC + 164);
+    expect("a texture's padding", buf, bufN, "a padding byte of a texture isn't 0", REC + 164);
     cube()[189] = 1;
-    expect("the texture bank's last bytes", buf, bufN, "the texture bank's last 4 bytes are not 0", 189);
+    expect("the texture bank's last bytes", buf, bufN, "the texture bank's last 4 bytes aren't 0", 189);
     put32(cube() + FD + 4, 0x12345678);
     expect("a texture load of a texture not in the bank", buf, bufN,
-           "a texture load names a texture that is not in the pack's texture bank", FD + 4);
+           "a texture load names a texture that isn't in the pack's texture bank", FD + 4);
 
     bb_begin(&b, 1);
     bb_texture(&b, 0x0A000001, 8, 8, 0);
@@ -480,13 +480,13 @@ static void mutations(void) {
     put32(cube() + OBJ + 4, 8);
     expect("an instance in the directory", buf, bufN, "a pointer names the directory", OBJ + 4);
     put32(cube() + INSTANCE, 0x94D4B65C);
-    expect("an instance with another id", buf, bufN, "an instance does not start with its object's id", INSTANCE);
+    expect("an instance with another id", buf, bufN, "an instance doesn't start with its object's id", INSTANCE);
     cube()[INSTANCE + 0x10] = 1;
-    expect("an instance's spare byte", buf, bufN, "an instance's spare bytes are not 0", INSTANCE + 4);
+    expect("an instance's spare byte", buf, bufN, "an instance's spare bytes aren't 0", INSTANCE + 4);
     put32(cube() + INSTANCE + 0x0C, 0);
     expect("an instance with no object", buf, bufN, "an instance has no object", INSTANCE + 0x0C);
     cube()[ANIM + 1] = 1;
-    expect("an animation state that is not zeros", buf, bufN, "an animation state is not all zeros", ANIM);
+    expect("an animation state that is not zeros", buf, bufN, "an animation state isn't all zeros", ANIM);
     put32(cube() + INSTANCE + 0x18, 0);
     expect("an instance with no animation state", buf, bufN, NULL, 0);
 
@@ -496,7 +496,7 @@ static void mutations(void) {
     put32(cube() + OBJECT + 0x14, (MESH - OBJ) | 0x01000000);
     expect("a pointer with high bits", buf, bufN, "a pointer has high bits set", OBJECT + 0x14);
     put32(cube() + OBJECT + 0x18, DL - OBJ + 4);
-    expect("a display list not on a multiple of 8", buf, bufN, "a pointer is not aligned", OBJECT + 0x18);
+    expect("a display list not on a multiple of 8", buf, bufN, "a pointer isn't aligned", OBJECT + 0x18);
     put32(cube() + OBJECT + 0x18, 0x2000);
     expect("a display list outside the bank", buf, bufN, "a pointer names a range outside the bank", OBJECT + 0x18);
     for (i = 0; i < 5; i++) {
@@ -509,17 +509,17 @@ static void mutations(void) {
     cube()[OBJECT + 10] = 'x';
     expect("a name with a byte after its end", buf, bufN, NULL, 0);
     cube()[OBJECT + 0x0C] = 1;
-    expect("an object marked initialized", buf, bufN, "an object's initialized byte is not 0", OBJECT + 0x0C);
+    expect("an object marked initialized", buf, bufN, "an object's initialized byte isn't 0", OBJECT + 0x0C);
     cube()[OBJECT + 0x11] = 0;
-    expect("a position key count of 0", buf, bufN, "an object's key count is not 1", OBJECT + 0x10);
+    expect("a position key count of 0", buf, bufN, "an object's key count isn't 1", OBJECT + 0x10);
     cube()[OBJECT + 0x13] = 2;
-    expect("two rotation keys", buf, bufN, "an object's key count is not 1", OBJECT + 0x12);
+    expect("two rotation keys", buf, bufN, "an object's key count isn't 1", OBJECT + 0x12);
     cube()[OBJECT + 0x2B] = 1;
     expect("a sprite", buf, bufN, "an object has sprites", OBJECT + 0x28);
     cube()[OBJECT + 0x31] = 1;
-    expect("a byte at 0x31", buf, bufN, "an object's bytes at 0x30 are not 0", OBJECT + 0x30);
+    expect("a byte at 0x31", buf, bufN, "an object's bytes at 0x30 aren't 0", OBJECT + 0x30);
     cube()[OBJECT + 0x33] = 8;
-    expect("object flags 8", buf, bufN, "an object's flags have a bit that Glovebox does not write", OBJECT + 0x32);
+    expect("object flags 8", buf, bufN, "an object's flags have a bit that Glovebox doesn't write", OBJECT + 0x32);
     put32(cube() + OBJECT + 0x3C, 0x10);
     expect("a collision sphere", buf, bufN, "an object has a collision sphere", OBJECT + 0x3C);
     put32(cube() + OBJECT + 0x18, 0);
@@ -529,33 +529,33 @@ static void mutations(void) {
 
     /* The keys. */
     put32(cube() + ROTKEY + 12, 0);
-    expect("a rotation key of zeros", buf, bufN, "a rotation key is not near unit length", ROTKEY);
+    expect("a rotation key of zeros", buf, bufN, "a rotation key isn't near unit length", ROTKEY);
     put32(cube() + ROTKEY, 0x7F800000);
-    expect("an infinite rotation", buf, bufN, "a key holds a float that is not finite", ROTKEY);
+    expect("an infinite rotation", buf, bufN, "a key holds a float that isn't finite", ROTKEY);
     putf(cube() + POSKEY, 20000.0f);
     expect("a position of 20000", buf, bufN, "a position is past 16384", POSKEY);
     putf(cube() + SCALEKEY + 4, -100.0f);
     expect("a scale of -100", buf, bufN, "a scale is past 64", SCALEKEY + 4);
     put32(cube() + POSKEY + 8, 0x7FC00000);
-    expect("a position that is not a number", buf, bufN, "a key holds a float that is not finite", POSKEY + 8);
+    expect("a position that is not a number", buf, bufN, "a key holds a float that isn't finite", POSKEY + 8);
     putf(cube() + SCALEKEY + 12, 1.0f);
-    expect("a scale key's fourth value", buf, bufN, "a key's fourth value is not 0", SCALEKEY + 12);
+    expect("a scale key's fourth value", buf, bufN, "a key's fourth value isn't 0", SCALEKEY + 12);
     put32(cube() + POSKEY + 16, 1);
-    expect("a key time of 1", buf, bufN, "a key's time is not 0", POSKEY + 16);
+    expect("a key time of 1", buf, bufN, "a key's time isn't 0", POSKEY + 16);
 
     /* The mesh. */
     cube()[MESH + 1] = 0;
-    expect("a mesh of no faces", buf, bufN, "a mesh's face count is not 1 to 1500", MESH);
+    expect("a mesh of no faces", buf, bufN, "a mesh's face count isn't 1 to 1500", MESH);
     cube()[MESH + 3] = 2;
-    expect("a mesh of 2 vertices", buf, bufN, "a mesh's vertex count is not 3 to 4500", MESH + 2);
+    expect("a mesh of 2 vertices", buf, bufN, "a mesh's vertex count isn't 3 to 4500", MESH + 2);
     put32(cube() + MESH + 0x10, 0x100);
     expect("uv not 0", buf, bufN, "a mesh has texture coordinates", MESH + 0x10);
     put32(cube() + MESH + 0x20, 0x100);
     expect("face textures", buf, bufN, "a mesh has colors, face flags or face textures", MESH + 0x20);
     put32(cube() + VERTS + 4, 0x7FC00000);
-    expect("a vertex that is not a number", buf, bufN, "a vertex is not finite or is past 100000", VERTS + 4);
+    expect("a vertex that is not a number", buf, bufN, "a vertex isn't finite or is past 100000", VERTS + 4);
     putf(cube() + VERTS, 200000.0f);
-    expect("a vertex at 200000", buf, bufN, "a vertex is not finite or is past 100000", VERTS);
+    expect("a vertex at 200000", buf, bufN, "a vertex isn't finite or is past 100000", VERTS);
     cube()[FACES + 1] = 20;
     expect("a face index equal to numVerts", buf, bufN, "a face names a vertex past the mesh's vertices", FACES);
     cube()[FACES + 0] = 0xFF;
@@ -563,26 +563,26 @@ static void mutations(void) {
     put32(cube() + MESH + 0x0C, FACES - OBJ + 8);
     expect("overlapping ranges: face colors over the faces", buf, bufN, "two structures share bytes", MESH + 0x0C);
     cube()[1020] = 1;
-    expect("a nonzero byte that nothing reaches", buf, bufN, "a byte that no structure reaches is not 0", 1020);
+    expect("a nonzero byte that nothing reaches", buf, bufN, "a byte that no structure reaches isn't 0", 1020);
 
     /* The display list. */
     cube()[DL] = 0x06;
-    expect("a 0x06 command", buf, bufN, "a display list command that Glovebox does not write", DL);
+    expect("a 0x06 command", buf, bufN, "a display list command that Glovebox doesn't write", DL);
     cube()[ENDDL] = 0xE7;
-    expect("a missing B8", buf, bufN, "a display list command that Glovebox does not write", VTXBLOCK);
+    expect("a missing B8", buf, bufN, "a display list command that Glovebox doesn't write", VTXBLOCK);
     cube()[ENDDL + 7] = 1;
-    expect("a B8 with a nonzero word", buf, bufN, "a G_ENDDL command is not in Glovebox's form", ENDDL);
+    expect("a B8 with a nonzero word", buf, bufN, "a G_ENDDL command isn't in Glovebox's form", ENDDL);
     cube()[FD + 8] = 0xE8;
-    expect("FD followed by E8", buf, bufN, "a texture load is not followed by Glovebox's commands", FD + 8);
+    expect("FD followed by E8", buf, bufN, "a texture load isn't followed by Glovebox's commands", FD + 8);
     cube()[FD + 8] = 0xB8;
-    expect("FD followed by B8", buf, bufN, "a texture load is not followed by Glovebox's commands", FD + 8);
+    expect("FD followed by B8", buf, bufN, "a texture load isn't followed by Glovebox's commands", FD + 8);
     cube()[FD + 3] = 1;
-    expect("an FD in another form", buf, bufN, "a texture load is not in Glovebox's form", FD);
+    expect("an FD in another form", buf, bufN, "a texture load isn't in Glovebox's form", FD);
     cube()[FD + 8 * 4 + 7] ^= 1;
-    expect("a texture load with a changed word", buf, bufN, "a texture load is not followed by Glovebox's commands",
+    expect("a texture load with a changed word", buf, bufN, "a texture load isn't followed by Glovebox's commands",
            FD + 8 * 4);
     cube()[GVTX + 1] = 2;
-    expect("a G_VTX at slot 1", buf, bufN, "a G_VTX command is not in Glovebox's form", GVTX);
+    expect("a G_VTX at slot 1", buf, bufN, "a G_VTX command isn't in Glovebox's form", GVTX);
     put32(cube() + GVTX + 4, VERTS - OBJ);
     expect("a G_VTX block over the vertices", buf, bufN, "two structures share bytes", GVTX + 4);
     put32(cube() + GVTX + 4, 0x420);
@@ -636,7 +636,7 @@ static void mutations(void) {
 
     cube()[REC + 13] = 64;
     buf[REC + 15] = 64;
-    expect("a texture of 64 by 64", buf, bufN, "a texture's size is not one Glovebox writes", REC + 12);
+    expect("a texture of 64 by 64", buf, bufN, "a texture's size isn't one Glovebox writes", REC + 12);
 
     /* Two objects that share a mesh. */
     bb_begin(&b, 2);

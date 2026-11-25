@@ -41,7 +41,7 @@ player per frame, and no game data. A player who enters a level that others are 
 instance's inputs from its start. [netcode.md](netcode.md).
 
 **How the project relates to weemitt.** g64coopdx carries its own copy of weemitt, taken at a pinned commit, and
-changes the game code in it freely. weemitt's rules for an exact copy of the original game do not apply to g64coopdx.
+changes the game code in it freely. weemitt's rules for an exact copy of the original game don't apply to g64coopdx.
 Fixes from weemitt are taken by hand when they help. The copy's first commit is weemitt unchanged and must pass
 weemitt's regression test; from then on g64coopdx keeps its own baseline. g64coopdx's own folders hold the network,
 the sessions, the interface, Lua and the packs. [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt).
@@ -148,7 +148,7 @@ checkpoint. The full list of decisions is in [open-questions.md](open-questions.
   pickup, one player can get another killed this way. The rule allows it.
 - Ball changes from power-ups (bowling, crystal, ball-bearing and the others) apply to the ball that touched the
   power-up, or to the ball of the player who took it when a glove takes it.
-- Gloves and balls do not collide with each other in the first version. The game has no such physics, and new
+- Gloves and balls don't collide with each other in the first version. The game has no such physics, and new
   physics would be new game logic to prove.
 - Any ball works for puzzles: a switch a ball presses, a gate a ball falls through.
 
@@ -215,7 +215,7 @@ checkpoint. The full list of decisions is in [open-questions.md](open-questions.
 ## Where the new state lives
 
 weemitt keeps every global of the game at its N64 offset in `port_ram`, and never changes the type or size of one.
-g64coopdx does not follow that rule (the owner's decision). Two facts still shape where new state goes:
+g64coopdx doesn't follow that rule (the owner's decision). Two facts still shape where new state goes:
 
 - **Pointers in the game's memory can only name memory in `port_ram`** on the 64-bit builds: each is a 32-bit word,
   the offset into `port_ram` plus a fixed base (`weemitt/docs/port64.md`, "The representation"). Game structures point
@@ -223,7 +223,7 @@ g64coopdx does not follow that rule (the owner's decision). Two facts still shap
   balls and cameras live in `port_ram`.
 - **Growing a global costs more than allocating.** weemitt's tables in `gen/` give every global its N64 offset, and
   regenerating them needs a built gloveworld and the MIPS tools. Data loaded from the ROM (the main segment, 0xF5677
-  bytes from 0x80100000) cannot move; the player globals lie past it, in memory the game zeroes
+  bytes from 0x80100000) can't move; the player globals lie past it, in memory the game zeroes
   ([weemitt.md](weemitt.md#changes-to-the-game-code)).
 
 **Recommendation:**
@@ -240,7 +240,7 @@ g64coopdx does not follow that rule (the owner's decision). Two facts still shap
   game change 2). The design first planned a table of pointers per player (`players[i].hand` and so on) at every use.
   That is no longer the plan.
 - Larger frame buffers (the object matrices, the display list, the vertices) go on the heap too, or into enlarged
-  globals where a pointer cannot easily be redirected.
+  globals where a pointer can't easily be redirected.
 - The savestate covers all of `port_ram` and the game's variables outside it (`weemitt/bruteforce/docs/engine.md`,
   "Savestates"), so rollback sees every player.
 
@@ -269,7 +269,7 @@ What weemitt's tools already cover, and what g64coopdx adds:
 | `tools/regress.py` (weemitt) | the logic at one player, every frame's state and memory hash against a baseline | the copy's first commit, against weemitt's baseline; after that, against g64coopdx's own baseline |
 | `tools/dtcheck.py` (weemitt) | the Smooth mode | not used: online play runs whole frames |
 | `make libcheck` (weemitt) | the library on Linux and Windows | not used: g64coopdx links the game statically |
-| `tests/sync.py` (weemitt's brute forcer) | the engine against the ROM in an emulator | not used: g64coopdx does not need to match the console |
+| `tests/sync.py` (weemitt's brute forcer) | the engine against the ROM in an emulator | not used: g64coopdx doesn't need to match the console |
 | `--record` and `--replay` (weemitt) | a run's inputs and checks | the model for the session's input log |
 | `--trace`, `--hash-every` | the per-frame state | the desync reports |
 | this report's `determinism.py` | runs and builds compared | grows into the N-player determinism test |
@@ -297,9 +297,9 @@ New tests:
 | 1 | The multi-player refactor is larger than estimated (225 functions, about 140 identity tests, five boss functions, five bonus levels, cameos). An identity test compares an actor with the glove's or the ball's address | The swap spike in phase 1 finds the shared state early; then system by system, each step checked by the determinism tests; measure the pace after the glove and ball, and re-plan. The spike is a prototype that swaps each extra player's state into the game's globals for that player's part of the frame. g64coopdx later kept the swap as its design ([roadmap.md](roadmap.md#phase-1-two-gloves-offline)) |
 | 2 | The frame limits for 16 gloves: object matrices (256, peak 158 with one idle glove), the display list's per-task check (the game drops a task of 20,000 bytes or more), vertices (800) | Measure with bots and 16 players in phase 3; raise them on the game's heap or by growing the globals |
 | 3 | The logic reads sound state (a Samtex enemy's sound handle; sounds that stop by camera distance) | List every read of sound state by the logic; split the logical part from the output in phase 2 (game change 12) |
-| 4 | Determinism holds on the paths the tests did not reach (rope swinging, rare enemies, the bosses with many players) | The bots in phase 3 run every level on Linux and Windows; every session checks hashes, so a break shows at once with the frame |
-| 5 | Wine is not Windows; a different CPU or a Windows update could change a math function | Run the cross-system test on real Windows before release; the game's math avoids the C library at whole frames, but check each libm call the logic makes |
-| 6 | A level start is not fully set by a small start record. Entering a level that others play, late join and repair all assume it | The experiment of game change 9 in phase 1: build a level from a record and compare it with the level reached by play; fallback: a player joins a level only when it starts, and others wait for a new instance |
+| 4 | Determinism holds on the paths the tests didn't reach (rope swinging, rare enemies, the bosses with many players) | The bots in phase 3 run every level on Linux and Windows; every session checks hashes, so a break shows at once with the frame |
+| 5 | Wine isn't Windows; a different CPU or a Windows update could change a math function | Run the cross-system test on real Windows before release; the game's math avoids the C library at whole frames, but check each libm call the logic makes |
+| 6 | A level start isn't fully set by a small start record. Entering a level that others play, late join and repair all assume it | The experiment of game change 9 in phase 1: build a level from a record and compare it with the level reached by play; fallback: a player joins a level only when it starts, and others wait for a new instance |
 | 7 | Rollback corrections look bad for remote balls with many players | Smooth the drawing of remote players; tune the input delay; measure at 100 to 200 ms |
 | 8 | Lua scripts break determinism in ways the sandbox misses | Hash Lua's memory arena with the game; the harness runs every bundled script under rollback |
 | 9 | The copy drifts from weemitt, and a fix made there is missed | Keep co-op changes in their own functions and files where possible; review weemitt's log at each phase's end and take what helps |
@@ -341,5 +341,5 @@ New tests:
 | Session event | A change to the session's shared state (a level done, the world) that the host puts into an instance's confirmed inputs at a frame |
 | Game change N | Row N of the list of changes g64coopdx makes to its copy of weemitt ([weemitt.md](weemitt.md#changes-to-the-game-code)) |
 | Phase N | A phase of [roadmap.md](roadmap.md) |
-| Original and Smooth modes | weemitt's two frame-rate modes. Original runs whole N64 frames and blends the drawing. Smooth runs the logic at any update length, which is not exact across systems |
+| Original and Smooth modes | weemitt's two frame-rate modes. Original runs whole N64 frames and blends the drawing. Smooth runs the logic at any update length, which isn't exact across systems |
 | NAT traversal, ICE, STUN, TURN | Ways for two machines behind home routers to reach each other. ICE tries the possible routes; STUN tells a machine its public address; a TURN server relays the traffic when nothing else works |

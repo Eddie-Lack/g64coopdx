@@ -2,7 +2,7 @@
  *
  * A rotation key of all zeros makes QuaternionToMatrix divide by zero. The rotation part of the matrix is then NaN
  * (not a number), and guMtxF2L turns each NaN into an integer, which C leaves undefined. Platforms, water and debris
- * read their object's first rotation key when they are drawn. Landscape and background pieces do not: they are
+ * read their object's first rotation key when they're drawn. Landscape and background pieces don't: they're
  * drawn with a static matrix made from the level file's rotation.
  *
  * The test builds a pack from scratch (tests/net/bankbuild.h): one 8 by 8 texture, a cube and a flat plate. Nothing
@@ -23,7 +23,7 @@
  * 100 frames it prints the memory hash (port_hash_ram), the number of NaN words in port_ram and the bits of the
  * first one, the number of words that hold the NaN of 0 times infinity, and the number of object matrix words that
  * a NaN gives (0x80008000, the integer half of two entries of -32768). It also prints a hash of objectMtxMore, the
- * object matrices past the first 256, which port_hash_ram does not cover. The NaN floats do not stay in memory, but
+ * object matrices past the first 256, which port_hash_ram doesn't cover. The NaN floats don't stay in memory, but
  * the converted matrices do. So the test also counts, in each frame's matrices, the matrices whose rotation part
  * holds those words, and apart from them the other words of 0x80008000 (two entries out of range, such as a far
  * translation). At frame SAVE_AT it saves the game, runs 100 frames, loads the save and runs the 100 frames again.
@@ -444,8 +444,8 @@ static unsigned next(Bots *b) {
     return b->seed >> 8;
 }
 
-/* What the frames showed: the level stopped, calcMtx was not 0, the most NaN matrices in a frame's tables, the
-   frames with 0x80008000 words that are not in a NaN matrix, and the frames in which a glove or a ball stood on or
+/* What the frames showed: the level stopped, calcMtx wasn't 0, the most NaN matrices in a frame's tables, the
+   frames with 0x80008000 words that aren't in a NaN matrix, and the frames in which a glove or a ball stood on or
    touched one of the pack's platforms. */
 typedef struct {
     int stopped, calc;
@@ -580,7 +580,7 @@ static void step(Bots *b, int players, int breakAt, Seen *seen) {
     }
 }
 
-/* A hash (FNV-1a) of objectMtxMore: the object matrices past the 256 in Dynamic. They are in port_win, outside the
+/* A hash (FNV-1a) of objectMtxMore: the object matrices past the 256 in Dynamic. They're in port_win, outside the
    0x1800000 bytes that port_hash_ram covers. */
 static uint32_t more_hash(void) {
     uint32_t h = 2166136261u, i;

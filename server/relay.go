@@ -28,7 +28,7 @@ package main
 //	                                       when it joins this room again
 //
 // A refused join has the reason 3 when the room's host has banned the joiner's address. The relay is the only
-// place that sees a joiner's address, so it is the only place that can keep a ban.
+// place that sees a joiner's address, so it's the only place that can keep a ban.
 //
 // A host's or joiner's room is found by the address it sends from. A room that has heard nothing from its host for
 // relayTimeout closes; so does a peer that has gone quiet.
@@ -163,7 +163,7 @@ type relay struct {
 	byHost map[netip.AddrPort]*relayRoom
 	byPeer map[netip.AddrPort]*relayRoom
 	now    func() time.Time
-	// send writes one datagram. It is a field: the tests watch what it sends.
+	// send writes one datagram. It's a field: the tests watch what it sends.
 	send func(b []byte, to netip.AddrPort)
 }
 

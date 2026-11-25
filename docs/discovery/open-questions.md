@@ -13,7 +13,7 @@ of the report it shapes.
 | Platforms | Windows first, Linux too | [repository.md](repository.md#the-build) |
 | Mods in the first version | Lua scripting and custom levels | [mods.md](mods.md) |
 | Game changes | In g64coopdx's own copy of weemitt, changed freely; weemitt's fixes taken by hand | [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt) |
-| weemitt's rules | g64coopdx does not follow weemitt's rules for an exact copy of the original game: its memory layout rule, weemitt's baseline (g64coopdx keeps its own), its frame-rate check and its emulator sync test. The rules on the ROM, leaked source, the N64 SDK's source and other ports' code stay | [weemitt.md](weemitt.md#where-the-multi-player-change-must-live) |
+| weemitt's rules | g64coopdx doesn't follow weemitt's rules for an exact copy of the original game: its memory layout rule, weemitt's baseline (g64coopdx keeps its own), its frame-rate check and its emulator sync test. The rules on the ROM, leaked source, the N64 SDK's source and other ports' code stay | [weemitt.md](weemitt.md#where-the-multi-player-change-must-live) |
 | Levels | Players may be in different levels of the same world; the session is in one world at a time, and a portal to another world opens when every player is in the hub | [README.md](README.md#worlds-and-instances), [netcode.md](netcode.md#instances) |
 | Services | Direct connection first (phase 2); the lobby, NAT traversal and relay later (phase 4) | [roadmap.md](roadmap.md) |
 | Joining | In the middle of a level, by replaying its inputs; joining at a new instance as the fallback | [netcode.md](netcode.md#instances) |

@@ -2,8 +2,8 @@
  * A cameo is a short scripted scene. Most play when a level starts. Three in the game start when a player meets a
  * puzzle's condition. One is in level 15: a glove and a ball on platform 203. A cameo plays for the player who set
  * it off: their glove and camera are the scene's, and the other players are held and watch.
- *   A. Two players. Player 1's glove and ball are put on the platform. The cameo starts, and it is player 1's.
- *      While it plays, player 0's glove does not answer their stick. When it has ended, no cameo has a player and
+ *   A. Two players. Player 1's glove and ball are put on the platform. The cameo starts, and it's player 1's.
+ *      While it plays, player 0's glove doesn't answer their stick. When it has ended, no cameo has a player and
  *      player 0's glove answers again. While it plays only the cameo's player has a glove that is drawn.
  *   B. The same with player 0 on the platform: the cameo is player 0's.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares

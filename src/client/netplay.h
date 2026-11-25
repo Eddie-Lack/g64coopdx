@@ -117,7 +117,7 @@ int netplay_begin(Engine *e, char *err, size_t errSize);
  * The tasks point into the game's memory, and the game keeps that view's state until the next call, which puts the
  * game back first. The window can draw the tasks again until then. */
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max);
-/* Each player's own pause menu (it does not stop the game). Start opens it in netplay_frame; netplay_pause_toggle
+/* Each player's own pause menu (it doesn't stop the game). Start opens it in netplay_frame; netplay_pause_toggle
  * opens or closes it. The window draws it from these. netplay_pause_pick does what item i does without the menu (the
  * window's Esc menu offers the same choices to the mouse). netplay_quit_requested is 1 after the player chose to
  * leave the online game. */

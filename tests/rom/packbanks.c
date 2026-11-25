@@ -329,7 +329,7 @@ static void costs(void) {
     }
 }
 
-/* Adds object bank o and its texture banks to r. Returns 0 when they do not fit in RETAIL of each kind. */
+/* Adds object bank o and its texture banks to r. Returns 0 when they don't fit in RETAIL of each kind. */
 static int add_group(Retail *r, unsigned o) {
     Retail t = *r;
     int k, j, have;
@@ -658,7 +658,7 @@ static void lookup_order(void) {
     unsigned other = 0;
     int hits[2];
     Retail r;
-    /* An object bank of a level of the same world that level 13 does not load. */
+    /* An object bank of a level of the same world that level 13 doesn't load. */
     for (k = 0; k < LEVELS && !other; k++) {
         unsigned t2[4];
         if (G64LevelTextureBanks(k, t2, 4) < 1 || t2[0] != tex[0])
@@ -941,7 +941,7 @@ int main(int argc, char **argv) {
     every_level();
     worst_cases();
 
-    /* A retail object bank that level 13 does not load, with misses only without its texture banks. */
+    /* A retail object bank that level 13 doesn't load, with misses only without its texture banks. */
     for (i = 0; i < numObjBanks && !scenery; i++)
         if (!level_has_bank(LEVEL, objBanks[i]) && objMisses[objBanks[i]] == 0 && objMissesAlone[objBanks[i]] > 0)
             scenery = objBanks[i];

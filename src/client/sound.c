@@ -14,7 +14,7 @@ int G64SoundListener(int player, float *pos, float *yaw, int *maxDist);
 #define PLAYED 512
 /* Steps a rollback can go back (more than the rollback core's window). */
 #define BACK 256
-/* A sound that a correction adds to a step already handled still plays if it is at most this many steps late (half a
+/* A sound that a correction adds to a step already handled still plays if it's at most this many steps late (half a
    second): a correction comes at most the host's deadline and the round trip later. */
 #define LATE 10
 /* A voice without a place that the game changed this recently is a loop: a reader that finds it starts it, however
@@ -36,7 +36,7 @@ typedef struct {
 
 typedef struct {
     int handle, id; /* the game's voice: handle 0 for a free entry */
-    int voice;      /* the backend's, 0 when it is not heard */
+    int voice;      /* the backend's, 0 when it isn't heard */
     int vol, pitch, reverb;
 } voice_map;
 
@@ -86,7 +86,7 @@ typedef struct {
 } listener;
 
 /* The volume (0 to 255) and pan of a sound at x y z for the listener, as the game's PlaySample works them out with
-   the first player's camera. 0 when it is too far. vol is the game's volume times 1.8, at most 255. range: the
+   the first player's camera. 0 when it's too far. vol is the game's volume times 1.8, at most 255. range: the
    radius of PlaySampleRadius or a continuous sound's range. */
 static int mix(const listener *l, float x, float y, float z, float range, int vol, int *outVol, int *outPan) {
     float dx = x - l->pos[0], dy = y - l->pos[1], dz = z - l->pos[2];
@@ -215,7 +215,7 @@ static int was_played(const g64_sound *s, shot_key k) {
 }
 
 /* After a rollback the table holds the corrected frames. A one-shot that the corrected frames no longer have in its
-   step was started by a wrong prediction: it stops. A step that the ring no longer holds in full cannot be checked:
+   step was started by a wrong prediction: it stops. A step that the ring no longer holds in full can't be checked:
    its sounds play on. */
 static void check_played(g64_sound *s, const SoundTable *t) {
     unsigned whole = oldest_whole_step(t);
@@ -307,7 +307,7 @@ static void update_voices(g64_sound *s, const listener *l, const SoundTable *t) 
             free->id = v->id;
             free->voice = 0;
             /* Another player's own sound without a place is theirs alone. A sound found long after its start plays
-               only if it is a loop the game still changes. */
+               only if it's a loop the game still changes. */
             if ((v->owner < 0 || v->owner == l->me) &&
                 (t->step - v->step <= LATE || t->step - v->touched <= TOUCHED))
                 free->voice = s->b.start(s->b.user, v->id, v->vol, v->pan, v->pitch, v->reverb);

@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     engine = engine_create(argv[1], &opt, err, sizeof err);
     if (!engine) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(engine));

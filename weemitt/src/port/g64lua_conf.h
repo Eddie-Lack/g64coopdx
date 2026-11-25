@@ -20,7 +20,7 @@
    comparisons in the same order. */
 #define l_randomizePivot() 0u
 
-/* The scripts' block of memory (g64lua.c). It is in the game's own data. A savestate holds it. */
+/* The scripts' block of memory (g64lua.c). It's in the game's own data. A savestate holds it. */
 #define G64_LUA_ARENA (2u << 20)
 extern unsigned char g64LuaArena[];
 

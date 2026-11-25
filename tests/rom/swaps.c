@@ -1,12 +1,12 @@
 /* Every level with another level's file in its place, as a level pack from a host can do it (docs/discovery/
  * level-pack.md). The game's code for the hubs, the boss levels, the bonus levels and the scenes expects what their
  * own files hold. With another file the game must either play the level or show its error screen for a level that
- * cannot be played (game mode 13). It must never stop, read outside its memory or run without end.
+ * can't be played (game mode 13). It must never stop, read outside its memory or run without end.
  *
  * For each pair of a level and another level's file, a child process builds the level from the state right after
  * power-on, with two players who press buttons and push sticks at random, and runs FRAMES frames. The parent
  * prints one line for each pair: "ok" when it played, "unplayable" when the game stopped it, and "FAIL" with the
- * signal or "hang" when the child crashed or did not finish in time.
+ * signal or "hang" when the child crashed or didn't finish in time.
  *
  * Usage: swaps ROM [FRAMES [LEVEL]]. LEVEL limits the run to one level's place. Without a ROM file it prints that it
  * was skipped and exits with 0. Linux only: it needs fork. */
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     engine = engine_create(argv[1], &opt, err, sizeof err);
     if (!engine) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(engine));

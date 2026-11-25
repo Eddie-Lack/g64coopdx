@@ -195,7 +195,7 @@ void UpdateTips(void) {
             }
             if (G64TipsOwn()) {
                 /* g64coopdx: online a tip opens for the players who ask for it, and the two tips that the game
-                   opens by itself open for everyone. The level does not stop: tip->state stays 0. */
+                   opens by itself open for everyone. The level doesn't stop: tip->state stays 0. */
                 u32 readers = 0;
                 if ((gameInfo.level == HUB1 && tip->tag == 0 && frameCount == 330 && gameInfo.cameoActive)
                     || (gameInfo.level == ACOURSE && tip->tag == 0 && frameCount == 67)) {

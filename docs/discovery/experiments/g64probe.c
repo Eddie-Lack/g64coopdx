@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
     rom = read_file(argv[1], &romSize);
     level = atoi(argv[2]);
     frames = atoi(argv[3]);
-    if (!rom) { fprintf(stderr, "cannot read the ROM\n"); return 2; }
+    if (!rom) { fprintf(stderr, "can't read the ROM\n"); return 2; }
     for (i = 0; i < n; i++) {
         GloverConfig c;
         if (!load(&api[i], argv[4 + i])) return 1;

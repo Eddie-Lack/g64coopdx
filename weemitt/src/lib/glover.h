@@ -323,7 +323,7 @@ GLOVER_API int32_t glover_audio_rate(Glover *g);   /* also on the sound thread, 
 GLOVER_API int32_t glover_audio_read(Glover *g, int16_t *out, int32_t frames);   /* frames copied */
 
 /* g64coopdx: the sound player driven from outside, for a host whose own game plays no sound (src/lib/sound.c). Call
-   these without glover_update: this library's game does not run, only its sound player does. glover_sound runs the
+   these without glover_update: this library's game doesn't run, only its sound player does. glover_sound runs the
    commands in order; handles (count of them, or NULL) gets each effect's handle, or 0. glover_sound_advance runs the
    player for retraces sixtieths of a second (0 to 600); its frames go to glover_audio_read. */
 #define GLOVER_SOUND_SONG 1      /* a: the game's song number (PrepareSong) */

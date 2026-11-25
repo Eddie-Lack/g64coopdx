@@ -3,7 +3,7 @@
  *
  * A client predicts every frame with the inputs it has and sends its own input to the host. The host forwards each
  * input at once to the other clients, which predict with it until the frame is confirmed. At a deadline the host
- * confirms each frame: it takes each player's input, or repeats that player's last input when it has not arrived. It
+ * confirms each frame: it takes each player's input, or repeats that player's last input when it hasn't arrived. It
  * runs its own copy of the game on the confirmed inputs alone, and sends the confirmed inputs to every client. A
  * client that predicted wrong loads the savestate of the first wrong frame and runs the frames again. Clients send the
  * hash of a confirmed frame now and then, and the host compares it with its own copy's hash.
@@ -18,7 +18,7 @@
 
 #define RB_MAX_PLAYERS 16
 /* The most frames of savestates and inputs that a client keeps; rb_client_new takes a smaller window for a game
- * with large savestates. A client does not predict further ahead than its window. */
+ * with large savestates. A client doesn't predict further ahead than its window. */
 #define RB_WINDOW 128
 /* Frames of confirmed inputs and reference hashes that the host keeps. */
 #define RB_HOST_WINDOW 256
@@ -40,7 +40,7 @@ typedef struct {
 
 /* A session event: a few bytes the host attaches to one confirmed frame, for something no player's input carries
  * (for g64coopdx, progress made in another instance). Every machine gives it to the game right before that frame's
- * step, and only for that frame. The core does not read the bytes. len 0 means no event. */
+ * step, and only for that frame. The core doesn't read the bytes. len 0 means no event. */
 #define RB_EVENT_MAX 16
 typedef struct {
     uint8_t len;
@@ -101,13 +101,13 @@ void rb_client_free(rb_client *c);
  * other machines then often have it before they reach that frame, and predict less. The local glove answers that much
  * later. Call it before the first step. Returns 0, or -1 (more than RB_MAX_INPUT_DELAY or a quarter of the window). */
 int rb_client_set_input_delay(rb_client *c, int frames);
-/* Runs the next frame with the local player's input, if the client is not too far ahead of the confirmed frames.
+/* Runs the next frame with the local player's input, if the client isn't too far ahead of the confirmed frames.
  * Returns 1 if it ran a frame, 0 if it must wait. Sends the input to the host either way. */
 int rb_client_step(rb_client *c, rb_input local);
 /* Sends the host the client's latest inputs and the frames it has confirmed, without running a frame. Call it on a
  * frame in which the client runs no frame. */
 void rb_client_idle(rb_client *c);
-/* Handles one message from the host. Returns 0, or -1 if the message is malformed (it is then ignored). */
+/* Handles one message from the host. Returns 0, or -1 if the message is malformed (it's then ignored). */
 int rb_client_receive(rb_client *c, const uint8_t *data, size_t len);
 /* Frames run so far, and frames confirmed so far. */
 uint32_t rb_client_frame(const rb_client *c);
@@ -118,7 +118,7 @@ uint64_t rb_client_rollback_frames(const rb_client *c);
 /* Other players' inputs received as hints (the host forwards each input before it confirms it). */
 uint32_t rb_client_hints(const rb_client *c);
 /* The host's clock, as the newest confirm message gave it. A client that runs behind it catches up; one that runs at
- * it is behind the host by the message's travel time, so the host's inputs, sent ahead by its input delay, reach the
+ * it's behind the host by the message's travel time, so the host's inputs, sent ahead by its input delay, reach the
  * client in time. */
 uint32_t rb_client_host_clock(const rb_client *c);
 /* The frame this client should have run by now: the host's clock, plus one frame for each time the host confirmed a
@@ -134,14 +134,14 @@ rb_host *rb_host_new(const rb_game_ops *ops, void *game, int players, uint32_t d
                      rb_confirm_fn on_confirm, rb_frame_fn on_final, void *user);
 void rb_host_free(rb_host *h);
 /* Advances the host's frame clock by one frame, confirms the frames whose deadline has passed, runs them on the
- * reference copy, and sends each client the confirmed frames it has not acknowledged. */
+ * reference copy, and sends each client the confirmed frames it hasn't acknowledged. */
 void rb_host_tick(rb_host *h);
-/* Handles one message from client from. Returns 0, or -1 if the message is malformed (it is then ignored). */
+/* Handles one message from client from. Returns 0, or -1 if the message is malformed (it's then ignored). */
 int rb_host_receive(rb_host *h, int from, const uint8_t *data, size_t len);
 /* Player p left: from the next confirmed frame on, their input is 0 and their messages are refused. */
 void rb_host_drop_player(rb_host *h, int p);
-/* Player p is present (1) or not (0) from the next frame the host confirms, rb_host_confirmed(h). The host does not
- * wait for the input of a player who is not present: it confirms 0, and ignores their inputs. When p becomes present,
+/* Player p is present (1) or not (0) from the next frame the host confirms, rb_host_confirmed(h). The host doesn't
+ * wait for the input of a player who isn't present: it confirms 0, and ignores their inputs. When p becomes present,
  * the host sends them confirmed frames from that frame on; their client starts there (rb_client_new_at). */
 void rb_host_set_present(rb_host *h, int p, int present);
 int rb_host_present(const rb_host *h, int p);
@@ -149,7 +149,7 @@ int rb_host_present(const rb_host *h, int p);
  * before that frame replaces the first. Returns 0, or -1 for a bad length. */
 int rb_host_set_event(rb_host *h, const uint8_t *data, size_t len);
 uint32_t rb_host_confirmed(const rb_host *h);
-/* Hashes received from clients that matched, and that did not. */
+/* Hashes received from clients that matched, and that didn't. */
 uint32_t rb_host_hash_matches(const rb_host *h);
 uint32_t rb_host_hash_mismatches(const rb_host *h);
 /* Inputs that arrived after their frame was confirmed. */

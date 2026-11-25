@@ -140,8 +140,8 @@ void NMEGetNewInstruction(Enemy *enemy, s16 instructionNum, s32 overrideConditio
     NMEBrain *br = &enemy->brain;
 
     /* g64coopdx: the most instructions the enemy's current list holds. The game walked the list without an end and
-       used an entry that was not set: an enemy without instructions, a puzzle's action that names an instruction
-       the enemy does not have, or a list whose last instruction's conditions are not met. Such an enemy keeps
+       used an entry that wasn't set: an enemy without instructions, a puzzle's action that names an instruction
+       the enemy doesn't have, or a list whose last instruction's conditions aren't met. Such an enemy keeps
        the instruction it has. */
     s32 limit = br->curList == br->conditionalList ? 10 : 30;
 

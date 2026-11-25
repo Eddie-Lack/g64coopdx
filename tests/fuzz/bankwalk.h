@@ -7,7 +7,7 @@
  * check (src/client/bankcheck.c).
  *
  * It also stops when the loaders would change one word twice (a word that two structures share), when the game would
- * write through a pointer the loaders do not fix, and when an object tree would overrun the game's matrix stack or
+ * write through a pointer the loaders don't fix, and when an object tree would overrun the game's matrix stack or
  * parentScaleStack.
  *
  * The bank fuzz target (tests/fuzz/bankcheck_fuzz.c) runs it on every bank the check accepts. The test
@@ -32,7 +32,7 @@ typedef struct {
     uint8_t *texConverted, *texLoaded, *objConverted, *objLoaded;
 } G64BankImages;
 
-/* The walk of g64_bank_shadow, which also fills out when it is not NULL. A buffer is filled only when the walk
+/* The walk of g64_bank_shadow, which also fills out when it isn't NULL. A buffer is filled only when the walk
  * reaches that point. The ROM test tests/rom/bankwalk.c compares the images with the game's own loaders. */
 const char *g64_bank_shadow_images(const uint8_t *tex, size_t tn, const uint8_t *obj, size_t on, G64BankImages *out,
                                    size_t *at, int *bank);

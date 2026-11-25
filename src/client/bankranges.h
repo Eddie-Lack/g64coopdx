@@ -1,4 +1,4 @@
-/* The game's bank switch as a table, for programs that do not link the game (the pack tool, the pack tests in
+/* The game's bank switch as a table, for programs that don't link the game (the pack tool, the pack tests in
  * tests/net and the pack fuzz target), and for the online program before the game has read its ROM (netplay.c).
  * tools/gen_bankranges.py writes bankranges_table.c from weemitt's src/game/banks.c and gen/romsyms.c.
  *
@@ -38,7 +38,7 @@ typedef struct {
 } G64RomImage;
 
 /* A g64_bank_range_fn (rombanks.h) that says only whether the game's switch has a bank: it returns 1 or 0, and the
- * range 0 to 0. user is not used. */
+ * range 0 to 0. user isn't used. */
 int g64_bank_exists(void *user, int kind, unsigned num, uint32_t *start, uint32_t *end);
 /* A g64_bank_range_fn that reads the range from the ROM's code as weemitt does. user is a G64RomImage. It returns 0
  * for a number with no bank, and for a ROM too short to hold the code. The range is ROM offsets, as

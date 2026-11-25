@@ -208,7 +208,7 @@ static int fields_of(int token, const uint8_t *d, size_t have, const walk *w, co
             return 26;
         default:
             /* The parser reads only the type and the time of such an instruction, and the rest as tokens. */
-            *why = "an enemy's instruction has a type the game does not know";
+            *why = "an enemy's instruction has a type the game doesn't know";
             return -1;
         }
     case T_CAMEO_INSTRUCTION:
@@ -220,7 +220,7 @@ static int fields_of(int token, const uint8_t *d, size_t have, const walk *w, co
         case 5: return 8;
         case 6: return 10;
         default:
-            *why = "a cameo's instruction has a type the game does not know";
+            *why = "a cameo's instruction has a type the game doesn't know";
             return -1;
         }
     default:
@@ -267,7 +267,7 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
     case T_ENEMY:
         /* The type picks an entry of the game's table of 59 enemy kinds. The level's list holds 30 enemies. */
         if (be16(d) < 0 || be16(d) > 58)
-            return "an ENEMY has a type the game does not have";
+            return "an ENEMY has a type the game doesn't have";
         if (++w->enemies > 30)
             return "the level has more than 30 enemies";
         w->enemy = 1;
@@ -304,11 +304,11 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         break;
     case T_GARIB:
         if (be16(d + 12) < 0 || be16(d + 12) > 3)
-            return "a GARIB has a type the game does not have";
+            return "a GARIB has a type the game doesn't have";
         break;
     case 135: /* PICKUP */
         if (be16(d) < 0 || be16(d) > 14)
-            return "a PICKUP has a type the game does not have";
+            return "a PICKUP has a type the game doesn't have";
         break;
     case 141: /* ROPEBRIDGE: its planks, the planks' inertia, the axis they turn on */
         if (be16(d) < 1 || be16(d) > 100)
@@ -326,11 +326,11 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         break;
     case 187: /* TIP: its place, then its number. The game has tips 0 to 32. */
         if (be16(d + 12) < 0 || be16(d + 12) > 32)
-            return "a TIP has a number the game does not have";
+            return "a TIP has a number the game doesn't have";
         break;
     case T_STARTPOINT:
         if (be16(d) < 0 || be16(d) >= w->points)
-            return "a STARTPOINT names a point the platform's path does not have";
+            return "a STARTPOINT names a point the platform's path doesn't have";
         break;
     case T_CONDITION: {
         /* Conditions 27 to 30 compare a puzzle variable, of which the level has 100, with a number, or with
@@ -339,12 +339,12 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
         /* The game has conditions 9 to 44. Another number, cut to a byte, becomes a camera's condition without a
            camera's box. Conditions 31 and 32 test a platform's confine against one of its 6 limits. */
         if (id < 9 || id > 44)
-            return "a puzzle condition has a number the game does not have";
+            return "a puzzle condition has a number the game doesn't have";
         if ((id == 31 || id == 32) && (value < 0 || value > 5))
-            return "a puzzle condition names a confine limit that is not 0 to 5";
+            return "a puzzle condition names a confine limit that isn't 0 to 5";
         if (id >= 27 && id <= 30) {
             if (tag >= 100 ? (tag > 199 || value < 0 || value > 99) : tag < 0)
-                return "a puzzle condition names a variable the level does not have";
+                return "a puzzle condition names a variable the level doesn't have";
         }
         break;
     }
@@ -354,17 +354,17 @@ static const char *apply(int token, const uint8_t *d, walk *w) {
            variable, a delay and the flags. */
         int id = be16(d);
         if (id < 45 || id > 87)
-            return "a puzzle action has a number the game does not have";
+            return "a puzzle action has a number the game doesn't have";
         if (id >= 56 && id <= 58) {
             int tag = be16(d + 6);
             uint32_t bits = ((uint32_t)d[2] << 24) | ((uint32_t)d[3] << 16) | ((uint32_t)d[4] << 8) | d[5];
             if (tag < 0 || tag > 99)
-                return "a puzzle action names a variable the level does not have";
+                return "a puzzle action names a variable the level doesn't have";
             if (d[13] & 0x80) {
                 /* The number is then a variable's: a float from 0 up to, not including, 100. As bits, such a
                    float is zero, or positive and below 100.0 (0x42C80000). */
                 if (bits != 0 && bits != 0x80000000u && (bits >= 0x42C80000u || bits < 0x00800000u))
-                    return "a puzzle action reads a variable the level does not have";
+                    return "a puzzle action reads a variable the level doesn't have";
             }
         }
         break;
@@ -468,7 +468,7 @@ const char *g64_lev_check(const uint8_t *lev, size_t n, g64_lev_token_fn fn, voi
         return "the file is too short to be a level";
     size = ((size_t)lev[0] << 24) | ((size_t)lev[1] << 16) | ((size_t)lev[2] << 8) | lev[3];
     if (size != n)
-        return "the file does not start with its own size";
+        return "the file doesn't start with its own size";
     /* The name, with its zero byte. */
     for (pos = 4; pos < n && lev[pos] != 0; pos++) {
     }
@@ -489,7 +489,7 @@ const char *g64_lev_check(const uint8_t *lev, size_t n, g64_lev_token_fn fn, voi
         if (token == T_END)
             return NULL;
         if (token < 0 || token > T_MAX || fieldBytes[token] == NONE)
-            return "the file has a token the game does not know";
+            return "the file has a token the game doesn't know";
         need = needs(token, w);
         why = missing(need, w);
         if (why)

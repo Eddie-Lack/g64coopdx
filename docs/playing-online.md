@@ -3,8 +3,8 @@
 This is the first online version. Two to sixteen players play together over the internet or a local network. Everyone
 starts in the hub, the level with the portals to the game's worlds. The hub has a stage for each crystal in its
 fountain (HUB1 to HUB8), and everyone starts in the first. Each player can then go through portals and doors alone:
-every player sees the level they are in, with the other players who are in it. Each player sees their own glove's
-camera. It is a test build: see "Limits" below.
+every player sees the level they're in, with the other players who are in it. Each player sees their own glove's
+camera. It's a test build: see "Limits" below.
 
 ## What you need
 
@@ -24,7 +24,7 @@ camera. It is a test build: see "Limits" below.
 
 1. Put your ROM next to the program (`g64coopdx.exe` on Windows, `g64coopdx` on Linux) and name it `glover.z64`.
 2. Start the program: double-click `g64coopdx.exe` on Windows, or run `./g64coopdx` on Linux. The start screen opens.
-   It is the game's own title menu, with the online choices on its bars (its rows): **Host a game**, **Join a
+   It's the game's own title menu, with the online choices on its bars (its rows): **Host a game**, **Join a
    game**, **Your options** and **Play alone**.
 3. To host: open **Host a game**, set **Players** and press **Start hosting**. The screen shows a room code such as
    `F3J7WZ`; press **Copy code** and send it to the other players. The game starts when everyone is in, or when you
@@ -81,7 +81,7 @@ program on networks. Allow it.
 Each program applies your input 1 frame (50 ms) after you press it, and sends it at once: the others then get it
 before they need it, and the other gloves move without corrections. The start screen's **Input delay** (or
 `--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump to a
-corrected place; a lower one makes your own glove answer sooner. Each player chooses their own. It is under
+corrected place; a lower one makes your own glove answer sooner. Each player chooses their own. It's under
 **Your options**.
 
 Your glove's and ball's colors are under **Your options**, **Colors**: **Automatic** (the color of your player
@@ -133,7 +133,7 @@ A level pack is a folder with a custom level that takes the place of one of the 
 bonus level or a scene too. The host starts the program with `--pack FOLDER`. The level shows when you enter the
 level it replaces. A pack may also hold a script ([scripts.md](scripts.md)).
 
-The game comes with one pack to try: the folder `packs/garib-island`, in the download and in the repository. It is a
+The game comes with one pack to try: the folder `packs/garib-island`, in the download and in the repository. It's a
 small level of its own in the place of Atlantis 1: a sand island with a row of 11 garibs, three boxes, two checkpoints
 and the exit. You land on a wooden raft that hovers over the sand and moves to and fro at the start of the row. A
 second raft sits in the sea, and a bell from Carnival stands beside the row. The rafts are the pack's own model. The
@@ -149,25 +149,25 @@ A player who joins without the pack can download it from the host:
   Nothing is downloaded before you say yes. If you say no, you leave the game.
 - A pack with models also shows the size of its models. Models make a pack larger: they may be up to 4 MB.
 - How long a download takes depends on the time a message needs to go to the host and back. The program gets about
-  8 KB each time. Over the internet that is often about 100 ms, and then 1 MB takes about 13 seconds. On a home
+  8 KB each time. Over the internet that's often about 100 ms, and then 1 MB takes about 13 seconds. On a home
   network 1 MB takes about 5 seconds. It takes longer when several players download at once.
 - The host keeps your place while you download: five minutes for a pack of up to about 1.9 MB. For a larger pack it
   waits longer, up to about 12.5 minutes.
 - With options on the command line nobody can be asked. Add `--accept-pack` to download the host's pack. Without
   it, the program ends with a message that names the pack.
-- The program checks a downloaded pack before use. The check does not catch everything a bad level file can do
+- The program checks a downloaded pack before use. The check doesn't catch everything a bad level file can do
   ([discovery/level-file-safety.md](discovery/level-file-safety.md)). Take a pack only from a host you trust.
 - The program keeps a downloaded pack in the folder `packs` next to its settings (`%APPDATA%\g64coopdx\Glover\packs`
   on Windows). The next time, it asks and then uses the kept copy.
 - A player who has the folder can still start with `--pack FOLDER`, and nothing is downloaded.
 - A player who starts with a pack and joins a host without one plays without it.
 
-The host does not send a pack in three cases, and a player then needs the folder. The first: the pack's level file
+The host doesn't send a pack in three cases, and a player then needs the folder. The first: the pack's level file
 is an unchanged level of the game. That is game data (data from the ROM), which never travels. The second: the level
-file does not pass the check. The third: the pack's models do not pass the check on the host's ROM. The host's log
+file doesn't pass the check. The third: the pack's models don't pass the check on the host's ROM. The host's log
 says which case it was. A pack whose level names an object that is in none of the level's banks is never sent: the
 host's session stops before it starts. `g64pack check FOLDER --rom ROM` says whether a pack can be downloaded
-(`g64pack` is the pack tool, [below](#making-a-pack)). Without `--rom` it cannot check the first and the third case,
+(`g64pack` is the pack tool, [below](#making-a-pack)). Without `--rom` it can't check the first and the third case,
 and it says so.
 
 ### Making a pack
@@ -193,8 +193,8 @@ ids are the same. `g64pack check MyLevel --rom ROM` also checks it against your 
 a pack. `g64pack check` also prints a line on the level file's structure. A warning there names a part of the file
 that the game may read wrongly.
 
-The game also checks a level as it reads it. If a pack's level names something the game does not have, the level
-cannot be played: the game tells you, and sends everyone in it back to the hub.
+The game also checks a level as it reads it. If a pack's level names something the game doesn't have, the level
+can't be played: the game tells you, and sends everyone in it back to the hub.
 
 A pack's level may use models you imported into Glovebox, and objects of another level. The pack holds the
 imported models in its `models.bin`. For objects of another level, it names that level's banks, and each player's
@@ -202,7 +202,7 @@ game loads them from their own ROM. A pack names at most 4 texture banks and 4 o
 **Export level pack** button, in its **Export patch** dialog, writes the pack, with a `models.bin` when the level
 needs one. With `--models FILE`, `g64pack make` adds a `models.bin` that Glovebox wrote.
 
-A pack cannot yet hold a level that uses what Glovebox's game mod adds: rotation and scale on enemies, platforms,
+A pack can't yet hold a level that uses what Glovebox's game mod adds: rotation and scale on enemies, platforms,
 pick-ups and water, and the extra level slots. Glovebox says when a level needs the mod.
 
 ## Names, the player list and chat
@@ -219,7 +219,7 @@ In a game, press Esc and open **Online game**:
 A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
 show there too.
 
-A removed player cannot come back: their address is refused for that game. Another player at the same address,
+A removed player can't come back: their address is refused for that game. Another player at the same address,
 such as someone in the same household, is refused too.
 
 ## Everyone needs the same version
@@ -256,7 +256,7 @@ nothing.
 
 ## Your pause menu
 
-Start (Enter on the keyboard) opens your own pause menu. It does not stop the game: the others play on, and your
+Start (Enter on the keyboard) opens your own pause menu. It doesn't stop the game: the others play on, and your
 glove waits. The menu, the chat's lines over the picture and a script's text are drawn by the game, in its own
 letters and panes.
 
@@ -272,7 +272,7 @@ choices under **Online game**.
 
 ## Tips
 
-Press B at a tip to read it. Reading does not stop the game: the others play on, and your glove waits. Nothing
+Press B at a tip to read it. Reading doesn't stop the game: the others play on, and your glove waits. Nothing
 hurts you while you read. A turns the page, and on the last page it closes the tip. The tips that the game opens by
 itself open for every player in the level, and each player closes their own.
 
@@ -286,14 +286,14 @@ checks the hash of its game against the host's every 10 frames. A hash that diff
 The window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any
 desyncs. The program also prints a status line every 100 frames.
 
-The messages between you and the host are encrypted: chat, names and inputs cannot be read on the way, also not by
-the relay. The room code and the version of your program are not secret.
+The messages between you and the host are encrypted: chat, names and inputs can't be read on the way, also not by
+the relay. The room code and the version of your program aren't secret.
 
-Each level that has players in it runs as its own game, an instance. Your machine runs only the instance you are in.
+Each level that has players in it runs as its own game, an instance. Your machine runs only the instance you're in.
 The host runs a copy of every instance. When you take an exit, you leave your instance alone. The host puts you in
-the instance of the level the exit leads to, or starts a new one. To join an instance that is already running, your
+the instance of the level the exit leads to, or starts a new one. To join an instance that's already running, your
 machine builds the level from its start and runs the inputs played in it so far; that takes a moment, and the picture
-stops meanwhile. The window's title shows the level number you are in.
+stops meanwhile. The window's title shows the level number you're in.
 
 You hear your own game: the music of your level, and the sounds near your own glove's camera, wherever the other
 players are. Another player's own clicks (their camera, their pause) are theirs alone. The master, music and effects
@@ -302,7 +302,7 @@ started stops, and a sound it had missed plays, up to half a second late.
 
 g64coopdx keeps its own folder for your settings, saves and logs: `%APPDATA%\g64coopdx\Glover` on Windows. On its
 first start it copies weemitt's settings, if there are any, so your keys and picture settings carry over. In an
-online game, your own settings that change the game do not apply: the cheats are off, the camera follows at the
+online game, your own settings that change the game don't apply: the cheats are off, the camera follows at the
 original game's speed, and the ball controls are the host's choice ([above](#from-a-command-prompt)). Every machine
 must run the same game.
 
@@ -325,14 +325,14 @@ game data, only addresses and counts.
   A bullet that flies straight can only hit the player nearest to it.
 - A cutscene plays for the first player in the level. The other players are held while it plays and see its
   camera. In the control room before the last boss, the other players watch the first player's scene.
-- An exit takes you at once: there is no spin, fade or end-of-level screen.
+- An exit takes you at once: there's no spin, fade or end-of-level screen.
 - Progress made by another player reaches your level at once, but only some things show it before the level starts
   again. A way room door opens at once. The pedestals in a way room move only at its next start.
 - When someone puts a crystal in the hub's fountain, you stay in your hub stage. Your next exit to the hub takes you
   to the newest stage.
 - In the crystal cave, each player who comes with a crystal due has their own flight to the fountain: only their
-  glove waits. A player who came with nothing due has no flight, even if a crystal becomes due while they are there.
-  If another player puts the last crystal due in first, there is no flight left for you.
+  glove waits. A player who came with nothing due has no flight, even if a crystal becomes due while they're there.
+  If another player puts the last crystal due in first, there's no flight left for you.
 - A player who comes into a running level starts where the level put the first player.
 - A joiner who leaves vanishes; the game goes on for the others, and someone else can take the place. If the host
   leaves, the game ends.

@@ -2,7 +2,7 @@
  * Offline a tip stops the game while the player reads it. Online the level goes on: each player reads a tip on
  * their own, only the reader's glove is held, and the reader's A turns the page or closes the tip.
  *   A. A level with a tip, two players. Player 1 stands at the tip and presses B. Player 1 reads it and player 0
- *      does not. Player 0's glove still answers their stick, player 1's does not. Player 1 presses A until the
+ *      doesn't. Player 0's glove still answers their stick, player 1's doesn't. Player 1 presses A until the
  *      tip closes, and their glove answers the stick again.
  *   B. Both players stand at the tip and press B: both read it. Player 0 closes theirs, and player 1 still reads.
  *   C. The first hub opens a tip by itself at frame 330. It opens for both players. With no A pressed the level

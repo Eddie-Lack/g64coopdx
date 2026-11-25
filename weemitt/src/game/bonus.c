@@ -76,7 +76,7 @@ static u32 controlRoomSnapFrame;
 /* g64coopdx: the slot of the player whose part runs (EachOtherPlayer). */
 static s32 cannonSlot;
 
-/* g64coopdx: runs a bonus level's per-player part for each player who is not in the globals, with them in the
+/* g64coopdx: runs a bonus level's per-player part for each player who isn't in the globals, with them in the
    globals. */
 static void EachOtherPlayer(void (*part)(void)) {
     s32 p;

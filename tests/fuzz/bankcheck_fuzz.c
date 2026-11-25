@@ -63,12 +63,12 @@ int LLVMFuzzerInitialize(int *argc, char ***argv) {
     }
     /* Without the fixture the run would skip two of its three modes and still pass. */
     if (fixtureN != 1248) {
-        fprintf(stderr, "bankcheck_fuzz: tests/fixtures/cube.models.bin is missing or is not 1248 bytes\n");
+        fprintf(stderr, "bankcheck_fuzz: tests/fixtures/cube.models.bin is missing or isn't 1248 bytes\n");
         abort();
     }
     rom = g64_rombanks_build(fixture, fixtureN, cube_range, NULL);
     if (!rom) {
-        fprintf(stderr, "bankcheck_fuzz: the index of the fixture's banks could not be built\n");
+        fprintf(stderr, "bankcheck_fuzz: the index of the fixture's banks couldn't be built\n");
         abort();
     }
     atexit(report);

@@ -18,10 +18,10 @@
  * file's name, a zero byte, its length (u32, little-endian) and its bytes. Every machine of a session must have the
  * pack with the same id. A pack without models.bin has the id it had before models.bin was part of the format.
  *
- * Every byte of a pack is untrusted: the manifest's parser takes only what is listed above, and the level file's
- * size is checked against its own first word. The game's level parser is the original game's and does not check
+ * Every byte of a pack is untrusted: the manifest's parser takes only what's listed above, and the level file's
+ * size is checked against its own first word. The game's level parser is the original game's and doesn't check
  * what it reads, so a pack that comes from another player must also pass the check of the level file's structure
- * (levcheck.h) before it is used. A pack from a folder the player chose is not held to that check. Every
+ * (levcheck.h) before it's used. A pack from a folder the player chose isn't held to that check. Every
  * models.bin passes the bank check (bankcheck.h) before the pack is read, from a folder too: the game's loaders
  * would write outside a bad bank. */
 #ifndef G64_PACK_H
@@ -67,7 +67,7 @@ typedef struct {
     const G64RomBanks *rom;
 } g64_pack_banks;
 
-/* Reads a manifest's bytes into name and level. Returns 0, or -1 for a manifest that is not exactly as pack.h
+/* Reads a manifest's bytes into name and level. Returns 0, or -1 for a manifest that isn't exactly as pack.h
  * describes. The fuzz target feeds it random bytes. */
 int g64_pack_parse_manifest(const uint8_t *d, size_t n, g64_pack *out);
 /* 0 when lev is a level file by its outside: at least a size and a name, and its first word is its length. */
@@ -105,7 +105,7 @@ int g64_pack_from_blob(const uint8_t *blob, size_t n, size_t manifestSize, size_
                        size_t errSize);
 /* On a joiner: the pack from the bytes it downloaded. The sizes, id and name are those of the host's offer. The pack
  * is read in the strict form, and its models must pass the rules that need the ROM: banks->rom must be set when
- * modelsSize is not 0. Then its id and name must be the offer's. Returns 0, or -1 with a message in err and out
+ * modelsSize isn't 0. Then its id and name must be the offer's. Returns 0, or -1 with a message in err and out
  * empty. Every byte, size and name is untrusted. */
 int g64_pack_from_download(const uint8_t *blob, size_t n, size_t manifestSize, size_t levSize, size_t scriptSize,
                            size_t modelsSize, const uint8_t id[G64_PACK_ID], const char *name,
@@ -132,7 +132,7 @@ int g64_pack_rom_level(const g64_pack *p, const uint8_t *rom, size_t size);
  * The level parser (weemitt's parse.c) asks FindObject for an object by its id in these tokens, at these offsets of
  * the token's fields: PLATFORM, BACKGROUND, LANDSCAPE and CAMEO_OBJ at 0, DESTRUCTIBLE at 6 (its debris; 0 is none),
  * ROPEBRIDGE at 6, SINEBRIDGE at 4, ORBITBRIDGE at 8 and WATER at 38. Every other object the parser finds has a name
- * of the game's own (an enemy's, a pick-up's, a garib's), which the file does not hold. tests/rom/levcheck.c compares
+ * of the game's own (an enemy's, a pick-up's, a garib's), which the file doesn't hold. tests/rom/levcheck.c compares
  * the list with the ids FindObject is asked for on every level of the ROM. */
 
 /* Called for each object id a level file names, with its token's offset in the file and the token. */
@@ -174,8 +174,8 @@ void g64_pack_layout_of(const g64_pack *p, size_t romSize, g64_pack_layout *l);
 void g64_pack_layout_fill(const g64_pack *p, const g64_pack_layout *l, uint8_t *buf);
 /* Packs that came from a host are kept in base/packs/ID, where ID is the pack's id as 32 hexadecimal digits. No
  * text from the network is part of a path. g64_pack_cache_dir writes that folder's path to out; it returns -1 when
- * the path does not fit. g64_pack_cache_save writes a pack there, and removes a script.lua or models.bin that the
- * pack does not have. g64_pack_cache_load reads the pack with that id back: the files must have that id, pass the
+ * the path doesn't fit. g64_pack_cache_save writes a pack there, and removes a script.lua or models.bin that the
+ * pack doesn't have. g64_pack_cache_load reads the pack with that id back: the files must have that id, pass the
  * strict check and the bank check with banks again, since anything may have changed them. */
 int g64_pack_cache_dir(const char *base, const uint8_t id[G64_PACK_ID], char *out, size_t outSize);
 int g64_pack_cache_save(const char *base, const g64_pack *p, char *err, size_t errSize);

@@ -10,7 +10,7 @@
  *   C. The index of the whole ROM skips no bank, and its queries find every id of B. It finds the hashes of one
  *      texture's texels, one vertex array and one G_VTX block of the ROM, and not those of a copy with one byte
  *      changed. It prints its counts. The time it took goes to stderr.
- *   D. The table of the game's bank switch (src/client/bankranges.h), for programs that do not link the game, has
+ *   D. The table of the game's bank switch (src/client/bankranges.h), for programs that don't link the game, has
  *      the same bank numbers and gives the same ranges on this ROM as the game's own switch (G64BankRom).
  *
  * The output holds counts only, no ids or hashes. make rombanks runs it on Linux and under Wine and compares the
@@ -92,7 +92,7 @@ static size_t unique(uint32_t *ids, size_t n) {
     return k + 1;
 }
 
-/* The bytes of a bank, decompressed when they are an FLA2 stream. Returns NULL when the bank cannot be read. The
+/* The bytes of a bank, decompressed when they are an FLA2 stream. Returns NULL when the bank can't be read. The
  * caller frees *buf. */
 static const uint8_t *bank_bytes(const uint8_t *rom, size_t romSize, int kind, unsigned num, size_t *n, uint8_t **buf) {
     uint32_t start, end;
@@ -160,7 +160,7 @@ static int check_loaded_hashes(const G64RomBanks *b, int kind, const uint8_t *d,
             size_t bytes = ((size_t)rd16(t + 0x0C) * rd16(t + 0x0E) << rd16(t + 0x1A)) / 2;
             if (pal != 0 && pal - base > texels && pal - base <= end)
                 end = pal - base;
-            /* The index does not hash texels that do not fit; the count of those is checked in C. */
+            /* The index doesn't hash texels that don't fit; the count of those is checked in C. */
             if (rd16(t + 0x1A) <= 3 && bytes != 0 && texels <= end && bytes <= end - texels) {
                 if (!has_at(b, g64_rombanks_has_texels_hash, d, n, texels, bytes))
                     return 0;
@@ -304,7 +304,7 @@ static void check_bank(const G64RomBanks *all, const uint8_t *rom, size_t romSiz
         uint32_t slot = 0;
         if (!(kind == G64_BANK_TEXTURE ? g64_rombanks_has_texture_id(all, want[i])
                                        : g64_rombanks_has_object_id(all, want[i]))) {
-            printf("FAIL %s bank %u: the index of the ROM does not have id number %lu\n", what, num, (unsigned long)i);
+            printf("FAIL %s bank %u: the index of the ROM doesn't have id number %lu\n", what, num, (unsigned long)i);
             failed = 1;
             break;
         }
@@ -313,7 +313,7 @@ static void check_bank(const G64RomBanks *all, const uint8_t *rom, size_t romSiz
         else
             FindObject(&slot, want[i], "rombanks", 0);
         if (slot == 0) {
-            printf("FAIL %s bank %u: the game does not find id number %lu of the index\n", what, num,
+            printf("FAIL %s bank %u: the game doesn't find id number %lu of the index\n", what, num,
                    (unsigned long)i);
             failed = 1;
             break;
@@ -427,7 +427,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     e = engine_create(argv[1], &opt, err, sizeof err);
     if (!e) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(e));

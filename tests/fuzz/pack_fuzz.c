@@ -154,7 +154,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
        16, as a host may send them. Without it they are cut from the rest so that they add up, as most offers do.
        The rest of the input is the download. A split that fails leaves the pack empty. One that succeeds has the
        four sizes, which add up to the download, and the id that g64_pack_from_bytes gives for the same parts. A
-       joiner's read with that id and name succeeds only for a pack without models, as there is no ROM index here. */
+       joiner's read with that id and name succeeds only for a pack without models, as there's no ROM index here. */
     if (size >= 17) {
         static const g64_pack_banks table = {g64_bank_exists, NULL, NULL};
         const uint8_t *rest = data + 17;
