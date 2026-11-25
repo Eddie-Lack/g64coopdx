@@ -257,9 +257,21 @@ static void copy_first_settings(const char *path) {
     fclose(in);
 }
 
-static void load_save(void) {
-    FILE *f;
+/* Reads the save file at savePath into the EEPROM. A missing file leaves it as it was. A short file fills what it
+   has; the rest stays as it was. The game checks the result: a wrong cartridge id makes a new save, and a file
+   whose checksum is wrong becomes empty (CheckCRC in eeprom.c). */
+static void read_save(void) {
+    FILE *f = fopen(savePath, "rb");
 
+    if (f != NULL) {
+        if (fread(port_eeprom, 1, sizeof(port_eeprom), f) != sizeof(port_eeprom)) {
+            plog_printf("weemitt: the save file %s is short; the rest reads as empty", savePath);
+        }
+        fclose(f);
+    }
+}
+
+static void load_save(void) {
     port_save_ballworld = port_get_ballworld();
     if (opt.savePath) {
         snprintf(savePath, sizeof(savePath), "%s", opt.savePath);
@@ -270,18 +282,44 @@ static void load_save(void) {
             SDL_free(pref);
         }
     }
-    f = fopen(savePath, "rb");
-    if (f != NULL) {
-        if (fread(port_eeprom, 1, sizeof(port_eeprom), f) != sizeof(port_eeprom)) {
-            plog_printf("weemitt: the save file %s is short; the rest reads as empty", savePath);
-        }
-        fclose(f);
-    }
+    read_save();
 }
 
+#ifdef PORT_STUDIO
+/* g64coopdx: playing alone from the start screen. Solo has a save file of its own in the program's folder,
+   eeprom-solo.bin, or the file that --save names. Its second file is CHOSIS (g64solo.c), and the game writes all
+   its files at once, so solo never writes another save file. The EEPROM starts empty, as at power-on, and then
+   reads the file. */
+static void load_solo_save(void) {
+    port_save_ballworld = port_get_ballworld();
+    port_save_locked = 0;
+    if (opt.savePath == NULL) {
+        char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
+        snprintf(savePath, sizeof(savePath), port_get_ballworld() ? "%seeprom-solo-ballworld.bin" : "%seeprom-solo.bin",
+                 pref ? pref : "");
+        if (pref) {
+            SDL_free(pref);
+        }
+    }
+    memset(port_eeprom, 0, sizeof(port_eeprom));
+    read_save();
+    port_eeprom_dirty = 0;
+}
+#endif
+
+#ifdef _WIN32
+/* From kernel32. windows.h itself is not included: its names clash with this file's (mouse_event). */
+__declspec(dllimport) int __stdcall MoveFileExA(const char *from, const char *to, unsigned long flags);
+#define MOVEFILE_REPLACE_EXISTING 0x1
+#define MOVEFILE_WRITE_THROUGH 0x8
+#endif
+
+/* Writes the EEPROM to the save file. It writes a new file next to it first and then puts that file in its place.
+   A write that fails leaves the old file as it was. */
 static void write_save(void) {
     FILE *f;
     char tmp[1100];
+    int ok;
 
     port_eeprom_dirty = 0;
     if (opt.headlessFrames || port_save_locked) {
@@ -293,11 +331,22 @@ static void write_save(void) {
         plog_printf("weemitt: cannot write the save file %s", tmp);
         return;
     }
-    fwrite(port_eeprom, 1, sizeof(port_eeprom), f);
-    fclose(f);
-    remove(savePath);
-    if (rename(tmp, savePath) != 0) {
+    ok = fwrite(port_eeprom, 1, sizeof(port_eeprom), f) == sizeof(port_eeprom);
+    ok = fclose(f) == 0 && ok;
+    if (!ok) {
+        plog_printf("weemitt: cannot write the save file %s", tmp);
+        remove(tmp);
+        return;
+    }
+#ifdef _WIN32
+    /* Windows's rename does not replace a file. MoveFileEx does, in one step. */
+    ok = MoveFileExA(tmp, savePath, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+#else
+    ok = rename(tmp, savePath) == 0;
+#endif
+    if (!ok) {
         plog_printf("weemitt: cannot replace the save file %s", savePath);
+        remove(tmp);
     }
 }
 
@@ -2441,6 +2490,7 @@ int main(int argc, char **argv) {
                 g64_launcher_solo();
                 port_set_skip_intro(1);
                 soloStart = 1;
+                load_solo_save();
             }
 
             if (r < 0) {
@@ -2792,6 +2842,12 @@ int main(int argc, char **argv) {
 #ifndef PORT_STUDIO
         /* The studio keeps the save in memory: going back on the timeline would rewrite the player's file. */
         if (port_eeprom_dirty) {
+            write_save();
+        }
+#else
+        /* g64coopdx: playing alone writes its own save file (load_solo_save). The program hides the timeline then.
+           Online, the save is the session's and stays in memory. */
+        if (soloStart && !netplay_active() && port_eeprom_dirty) {
             write_save();
         }
 #endif

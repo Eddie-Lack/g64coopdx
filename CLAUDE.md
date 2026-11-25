@@ -77,6 +77,7 @@ follows docs/discovery/roadmap.md. Each phase's section there says what's done a
     make instances     # players moving between instances of the real game, on Linux and Wine (needs the ROM)
     make swaps         # every level with every other level's file in its place: played or stopped, never a crash (needs the ROM)
     make scenery       # level files with hundreds of scenery objects, in 10 levels, also with 16 players: played or stopped, never a crash; Linux and Wine must print the same (needs the ROM)
+    make solosave      # SOLO keeps its save: play, save, quit, start again; CHOSIS comes back; damaged files; Linux and Wine, under Xvfb (needs the ROM)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed
@@ -119,6 +120,6 @@ run locally: set `GLOVER_ROM`.
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
 | The glove and ball models a player chooses, drawn only in views online | weemitt/src/game/g64models.c (`G64ActorModel`, the lists), the hook in weemitt/src/game/object.c (`DrawActor`); the test tests/rom/playermodels.c |
-| Solo from the start screen: straight to the file select, and the complete file CHOSIS | weemitt/src/game/g64solo.c, the hooks in weemitt/src/game/main.c (`RunGameInit`) and weemitt/src/game/frontend.c (`DrawScreen`, the file names) |
+| Solo from the start screen: straight to the file select, the complete file CHOSIS, and solo's save file | weemitt/src/game/g64solo.c, the hooks in weemitt/src/game/main.c (`RunGameInit`) and weemitt/src/game/frontend.c (`DrawScreen`, the file names); the save file in weemitt/src/port/platform.c (`load_solo_save`, `write_save`); the test tests/rom/solosave.py (`make solosave`) |
 | Mouse and keyboard: the mapper from mouse and keys to controller input, and its tests | weemitt/src/port/mouselook.c (`mouselook.h`), the events and the grab in weemitt/src/port/platform.c; tests/net/mouselook_test.c, tests/rom/mouselook.c (`make twoplayers`) |
 | How players host and join | docs/playing-online.md |
