@@ -213,7 +213,7 @@ const char *g64_pack_check_models(const uint8_t *models, size_t n, const g64_pac
     size_t where = 0;
     const char *why;
     if (!models || n == 0 || n > G64_PACK_MODELS_MAX) {
-        why = "models.bin is empty or larger than 4 MiB and its header";
+        why = "models.bin is empty or larger than 4 MiB plus its header";
     } else {
         why = g64_models_check(models, n, banks ? banks->exists : NULL, banks ? banks->user : NULL, &m, &where);
         if (!why && banks && banks->rom)
@@ -420,7 +420,7 @@ int g64_pack_load(const char *dir, const g64_pack_banks *banks, g64_pack *out, c
         /* The script and the models are optional: a file that is there must be one. */
         snprintf(err, errSize, "the level pack's script.lua is empty, too long, or not Lua source text");
     } else if (read_optional(dir, "models.bin", G64_PACK_MODELS_MAX, &models, &modelsSize) != 0) {
-        snprintf(err, errSize, "the level pack's models.bin is empty, or larger than 4 MiB and its header");
+        snprintf(err, errSize, "the level pack's models.bin is empty, or larger than 4 MiB plus its header");
     } else {
         r = g64_pack_from_bytes(manifest, manifestSize, lev, levSize, script, scriptSize, models, modelsSize, banks, 0,
                                 out, err, errSize);

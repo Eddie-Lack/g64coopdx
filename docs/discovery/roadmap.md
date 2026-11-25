@@ -60,14 +60,14 @@ Status (15 November 2026):
 
 ## Phase 1: two gloves offline
 
-Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`). A spike is a prototype. The swap
-is now the design (game change 2, below). Each extra player's glove, ball, camera, pad and
-their control blocks live in a slot on the game's heap and are swapped into the globals for that player's part of the
-frame. The other players' gloves and balls are drawn as proxy actors. A proxy actor is an actor in the game's actor list
-that only shows what a player's slot holds. Four gloves play the first hub level for 3,000 frames with the same output
-and hashes on Linux and Windows (`make twoplayers`); with one player the game still equals the baseline. Each player's
-view is drawn with that player swapped in, and the gloves after the first have colors of their own. The known gap on
-that date: enemies, collectables and puzzles saw only player 1. Phase 3 (below) records the later work on them.
+Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`). A spike is a prototype. Each extra
+player's glove, ball, camera, pad and their control blocks live in a slot on the game's heap and are swapped into the
+globals for that player's part of the frame. The other players' gloves and balls are drawn as proxy actors. A proxy
+actor is an actor in the game's actor list that only shows what a player's slot holds. Four gloves play the first hub
+level for 3,000 frames with the same output and hashes on Linux and Windows (`make twoplayers`); with one player the
+game still equals the baseline. Each player's view is drawn with that player swapped in, and the gloves after the first
+have colors of their own. The known gap on that date: enemies, collectables and puzzles saw only player 1. Phase 3
+(below) records the later work on them.
 
 - Game change 1: a pad per player.
 - Game change 7: an option that turns off every PC addition of weemitt's that the controller can reach, such as the

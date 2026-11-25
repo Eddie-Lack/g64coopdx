@@ -235,8 +235,10 @@ g64coopdx does not follow that rule (the owner's decision). Two facts still shap
   running instance gets a new slot at the frame whose confirmed inputs add them (`G64SetPresent`, `G64AddPlayer`).
   The heap is in `port_ram` and has about 21 MB free in a level (`weemitt/docs/host-world.md`); weemitt's host world
   already allocates there.
-- A table of pointers per player (`players[i].hand` and so on) points at the N64 globals for player 0 and at the heap
-  for the others.
+- The game's code keeps using the N64 globals. Before each other player's part of the frame, that player's slot and
+  the globals trade places, and after it they trade back (the swap, [roadmap.md](roadmap.md#phase-1-two-gloves-offline),
+  game change 2). The design first planned a table of pointers per player (`players[i].hand` and so on) at every use.
+  That is no longer the plan.
 - Larger frame buffers (the object matrices, the display list, the vertices) go on the heap too, or into enlarged
   globals where a pointer cannot easily be redirected.
 - The savestate covers all of `port_ram` and the game's variables outside it (`weemitt/bruteforce/docs/engine.md`,
