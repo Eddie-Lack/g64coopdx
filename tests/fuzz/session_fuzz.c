@@ -43,7 +43,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             senders[i].port = (uint16_t)(5000 + i);
         }
     }
-    /* The sessions are made again whenever the joiner has failed or the host has lost a player: the fuzzer cannot
+    /* The sessions are made again whenever the joiner has failed or the host has lost a player: the fuzzer can't
        make a datagram that opens, so nothing it sends keeps a player alive, and a kick ends the joiner. */
     if (!host || !g64_session_name(host, 1)[0] || !g64_session_name(host, 2)[0] || g64_session_me(join) != 1 ||
         g64_session_poll(join, now, game, NULL) == G64_SESSION_FAILED ||
@@ -92,7 +92,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (size < 1)
         return 0;
     now += 7;
-    /* Half of the inputs are raw datagrams: hellos, welcomes, refusals, and sealed datagrams that do not open.
+    /* Half of the inputs are raw datagrams: hellos, welcomes, refusals, and sealed datagrams that don't open.
        The other half are messages as they are after the seal is opened: no fuzzer can make a datagram that opens,
        and the parser behind the seal must still meet every input. */
     to = !(data[0] & 0x80) ? host : data[0] & 0x20 ? load : join;

@@ -33,7 +33,7 @@ enum { FONT_TEX_BANK = 10, GENERIC_TEX_BANK = 2, SYSTEM_OBJ_BANK = 0, GENERIC_OB
    rotation and translation on the matrix stack while the child draws. So the translations add up along the tree.
    MAX_REACH bounds that sum for an actor at the origin with scale 1. The actor's own position and scale come from
    the level, and add to it. The rotations are unit quaternions after QuaternionToMatrix divides by the length, so
-   they do not change a length. */
+   they don't change a length. */
 #define MAX_REACH 16384.0
 #define MAX_POSITION 16384.0f
 #define MAX_SCALE 64.0f
@@ -168,11 +168,11 @@ static int retail_ok(Check *c, const uint8_t *f, int kind, unsigned first, unsig
         unsigned num = f[first + i];
         uint32_t s, e;
         if (kind == G64_BANK_TEXTURE && (num == FONT_TEX_BANK || num == GENERIC_TEX_BANK))
-            return fail(c, first + i, "the font and generic texture banks cannot be named");
+            return fail(c, first + i, "the font and generic texture banks can't be named");
         if (kind == G64_BANK_OBJECT && (num == SYSTEM_OBJ_BANK || num == GENERIC_OBJ_BANK))
-            return fail(c, first + i, "object banks 0 and 1 cannot be named");
+            return fail(c, first + i, "object banks 0 and 1 can't be named");
         if (exists == NULL || !exists(user, kind, num, &s, &e))
-            return fail(c, first + i, "a retail bank number that the game does not have");
+            return fail(c, first + i, "a retail bank number that the game doesn't have");
         for (k = 0; k < i; k++)
             if (f[first + k] == num)
                 return fail(c, first + i, "a retail bank number named twice");
@@ -189,15 +189,15 @@ static int header(Check *c, const uint8_t *f, size_t n, g64_bank_range_fn exists
     t = be32(f);
     o = be32(f + 4);
     if (t % 8)
-        return fail(c, 0, "the texture bank's size is not a multiple of 8");
+        return fail(c, 0, "the texture bank's size isn't a multiple of 8");
     if (o % 8)
-        return fail(c, 4, "the object bank's size is not a multiple of 8");
+        return fail(c, 4, "the object bank's size isn't a multiple of 8");
     if ((t == 0) != (o == 0))
         return fail(c, t == 0 ? 0 : 4, "the file has one bank of the pack's own without the other");
     if ((uint64_t)t + o > G64_MODELS_BANKS_MAX)
         return fail(c, 0, "the banks are larger than 4 MiB");
     if (f[8] & ~1u)
-        return fail(c, 8, "a flag that the format does not have");
+        return fail(c, 8, "a flag that the format doesn't have");
     a = f[9];
     b = f[10];
     if (a > G64_MODELS_RETAIL_MAX)
@@ -205,7 +205,7 @@ static int header(Check *c, const uint8_t *f, size_t n, g64_bank_range_fn exists
     if (b > G64_MODELS_RETAIL_MAX)
         return fail(c, 10, "more than 4 retail object banks");
     if (f[11])
-        return fail(c, 11, "a header byte that must be 0 is not");
+        return fail(c, 11, "a header byte that must be 0 isn't");
     if (t == 0 && a == 0 && b == 0)
         return fail(c, 0, "the file holds no models and names no bank");
     /* The flag orders the retail texture banks before the level's own. With none it would mean nothing. */
@@ -221,7 +221,7 @@ static int header(Check *c, const uint8_t *f, size_t n, g64_bank_range_fn exists
         size_t i = 12 + a + b;
         while (!f[i])
             i++;
-        return fail(c, i, "a padding byte of the header is not 0");
+        return fail(c, i, "a padding byte of the header isn't 0");
     }
     total = (uint64_t)h + t + o;
     if (n < total)
@@ -262,7 +262,7 @@ static int textures(Check *c) {
         return fail(c, ft(c, 0), "the texture bank starts with FLA2");
     count = be32(t);
     if (count < 1 || count > MAX_TEXTURES)
-        return fail(c, ft(c, 0), "the texture bank's count is not 1 to 1024");
+        return fail(c, ft(c, 0), "the texture bank's count isn't 1 to 1024");
     for (i = 0; i < count; i++) {
         const uint8_t *r;
         uint32_t w, h, size, k, texels;
@@ -277,37 +277,37 @@ static int textures(Check *c) {
                 return fail(c, ft(c, p + T_CRC), "two textures have one id");
         /* Bit 2 of the flags makes a cycling texture. The game keeps 20 of them, with no bound (G). */
         if (r[T_CYCLE] || r[T_CYCLE + 1])
-            return fail(c, ft(c, p + T_CYCLE), "a texture's cycle range is not 0");
+            return fail(c, ft(c, p + T_CYCLE), "a texture's cycle range isn't 0");
         if (be16(r + T_FLAGS))
-            return fail(c, ft(c, p + T_FLAGS), "a texture's flags are not 0");
+            return fail(c, ft(c, p + T_FLAGS), "a texture's flags aren't 0");
         if (be16(r + T_SPEED))
-            return fail(c, ft(c, p + T_SPEED), "a texture's cycle speed or count is not 0");
+            return fail(c, ft(c, p + T_SPEED), "a texture's cycle speed or count isn't 0");
         if (be16(r + T_COUNT))
-            return fail(c, ft(c, p + T_COUNT), "a texture's cycle speed or count is not 0");
+            return fail(c, ft(c, p + T_COUNT), "a texture's cycle speed or count isn't 0");
         w = be16(r + T_W);
         h = be16(r + T_H);
         sw = log2_pow(w);
         sh = log2_pow(h);
         if (sw < 1 || sw > 8 || sh < 1 || sh > 8 || w * h > 2048)
-            return fail(c, ft(c, p + T_W), "a texture's size is not one Glovebox writes");
+            return fail(c, ft(c, p + T_W), "a texture's size isn't one Glovebox writes");
         if (be16(r + T_MASKS) != (uint32_t)sw || be16(r + T_MASKT) != (uint32_t)sh)
-            return fail(c, ft(c, p + T_MASKS), "a texture's masks do not match its size");
+            return fail(c, ft(c, p + T_MASKS), "a texture's masks don't match its size");
         if (be16(r + T_FMT) != 0 || be16(r + T_SIZ) != 2)
-            return fail(c, ft(c, p + T_FMT), "a texture is not 16-bit RGBA");
+            return fail(c, ft(c, p + T_FMT), "a texture isn't 16-bit RGBA");
         if (be32(r + T_DATA) != T_HEADER)
-            return fail(c, ft(c, p + T_DATA), "a texture's data field is not 36");
+            return fail(c, ft(c, p + T_DATA), "a texture's data field isn't 36");
         /* The loader adds a palette offset to the record with no check. */
         if (be32(r + T_PALETTE) != 0)
             return fail(c, ft(c, p + T_PALETTE), "a texture has a palette");
         texels = T_HEADER + 2 * w * h;
         size = be32(r + T_SIZE);
         if (size != ((texels + 7) & ~7u))
-            return fail(c, ft(c, p + T_SIZE), "a texture's size field does not match its texels");
+            return fail(c, ft(c, p + T_SIZE), "a texture's size field doesn't match its texels");
         if (size > end - p)
             return fail(c, ft(c, p), "a texture record runs past the end of the bank");
         for (k = texels; k < size; k++)
             if (r[k])
-                return fail(c, ft(c, p + k), "a padding byte of a texture is not 0");
+                return fail(c, ft(c, p + k), "a padding byte of a texture isn't 0");
         c->tex[c->ntex].id = be32(r + T_CRC);
         c->tex[c->ntex].at = p;
         c->tex[c->ntex].w = (uint16_t)w;
@@ -320,7 +320,7 @@ static int textures(Check *c) {
         return fail(c, ft(c, p), "the texture bank holds bytes after its records");
     for (i = end; i < c->tn; i++)
         if (t[i])
-            return fail(c, ft(c, i), "the texture bank's last 4 bytes are not 0");
+            return fail(c, ft(c, i), "the texture bank's last 4 bytes aren't 0");
     return 1;
 }
 
@@ -333,7 +333,7 @@ static int claim(Check *c, uint32_t at, uint32_t w, uint32_t align, uint32_t len
     if (w >> 24)
         return fail(c, fo(c, at), "a pointer has high bits set");
     if (w % align)
-        return fail(c, fo(c, at), "a pointer is not aligned");
+        return fail(c, fo(c, at), "a pointer isn't aligned");
     if (w < c->dirEnd)
         return fail(c, fo(c, at), "a pointer names the directory");
     if (w > c->on || len > c->on - w)
@@ -365,10 +365,10 @@ static int texture_load(Check *c, uint32_t at) {
     int t;
 
     if (be32(d) != 0xFD100000u)
-        return fail(c, fo(c, at), "a texture load is not in Glovebox's form");
+        return fail(c, fo(c, at), "a texture load isn't in Glovebox's form");
     t = find_texture(c, be32(d + 4));
     if (t < 0)
-        return fail(c, fo(c, at + 4), "a texture load names a texture that is not in the pack's texture bank");
+        return fail(c, fo(c, at + 4), "a texture load names a texture that isn't in the pack's texture bank");
     c->tex[t].used = 1;
     w = c->tex[t].w;
     h = c->tex[t].h;
@@ -389,12 +389,12 @@ static int texture_load(Check *c, uint32_t at) {
     want[11] = (((w - 1) << 2) & 0xFFF) << 12 | (((h - 1) << 2) & 0xFFF);
     for (k = 0; k < 12; k++)
         if (be32(d + 8 + 4 * k) != want[k])
-            return fail(c, fo(c, at + 8 + 8 * (k / 2)), "a texture load is not followed by Glovebox's commands");
+            return fail(c, fo(c, at + 8 + 8 * (k / 2)), "a texture load isn't followed by Glovebox's commands");
     return 1;
 }
 
 /* The opcodes Glovebox writes: G_VTX, TRI2, MODIFYVTX, CLEARGEOMETRYMODE, SETGEOMETRYMODE, ENDDL, SETOTHERMODE_H,
-   TRI1, the three syncs, SETTILESIZE, LOADBLOCK, SETTILE and SETTIMG (G). 0x06 (G_DL) is not among them. */
+   TRI1, the three syncs, SETTILESIZE, LOADBLOCK, SETTILE and SETTIMG (G). 0x06 (G_DL) isn't among them. */
 static int allowed(unsigned op) {
     switch (op) {
         case 0x04: case 0xB1: case 0xB2: case 0xB6: case 0xB7: case 0xB8: case 0xBA: case 0xBF:
@@ -407,7 +407,7 @@ static int allowed(unsigned op) {
 static int display_list(Check *c, uint32_t ptrAt, uint32_t d) {
     uint32_t i, count = 0;
 
-    /* The walk is bounded by the bank's end. The renderer stops a list after 100000 commands (gfx_dl.c). That is
+    /* The walk is bounded by the bank's end. The renderer stops a list after 100000 commands (gfx_dl.c). That's
        only a picture, and Glovebox writes far fewer. */
     if (d >> 24 || d % 8 || d < c->dirEnd || d >= c->on)
         return claim(c, ptrAt, d, 8, 8);
@@ -419,7 +419,7 @@ static int display_list(Check *c, uint32_t ptrAt, uint32_t d) {
             return fail(c, fo(c, ptrAt), "a display list runs past the end of the bank");
         op = c->o[at];
         if (!allowed(op))
-            return fail(c, fo(c, at), "a display list command that Glovebox does not write");
+            return fail(c, fo(c, at), "a display list command that Glovebox doesn't write");
         if (op == 0xB8) {
             count = i + 1;
             break;
@@ -434,7 +434,7 @@ static int display_list(Check *c, uint32_t ptrAt, uint32_t d) {
                 /* Glovebox loads n vertices at slot 0: n in bits 10 to 15, and n * 16 - 1 in bits 0 to 9 (G). */
                 uint32_t n = (w0 >> 10) & 0x3F;
                 if (n < 1 || n > 32 || w0 != (0x04000000u | n << 10 | (n * 16 - 1)))
-                    return fail(c, fo(c, at), "a G_VTX command is not in Glovebox's form");
+                    return fail(c, fo(c, at), "a G_VTX command isn't in Glovebox's form");
                 /* Glovebox's linker copies each G_VTX command's block, so no two commands share one (G). */
                 if (!claim(c, at + 4, w1, 8, n * 16))
                     return 0;
@@ -444,14 +444,14 @@ static int display_list(Check *c, uint32_t ptrAt, uint32_t d) {
             }
             case 0xFD:
                 if (i + 7 > count)
-                    return fail(c, fo(c, at + 8), "a texture load is not followed by Glovebox's commands");
+                    return fail(c, fo(c, at + 8), "a texture load isn't followed by Glovebox's commands");
                 if (!texture_load(c, at))
                     return 0;
                 i += 6;
                 break;
             case 0xB8:
                 if (w0 != 0xB8000000u || w1 != 0)
-                    return fail(c, fo(c, at), "a G_ENDDL command is not in Glovebox's form");
+                    return fail(c, fo(c, at), "a G_ENDDL command isn't in Glovebox's form");
                 break;
         }
     }
@@ -469,25 +469,25 @@ static int keys(Check *c, uint32_t ptrAt, uint32_t k, int kind) {
         double q[4], len = 0;
         for (i = 0; i < 4; i++) {
             if (!finite_at(p + 4 * i))
-                return fail(c, fo(c, k + 4 * i), "a key holds a float that is not finite");
+                return fail(c, fo(c, k + 4 * i), "a key holds a float that isn't finite");
             q[i] = float_at(p + 4 * i);
             len += q[i] * q[i];
         }
         if (!(len >= 0.5 && len <= 2.0))
-            return fail(c, fo(c, k), "a rotation key is not near unit length");
+            return fail(c, fo(c, k), "a rotation key isn't near unit length");
     } else {
         float limit = kind == 0 ? MAX_POSITION : MAX_SCALE;
         for (i = 0; i < 3; i++) {
             if (!finite_at(p + 4 * i))
-                return fail(c, fo(c, k + 4 * i), "a key holds a float that is not finite");
+                return fail(c, fo(c, k + 4 * i), "a key holds a float that isn't finite");
             if (!bounded(p + 4 * i, limit))
                 return fail(c, fo(c, k + 4 * i), kind == 0 ? "a position is past 16384" : "a scale is past 64");
         }
         if (be32(p + 12))
-            return fail(c, fo(c, k + 12), "a key's fourth value is not 0");
+            return fail(c, fo(c, k + 12), "a key's fourth value isn't 0");
     }
     if (be32(p + 16))
-        return fail(c, fo(c, k + 16), "a key's time is not 0");
+        return fail(c, fo(c, k + 16), "a key's time isn't 0");
     return 1;
 }
 
@@ -501,9 +501,9 @@ static int mesh(Check *c, uint32_t ptrAt, uint32_t m) {
     nf = be16(p + M_NFACES);
     nv = be16(p + M_NVERTS);
     if (nf < 1 || nf > MAX_FACES)
-        return fail(c, fo(c, m + M_NFACES), "a mesh's face count is not 1 to 1500");
+        return fail(c, fo(c, m + M_NFACES), "a mesh's face count isn't 1 to 1500");
     if (nv < 3 || nv > MAX_VERTS)
-        return fail(c, fo(c, m + M_NVERTS), "a mesh's vertex count is not 3 to 4500");
+        return fail(c, fo(c, m + M_NVERTS), "a mesh's vertex count isn't 3 to 4500");
     /* RestoreObjectPointers allocates a block for texture coordinates (uv), and looks up a texture for each face
        (textures). Glovebox writes neither (G). */
     for (i = M_UV; i <= M_ORIGUV; i += 4)
@@ -517,7 +517,7 @@ static int mesh(Check *c, uint32_t ptrAt, uint32_t m) {
         return 0;
     for (i = 0; i < nv * 3; i++)
         if (!bounded(c->o + verts + 4 * i, MAX_VERTEX))
-            return fail(c, fo(c, verts + 4 * i), "a vertex is not finite or is past 100000");
+            return fail(c, fo(c, verts + 4 * i), "a vertex isn't finite or is past 100000");
     if (c->collect && !push(&c->verts, verts, nv * 12))
         return fail(c, fo(c, m), "out of memory");
     faces = be32(p + M_FACES);
@@ -559,19 +559,19 @@ static int object(Check *c, uint32_t ptrAt, uint32_t o, unsigned depth, unsigned
         if (strlen(reserved[i]) == len && memcmp(p + O_NAME, reserved[i], len) == 0)
             return fail(c, fo(c, o + O_NAME), "an object has the name of the ball or the hand");
     if (p[O_INIT])
-        return fail(c, fo(c, o + O_INIT), "an object's initialized byte is not 0");
+        return fail(c, fo(c, o + O_INIT), "an object's initialized byte isn't 0");
     /* TransformAndDrawObject reads key 0 of a track with fewer than 2 keys. Glovebox writes 1 key (G). */
     for (i = O_NSCALE; i <= O_NROT; i += 2)
         if (be16(p + i) != 1)
-            return fail(c, fo(c, o + i), "an object's key count is not 1");
+            return fail(c, fo(c, o + i), "an object's key count isn't 1");
     /* The sprite loop looks up a texture for each sprite. */
     if (be32(p + O_NSPRITES) || be32(p + O_SPRITES))
         return fail(c, fo(c, o + O_NSPRITES), "an object has sprites");
     if (be16(p + O_UNK30))
-        return fail(c, fo(c, o + O_UNK30), "an object's bytes at 0x30 are not 0");
+        return fail(c, fo(c, o + O_UNK30), "an object's bytes at 0x30 aren't 0");
     if (be16(p + O_FLAGS) & ~(uint32_t)OBJECT_FLAGS)
-        return fail(c, fo(c, o + O_FLAGS), "an object's flags have a bit that Glovebox does not write");
-    /* TransformAndDrawObject writes through the sphere pointer, which the loaders do not relocate. */
+        return fail(c, fo(c, o + O_FLAGS), "an object's flags have a bit that Glovebox doesn't write");
+    /* TransformAndDrawObject writes through the sphere pointer, which the loaders don't relocate. */
     if (be32(p + O_SPHERE))
         return fail(c, fo(c, o + O_SPHERE), "an object has a collision sphere");
     /* With no display list, the game writes the mesh into a vertex buffer with no bound. Glovebox writes both (G). */
@@ -606,7 +606,7 @@ static int object(Check *c, uint32_t ptrAt, uint32_t o, unsigned depth, unsigned
     return 1;
 }
 
-/* The ids of objects that the game finds by a name of its own and that the retail ROM's banks do not have: the
+/* The ids of objects that the game finds by a name of its own and that the retail ROM's banks don't have: the
    names of nine enemy kinds (kinds 0 to 6 share one name, and kinds 46 and 57 have one each) and of the pick-ups 7,
    8 and 9. The
    game asks FindObject for them when a level has such an enemy or pick-up. A pack's object with one of these ids
@@ -657,9 +657,9 @@ static int objects(Check *c) {
         p = o + inst;
         /* Glovebox writes the object's id at 0, the two pointers, and zeros (G). */
         if (be32(p) != be32(o + i * 8))
-            return fail(c, fo(c, inst), "an instance does not start with its object's id");
+            return fail(c, fo(c, inst), "an instance doesn't start with its object's id");
         if (!all_zero(p + 4, I_OBJ - 4) || !all_zero(p + I_OBJ + 4, I_ANIM - I_OBJ - 4))
-            return fail(c, fo(c, inst + 4), "an instance's spare bytes are not 0");
+            return fail(c, fo(c, inst + 4), "an instance's spare bytes aren't 0");
         if (be32(p + I_OBJ) == 0)
             return fail(c, fo(c, inst + I_OBJ), "an instance has no object");
         anim = be32(p + I_ANIM);
@@ -668,7 +668,7 @@ static int objects(Check *c) {
             if (!claim(c, inst + I_ANIM, anim, 4, ANIM_SIZE))
                 return 0;
             if (!all_zero(o + anim, ANIM_SIZE))
-                return fail(c, fo(c, anim), "an animation state is not all zeros");
+                return fail(c, fo(c, anim), "an animation state isn't all zeros");
         }
         if (!object(c, inst + I_OBJ, be32(p + I_OBJ), 1, 1, 1.0, 0.0))
             return 0;
@@ -700,7 +700,7 @@ static int run(Check *c, const uint8_t *file, size_t n, g64_bank_range_fn exists
             return fail(c, ft(c, c->tex[i].at), "a texture that no object uses");
     for (i = 0; i < c->on; i++)
         if (c->o[i] && !(c->own[i >> 3] & (1 << (i & 7))))
-            return fail(c, fo(c, i), "a byte that no structure reaches is not 0");
+            return fail(c, fo(c, i), "a byte that no structure reaches isn't 0");
     m->numEntries = c->entries;
     m->numObjects = c->objects;
     m->numTextures = c->ntex;

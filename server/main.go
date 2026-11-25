@@ -2,8 +2,8 @@
 //
 // It answers health checks and describes itself, and runs the relay (relay.go): a UDP service that carries the
 // game's packets between a host and its joiners. With the relay, no player has to forward a port. It also lists the
-// open sessions: the rooms that hosts put on the relay's list. The rest is still a placeholder: /v1/ice gives STUN
-// servers only. Phase 4 of the roadmap finishes it (docs/discovery/roadmap.md).
+// open sessions: the rooms that hosts put on the relay's list. /v1/ice gives STUN servers only. TURN relay
+// credentials come with phase 4 of the roadmap (docs/discovery/roadmap.md).
 //
 // The server never sees game data: the game's packets hold only inputs, session messages and hashes.
 package main

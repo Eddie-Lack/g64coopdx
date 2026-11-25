@@ -58,7 +58,7 @@ const char *g64_pack_check_ids_rom(const g64_pack *p, const uint8_t *rom, size_t
     /* An index that skipped a bank would refuse ids that the bank has. */
     if (!g64_rombanks_complete(&st)) {
         g64_rombanks_free(index);
-        return "the ROM's banks could not all be read: its code does not say where they are, or a bank is damaged";
+        return "the ROM's banks couldn't all be read: its code doesn't say where they are, or a bank is damaged";
     }
     why = g64_pack_check_level_ids(p, &banks, g64_rombanks_bank_has, index, at);
     *rule = why != NULL;

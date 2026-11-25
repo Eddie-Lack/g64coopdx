@@ -15,8 +15,8 @@ traversal and ICE.
 - **VERIFIED** means read in the source or its docs. **INFERRED** means concluded from what was read. **UNKNOWN**
   means not found.
 - No code is copied. Only identifiers (file, function and constant names) are quoted.
-- Limits: the clone has one commit, so its history and merges are not visible. GitHub's web pages and API were
-  blocked during the study, so its issues and most of its wiki were not read.
+- Limits: the clone has one commit, so its history and merges aren't visible. GitHub's web pages and API were
+  blocked during the study, so its issues and most of its wiki weren't read.
 
 ## Summary
 
@@ -61,7 +61,7 @@ traversal and ICE.
 - The exact version handshake, the host's save as the session's save, and moderation with a confirm step:
   [netcode.md](netcode.md#the-handshake) and [README.md](README.md).
 - Stable object ids from the order of the level's load, plus id blocks per player for spawned objects. They are
-  used in [netcode.md](netcode.md) for option C, state sync. Rollback, the model that netcode.md recommends, does not
+  used in [netcode.md](netcode.md) for option C, state sync. Rollback, the model that netcode.md recommends, doesn't
   need them.
 - Mod delivery by manifest and hash, and its gaps (no prompt, unclear path checks, bytecode accepted):
   [mods.md](mods.md#how-mods-reach-other-players).
@@ -75,7 +75,7 @@ traversal and ICE.
 
 #### 1.1 What the repo says
 
-- VERIFIED: there is no top-level LICENSE, COPYING or NOTICE file. `git ls-files | grep -i licen` finds only:
+- VERIFIED: there's no top-level LICENSE, COPYING or NOTICE file. `git ls-files | grep -i licen` finds only:
   - `src/pc/utils/miniz/LICENSE`
   - `tools/ido5.3_compiler/LICENSE.md`
   - `tools/n64graphics_ci_dir/LICENSE`
@@ -102,11 +102,11 @@ traversal and ICE.
 | Discord Game SDK / discord-rpc | `lib/discordsdk/`, `lib/discord/libdiscord-rpc.*`, `src/pc/discord/discord_game_sdk.h` | Proprietary Discord SDK; no license file in repo | UNKNOWN |
 | Game assets and code | whole tree | Derived from Nintendo's Super Mario 64 (decompilation) | VERIFIED derivation (credits.txt line 83) |
 
-#### 1.3 What this means for a project that studies but does not copy
+#### 1.3 What this means for a project that studies but doesn't copy
 
 - INFERRED: no license means default copyright applies. Nobody has a written right to copy or adapt the code. The code is also a derivative of decompiled Nintendo code, so even the authors may have no clean grant to give.
-- INFERRED: studying the design, reading the docs, and writing your own implementation is safe from a copyright view. Ideas, protocols as concepts, and architecture are not copyrightable.
-  Copying code, structures with their exact layout and field order, or text of the docs is not safe.
+- INFERRED: studying the design, reading the docs, and writing your own implementation is safe from a copyright view. Ideas, protocols as concepts, and architecture aren't copyrightable.
+  Copying code, structures with their exact layout and field order, or text of the docs isn't safe.
 - INFERRED: the coopnet server is AGPL-3.0. A project that reads its code and then writes a lobby server must keep the rules in its own words. Running a copy of it, changed or not, as a network service obliges the operator to offer its source to the users of that service (AGPL section 13). Reading its README or the header `lib/coopnet/include/libcoopnet.h` for the idea of a lobby API is low risk. Do not copy the header's declarations.
 - INFERRED: bundling their prebuilt `libcoopnet.a` / `libjuice.a` into g64coopdx would raise AGPL questions (the lib is built from AGPL source, the license of the client library itself is UNKNOWN). Avoid it. Write your own relay and lobby, or use a library with a clear license.
 - VERIFIED: weemitt's rules file, CLAUDE.md, already forbids code from other ports, and g64coopdx applies the same rule. Study notes like these are fine; code is not.
@@ -163,19 +163,19 @@ NAT traversal:
 - VERIFIED: the repo ships `libjuice` next to `libcoopnet` in `lib/coopnet/{linux,win32,win64,mac_arm,mac_intel}`. The callbacks include OnPeerConnected, OnPeerDisconnected and the error MERR_PEER_FAILED ("peer failed").
 - INFERRED: libjuice is an ICE/STUN peer-to-peer connection library. With the one-line coopnet README ("Signaling server / lobby manager for P2P connections") this means: the coopnet server only matches players and passes connection setup messages (signaling). The game packets then go peer to peer through ICE hole punching. Evidence for P2P data path: the CoopNet system has `requireServerBroadcast = false` (`coopnet.c:316`), and `coopnet_send_to(peerId, ...)` addresses individual peers.
 - UNKNOWN: whether a TURN-style relay fallback exists when hole punching fails. The client shows "peer failed" for that player (`coopnet_on_error`, case MERR_PEER_FAILED). This study found no relay code in the repo.
-- Result in the game: with CoopNet there is still a logical host (the player who created the lobby, see `coopnet_on_lobby_joined`), but clients also send to each other directly (so "broadcast" goes to every peer).
+- Result in the game: with CoopNet there's still a logical host (the player who created the lobby, see `coopnet_on_lobby_joined`), but clients also send to each other directly (so "broadcast" goes to every peer).
 
 #### 2.4 Lobby browser
 
 - VERIFIED: `src/pc/djui/djui_panel_join_lobbies.c` and `djui_lobby_entry.c`. It calls `ns_coopnet_query(callback, finishCallback, password)` which calls `coopnet_lobby_list_get(GAME_NAME, password)` (`coopnet.c` top).
 - VERIFIED: an entry is shown disabled when its version string differs from the local `get_version()` (`djui_panel_join_lobbies.c:89-91`, `strcmp(version, aVersion) != 0`). So the version check also happens before join, in the browser.
 - VERIFIED: private lobbies are reached through `djui_panel_join_private.c` (password query / direct lobby id).
-- The listing filters by game name, so "sm64coopdx", "-dev" and "-intl" builds do not see each other (VERIFIED: GAME_NAME passed as filter; `version.h` defines three names).
+- The listing filters by game name, so "sm64coopdx", "-dev" and "-intl" builds don't see each other (VERIFIED: GAME_NAME passed as filter; `version.h` defines three names).
 
 #### 2.5 Chat
 
 - VERIFIED: `packets/packet_chat.c`; `src/pc/djui/djui_chat_box.c`, `djui_chat_message.c`. Max length `MAX_CHAT_MSG_LENGTH 500` (`djui_chat_message.h:4`).
-- VERIFIED: anti spoof: `packet_chat.c:89-91` calls `packet_spoofed(p, globalIndex)` and drops the message when the sender index does not match the connection (only effective when `requireServerBroadcast` is false, see `packet.c` packet_spoofed).
+- VERIFIED: anti spoof: `packet_chat.c:89-91` calls `packet_spoofed(p, globalIndex)` and drops the message when the sender index doesn't match the connection (only effective when `requireServerBroadcast` is false, see `packet.c` packet_spoofed).
 - VERIFIED: chat commands start with `/` (`src/pc/chat_commands.c`): `/players`, `/kick`, `/ban`, `/permban`, `/moderator`, `/confirm`, `/nametags`. Mods add commands through `hook_chat_command` (docs/lua/guides/hooks.md).
 - VERIFIED: kick, ban and moderator actions need a `/confirm` step (`enum ChatConfirmCommand` in `packets/packet.h`: CCC_NONE, CCC_KICK, CCC_BAN, CCC_PERMBAN, CCC_MODERATOR).
 
@@ -196,7 +196,7 @@ NAT traversal:
 - VERIFIED: ban list: `src/pc/network/ban_list.c/.h` (`ban_list_add(address, perm)`, `ban_list_contains`). The key is the network id string (IP for socket, destId for CoopNet).
   Checked on every received packet by the host in `packets/packet.c` packet_receive: a banned sender is sent `EKT_BANNED` and the packet is dropped.
 - VERIFIED: `/permban` = permanent flag (`gBanPerm`); `/ban` = this session only (`ban_list_add(..., false)` in `packet_command_mod.c`).
-- VERIFIED: moderators: `src/pc/network/moderator_list.c/.h`, `gNetworkPlayers[i].moderator`, packet `PACKET_MODERATOR`. A moderator can kick and ban but only by asking the host: `network_send_chat_command` sends `PACKET_COMMAND` to the host, the host checks `moderator_list_contains` (`packet_command_mod.c:26`), accepts only CCC_KICK and CCC_BAN, then kicks. A moderator cannot make moderators (host only: the `/moderator` command exists in `chat_commands.c:203`; host-only gate is INFERRED).
+- VERIFIED: moderators: `src/pc/network/moderator_list.c/.h`, `gNetworkPlayers[i].moderator`, packet `PACKET_MODERATOR`. A moderator can kick and ban but only by asking the host: `network_send_chat_command` sends `PACKET_COMMAND` to the host, the host checks `moderator_list_contains` (`packet_command_mod.c:26`), accepts only CCC_KICK and CCC_BAN, then kicks. A moderator can't make moderators (host only: the `/moderator` command exists in `chat_commands.c:203`; host-only gate is INFERRED).
 - VERIFIED: kick packet `PACKET_KICK` with reasons `EKT_CLOSE_CONNECTION, EKT_FULL_PARTY, EKT_KICKED, EKT_BANNED, EKT_REJOIN` (`packets/packet.h`). The client only honors a kick that comes from the server player (`packet_kick.c` network_receive_kick: "Kick came from non-server... refuse!"). `EKT_REJOIN` makes the client reconnect (the rehost flow, 2.10).
 - VERIFIED: an automatic anti-cheat check: in release builds, a player packet whose action is `ACT_DEBUG_FREE_MOVE` gets the sender kicked (`packet_player.c` network_receive_player). In `DEVELOPMENT` builds it only shows a popup.
 - VERIFIED: server-side permissions are limited. Server settings (`ServerSettings`) are pushed to clients in the join packet: player interactions (none, solid, PvP), bouncy level bounds, knockback strength, stay-in-level after star, skip intro, bubble death, nametags, max players, pause anywhere, PvP type.
@@ -275,8 +275,8 @@ VERIFIED design:
 #### 3.4 Players
 
 - VERIFIED: `PACKET_PLAYER` is unreliable and area-scoped (`packet_init(..., false, PLMT_AREA)`). Payload is a packed struct `PacketPlayerData` (`#pragma pack(1)` in `packet_player.c`): raw object fields, controller state, Mario action, flags, positions, velocity, angles, held object sync ids, and more. The sender writes it from its own MarioState; the receiver writes it into the other player's MarioState (`write_packet_data`).
-- VERIFIED send rule (`network_update_player`): send when more than 2 ticks passed since the last send, or the action changed, or any button state changed, or the stick moved. At a 30 Hz game tick that is about 10 packets per second at rest, more when the player acts (INFERRED: the exact rest rate from "ticks > 2").
-- VERIFIED: the receiver never accepts a packet about its own player (`network_receive_player`), and ignores players whose recorded level/area is not the same as its own (`currPositionValid = false`).
+- VERIFIED send rule (`network_update_player`): send when more than 2 ticks passed since the last send, or the action changed, or any button state changed, or the stick moved. At a 30 Hz game tick that's about 10 packets per second at rest, more when the player acts (INFERRED: the exact rest rate from "ticks > 2").
+- VERIFIED: the receiver never accepts a packet about its own player (`network_receive_player`), and ignores players whose recorded level/area isn't the same as its own (`currPositionValid = false`).
 - VERIFIED: lag compensation exists for PvP: `src/pc/network/lag_compensation.c/.h` keeps a 30-entry history of the local MarioState (`MAX_LOCAL_STATE_HISTORY 30`) so an attack from a remote player can be checked against the state they saw. Exposed to Lua.
 
 #### 3.5 Reliable and unreliable delivery
@@ -308,7 +308,7 @@ VERIFIED in `packets/packet_reliable.c`, `packet_read_write.c`, `packet.c`:
 - VERIFIED: no rollback and no lockstep code found. No input-delay logic, no frame number in packets.
 - The model is "state replication with local simulation": each machine runs the full game logic for its own player and for objects it owns, and copies other players and other-owned objects from packets. Remote players are shown by writing the received state into their MarioState; no extrapolation code was seen in the files read (extrapolation: UNKNOWN).
 - Why this works for SM64 (INFERRED): players can collide and interact, but the interaction results are sent as events (attack, interact, collect packets) and the nearest-player owner decides the result.
-- The deterministic RNG is not shared as a global seed; instead each sync object carries a seed (above).
+- The deterministic RNG isn't shared as a global seed; instead each sync object carries a seed (above).
 
 #### 3.8 Late join, level changes and players in different levels
 
@@ -325,12 +325,12 @@ Level and area sync (VERIFIED, `packet_change_level.c`, `packet_level.c`, `packe
 - Each machine loads and runs its OWN current level locally. There is no shared "current level" for the party. The server tracks every player's `currCourseNum, currActNum, currLevelNum, currAreaIndex` plus validity flags `currLevelSyncValid`, `currAreaSyncValid` in `struct NetworkPlayer`.
 - When a player enters a level (after a 10-tick settle, `network_on_loaded_area`) it sends `PACKET_CHANGE_LEVEL` (or `PACKET_CHANGE_AREA` if only the area changed within a valid level) to the server.
 - Server logic `player_changed_level`: look for another player already in that exact area (`get_network_player_from_area`) or at least that level (`get_network_player_from_level`).
-  - If nobody is there (or it is the credits), tell the player via `PACKET_SYNC_VALID`: the level starts from its fresh load state. The player is first in that level instance and becomes the reference.
+  - If nobody is there (or it's the credits), tell the player via `PACKET_SYNC_VALID`: the level starts from its fresh load state. The player is first in that level instance and becomes the reference.
   - If someone is there, send `PACKET_LEVEL_AREA_REQUEST` or `PACKET_LEVEL_REQUEST` to that player. That player answers with an ordered group: `PACKET_LEVEL` (level variables such as coin count, PSS slide started, TTC speed), `PACKET_LEVEL_MACRO` (list of deleted macro objects such as collected coins), `PACKET_LEVEL_SPAWN_INFO` (objects spawned during play), and for area requests `PACKET_AREA` (object states for the area) followed by `PACKET_SYNC_VALID`.
   - A failed or impossible request yields `PACKET_REQUEST_FAILED`.
 - The new player then applies those packets over its freshly loaded level (for example the TTC speed fix-up in `network_receive_level`).
-- Instance key: the level instance is identified by `(course, act, level, area)`. The castle hub has its act forced to 0 so everyone shares the hub (`packet_change_level.c` network_send_change_level). So two players on different stars of the same course are in different instances and do not see each other.
-- Result: players may be in different levels or areas at the same time. Their `PACKET_PLAYER` and `PACKET_OBJECT` traffic is filtered by location on both the sender and receiver side. Remote players in another area are not shown and their positions are marked invalid.
+- Instance key: the level instance is identified by `(course, act, level, area)`. The castle hub has its act forced to 0 so everyone shares the hub (`packet_change_level.c` network_send_change_level). So two players on different stars of the same course are in different instances and don't see each other.
+- Result: players may be in different levels or areas at the same time. Their `PACKET_PLAYER` and `PACKET_OBJECT` traffic is filtered by location on both the sender and receiver side. Remote players in another area aren't shown and their positions are marked invalid.
 - Credits: object syncing is switched off while `gCurrActStarNum == 99`.
 
 Desync handling (VERIFIED):
@@ -346,7 +346,7 @@ Desync handling (VERIFIED):
 - VERIFIED: the exact-match rule. The same 128-byte string is compared with `memcmp` at the mod list (`packet_mod_list.c:137-145`) and at join (`packet_join.c` network_receive_join) and in the lobby browser (`djui_panel_join_lobbies.c:91`). Any difference means refusal. There is no "compatible range".
 - VERIFIED: CoopNet has its own protocol version check, error `MERR_COOPNET_VERSION` ("COOPNET_VERSION" popup, `coopnet.c`).
 - VERIFIED: game name separates builds: "sm64coopdx", "sm64coopdx-dev", "sm64coopdx-intl" (non-US ROM) (`version.h`). Lobby lists are filtered by it.
-- Mod compatibility handshake: the host's mods ARE the client's mods (the client downloads them, so there is nothing to mismatch). The only compatibility metadata is the `-- incompatible:` header, used locally to stop two incompatible mods from being enabled together (`mods_utils.c`, `mods_incompatible_match`; sent in `PACKET_MOD_LIST_ENTRY`).
+- Mod compatibility handshake: the host's mods ARE the client's mods (the client downloads them, so there's nothing to mismatch). The only compatibility metadata is the `-- incompatible:` header, used locally to stop two incompatible mods from being enabled together (`mods_utils.c`, `mods_incompatible_match`; sent in `PACKET_MOD_LIST_ENTRY`).
 
 ---
 
@@ -386,7 +386,7 @@ VERIFIED behavior:
 - `gGlobalSyncTable` holds mod-wide shared values. `gPlayerSyncTable[i]` holds per-player values (16 entries, one table per player index, read-only wrapper `_ReadOnlyTable` around the set).
 - The docs warn that "the localIndex for each player is different (unfortunately)": the order of `gMarioStates[]`, `gNetworkPlayers[]` and `gPlayerSyncTable[]` differs between machines. `gPlayerSyncTable[]` translates indices automatically (`docs/lua/lua.md` "Important notes on player indices"; the code uses `network_local_index_from_global` in `smlua_sync_table.c`).
 - Writes are sent to everyone as a reliable `PACKET_LUA_SYNC_TABLE` packet (one field per packet): a 64-bit sequence number, the mod's remote index, the key path (array of typed values, limit `MAX_UNWOUND_LNT`), and the value. Value types: integer, number, boolean, string, nil (`struct LSTNetworkType`, `packet.h`).
-- Conflict rule: last writer wins using the per-key sequence number. A received write is ignored when its seq is not greater than the stored one (log "Received outdated sync table field packet"). A local write bumps the seq by `MAX_PLAYERS + (MAX_PLAYERS - globalIndex)`, so two players writing at the same time get different numbers and the result is the same on all machines (smlua_sync_table.c:~262). (The tie-break reason is INFERRED.)
+- Conflict rule: last writer wins using the per-key sequence number. A received write is ignored when its seq isn't greater than the stored one (log "Received outdated sync table field packet"). A local write bumps the seq by `MAX_PLAYERS + (MAX_PLAYERS - globalIndex)`, so two players writing at the same time get different numbers and the result is the same on all machines (smlua_sync_table.c:~262). (The tie-break reason is INFERRED.)
 - No authority check was found: any client can write `gGlobalSyncTable` (INFERRED from `network_send_lua_sync_table` using `network_send` with no host-only test). A mod must check `network_is_server()` itself.
 - Nested tables: allowed, created empty and then filled. Assigning a table over an existing table is refused (error strings in `smlua_sync_table_send_field`).
 - Late join: the joiner sends `PACKET_LUA_SYNC_TABLE_REQUEST`; the server replies with every field (`smlua_sync_table_send_all`).
@@ -411,15 +411,15 @@ VERIFIED:
 - Chunked download: `CHUNK_SIZE 800` bytes, `OFFSET_COUNT 50` chunks per group, `GROUP_SIZE = 40000` bytes; two groups active at a time and the next starts when one is half done (`packet_download.c` top and `network_update_offset_groups`). Each chunk is a reliable `PACKET_DOWNLOAD` (about 800 payload bytes, inside the 3000-byte packet). A client request lists the offsets it wants (`PACKET_DOWNLOAD_REQUEST`). The client shows progress and an estimated time (hours/minutes/seconds).
 - Size limits: `MAX_MOD_SIZE (35 * 1048576)` = 35 MB per mod (`mods/mods.h:9`). A mod above the limit is disabled and not selectable (`mods_size_enforce`, `mods_utils.c:18-26`) and rejected on receive (`packet_mod_list.c:245-250`).
 - Field limits (`mods/mod.h`): name 64, incompatible 256, category 64, description 800 characters.
-- What files a mod can contain (`mod.c` `mod_load_files`): `.lua`/`.luac` in the root (a single `.lua` file is a mod by itself; a folder needs `main.lua`); `actors/` with `.bin` and `.col`; `data/` with `.bhv`; `textures/` with `.tex`; `levels/` with `.lvl`; `sound/` with `.m64`, `.mp3`, `.aiff`, `.ogg`. Lua files in sub-folders are not run at start; they are reached with `require` (`smlua.c:362-370`).
+- What files a mod can contain (`mod.c` `mod_load_files`): `.lua`/`.luac` in the root (a single `.lua` file is a mod by itself; a folder needs `main.lua`); `actors/` with `.bin` and `.col`; `data/` with `.bhv`; `textures/` with `.tex`; `levels/` with `.lvl`; `sound/` with `.m64`, `.mp3`, `.aiff`, `.ogg`. Lua files in sub-folders aren't run at start; they are reached with `require` (`smlua.c:362-370`).
 - Mod header fields read from the top comment lines of `main.lua` (`mod_extract_fields`): `-- name:`, `-- incompatible:`, `-- category:`, `-- description:`, `-- pausable:`, `-- ignore-script-warnings:`.
-- Categories: free-text string field `category` (read-only in Lua per `docs/lua/structs.md:1741`). A fixed category list was not found (UNKNOWN). The bundled mods use `incompatible: gamemode` or `romhack` as tags so only one mod of a kind can be on.
+- Categories: free-text string field `category` (read-only in Lua per `docs/lua/structs.md:1741`). A fixed category list wasn't found (UNKNOWN). The bundled mods use `incompatible: gamemode` or `romhack` as tags so only one mod of a kind can be on.
 - Bundled example mods in `mods/`: arena, day-night-cycle, faster-swimming.lua, hide-and-seek.lua, cheats.lua, personal-starcount-ex.lua, sm74, star-road (the last two are romhack-style levels).
 - Local mods are read from `mods/` next to the game or `<save dir>/mods`, or dragged into the window (`docs/lua/lua.md`).
 
 #### 4.7 DynOS
 
-- VERIFIED: "Dynamic Options System". `dynos.mk` header comment names it that. `credits.txt:81`: "DynOS was created by PeachyPeach." and it is used for "custom models, levels, textures, animations, and warps".
+- VERIFIED: "Dynamic Options System". `dynos.mk` header comment names it that. `credits.txt:81`: "DynOS was created by PeachyPeach." and it's used for "custom models, levels, textures, animations, and warps".
 - Code: `data/dynos_*.cpp` (C++): bin readers/writers for actors (`dynos_bin_actor.cpp`), geometry (`geo`, `gfx`, `vtx`), collision (`col`), animations, levels (`lvl`, with validation `dynos_bin_lvl_validate.cpp`), textures (`tex`, `texlist`), behaviors (`bhv`), macro objects, trajectories, movtex, rooms, lights, plus managers (`dynos_mgr_actor/anim/bhv/gfx/pack`).
 - Formats (VERIFIED from file extensions in the loaders):
   - `.bin` = binary actor/geo + display list package (compressed or not, `DynOS_Bin_IsCompressed`), with `.col` collision files beside it.
@@ -445,14 +445,14 @@ VERIFIED sandbox facts:
 - `require` is custom (`smlua_require.c`) and works only inside the mod's own files (INFERRED from the per-mod registry lookup in `smlua_load_script`; not read in detail).
 
 Security concerns seen in the code (INFERRED unless marked):
-1. Remote code by design: joining a lobby makes the client download and run the host's Lua automatically. In the files read there is no confirmation prompt between "download complete" and activation (`packet_download.c:187-203`: sets `mod->enabled = true` for every remote mod and sends the join request). A UI warning may exist elsewhere (UNKNOWN). The sandbox is the only protection.
-2. Binary Lua chunks: scripts are loaded with `luaL_loadbuffer` (`smlua.c:243`) without a text-only mode, and `.luac` is accepted as a mod file extension (`mod.c`, `smlua.c:362`). Lua 5.3 bytecode is not verified by the VM, and crafted bytecode is a known way to escape Lua sandboxes. This is a design risk, not a proven exploit.
-3. Path handling of downloaded files: the relative path arrives from the host in `PACKET_MOD_LIST_FILE` and is joined to a temp folder (`mod_file_full_path`: `concat_path` then `normalize_path`). In the code read (`packet_mod_list.c:270-310`, `mods_utils.c:128-132`) there is no explicit rejection of `..` segments. `normalize_path` may handle it (not verified). Mark as UNKNOWN; worth checking if you build a similar downloader.
+1. Remote code by design: joining a lobby makes the client download and run the host's Lua automatically. In the files read there's no confirmation prompt between "download complete" and activation (`packet_download.c:187-203`: sets `mod->enabled = true` for every remote mod and sends the join request). A UI warning may exist elsewhere (UNKNOWN). The sandbox is the only protection.
+2. Binary Lua chunks: scripts are loaded with `luaL_loadbuffer` (`smlua.c:243`) without a text-only mode, and `.luac` is accepted as a mod file extension (`mod.c`, `smlua.c:362`). Lua 5.3 bytecode isn't verified by the VM, and crafted bytecode is a known way to escape Lua sandboxes. This is a design risk, not a proven exploit.
+3. Path handling of downloaded files: the relative path arrives from the host in `PACKET_MOD_LIST_FILE` and is joined to a temp folder (`mod_file_full_path`: `concat_path` then `normalize_path`). In the code read (`packet_mod_list.c:270-310`, `mods_utils.c:128-132`) there's no explicit rejection of `..` segments. `normalize_path` may handle it (not verified). Mark as UNKNOWN; worth checking if you build a similar downloader.
 4. The path-length field is a 16-bit value read directly into a buffer: `packet_read(p, file->relativePath, relativePathLength * sizeof(u8))` with no visible cap in the lines read (`packet_mod_list.c:297-299`). Other fields (name, incompatible) do check their limits (lines 193-217). INFERRED: a hostile host could send a long path. Not verified whether `packet_read` bounds it.
 5. Sync tables: any peer can write any key (4.4), so a mod must not trust sync table values for authority.
 6. Peers can send arbitrary `PACKET_LUA_CUSTOM` content; mods must validate.
 7. Hash is MD5 (collision-prone) and is used only to identify cache entries, not to prove authenticity. The host controls both the file and its hash, so MD5 collisions matter only if a cache entry from one host can be replaced by another host's file with the same hash (INFERRED, low risk).
-8. In direct (socket) mode `packet_spoofed` returns false because the host forwards everything (`packet.c` packet_spoofed: `requireServerBroadcast` returns false). So a client can claim a global index that is not its own, and the host forwards it. Chat spoof protection only applies in CoopNet mode (INFERRED from the code path; whether the host rewrites the index in socket mode was not checked).
+8. In direct (socket) mode `packet_spoofed` returns false because the host forwards everything (`packet.c` packet_spoofed: `requireServerBroadcast` returns false). So a client can claim a global index that isn't its own, and the host forwards it. Chat spoof protection only applies in CoopNet mode (INFERRED from the code path; whether the host rewrites the index in socket mode wasn't checked).
 9. Whole-state trust: a client controls its own Mario state, object state for objects it owns, and its own save-flag packets (`PACKET_SAVE_SET_FLAG`). There is no server-side validation of movement, so speed hacks and teleports are possible (INFERRED; the only server-side cheat check found is the debug-fly kick).
 10. Mod issue tracker: not read (UNKNOWN).
 
@@ -470,7 +470,7 @@ VERIFIED statements in the repo:
 - ROM handling: the game extracts assets from the player's own ROM at build time (`extract_assets.py`, `assets.json`). weemitt reads the ROM at run time instead, and neither project commits a ROM.
 
 INFERRED about upstream handling:
-- Divergence is large. The fork rewrote the main loop (`src/pc/pc_main.c`), the renderer glue, the object system hooks, the UI (DJUI), and added C++ (DynOS) and Lua. The `CHANGES` file stopping at Refresh 13 means upstream decomp changes (which kept coming) are not tracked in it. A one-commit shallow clone shows no merge commits. So: UNKNOWN whether they merge from upstream; the evidence points to "no regular merging". The credits line "built on top of" treats upstream as an ancestor, not as a source to follow.
+- Divergence is large. The fork rewrote the main loop (`src/pc/pc_main.c`), the renderer glue, the object system hooks, the UI (DJUI), and added C++ (DynOS) and Lua. The `CHANGES` file stopping at Refresh 13 means upstream decomp changes (which kept coming) aren't tracked in it. A one-commit shallow clone shows no merge commits. So: UNKNOWN whether they merge from upstream; the evidence points to "no regular merging". The credits line "built on top of" treats upstream as an ancestor, not as a source to follow.
 - They kept `n64decomp` file layout (`src/game`, `src/engine`, `actors`, `levels`, `include`), so porting a specific upstream fix by hand is still possible.
 - Work split: game logic files in `src/game`, `src/engine` kept close to decomp style; everything new is in `src/pc/` (network, lua, mods, djui, discord, gfx, fs). INFERRED purpose: keeps the diff against the decomp tree readable.
 - Docs: C docs `docs/c/c.md` only covers naming conventions (camelCase variables, snake_case functions, PascalCase structs, `g` prefix for globals, `s` prefix for statics) and three sections (smlua, configfile, djui). They are short. Lua docs are large and generated.
@@ -479,7 +479,7 @@ INFERRED about upstream handling:
 
 INFERRED, from the above:
 
-1. Decide early whether you will keep merging from the port. They did not (or could not): the multiplayer needs changes inside gameplay code (hooks in `mario.c`, `interaction.c`, objects), which makes merges conflict.
+1. Decide early whether you will keep merging from the port. They didn't (or couldn't): the multiplayer needs changes inside gameplay code (hooks in `mario.c`, `interaction.c`, objects), which makes merges conflict.
 2. Put new systems in their own directory (`src/pc/network`, `src/pc/lua`) and keep game-file edits small and marked. weemitt already follows this idea with `src/port/`, `gen/` and `bruteforce/`.
 3. Network code needs a stable object identity. They solved it with a fixed id block per player plus load-order ids from deterministic level loading. Glover would need the same: object ids from the level's object list order plus per-player id blocks for spawned objects.
 4. Keep a version string exact match at every stage and tie lobby listing to it. The cost is that every release splits the player base. They accept that cost.
@@ -494,7 +494,7 @@ INFERRED, from the above:
 - VERIFIED: one workflow, `.github/workflows/build-coop.yaml` ("Build coop"). Triggers: manual, push to `dev`, pull request to `dev`. Push builds run only when the commit message contains "[build]"; draft PRs are skipped.
 - Jobs: `build-linux` (ubuntu-22.04, installs build-essential, libglew, libsdl2, zlib, libcurl, zip, runs `make -j`), `build-steamos` (same with `HANDHELD=1`), `build-windows` (windows-latest with MSYS2 mingw64/i686, SDL2 and GLEW packages, `make`), `build-macos-arm` (macos-26, builds GLEW 2.2.0 and SDL2 2.30.9 from source with minimum macOS 11, ad-hoc code sign), `build-macos-intel` (macos-15-intel, same).
 - Each job: build, compute a hash of the binary with `tools/hash_file.cpp` and print it as a CI notice, zip, upload artifact. The zip contents: `dynos`, `lang`, `mods`, `palettes`, the Discord SDK lib, the game, and `coopdx_updater`.
-- VERIFIED: no test step, no unit tests, no headless network tests, no lint step in CI. A `find` for test files finds only example assets (`actors/test_platform`, `docs/lua/examples/audio-test`, `docs/lua/examples/custom-hud-texture/textures/test.*`). There are `.clang-format` and `.clang-tidy` and `format.sh`, `tools/clang-tidy.sh`, but they are not run in CI.
+- VERIFIED: no test step, no unit tests, no headless network tests, no lint step in CI. A `find` for test files finds only example assets (`actors/test_platform`, `docs/lua/examples/audio-test`, `docs/lua/examples/custom-hud-texture/textures/test.*`). There are `.clang-format` and `.clang-tidy` and `format.sh`, `tools/clang-tidy.sh`, but they aren't run in CI.
 - Headless mode exists (`--headless`) and a Docker recipe says `make -j HEADLESS=1` (`Dockerfile`), and `gfx_dummy.c` is a no-render backend. Headless mode is for dedicated servers; no automated test that this study found uses it.
 - Dev aids: `DEVELOPMENT` build option (Makefile line 23) enables the debug-sync broadcast, extra logs and unsafe Lua libs (with `LUA_UNSAFE`), a fake "broken clock" test in `network_update_area_timer` (commented out), `network_send_debug_sync` every 5 s.
 - Lesson: they test by playing. weemitt's `tools/regress.py` plus a headless network test would already cover more than sm64coopdx's CI does.
@@ -508,7 +508,7 @@ INFERRED, from the above:
 - Graphics backends (VERIFIED, `src/pc/gfx/`): OpenGL (`gfx_opengl.c`) and Direct3D 11 (`gfx_direct3d11.cpp`, `gfx_dxgi.cpp`) and a dummy backend (`gfx_dummy.c`); windowing through SDL2 (`gfx_sdl.c`). CLI `--backend opengl|directx` (`cliopts.c:39`).
 - Languages: C (game, network, Lua glue), C++ (DynOS, Direct3D, mod storage/fs), Python (asset and binding generators in `tools/`, `autogen/`, `extract_assets.py`).
 - Dependencies: SDL2, GLEW, zlib (packet compression, VERIFIED `#include <zlib.h>` in `packet.c`), libcurl (update check, from CI package list), Lua 5.3.5 (prebuilt libs), libcoopnet+libjuice (prebuilt), Discord SDK (prebuilt), miniz (in tree).
-- Prebuilt third-party binaries are committed to the repo (`lib/` has `.a`, `.dylib`, `.so`, `.dll` files). That is a supply-chain and license issue (section 1.3) and also why the coopnet client's code could not be read in this study.
+- Prebuilt third-party binaries are committed to the repo (`lib/` has `.a`, `.dylib`, `.so`, `.dll` files). That's a supply-chain and license issue (section 1.3) and also why the coopnet client's code couldn't be read in this study.
 - Updater: `updater/` has per-OS binaries (`linux`, `mac_arm`, `mac_intel`, `win64`) and the package includes `coopdx_updater`; `--skip-update-check` flag.
 - 32-bit note: they support 32-bit Windows builds (`TARGET_BITS 32`), in line with weemitt's 32-bit x86 builds (INFERRED relevance).
 
@@ -520,16 +520,16 @@ Docs are thin on this. What the repo itself says or shows:
 
 - VERIFIED (`docs/lua/lua.md`): player index order differs per machine. Using `gMarioStates[1]` as "the other player" is a bug in multiplayer. Use `gPlayerSyncTable` or the network player's `globalIndex`.
 - VERIFIED (`docs/lua/lua.md` Tips): "When a function requests a time parameter, it is almost if not always in frames." and "run the game from a console" to see Lua errors (`--console`).
-- VERIFIED (`smlua.c` comments, around `smlua_update`): Lua produces so much garbage that incremental collection lags; they run incremental GC and note "the real fix would be to make smlua produce less garbage". The removal of `collectgarbage` from mods is related (mods cannot stall the game with full collections; INFERRED).
-- VERIFIED (code, 3.5): reliable packets give up after 15 attempts. A client that never receives a reliable packet is not told; it can end up in a half-synced state (INFERRED).
+- VERIFIED (`smlua.c` comments, around `smlua_update`): Lua produces so much garbage that incremental collection lags; they run incremental GC and note "the real fix would be to make smlua produce less garbage". The removal of `collectgarbage` from mods is related (mods can't stall the game with full collections; INFERRED).
+- VERIFIED (code, 3.5): reliable packets give up after 15 attempts. A client that never receives a reliable packet isn't told; it can end up in a half-synced state (INFERRED).
 - VERIFIED (code, 3.3): object desync is logged, not repaired: "sync id mismatch", "behavior mismatch", "mismatching extra fields count" (an extra-field count mismatch happens when two machines run different mod or game code).
 - VERIFIED (`packet_join.c`): the version mismatch message shows both version strings and says "Someone is out of date!".
-- VERIFIED: the area sync flow is commented out in `network_update` (a block that re-requested level/area state every 10 seconds if `currLevelSyncValid` stayed false is commented out in `network.c`). So a failed sync request is not retried there; `PACKET_REQUEST_FAILED` is the only reply path (INFERRED consequence).
+- VERIFIED: the area sync flow is commented out in `network_update` (a block that re-requested level/area state every 10 seconds if `currLevelSyncValid` stayed false is commented out in `network.c`). So a failed sync request isn't retried there; `PACKET_REQUEST_FAILED` is the only reply path (INFERRED consequence).
 - VERIFIED: server-side and client-side checks on kick: a client refuses a kick not sent by the server player.
 - VERIFIED: the "network startup timer" of 5 seconds of game ticks (`gNetworkStartupTimer = 5 * 30`) makes the host ignore packets from unknown players while it starts (`packet_receive`). Without it, stale datagrams from a previous session would kick people.
 - VERIFIED: unknown-sender packets are handled with kick. A packet from an unknown address other than join/mod-list/keep-alive types causes `EKT_CLOSE_CONNECTION` (`packet_receive`).
 - Cheating: VERIFIED only the debug-fly check. Everything else is client trusted (4.9, item 9). No anti-cheat design document in the repo (UNKNOWN).
-- Mod compatibility: VERIFIED `-- incompatible:` header list; mismatch between a mod and the game version is not checked (a mod does not declare a game version; UNKNOWN whether a Lua API version exists beyond the game version string).
+- Mod compatibility: VERIFIED `-- incompatible:` header list; mismatch between a mod and the game version isn't checked (a mod doesn't declare a game version; UNKNOWN whether a Lua API version exists beyond the game version string).
 - Issue tracker and wiki: not read (UNKNOWN). Only the wiki Home page was fetched; it repeats the README text and links to the Lua docs.
 
 ---

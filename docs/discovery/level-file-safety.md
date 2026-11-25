@@ -3,7 +3,7 @@
 The game's level parser (`weemitt/src/game/parse.c`) is the original game's. It trusts the level file. This file
 lists what a level file must satisfy for that parser, and the code that uses what it parsed, to stay inside its
 memory. The sections from "How the parser reads" on come from a read of the code on 22 November 2026. Their line
-numbers are of that day. The sections before them say what is checked and guarded now, and which tests play hostile
+numbers are of that day. The sections before them say what's checked and guarded now, and which tests play hostile
 level files. `P:` means `weemitt/src/game/parse.c`. README.md's [terms](README.md#terms) define the words that this
 file uses without explaining them, such as the host, the hub, a garib, a cameo and the baseline.
 
@@ -16,7 +16,7 @@ said yes to the download. A pack from the host must pass the check below.
 A check that makes a hostile level file safe must walk the file exactly as the parser does, hold about a hundred
 rules on values and order, and know which objects, sub-objects, meshes and animations the borrowed level's banks
 hold in the player's own ROM. The borrowed level is the game's level whose place the pack's level takes. Parts of
-the game that use parsed values were not read (the last section).
+the game that use parsed values weren't read (the last section).
 
 g64coopdx does this work in two places: before a level loads, and in the game itself. Before the level loads, a
 check walks the file as the parser does and holds it to some of these rules ("What is checked today"). A second rule
@@ -54,14 +54,14 @@ Every rule passes on all 48 levels of the ROM. Of "The most dangerous" below, th
 point 1 but for puzzle action 6's axis, and point 3 but for a cameo's extra camera spheres. They also cover a
 condition's id of point 6, the tip's number of point 8, the plank count of point 9 and STARTPOINT of point 10.
 
-How it is proven: the game's parser records each token it reads (`G64ParseTrace`, for tests only), and
+How it's proven: the game's parser records each token it reads (`G64ParseTrace`, for tests only), and
 `tests/rom/levcheck.c` compares that record with the check's walk on all 48 levels of the ROM. The check accepts
 every one and names the same tokens at the same offsets. 26 of the parser's tokens are in no level of the ROM; their
 lengths come from the code alone. The check's fuzz target shows that it never reads outside the file.
 
-What it does not check: the other parts of "The most dangerous" below, and the rest of the table of value ranges.
+What it doesn't check: the other parts of "The most dangerous" below, and the rest of the table of value ranges.
 The numbered list below still holds for a file that passes. `g64pack` prints the check's result for a pack's maker.
-The online program refuses a pack from another player that fails it: a host does not offer such a pack, and a
+The online program refuses a pack from another player that fails it: a host doesn't offer such a pack, and a
 joiner refuses such a download. A pack from the player's own folder need not pass it.
 
 ## The level's object ids
@@ -75,7 +75,7 @@ a garib's. The banks are the four that the level loads (three in the intro and t
 bank, and the retail banks that its models.bin names. A CAMEO_OBJ may not name a model of the pack's own bank.
 `tests/rom/levcheck.c` proves the token list: on all 48 levels, the ids the rule reads are the ids the game's
 FindObject is asked for while the parser reads those tokens. No level of the ROM has a bridge, so the test adds one
-of each to a copy of a level. The rule covers point 4 below for objects. It does not cover a BACKDROP's texture,
+of each to a copy of a level. The rule covers point 4 below for objects. It doesn't cover a BACKDROP's texture,
 CAMEO_CAM or puzzle action 40.
 
 ## What the game itself guards
@@ -92,13 +92,13 @@ says what the game did before them, and the present tense says what the copy doe
   (`G64_USABLE` in parse.c). An object bank can hold such objects: level 5's banks have one, whose sprite's texture
   is in another level's texture bank. The texture's lookup gives a null pointer, and `AddActor` read the texture's
   size from it (`AddObjectsSpritesToSpriteList`, actor.c). That read now tests the pointer too, for the objects the
-  game finds by a name of its own, and stops the level ("SPRITE TEXTURE"). The check before loading does not refuse
+  game finds by a name of its own, and stops the level ("SPRITE TEXTURE"). The check before loading doesn't refuse
   such an object of the level's own banks yet. For a retail bank that a pack names, `g64_pack_check_retail_sprites`
   refuses it (model-banks.md).
 - Before each token the parser asks whether the thing the token's handler uses was made by this level's file
   (`TokenAllowed` in parse.c): a platform, its orbit, its spin, its path's points, its crumble or destructible part, a
   puzzle, an enemy, a vent, a landscape piece and its object, a group of garibs, a cameo, a buzzer. A vent and a
-  buzzer keep to their 6 patterns. The parser's own pointers to those things stay as the game left them: they are in
+  buzzer keep to their 6 patterns. The parser's own pointers to those things stay as the game left them: they're in
   the game's memory, which `make regress` compares with the baseline.
 - An ENEMY must be of one of the game's 59 kinds, the level holds 30 enemies, and an enemy whose object is not in
   the level's banks is not made. A pick-up must be one of the game's 15 and have its object, both from a PICKUP
@@ -123,14 +123,14 @@ says what the game did before them, and the present tense says what the copy doe
   bytes, and reach at most 1,035 blocks in use.
 - A level that stops while it is read has no collision planes: the parser makes them only after a whole file. Its
   landscape actors are on the list of collisions all the same. The restart gates' shadows read the planes at the
-  level's start (`InitRestartGateShadows`, through `Altitude`), and are not made in a stopped level now. Level 45
+  level's start (`InitRestartGateShadows`, through `Altitude`), and aren't made in a stopped level now. Level 45
   stopped after its landscape and crashed there.
 - A mesh without a display list is drawn from a buffer of 800 vertices for each frame (`objectsVtx`, which has two such
   buffers): 3 for each face, each time it is drawn (`WriteObjectDisplayListFlat` and `WriteObjectDisplayListGouraud` in
   banks.c). The lightning takes 2 for each point. The game wrote with no test, and the lists of actors, of collisions
   and of distances come after the second buffer. A level file with a hundred or so such objects near the start broke
-  those lists, and `UpdateWater`, `CheckCollisions` or `CreateObjects` then crashed. Now a mesh that does not fit is not
-  drawn that frame (`G64VertexRoom` in object.c). The game's own levels do not reach the end: `make regress` sees the
+  those lists, and `UpdateWater`, `CheckCollisions` or `CreateObjects` then crashed. Now a mesh that doesn't fit isn't
+  drawn that frame (`G64VertexRoom` in object.c). The game's own levels don't reach the end: `make regress` sees the
   same memory. The object matrices already work this way (`NextObjectMtx`).
 - A landscape actor with collision compares each face of its mesh with every later face (`CheckForInnerEdges`).
   The parser adds up the squares of those face counts, and the level stops ("COLLISION") above 40,000,000. The game's
@@ -139,9 +139,9 @@ says what the game did before them, and the present tense says what the copy doe
 - An ORBITBRIDGE's axis is 0 to 2, or 0x58 to 0x5A, which are the axes that its handler knows. An orbit whose axis was
   never set moved a platform through a list of two numbers with three; the list has three now.
 - A WATER whose object has no faces stops the level: the game freed the object and kept a pointer to it.
-- A platform's TERRAIN comes before the tokens that free its faces (NOCOLLISION, SPIKE, an EXITDOOR that is not
+- A platform's TERRAIN comes before the tokens that free its faces (NOCOLLISION, SPIKE, an EXITDOOR that isn't
   shown).
-- A FOG whose near end equals its far end stops the level, and a puzzle's action cannot set it so: the game divides
+- A FOG whose near end equals its far end stops the level, and a puzzle's action can't set it so: the game divides
   by the difference when it draws.
 - A BACKDROP's two scales are above 0, and its parent is a backdrop the level has.
 - A wind makes at most 1,000 particles a frame. A hub's exit asks the list of finished worlds only for the exit
@@ -154,22 +154,22 @@ says what the game did before them, and the present tense says what the copy doe
 - A puzzle condition's and action's number must be one the game has, and their puzzle variables among the level's
   100: the parser tests them as it reads them.
 - While the level runs, a condition or an action whose tag meets a platform without the part it needs (a path, a
-  spin, an orbit, a confine) is not met, or does nothing for that platform. The same for a spin or an orbit without
+  spin, an orbit, a confine) isn't met, or does nothing for that platform. The same for a spin or an orbit without
   a pause, whose count of pauses the game divided by. An action with a tag that no platform has does nothing.
 - An enemy's list of instructions has an end (`NMEGetNewInstruction`): an enemy without instructions, a puzzle's
-  action that names an instruction the enemy does not have, and a list whose last instruction's conditions are not
+  action that names an instruction the enemy doesn't have, and a list whose last instruction's conditions aren't
   met leave the enemy with the instruction it has.
 - A level that one of these guards stops is marked as one that cannot be played (`G64Unplayable`), which is the
   game's own state for a level without its file. The game shows its error screen and runs none of the level's logic.
 - Online, the players of such a level go back to the hub, and each is told why. A hub level that cannot be played
   keeps its players.
 - `pack_unplayable` in tests/rom/instances.c plays a level whose first platform names a missing object, and one whose
-  garibs come before any group, one with an enemy of a kind the level's banks do not hold, one whose broken platform
+  garibs come before any group, one with an enemy of a kind the level's banks don't hold, one whose broken platform
   leaves pieces of a missing object, and one with 1,300 more platforms than Atlantis 1's own file: both players end in
   the hub each time, and no machine disagrees.
 
 POS and the tokens that free a platform's faces are safe on a DUMMY (a platform without an object) with the game's
-own code: the first returns before it uses the object, and the game's free does nothing for a list that is not
+own code: the first returns before it uses the object, and the game's free does nothing for a list that isn't
 there. A HEADSTART runs at most 32,767 updates.
 
 The game's code for the hubs, the boss levels, the bonus levels and the scenes expects fixed things in those
@@ -194,7 +194,7 @@ level's own file and adds scenery (BACKGROUND tokens) around the start:
   players.
 - In levels 0, 5, 8, 13, 20, 29, 36, 44 and 45, every object of the level's banks that plays alone, in turn, and the
   one that asks for the most vertices again and again. The count goes from 50 up, by 50 and then by 100, until the
-  parser stops the level as too large. That is 100 to 500 objects.
+  parser stops the level as too large. That's 100 to 500 objects.
 - Every level with one object that no bank has. Each must stop as unplayable.
 
 Every case plays or stops as unplayable, and two runs give the same memory hash. The output is the same on Linux and
@@ -206,7 +206,7 @@ the shadows), and level 13 from 116 (the vertices). With 16 players and no added
 at most 606 vertices (level 37), and no draw finds no room.
 
 Not guarded in the game yet: the short forms, which the check before loading refuses; memory that fills after the
-level is read, while it runs (the program then stops); and what the last section says was not read.
+level is read, while it runs (the program then stops); and what the last section says wasn't read.
 
 ## How the parser reads
 
@@ -214,18 +214,18 @@ level is read, while it runs (the program then stops); and what the last section
   token 0x7D00 (P:158-162).
 - No read is bounded. A missing end token, a cut field or a name without its zero byte reads past the file's
   memory.
-- A token the parser does not know is skipped two bytes at a time, with no message (P:174-288). A check must refuse
+- A token the parser doesn't know is skipped two bytes at a time, with no message (P:174-288). A check must refuse
   it.
 - The token values are Glovebox's opcodes (`Glovebox/crates/core/data/level_format.json`): all 110 agree. The byte
   counts differ in three places: ORBITFLIP reads 6 bytes (P:1607), SINEBRIDGE reads 60 (P:1147-1160), and an enemy
   instruction of an unknown type reads only its type and time (`nmeprocess.c:78-105`).
-- The tokens SPIKE, CAMEO_CAM and ANIMATE_PLATFORM have handlers that do not report that they took the token. No
+- The tokens SPIKE, CAMEO_CAM and ANIMATE_PLATFORM have handlers that don't report that they took the token. No
   other handler takes it after them, so their lengths hold.
 - Some tokens read fewer bytes depending on what came before, and the rest is then read as tokens: BALL_START (by
-  the save), the puzzle tokens without a puzzle, TELEPORT whose target tag is not found, ORBIT after two path
+  the save), the puzzle tokens without a puzzle, TELEPORT whose target tag isn't found, ORBIT after two path
   points, ORBITPAUSE and ORBITFLIP after each other, SPINFLIP after SPINPAUSE, SCALE after a POINT, and enemy and
   cameo instructions of unknown types.
-- `platform` is a local that is not set before the first PLATFORM or DUMMY (P:105). `lastVent`, `lastLandscape`,
+- `platform` is a local that isn't set before the first PLATFORM or DUMMY (P:105). `lastVent`, `lastLandscape`,
   `lastCameo`, `parsePuzzle`, `parseCondition`, `parseAction`, `parseGaribGroup` and `buzzer` are never reset
   between levels: after the first level they point into the last level's freed memory. A token that uses one of
   them must come after the token that sets it, in the same file.
@@ -240,7 +240,7 @@ level is read, while it runs (the program then stops); and what the last section
 3. **Counts with no limit.** Enemies (30), instructions of one enemy (30, 10 and 30), patterns of one vent or
    buzzer (6), instructions of one cameo (20), rope bridges (10), planks of a rope bridge (1 to 100), a cameo's
    extra camera spheres (10).
-4. **Ids that the banks do not hold.** PLATFORM, the bridges, WATER, BACKDROP, ENEMY, CAMEO_CAM and puzzle action
+4. **Ids that the banks don't hold.** PLATFORM, the bridges, WATER, BACKDROP, ENEMY, CAMEO_CAM and puzzle action
    40 use what the lookup gives at once, and it gives nothing for an unknown id. A platform's object must also
    have a mesh.
 5. **Tokens before their owner**, as in the last point of the section above.

@@ -12,7 +12,7 @@ extern "C" {
    0 to play alone, -1 when the window is closed. relay is the relay's address. The menu must be set up (menu_init). */
 int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long romSize, const char *relay, int *level,
                  int *players);
-/* Draws the player's own pause menu in the online game, when it is open (netplay_pause_open). Call it after the game's
+/* Draws the player's own pause menu in the online game, when it's open (netplay_pause_open). Call it after the game's
    frame is drawn and before the window's buffers are swapped. */
 void g64_pause_draw(SDL_Window *window);
 /* The game's own title screen behind the start screen (platform.c): runs its frames for the time that has passed

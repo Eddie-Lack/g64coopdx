@@ -132,7 +132,7 @@ static struct {
     int lastMtxBlended; /* 1 when the interpolation changed it */
     int tinted;         /* g64coopdx: vertex colors are multiplied by tint (G_NOOP with a tint word, below) */
     float tint[3];
-    /* g64coopdx: while texPairs is not 0, a texture image at texFrom[k] is read at texTo[k] (G_NOOP, below). */
+    /* g64coopdx: while texPairs isn't 0, a texture image at texFrom[k] is read at texTo[k] (G_NOOP, below). */
     int texPairs;
     u32 texFrom[8];
     u32 texTo[8];

@@ -25,7 +25,7 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
 /* A joiner asks again when no piece came for this long, in ms. After a whole burst it asks at once, but not within
    PACK_GAP ms of its last request, which the host would drop. */
 #define PACK_ASK 200
-/* How long a place is held for a player who has not got the pack yet, in ms. A joiner gets PACK_BURST pieces for
+/* How long a place is held for a player who hasn't got the pack yet, in ms. A joiner gets PACK_BURST pieces for
    each round trip, about 8 KB. A large pack holds the place for one minute more than its download takes on a link
    with a round trip of one second, which moves PACK_SLOW bytes a ms. A pack of up to about 1.9 MB holds it for
    PACK_WAIT. */
@@ -33,7 +33,7 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
 #define PACK_SLOW 8
 #define PACK_WAIT_MORE (60 * 1000)
 /* The most places that players without the pack may hold at once, and how many times the pack's size the host
-   sends to one of them before it frees the place: a joiner cannot hold the room or the host's line for long. */
+   sends to one of them before it frees the place: a joiner can't hold the room or the host's line for long. */
 #define PACK_PLACES 4
 #define PACK_TIMES 3
 /* The hello's bytes before the name: the type, "G64", the protocol, the ROM, the build, two colors, and the
@@ -52,7 +52,7 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
 /* The addresses the host remembers of players it removed. */
 #define BANS_MAX 32
 
-/* A joiner says hello every RESEND ms until it is welcomed; the host repeats the start every RESEND ms until each
+/* A joiner says hello every RESEND ms until it's welcomed; the host repeats the start every RESEND ms until each
  * player has answered a game message. A peer silent for TIMEOUT ms is gone. */
 #define RESEND 250
 #define PING_EVERY 500
@@ -74,16 +74,16 @@ typedef struct {
        own. Only then does the host send it the start, which is long and repeats. */
     int proven;
     /* On the host: this player took the place after the start. The place may have belonged to a player of the
-       start who is gone; its new player is not one of the start's. */
+       start who's gone; its new player isn't one of the start's. */
     int late;
-    /* On the host: this player does not have the host's level pack yet. They hold a place and are not in the game:
-       they are not counted, not sent the start, and their game and chat messages are dropped. packSince is when
+    /* On the host: this player doesn't have the host's level pack yet. They hold a place and aren't in the game:
+       they aren't counted, not sent the start, and their game and chat messages are dropped. packSince is when
        they came; packServed is when the host last sent them pieces; lastOffer is when it last sent them the offer. */
     int needPack;
     uint32_t packSince, packServed, lastOffer;
     size_t packSent; /* the pack's bytes sent to this peer so far */
     int packOver;    /* the peer asked for more than PACK_TIMES the pack: the place is freed */
-    int packAsked; /* the peer has asked for a piece or said it is ready, so it has the offer */
+    int packAsked; /* the peer has asked for a piece or said it's ready, so it has the offer */
     uint32_t lastStart; /* when the host last sent this peer the start or the list of players */
     /* On the host: when a removed player's program was last told, at most every RESEND ms. */
     uint32_t kickTold;
@@ -92,7 +92,7 @@ typedef struct {
     char name[NAME_MAX + 1];
     uint32_t glove, ball; /* the player's colors (session.h, G64_COLOR_SET) */
     /* The host removed this player (g64_session_kick). Their program gets the kick again whenever it sends. Before
-       the start the place is held for KICK_HOLD ms from kickTime, then it is free again. */
+       the start the place is held for KICK_HOLD ms from kickTime, then it's free again. */
     int kicked;
     uint32_t kickTime;
     /* The host's limit on this player's chat: the number of their last line, how often it was passed on, and when
@@ -165,7 +165,7 @@ static size_t offer_total(const g64_pack_offer *o) {
     return o->manifestSize + o->levSize + o->scriptSize + o->modelsSize;
 }
 
-/* How long the host holds a place for a player who has not got its pack yet, in ms. The pack is at most about
+/* How long the host holds a place for a player who hasn't got its pack yet, in ms. The pack is at most about
    5.3 MB, so this is at most about 12.5 minutes. */
 static uint32_t pack_wait(const g64_pack_offer *o) {
     size_t slow = PACK_WAIT_MORE + offer_total(o) / PACK_SLOW;
@@ -233,7 +233,7 @@ g64_session *g64_session_join(net_socket *s, const net_addr *to, uint32_t rom, c
     g->peers[0].addr = *to;
     snprintf(g->name, sizeof g->name, "%s", name ? name : "");
     g->state = G64_SESSION_WAITING;
-    /* Without random bytes there is no key, and without a key no session. */
+    /* Without random bytes there's no key, and without a key no session. */
     if (g64_seal_keypair(g->secret, g->peers[0].myKey) != 0)
         fail(g, "the system gave no random numbers");
     return g;
@@ -271,7 +271,7 @@ static void send_welcome(g64_session *g, int p) {
 #define START_HEAD 9
 #define START_EACH (8 + NAME_MAX)
 
-/* On the host: 1 for a player who is in the game now. */
+/* On the host: 1 for a player who's in the game now. */
 static int host_present(const g64_session *g, int p) {
     const peer *q = &g->peers[p];
     return p == 0 || (q->used && q->proven && !q->gone && !q->kicked && !q->needPack);
@@ -292,7 +292,7 @@ static void send_start(g64_session *g, int p) {
     int q;
     for (q = 0; q < g->players; q++)
         present |= (unsigned)host_present(g, q) << q;
-    /* A player who came after the start is not one of the start's players, whoever had the place then: their
+    /* A player who came after the start isn't one of the start's players, whoever had the place then: their
        program must not build the first game, but ask for one. */
     if (g->peers[p].late)
         members &= ~(1u << p);
@@ -376,9 +376,9 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             q->proven = 1;
             host_inner(g, p, plain, len, now, on_game, user);
         } else if (d[0] == MSG_HELLO && n >= HELLO_SIZE && memcmp(d + HELLO_KEY, q->theirKey, G64_SEAL_KEY) == 0) {
-            /* The welcome was lost: send it again, also after the start, which the joiner cannot open without it.
+            /* The welcome was lost: send it again, also after the start, which the joiner can't open without it.
                The start repeats by itself. A hello with another key is someone else at this address. They wait
-               until the place is free: a link's key is never replaced. A hello does not count as heard: anyone
+               until the place is free: a link's key is never replaced. A hello doesn't count as heard: anyone
                can repeat one. */
             send_welcome(g, p);
         }
@@ -402,7 +402,7 @@ static void host_datagram(g64_session *g, const net_addr *from, const uint8_t *d
         } else if (is_banned(g, from)) {
             refuse[1] = G64_REFUSE_REMOVED;
         } else {
-            /* A free place, or after the start the place of a player who is gone. A game that has started takes
+            /* A free place, or after the start the place of a player who's gone. A game that has started takes
                new players as long as it has places. */
             for (p = 1; p < g->players && free_slot < 0; p++)
                 if (!g->peers[p].used)
@@ -546,13 +546,13 @@ static void host_inner(g64_session *g, int p, const uint8_t *d, int n, uint32_t 
         host_pack(g, p, d, n, now);
         return;
     }
-    /* A player without the pack is not in the game yet. */
+    /* A player without the pack isn't in the game yet. */
     if (g->peers[p].needPack)
         return;
     if (d[0] == MSG_CHAT && n >= 3 && n <= 3 + G64_CHAT_MAX) {
         /* A player's line goes to every other player, with its sender's number, which the host knows from the
            link. The sender's repeats are passed on too, and each receiver drops the ones it has. A player
-           cannot flood the others: a new line too soon after the last one is dropped, and so are more copies
+           can't flood the others: a new line too soon after the last one is dropped, and so are more copies
            of a line than a program sends. */
         peer *c = &g->peers[p];
         int q;
@@ -587,9 +587,9 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
         return;
     switch (d[0]) {
     case MSG_START:
-        /* The start, and after it the same message again and again as the list of players: who is in now, with
+        /* The start, and after it the same message again and again as the list of players: who's in now, with
            their names and colors. */
-        /* No start counts while the host's offer is open: this machine does not have the host's pack yet. */
+        /* No start counts while the host's offer is open: this machine doesn't have the host's pack yet. */
         if (g->packState != G64_PACK_OFFERED && g->packState != G64_PACK_LOADING && g->packState != G64_PACK_LOADED &&
             n >= START_HEAD && g->me >= 1 && d[1] == g->players && n == START_HEAD + START_EACH * g->players &&
             d[3] >= 1 && (d[4] & ~G64_FLAGS_KNOWN) == 0) {
@@ -635,7 +635,7 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
         break;
     case MSG_PACK_OFFER:
         /* The host plays with another pack than this machine's, or with none. Only the first offer counts: a host
-           does not change its pack, and a second offer must not move a download's bounds. */
+           doesn't change its pack, and a second offer must not move a download's bounds. */
         if (n >= OFFER_SIZE && n <= OFFER_SIZE + G64_PACK_NAME_MAX && g->state == G64_SESSION_WAITING && g->me >= 1) {
             g64_pack_offer o;
             int i, none = 1;
@@ -653,7 +653,7 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
                         o.levSize > G64_PACK_LEVEL_LIMIT || o.scriptSize > G64_PACK_SCRIPT_LIMIT ||
                         !models_size_ok(o.modelsSize) || !o.name[0]))
                 break;
-            /* An offer of this machine's own pack is not one: the hello said which pack it has. */
+            /* An offer of this machine's own pack isn't one: the hello said which pack it has. */
             if (memcmp(o.id, g->pack, G64_PACK_ID_SIZE) == 0 && g->packState == G64_PACK_NONE)
                 break;
             if (g->packState == G64_PACK_NONE) {
@@ -667,7 +667,7 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
         }
         break;
     case MSG_PACK_PIECE:
-        /* The next bytes of the pack, in order only: a piece that is not the next one is dropped and asked for
+        /* The next bytes of the pack, in order only: a piece that isn't the next one is dropped and asked for
            again. Nothing is kept before the player has said yes. */
         if (n > 5 && n <= 5 + PACK_PIECE && g->packState == G64_PACK_LOADING && g->packData) {
             size_t total = offer_total(&g->offer), at = get32(d + 1), len = (size_t)(n - 5);
@@ -742,7 +742,7 @@ static void join_datagram(g64_session *g, const net_addr *from, const uint8_t *d
             if (len < 1)
                 break;
             if (!h->opened) {
-                /* The link is the real host's. The secret key is not needed any more. */
+                /* The link is the real host's. The secret key isn't needed any more. */
                 h->opened = 1;
                 g64_seal_wipe(g->secret, sizeof g->secret);
             }

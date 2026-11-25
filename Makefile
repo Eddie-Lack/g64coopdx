@@ -9,7 +9,7 @@ PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
 .PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk packbanks-build packbanks scenery-build scenery models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
-# The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It is weemitt's studio at 64 bits
+# The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It's weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
 # from weemitt's library with the real sound player, next to it as g64coopdx-sound.so (src/client/soundout.h).
 client:
@@ -48,7 +48,7 @@ savestates-test: savestates
 ENGINE_LINUX := weemitt/bruteforce/build/linux64/libglover.a
 ENGINE_WINDOWS := weemitt/bruteforce/build/windows64/libglover.a
 # The check of a pack's models.bin and what it needs, for every program that reads packs (src/client/pack.c). The
-# table of the game's bank switch (src/client/bankranges.h) is for programs that do not link the game;
+# table of the game's bank switch (src/client/bankranges.h) is for programs that don't link the game;
 # tools/gen_bankranges.py writes it.
 BANKRANGES_SRC := src/client/bankranges.c src/client/bankranges_table.c
 MODELS_SRC := src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c
@@ -425,8 +425,8 @@ scenery: scenery-build
 
 # May a pack's own models be platforms (tests/rom/models.c)? Platforms, bridges, debris and water with the pack's
 # models, on Linux and under Wine. Variant I has identity rotation keys: its two outputs must be equal. Variant Z has
-# keys of all zeros, past the bank check. It is a measurement: its exit statuses and the comparison are printed, and
-# do not fail the target (needs the ROM in GLOVER_ROM).
+# keys of all zeros, past the bank check. It's a measurement: its exit statuses and the comparison are printed, and
+# don't fail the target (needs the ROM in GLOVER_ROM).
 MODELTEST_SRC := tests/rom/models.c src/client/bankcheck.c src/client/rombanks.c src/client/fla2.c src/client/levcheck.c \
     third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
 models-build: savestates

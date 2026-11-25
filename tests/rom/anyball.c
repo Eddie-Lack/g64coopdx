@@ -6,7 +6,7 @@
  *   A. Without the rule nothing changes: each player keeps their own ball.
  *   B. With the rule player 1 has player 0's ball, where it lay, and player 0 has player 1's.
  *   C. Then the ball that player 1 has is lost. Its real owner, player 0, dies: their respawn counts down. Player 1
- *      does not die, their glove stays where it is, and they get the ball back whole.
+ *      doesn't die, their glove stays where it is, and they get the ball back whole.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *

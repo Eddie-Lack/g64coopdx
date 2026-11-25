@@ -142,7 +142,7 @@ int soundout_open(const unsigned char *rom, unsigned long romSize) {
     SDL_free(base);
     lib = load(path);
     if (!lib) {
-        plog_printf("g64coopdx: no sound: cannot load %s", path);
+        plog_printf("g64coopdx: no sound: can't load %s", path);
         return -1;
     }
     f_default = (int32_t (*)(GloverConfig *))sym("glover_default_config");

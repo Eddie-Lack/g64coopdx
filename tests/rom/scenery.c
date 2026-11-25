@@ -18,10 +18,10 @@
  * (G64VertexRoom in object.c), a sprite without its texture (G64_USABLE in parse.c, AddObjectsSpritesToSpriteList in
  * actor.c), and the restart gates' shadows in a level whose parse stopped (InitMorePersonal in game.c). Each case
  * prints the most vertices a frame asked for, the draws that found no room, and the most commands in a frame's
- * graphics list. They are counted from the start of the run, after the state at power-on is loaded.
+ * graphics list. They're counted from the start of the run, after the state at power-on is loaded.
  *
  * With "sweep" as the third argument, each case runs in a child process on Linux, and a crash is printed as one.
- * make scenery does not use it.
+ * make scenery doesn't use it.
  *
  * The output holds no address and no data from the ROM: only level numbers, counts and hashes. make scenery compares
  * it between Linux and Wine.
@@ -233,7 +233,7 @@ static uint8_t *with_scenery(int level, const uint32_t *ids, unsigned numIds, un
     return lev;
 }
 
-/* Plays one case twice and prints it. The level counts as stopped when it is unplayable right after its start or
+/* Plays one case twice and prints it. The level counts as stopped when it's unplayable right after its start or
    at the end: online, the players of a stopped level go to the hub, which is a level that plays. Returns 1 when it
    stopped. */
 static int run_case(const char *what, int level, const uint32_t *ids, unsigned numIds, unsigned count,

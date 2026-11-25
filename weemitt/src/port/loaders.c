@@ -231,7 +231,7 @@ void *LoadLandscapeFile(s32 num) {
     u32 size;
     void *buf;
 
-    /* g64coopdx: a level pack's level file takes this level's place. It is after the ROM's own bytes in the ROM
+    /* g64coopdx: a level pack's level file takes this level's place. It's after the ROM's own bytes in the ROM
        buffer, and starts with its size as a ROM's level file does. The client has checked that size. */
     if (g64PackLevel == num && g64PackSize >= 4) {
         rom = g64PackRom;

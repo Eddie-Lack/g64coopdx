@@ -40,10 +40,10 @@ static unsigned int luaSeen;
 #define EVENT_MAX 64
 static unsigned char luaEvents[EVENT_MAX][2];
 static unsigned int luaEventCount;
-/* The line of text that the script shows to each player (game.show), and the frame at which it goes away. It is
+/* The line of text that the script shows to each player (game.show), and the frame at which it goes away. It's
    part of the game's saved state: after a rollback the screen shows what the script of the corrected frames set. */
 /* The session's values for scripts: SESSION_KEYS whole numbers of 32 bits that every level's script reads, and that
-   last from level to level. luaSession is this game's copy. A script does not write it: it asks for an amount to be
+   last from level to level. luaSession is this game's copy. A script doesn't write it: it asks for an amount to be
    added (luaRequests, the key and the amount), the host adds it to the session's value, and the new value comes
    back to every game of the session as a session event at a frame (G64LuaSetSession). startSession is what a game
    starts with: the client sets it the same on every machine before the game is built, and nothing resets it. */
@@ -128,9 +128,9 @@ static void arena_free(void *q) {
     }
 }
 
-/* Lua's allocator (lua_Alloc). A request the block cannot meet gives NULL, and Lua ends the script's call with a
+/* Lua's allocator (lua_Alloc). A request the block can't meet gives NULL, and Lua ends the script's call with a
    memory error: at the same point on every machine. Each new byte also counts as work. A function of Lua's
-   libraries that builds a large text then cannot run past the limit. */
+   libraries that builds a large text then can't run past the limit. */
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     void *n;
     (void)ud;
@@ -212,7 +212,7 @@ void G64LuaCounts(unsigned int out[4]) {
 
 /* One number for the comparison between machines: a hash of the counts above, of the state of the random numbers
    of the players the script has seen, of the events that wait for it, of the text it shows, and of the
-   session's values and what the script asked to add to them. The block itself holds addresses and cannot be compared. */
+   session's values and what the script asked to add to them. The block itself holds addresses and can't be compared. */
 unsigned int G64LuaHash(void) {
     unsigned int c[7], k = 2166136261u;
     int i, b;
@@ -369,7 +369,7 @@ static int api_ball_pos(lua_State *L) {
     return 3;
 }
 
-/* A count of a player's: nothing when the player is not in this level. */
+/* A count of a player's: nothing when the player isn't in this level. */
 static int count_result(lua_State *L, int p, int v) {
     if (!G64PlayerInLevel(p)) {
         return 0;
@@ -428,7 +428,7 @@ static int api_add_life(lua_State *L) {
     return 0;
 }
 
-/* game.spawn_pickup(kind, x, y, z [, frames]): one of the game's pick-ups at a place. Gives true when it is there:
+/* game.spawn_pickup(kind, x, y, z [, frames]): one of the game's pick-ups at a place. Gives true when it's there:
    false for a kind the level's banks lack, and when the level holds 128 pick-ups. */
 static int api_spawn_pickup(lua_State *L) {
     lua_Integer kind = luaL_checkinteger(L, 1);
@@ -538,7 +538,7 @@ const char *G64LuaShown(int player) {
 }
 
 /* The next random number: 64 bits (splitmix64). The state starts from the script's text and the level
-   (G64LuaLoad). Every machine draws the same numbers from it. The game's own random numbers are not touched. */
+   (G64LuaLoad). Every machine draws the same numbers from it. The game's own random numbers aren't touched. */
 static unsigned long long random_next(void) {
     unsigned long long z = (luaRandom += 0x9E3779B97F4A7C15ull);
     z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
@@ -666,7 +666,7 @@ static void log_text(const char *what, const char *s, size_t n) {
     port_log("script: %s%s", what, line);
 }
 
-/* A line for the program's log. It is for the eyes only: nothing in the game reads it. */
+/* A line for the program's log. It's for the eyes only: nothing in the game reads it. */
 static int api_log(lua_State *L) {
     size_t n = 0;
     const char *s = luaL_checklstring(L, 1, &n);
@@ -715,7 +715,7 @@ static int safe_format(lua_State *L) {
 }
 
 /* string.find for plain text only. Lua's patterns can take a time that grows without limit in one call, which the
-   count of steps does not see. The search counts as work. */
+   count of steps doesn't see. The search counts as work. */
 static int safe_find(lua_State *L) {
     size_t ls = 0, lp = 0;
     lua_Integer init = luaL_optinteger(L, 3, 1);
@@ -742,11 +742,11 @@ static int safe_rep(lua_State *L) {
 }
 
 /* The table library for plain tables only. With a metatable, a table can claim any length and answer every read
-   from a C function, and Lua's own then loops that many times in one call, which the count of steps does not see. */
+   from a C function, and Lua's own then loops that many times in one call, which the count of steps doesn't see. */
 static int safe_table(lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
     if (lua_getmetatable(L, 1)) {
-        return luaL_argerror(L, 1, "a table with a metatable cannot be used here");
+        return luaL_argerror(L, 1, "a table with a metatable can't be used here");
     }
     return call_wrapped(L);
 }
@@ -756,7 +756,7 @@ static int safe_setmetatable(lua_State *L) {
     if (lua_type(L, 2) == LUA_TTABLE) {
         lua_pushliteral(L, "__gc");
         if (lua_rawget(L, 2) != LUA_TNIL) {
-            return luaL_argerror(L, 2, "a metatable cannot have __gc");
+            return luaL_argerror(L, 2, "a metatable can't have __gc");
         }
         lua_pop(L, 1);
     }
@@ -863,7 +863,7 @@ static int load_script(lua_State *L) {
     return 0;
 }
 
-/* Loads and runs a script's source. Returns 0, or -1 when it does not load or its first run fails. */
+/* Loads and runs a script's source. Returns 0, or -1 when it doesn't load or its first run fails. */
 int G64LuaLoad(const char *source, unsigned int size) {
     lua_State *L;
     unsigned int i;
@@ -983,7 +983,7 @@ void G64LuaFrame(void) {
     call_script(L, "on_frame", CALL_BUDGET);
 }
 
-/* For tests: the number in the script's global variable of that name, or -1 when there is none. It walks the
+/* For tests: the number in the script's global variable of that name, or -1 when there's none. It walks the
    global table and compares the names, which asks Lua for no memory: the script's state and its counts stay as
    they are. */
 double G64LuaGlobal(const char *name) {

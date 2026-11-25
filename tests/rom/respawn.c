@@ -2,7 +2,7 @@
  * "Respawns"), online, with the ROM. Each case builds level 10 from the state right after power-on, runs it to frame
  * 400, and then makes a player fall under the level, which kills them.
  *   A. Player 1 falls. Their own countdown runs from 65 to 0, one step a frame, and they come back at the level's
- *      start. Player 0's countdown stays 0, and player 0 ends where they end when player 1 does not fall. Nobody
+ *      start. Player 0's countdown stays 0, and player 0 ends where they end when player 1 doesn't fall. Nobody
  *      loses a life.
  *   B. Player 1's ball falls through the level's second gate, which becomes their checkpoint and not player 0's.
  *      Player 1 then falls, and comes back at the second gate.
@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
     engine_default_options(&opt);
     engine = engine_create(argv[1], &opt, err, sizeof err);
     if (!engine) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     boot = malloc(engine_state_size(engine));

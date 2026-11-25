@@ -1,8 +1,9 @@
-/* g64coopdx: more than one player in one game, by swapping. A prototype (docs/discovery/state-inventory.md, "Two
-   ways to make the game multi-player").
+/* g64coopdx: more than one player in one game, by swapping. It began as a prototype and is now the design
+   (docs/discovery/roadmap.md, game change 2; docs/discovery/state-inventory.md, "Two ways to make the game
+   multi-player").
 
    The game has one glove, one ball and one camera, and its code tests for them by address (actor == &hand). So the
-   other players do not get globals of their own. Each extra player has a slot on the game's heap that holds their
+   other players don't get globals of their own. Each extra player has a slot on the game's heap that holds their
    copy of the per-player globals. In each frame, after the first player's part of the frame, the slot is swapped
    into the globals, that player's part of the frame runs, and the slot is swapped back out.
 
@@ -76,14 +77,14 @@ u16 g64Buttons[G64_MAX_PLAYERS];
 s8 g64StickX[G64_MAX_PLAYERS];
 s8 g64StickY[G64_MAX_PLAYERS];
 
-/* The bytes of handControl and player: player starts inside handControl's last word (gen/ram.S), so they are one
+/* The bytes of handControl and player: player starts inside handControl's last word (gen/ram.S), so they're one
    block. */
 #define HAND_BLOCK_MAX 0x640
 /* An actor's list links: next, prev, collNext, collPrev, distNext, distPrev. */
 #define LINKS 0x18
 
 /* One player's part of the cave's scene (game.c, DoCaveStuff): the frame they came into the level, whether a crystal
-   was due then, and their flight's pedestal. Their stage is gameInfo.caveStage while they are in the globals. */
+   was due then, and their flight's pedestal. Their stage is gameInfo.caveStage while they're in the globals. */
 typedef struct G64Cave {
     s32 arrivedAt;
     s32 due;
@@ -105,7 +106,7 @@ extern s16 tTime1;
 extern s16 tTime2;
 
 /* The words in the glove's and the ball's display lists that name their textures and palettes. The game writes
-   them when a power-up or a spell changes the look (ball.c, collect.c). They are each player's own: a swap
+   them when a power-up or a spell changes the look (ball.c, collect.c). They're each player's own: a swap
    exchanges them, and another player's glove and ball are drawn with that player's words (G64ActorTextures). */
 #define G64_TEX_WORDS 10
 extern PTR32(u32) ballTextureData;
@@ -216,9 +217,9 @@ typedef struct G64Slot {
 /* Each extra player's slot, on the game's heap. Slot 0 is unused: player 0 lives in the globals. */
 static PTR32(G64Slot) slots[G64_MAX_PLAYERS];
 static s32 slotCount;
-/* Actors that only show what a slot holds: its glove and its ball. They are in the actor list, so the game draws
+/* Actors that only show what a slot holds: its glove and its ball. They're in the actor list, so the game draws
    them, and their contents are copied from the slot before each draw. A swapped slot holds another player's state,
-   so the proxies always show the players who are not in the globals. */
+   so the proxies always show the players who aren't in the globals. */
 static PTR32(Actor) proxyHand[G64_MAX_PLAYERS];
 static PTR32(Actor) proxyBall[G64_MAX_PLAYERS];
 /* Online: the cave's part of the player in the globals (on the heap, in the hashed memory), and a copy of the first
@@ -308,7 +309,7 @@ static void sync_orbiters(void);
 static void free_orbiter_proxies(void);
 static Player *slot_player(s32 i);
 
-/* handControl.orbiter3 is not always a player's: the first space boss makes its rotor in it, and a cameo can link it
+/* handControl.orbiter3 isn't always a player's: the first space boss makes its rotor in it, and a cameo can link it
    to an enemy. Then it belongs to the world: it stays in the globals through every swap and in the actor list, and
    no slot has a copy of it. A player's own orbiter3 is linked to the glove (collect.c, ActivateCollectable). */
 static s32 world_orbiter3(void) {
@@ -430,7 +431,7 @@ static void swap_slot(G64Slot *s) {
         swap_bytes((G64Cave *)globalCave, &s->cave, sizeof(G64Cave));
 }
 
-/* The globals' part of the cave, made the first time it is needed. Online only. */
+/* The globals' part of the cave, made the first time it's needed. Online only. */
 static G64Cave *global_cave(void) {
     if (!globalCave) {
         G64Cave *c = (G64Cave *)JallocAlloc(sizeof(G64Cave), 0, "G64Cave");
@@ -526,7 +527,7 @@ static G64Slot *copy_globals(void) {
     memcpy(&s->camera, &camera, sizeof(Actor));
     memcpy(&s->cameraInfo, &cameraInfo, sizeof(CameraInfo));
     memcpy(s->handBlock, &handControl, hand_block_size());
-    /* The first player's slam ring is not the new player's. */
+    /* The first player's slam ring isn't the new player's. */
     ((HandControl *)s->handBlock)->footprint = NULL;
     if (world_orbiter3())
         slot_orbiter3(s)->inst = NULL;
@@ -556,7 +557,7 @@ static G64Slot *copy_globals(void) {
     s->bossFocalPoint = bossFocalPoint;
     s->handPain = handPain;
     s->controlMethod = controlMethod;
-    /* A new player has not swum yet. The level sets the first player's count to 0 only after this copy. */
+    /* A new player hasn't swum yet. The level sets the first player's count to 0 only after this copy. */
     s->atlantisInWater = 0;
     s->camOrigRotY = camOrigRotY;
     s->levelCamHeight = levelCamHeight;
@@ -574,7 +575,7 @@ static G64Slot *copy_globals(void) {
         s->cave = *(G64Cave *)globalCave;
     clone_slot_blocks(s);
     {
-        /* The first player's own things are not the new player's: the two sprites of the pointing glove
+        /* The first player's own things aren't the new player's: the two sprites of the pointing glove
            (HAND_LOCATE), which the first player frees, and the fake ball. A copy taken while the first player
            points starts as a glove that stands. */
         HandControl *hc = (HandControl *)s->handBlock;
@@ -584,7 +585,7 @@ static G64Slot *copy_globals(void) {
         if (s->hand.state && s->hand.state->mode == HAND_LOCATE)
             s->hand.state->mode = HAND_IDLE;
     }
-    /* The first player's tongue is not the new player's either. A copy taken during a tongue has none, and its
+    /* The first player's tongue isn't the new player's either. A copy taken during a tongue has none, and its
        tongue ends (hand.c, MaintainAction). */
     s->tongueBullet = NULL;
     s->tongueTime = 0.0f;
@@ -756,19 +757,19 @@ static void sync_orbiters(void) {
 s32 G64OrbitersByProxy(void) {
     if (slotCount < 2)
         return 0;
-    /* An orbiter made now is not in the actor list: with one player again, sync_orbiters puts it there. */
+    /* An orbiter made now isn't in the actor list: with one player again, sync_orbiters puts it there. */
     orbitersUnlinked = 1;
     return 1;
 }
 
 /* 1 after G64SwapPlayer: the frame that is drawn next is a player's view, and the client loads the state again
-   after it. What the draw changes in the globals then does not reach the game. */
+   after it. What the draw changes in the globals then doesn't reach the game. */
 static s32 viewDraw;
 
 static void forget_cameo(void);
 static s32 cameo_slot(void);
 
-/* An actor that is not drawn: no size, no shadow. */
+/* An actor that isn't drawn: no size, no shadow. */
 static void hide_actor(Actor *a) {
     ZERO_VECTOR(&a->scale);
     a->flags &= ~0x100;
@@ -926,7 +927,7 @@ void G64ExtraPlayersStep(void) {
        ball. A copy taken earlier would keep the opening camera's fixed target. Online the start copy is taken then,
        even by a player alone, for the players who come later. */
     if (!ready) {
-        /* A boss level's camera looks at its own point (boss.c). During a cameo the camera's mode is not 1: a copy
+        /* A boss level's camera looks at its own point (boss.c). During a cameo the camera's mode isn't 1: a copy
            taken then would keep the cameo's camera for good. */
         if (gameInfo.level == SPACEBOSS3 || gameInfo.level == CARNIVALBONUS) {
             /* The last space boss's level and the Carnival bonus level hold the camera with an override in every
@@ -1227,7 +1228,7 @@ s32 G64SoundListener(s32 player, f32 *pos, f32 *yaw, s32 *maxDist) {
     const Actor *c;
     if (i < 0)
         return 0;
-    /* A player whose slot does not exist yet (the level's opening) sees and hears through the globals' camera. */
+    /* A player whose slot doesn't exist yet (the level's opening) sees and hears through the globals' camera. */
     if (i > 0 && i < slotCount && slots[i])
         c = &((G64Slot *)slots[i])->camera;
     else
@@ -1411,7 +1412,7 @@ s32 G64PortalShut(s32 player) {
     return player >= 0 && player < G64_MAX_PLAYERS ? portalShut[player] : 0;
 }
 
-/* A player takes an exit: it is recorded with where it leads, and the player leaves the game at the next frame. */
+/* A player takes an exit: it's recorded with where it leads, and the player leaves the game at the next frame. */
 static void player_exits(s32 player, s32 type, s32 complete) {
     u32 bit = 1u << player;
     G64ExitRecord *r;
@@ -1527,9 +1528,9 @@ static u32 framesRun;
 /* For scripts (src/port/g64lua.c). */
 void StopDrawing(char *name);
 
-/* Marks the level as one that cannot be played: the game's own state for a level without its file (mode 13). The
+/* Marks the level as one that can't be played: the game's own state for a level without its file (mode 13). The
    game then shows its error screen and runs none of the level's logic. The level parser calls this where a level
-   file names something the game does not have. */
+   file names something the game doesn't have. */
 void G64Unplayable(const char *what) {
     if (gameInfo.mode == 13)
         return;
@@ -1538,7 +1539,7 @@ void G64Unplayable(const char *what) {
     gameInfo.mode = 13;
 }
 
-/* For the program that draws the picture: 1 while the level cannot be played. */
+/* For the program that draws the picture: 1 while the level can't be played. */
 s32 G64LevelUnplayable(void) {
     return gameInfo.mode == 13;
 }
@@ -1579,7 +1580,7 @@ void HurtHand(s32 type, s16 damage);
 static s32 slot_used(s32 i);
 
 /* For scripts: hurts a player's glove by one point, as an enemy's touch does, by the game's own rules (HurtHand).
-   A glove that was just hurt, or that reads a tip, is not hurt again. The player's state is in the game's
+   A glove that was just hurt, or that reads a tip, isn't hurt again. The player's state is in the game's
    variables for the call. */
 void G64HurtPlayer(s32 who) {
     s32 i = slot_of(who);
@@ -1628,7 +1629,7 @@ void G64GivePlayerLife(s32 who) {
 
 /* For scripts: one of the game's pick-ups at a place, as a puzzle's action makes one (CreateNewPickup). kind is the
    game's number for it, 0 to 14. The level reader leaves out kinds 7 and 9, and so does this. The pick-up's object
-   must be in the level's banks: without it there is no pick-up, and the level plays on. duration is how long its
+   must be in the level's banks: without it there's no pick-up, and the level plays on. duration is how long its
    effect lasts, in frames. A level holds at most 128 pick-ups. Returns 1 when the pick-up is there. */
 struct Collectable *CreateNewPickup(u8 type, Vec3 *pos, s16 time, s16 duration);
 extern PTR32(char) collectableFileName[];
@@ -1683,7 +1684,7 @@ void G64SetPresent(u32 present) {
             player_exits(t->player, t->type, 1);
     }
     framesRun++;
-    /* A level that cannot be played sends its players back to the hub, online. A hub level that cannot be played
+    /* A level that can't be played sends its players back to the hub, online. A hub level that can't be played
        keeps them: the hub is where the exit leads. */
     if (gameInfo.mode == 13 && g64Online && gameInfo.level > HUB8)
         G64EveryoneExits(HUB_EXIT, 0);
@@ -1757,7 +1758,7 @@ void G64RemovePlayer(s32 player) {
     free_orbiter_proxies();
     if (i == 0 && slotCount > 1) {
         /* The player in slot 1 moves into the globals, and slot 1 now holds the leaving player. Its actors' blocks are
-           the level's own, and some are not on the heap (a ball's phys can point to defaultBehaviour): they stay. */
+           the level's own, and some aren't on the heap (a ball's phys can point to defaultBehaviour): they stay. */
         swap_slot(slots[1]);
         /* Their camera zones come with them, and the leaving player's go into the slot that is freed. */
         G64PuzzleCameraState(1);
@@ -1802,10 +1803,10 @@ void G64RemovePlayer(s32 player) {
    With one player nothing here runs. */
 
 /* For each bullet: the player it homes in on, and the player whose glove or ball hit it since its last update (-1:
-   none), by player number. A bullet is added when it is made, and taken out when it goes (bullet.c). */
+   none), by player number. A bullet is added when it's made, and taken out when it goes (bullet.c). */
 #define G64_BULLETS 256
 /* The bullet flags that a collision with a glove or a ball sets (collision.c), and its next update reads. Bullets
-   are not in the actor list, so only the bullet's own update sets them, against the player in the globals then. */
+   aren't in the actor list, so only the bullet's own update sets them, against the player in the globals then. */
 #define BULLET_HIT_FLAGS 0x44000000
 typedef struct G64BulletOwner {
     PTR32(struct Bullet) bullet;
@@ -1838,7 +1839,7 @@ static s32 slot_used(s32 i) {
     return i == 0 || (i < slotCount && slots[i]);
 }
 
-/* The slot of a recorded player, or -1 when they are not in this game. */
+/* The slot of a recorded player, or -1 when they aren't in this game. */
 static s32 recorded_slot(s32 player) {
     s32 i;
     if (player < 0)
@@ -2005,7 +2006,7 @@ void G64SetLevelCamHeight(s32 height) {
 
 /* The first space boss's level ends when a player brings their ball to the robot's platform. From then until the
    exit the robot's code deals with that player, the carrier: the number, plus 1, is kept here. G64CarrierSet(1) notes
-   the player in the globals, and G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the
+   the player in the globals, and G64CarrierSet(0) that there's none. G64CarrierBegin puts the carrier in the
    globals when another player is there, and returns their slot (0 when nothing was swapped, -1 when the carrier has
    left the game); G64CarrierEnd undoes it. */
 static s32 carrier;
@@ -2678,7 +2679,7 @@ void DisableControl(s16 time);
    who set it off, when a puzzle's condition on a player started it, and the first player otherwise (a level's
    opening scene). That player is in the globals while the cameo starts and steps (G64CameoSwapIn). The other
    players are held (G64CameoAfter), nothing hurts them (G64CameoHeld), and G64CameoView gives them the cameo's
-   camera: where it stands, how it is turned, what it looks at and its roll. Their own cameras go on from there
+   camera: where it stands, how it's turned, what it looks at and its roll. Their own cameras go on from there
    when it ends. */
 static void forget_cameo(void) {
     cameoStarter = cameoMet = cameoUsed = cameoPending = cameoHolding = 0;
@@ -2710,7 +2711,7 @@ void G64CameoHolding(void) {
     cameoHolding = 1;
 }
 
-/* Puts the cameo's player in the globals and returns their slot, or 0 when they are there already. */
+/* Puts the cameo's player in the globals and returns their slot, or 0 when they're there already. */
 s32 G64CameoSwapIn(void) {
     s32 i = cameo_slot();
     if (i == 0)
@@ -2761,7 +2762,7 @@ void G64CameoView(void) {
     }
 }
 
-/* For tests: 1 when the glove of a player who is not in the globals is drawn (its proxy has a size), 0 when it is
+/* For tests: 1 when the glove of a player who isn't in the globals is drawn (its proxy has a size), 0 when it's
    hidden, -1 when the player has no proxy. */
 s32 G64ProxyShown(s32 player) {
     s32 i = slot_of(player);
@@ -2891,7 +2892,7 @@ void G64TipsStep(void) {
             tipLine[p] = 0;
             continue;
         }
-        /* The reader's glove gets no input. A player whose glove is not made yet has none to hold. */
+        /* The reader's glove gets no input. A player whose glove isn't made yet has none to hold. */
         if (i == 0) {
             DisableControl(2);
         } else if (G64HazardBegin(i)) {
@@ -2986,7 +2987,7 @@ void G64LineView(const char *text) {
     if (line[0] == 0)
         return;
     SetFont(1);
-    /* A pane's scale is 32 for each point of the picture. The text's middle is 4 above the place it is given. */
+    /* A pane's scale is 32 for each point of the picture. The text's middle is 4 above the place it's given. */
     width = GetStringPixelLength(line, 0.6f, 0.6f);
     tipOverlay2.x = 160.0f;
     tipOverlay2.y = 50.0f;
@@ -3039,7 +3040,7 @@ s32 G64TipPage(s32 player, const char **lines, s32 max, s32 *more) {
     return n < max ? n : max;
 }
 
-/* 1 while a cameo plays for a player other than the one in the globals: they are held, and nothing hurts them. */
+/* 1 while a cameo plays for a player other than the one in the globals: they're held, and nothing hurts them. */
 s32 G64CameoHeld(void) {
     s32 own = cameo_slot();
     return !swapped && gameInfo.cameoActive && logicSlot != own;
@@ -3237,8 +3238,8 @@ s32 G64GaribGroupNear(const Vec3 *pos, f32 radius) {
 }
 
 /* The squared distance from which a player takes the garib at pos, by the game's own rule (UpdateGaribs): the ball
-   when it is not lost, or the glove when it is nearer and not joined to the ball; within the taker's radius plus 15.
-   -1 when the player does not reach it. */
+   when it isn't lost, or the glove when it's nearer and not joined to the ball; within the taker's radius plus 15.
+   -1 when the player doesn't reach it. */
 static f32 garib_reach(Actor *h, Actor *b, BallControl *bc, const Vec3 *pos) {
     f32 dist = 100000.0f, radius = 0.0f, d;
     if (bc->loseTimer == 0) {
@@ -3358,7 +3359,7 @@ s32 G64GaribPlace(s32 k, f32 *x, f32 *y, f32 *z) {
     return 0;
 }
 
-/* For tests: where the level's tip number k is. It returns the tip's tag plus 1, or 0 when there is none. */
+/* For tests: where the level's tip number k is. It returns the tip's tag plus 1, or 0 when there's none. */
 s32 G64TipPlace(s32 k, f32 *x, f32 *y, f32 *z) {
     Tip *tip;
     s32 n = 0;
@@ -3395,8 +3396,8 @@ s32 G64PickupPlace(s32 k, f32 *x, f32 *y, f32 *z) {
    player p's slot. A ball that is lost kills its real owner, whoever has it: the player who has it gets it back
    whole at their checkpoint and lives, and the owner dies at the frame's end (ballKill).
    Only plain balls change places. A power-up's ball (bowling, crystal, a snowball and the others) runs on its
-   player's own timers, which do not go with the ball. The rule is off in the bonus levels, where a lost ball ends
-   the level for its player, and in the last space boss's levels, where the gloves do not move. */
+   player's own timers, which don't go with the ball. The rule is off in the bonus levels, where a lost ball ends
+   the level for its player, and in the last space boss's levels, where the gloves don't move. */
 s32 g64AnyBall;
 
 s32 IsBonusLevel(void);
@@ -3511,7 +3512,7 @@ static void exchange_balls(s32 i, s32 j) {
 }
 
 /* 1 when the ball lies free and plain: no glove holds it (a held ball is linked to its glove), no enemy has it,
-   it is whole and in play, and no power-up has changed it. */
+   it's whole and in play, and no power-up has changed it. */
 static s32 ball_free(const BallRef *r) {
     const BallControl *c = r->control;
     return r->ball->link == NULL && c->state == BALL_NORMAL && c->enemy == NULL && c->loseTimer == 0
@@ -3570,7 +3571,7 @@ void G64AnyBallStep(void) {
         BallRef r;
         if (!(ballKill & bit) || !ball_ref(i, &r))
             continue;
-        /* A player who is held (a cameo, a tip) dies when they are free again. One who is dying already dies
+        /* A player who is held (a cameo, a tip) dies when they're free again. One who is dying already dies
            once. */
         if (r.held && !r.dying)
             continue;

@@ -1027,12 +1027,12 @@ INCLUDE_ASM("asm/nonmatchings/object", pad_80145674);
 
 
 /* g64coopdx: 1 when the vertex buffer that vtxPtr is in has room for n more vertices. A mesh without a display list
-   takes 3 vertices for each of its faces each time it is drawn (WriteObjectDisplayListFlat and
+   takes 3 vertices for each of its faces each time it's drawn (WriteObjectDisplayListFlat and
    WriteObjectDisplayListGouraud in banks.c), and a bolt of lightning 2 for each point (DrawLightning in light.c).
    Each draw buffer holds 800. The game wrote with no test, and past the end of the second buffer are the game's
    lists of actors: a level file that names many such objects near each other broke them. The test asks where
    vtxPtr is, not draw_buffer: CleanupAndSendDisplayList changes draw_buffer before the fade's overlay is drawn.
-   The callers draw nothing when there is no room. For tests: the most vertices a frame asked for, and how many
+   The callers draw nothing when there's no room. For tests: the most vertices a frame asked for, and how many
    draws had no room. */
 s32 g64VertexPeak, g64VertexDrops;
 

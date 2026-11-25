@@ -55,8 +55,8 @@ PORT_CXX_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/po
 PORT_SRCS := src/port/frame.c src/port/spacedemo.c src/port/loaders.c src/port/os.c src/port/inputlatch.c src/port/gu.c src/port/sprite.c \
              src/port/libultra.c src/port/devview.c src/port/debugpad.c src/port/portmath.c src/port/soundtable.c gen/ramtab.c gen/romsyms.c \
              gen/layouts.c
-# g64coopdx: Lua 5.4.8 (third_party/lua) and the scripts' own file. They are part of the game's code and data: a
-# savestate holds the scripts' memory. They are C, built with LUA_CFLAGS (below, after GAME_FLAGS).
+# g64coopdx: Lua 5.4.8 (third_party/lua) and the scripts' own file. They're part of the game's code and data: a
+# savestate holds the scripts' memory. They're C, built with LUA_CFLAGS (below, after GAME_FLAGS).
 LUA_SRCS := $(addprefix third_party/lua/,lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c \
             lobject.c lopcodes.c lparser.c lstate.c lstring.c ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c \
             lbaselib.c ltablib.c lstrlib.c lmathlib.c) src/port/g64lua.c
@@ -180,9 +180,9 @@ endif
 # side effects ends.
 GAME_CFLAGS := -std=gnu89 $(GAME_FLAGS)
 # g64coopdx: Lua's flags (LUA_SRCS above): the game's machine and float flags, without the header that the game's
-# files start with. It is set here, after GAME_FLAGS, as a plain value: the brute forcer's Makefile reads it.
+# files start with. It's set here, after GAME_FLAGS, as a plain value: the brute forcer's Makefile reads it.
 # -funsigned-char is left out: with it MinGW's <locale.h>, which Lua includes, puts a variable of its own into each
-# object, in a section that a savestate does not hold. Lua does not depend on the sign of char.
+# object, in a section that a savestate doesn't hold. Lua doesn't depend on the sign of char.
 LUA_CFLAGS := -std=gnu99 $(filter-out -funsigned-char -include src/port/port_pre.h,$(GAME_FLAGS)) -include src/port/g64lua_conf.h
 GAME_CXXFLAGS := -x c++ -std=gnu++14 -fno-exceptions -fno-rtti -fno-finite-loops $(CLANG_FLAGS) $(GAME_FLAGS)
 # The platform layer and the renderer talk to SDL and OpenGL, so they keep the system's structure layout.

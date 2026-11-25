@@ -1,6 +1,6 @@
 /* The frame's limits with 16 players (weemitt's object.c, jalloc.c and main.c), online, with the ROM.
  * The N64 game has room for 256 object matrices a frame, 1280 heap blocks and 20000 bytes in a display list task.
- * One player stays inside them. Sixteen do not: a glove takes up to 14 matrices, and each player's glove, ball,
+ * One player stays inside them. Sixteen don't: a glove takes up to 14 matrices, and each player's glove, ball,
  * shadows and footprints take heap blocks. g64coopdx's copy of the game has more room for each.
  * Three levels are built from the state right after power-on with 16 players and run for 800 frames, with every
  * player walking their own way from frame 500: the first hub (1), the Atlantis hub (12, the most heap blocks) and

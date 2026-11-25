@@ -12,17 +12,17 @@ a six-character code; joiners join with the code. The relay never reads the game
 A host can put its room on a list, with a title. The game asks the relay for the list over UDP. The answer holds the
 rooms of hosts with the same build as the asker, 12 at most. A build is the commit the game was built from. A room
 leaves the list 10 seconds after its host's last announcement. The answer is never longer than the request: the
-request is as long as the longest answer. The relay then cannot be used to flood a forged address. A host can also
+request is as long as the longest answer. The relay then can't be used to flood a forged address. A host can also
 ban a joiner (the game's **Remove** button): the relay then refuses that joiner's address for the room.
 
-The server is still a placeholder in part: `/v1/ice` gives STUN servers only, and `/v1/info` reports
-`"placeholder": true`. Phase 4 of the [roadmap](../docs/discovery/roadmap.md) writes the finished server.
+`/v1/info` reports `"placeholder": false`. `/v1/ice` gives STUN servers only. Phase 4 of the
+[roadmap](../docs/discovery/roadmap.md) adds the TURN relay's credentials to it.
 [docs/hosting.md](../docs/hosting.md) says where the server runs.
 
 | Route | Answer |
 | --- | --- |
 | `GET /healthz` | `ok` |
-| `GET /v1/info` | The server's name, version and protocol version, `"placeholder": true`, and the relay's port with its open rooms and players |
+| `GET /v1/info` | The server's name, version and protocol version, `"placeholder": false`, and the relay's port with its open rooms and players |
 | `GET /v1/sessions` | The rooms on the list: code, title, wanted and joined players |
 | `GET /v1/ice` | The STUN servers a client should use |
 
@@ -38,7 +38,7 @@ The server reads its settings from environment variables.
 
 ## Run it
 
-The server is written in Go with the standard library only. It is one static program in an empty container image.
+The server is written in Go with the standard library only. It's one static program in an empty container image.
 
 ```sh
 make server && build/lobby        # from the repository's root; then open http://localhost:8080/v1/info

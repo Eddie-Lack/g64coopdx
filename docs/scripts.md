@@ -9,7 +9,7 @@ values from level to level, and work with the level's puzzles. More comes later.
 
 - Every game of the session runs the script: one game for each level that has players in it (an instance, in
   [playing-online.md](playing-online.md#how-it-works)). Each game has its own
-  copy of the script's variables. A script in one level does not see another level's. What must last from level to
+  copy of the script's variables. A script in one level doesn't see another level's. What must last from level to
   level goes into the session's values (below).
 - The script's text runs once when a game starts, before its first frame.
 - If the script has a function `on_frame`, the game calls it once a frame, before the game's own step. The game
@@ -29,7 +29,7 @@ values from level to level, and work with the level's puzzles. More comes later.
   many times it asked for memory, and where its random numbers stand. A script that ran differently on one machine
   shows up as a desync.
 - The online game sometimes goes back a few frames and runs them again with corrected inputs. The script's
-  variables go back with the game. A script does not notice.
+  variables go back with the game. A script doesn't notice.
 
 ## What a script may call
 
@@ -44,10 +44,10 @@ The table `game`, and two functions of `math`:
 | `game.ball_pos(p)` | the place of player `p`'s ball: three numbers `x, y, z` |
 | `game.ball_type(p)` | the kind of player `p`'s ball, as the game numbers it |
 | `game.garibs(p)`, `game.health(p)`, `game.lives(p)` | player `p`'s garibs, health and lives |
-| `game.hurt(p)` | hurts player `p`'s glove by one point, by the game's own rules: a glove that was just hurt is not hurt again, and a glove at its last point dies |
+| `game.hurt(p)` | hurts player `p`'s glove by one point, by the game's own rules: a glove that was just hurt isn't hurt again, and a glove at its last point dies |
 | `game.set_health(p, n)` | sets player `p`'s health to `n`, 1 to 3 |
 | `game.add_life(p)` | gives player `p` one more life, as an extra life does, with its sound. A player keeps at most 99 lives |
-| `game.spawn_pickup(kind, x, y, z)` | puts one of the game's pick-ups at a place, and gives `true` when it is there. `game.spawn_pickup(kind, x, y, z, frames)` sets how long its effect lasts, 0 to 30000 frames; the default is 600. The kinds are below. It gives `false` when the level's banks lack the kind's object, and when the level holds 128 pick-ups |
+| `game.spawn_pickup(kind, x, y, z)` | puts one of the game's pick-ups at a place, and gives `true` when it's there. `game.spawn_pickup(kind, x, y, z, frames)` sets how long its effect lasts, 0 to 30000 frames; the default is 600. The kinds are below. It gives `false` when the level's banks lack the kind's object, and when the level holds 128 pick-ups |
 | `game.show(p, text)` | shows a line of text on player `p`'s screen for three seconds. `game.show(p, text, frames)` shows it for that many frames, 1 to 1200. A new text takes the old one's place, and an empty text takes the line away. The text is cut to 60 characters of plain ASCII |
 | `game.var(n)` | the level's puzzle variable number `n`, 0 to 99 |
 | `game.set_var(n, v)` | sets it to the whole number `v`, from -1000000 to 1000000 |
@@ -55,16 +55,16 @@ The table `game`, and two functions of `math`:
 | `game.random(n)`, `game.random(a, b)` | a random whole number from 1 to `n`, or from `a` to `b`. The numbers stay within 31 bits |
 | `math.sin(x)`, `math.cos(x)` | the game's own sine and cosine, in single precision. `x` is from -1000000 to 1000000 |
 | `game.place(p, x, y, z)` | puts player `p`'s glove at a place. Each coordinate is from -100000 to 100000 |
-| `game.log(text)` | writes a line to the program's log. It is for you to read: nothing in the game reads it |
+| `game.log(text)` | writes a line to the program's log. It's for you to read: nothing in the game reads it |
 
-A call that asks about a player gives nothing (`nil`) when that player is not in this level. A call that acts on
+A call that asks about a player gives nothing (`nil`) when that player isn't in this level. A call that acts on
 such a player does nothing.
 
-A script cannot change garibs. It can give lives (`game.add_life`); the game carries them from level to level as it
+A script can't change garibs. It can give lives (`game.add_life`); the game carries them from level to level as it
 does lives from an extra life.
 
 The random numbers start from the script's text and the level's number. Every machine draws the same ones, and a
-level gives the same ones each time it starts. They do not touch the game's own random numbers.
+level gives the same ones each time it starts. They don't touch the game's own random numbers.
 
 The pick-ups' kinds, as the game numbers them, by the name of their object:
 
@@ -77,7 +77,7 @@ The pick-ups' kinds, as the game numbers them, by the name of their object:
 | 4 | `hercules` | 14 | `vanish` |
 | 5 | `fast` | | |
 
-Kinds 7 and 9 are balls: `game.spawn_pickup` gives `false` for them, and a level file cannot place them either.
+Kinds 7 and 9 are balls: `game.spawn_pickup` gives `false` for them, and a level file can't place them either.
 Kinds 11 and 12 have no object. The game reads a level's objects from banks, which are blocks of the ROM that the
 level loads. A level has the pick-ups of its world's banks; Atlantis 1, for example, has kind 0.
 
@@ -105,14 +105,14 @@ starts. Every level's script reads the same values, and a level that starts late
 | `game.session(k)` | the session's value number `k`, as this level has it now |
 | `game.add_session(k, n)` | asks for `n` to be added to value `k`. `n` may be negative. A game's script may make 8 such requests a frame; the call gives `false` for one more. It also gives `false` in the script's first run, before the level's first frame: ask from `on_frame` or from an event |
 
-- A script cannot set a value. It can only ask for an amount to be added. Two levels may ask in the same moment,
+- A script can't set a value. It can only ask for an amount to be added. Two levels may ask in the same moment,
   and both amounts count.
-- The value does not change at once. The host adds the amount, and the new value comes to every level of the session
+- The value doesn't change at once. The host adds the amount, and the new value comes to every level of the session
   a few frames later. Until then `game.session(k)` gives the old value.
 - If the script has a function `on_session`, the game calls it with the value's number when a value has changed,
   before that frame's `on_frame`. It shares the list of 64 events a frame with `on_garib`, `on_death`,
   `on_checkpoint` and `on_pickup`: in a frame with more, the value still changes and the call is left out.
-- The requests of the frame in which the script stops ([Limits](#limits)) do not count.
+- The requests of the frame in which the script stops ([Limits](#limits)) don't count.
 - A value that passes 2147483647 wraps to the negative numbers.
 
 ## What is left out, and why
@@ -142,13 +142,13 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
   call of a function is 50. Each byte of memory the script asks for is one unit, and so is each byte a
   `string.find` searches. The script's first run,
   which also reads its text, may do 50 million.
-- **Memory:** a game's script has 2 MB. A request that does not fit is an error ("not enough memory").
+- **Memory:** a game's script has 2 MB. A request that doesn't fit is an error ("not enough memory").
 - **A stopped script** stays stopped for that game: the game goes on without it, the same on every machine. The log
   says why (`script: ...`). A script stops when an error reaches the game, or when a call uses up its work. `pcall`
-  can catch an error, a memory error too. It cannot keep a script going that has used up its work.
-- A script with an error in its text does not start.
+  can catch an error, a memory error too. It can't keep a script going that has used up its work.
+- A script with an error in its text doesn't start.
 - Do not let the game's course depend on a number turned into text. Such text gave the same result on Linux and
-  under Wine in a trial, but that is not proven on a real Windows machine
+  under Wine in a trial, but that isn't proven on a real Windows machine
   ([discovery/lua-trial.md](discovery/lua-trial.md)).
 
 ## A first script

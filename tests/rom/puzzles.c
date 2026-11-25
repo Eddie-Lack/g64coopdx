@@ -7,7 +7,7 @@
  *   - not when nobody is put there.
  * A camera zone (a puzzle with one "glove in a box" condition and camera actions only) is each player's own. Player 1
  * stands in the zone for 100 frames, then outside it. Their camera ends where player 0's does alone, and player 0's
- * camera does not move.
+ * camera doesn't move.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *

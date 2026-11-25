@@ -272,7 +272,7 @@ func TestRelayList(t *testing.T) {
 	host, other, asker := addr("10.0.0.1:1000"), addr("10.0.0.2:1000"), addr("10.0.0.9:9")
 	code := openRoom(t, r, out, host)
 	openRoom(t, r, out, other)
-	// A room is not on the list until its host announces it.
+	// A room isn't on the list until its host announces it.
 	r.handle(listRequest(7), asker)
 	if s := last(t, out); s.to != asker || s.b[4] != msgRooms || s.b[relayHeader] != 0 {
 		t.Fatalf("an empty list: got %v", s.b)
@@ -315,7 +315,7 @@ func TestRelayList(t *testing.T) {
 	if s := last(t, out); s.b[relayHeader] != 0 {
 		t.Fatalf("a room that is no longer announced is still on the list")
 	}
-	// Only a room's host can announce it, and a title cannot be longer than the limit.
+	// Only a room's host can announce it, and a title can't be longer than the limit.
 	r.handle(announce(7, 4, 2, 2, 1, "x"), asker)
 	r.handle(announce(7, 4, 2, 2, 1, strings.Repeat("x", relayTitleMax+1)), host)
 	r.handle(listRequest(7), asker)
@@ -353,7 +353,7 @@ func TestRelayBan(t *testing.T) {
 	if s := last(t, out); s.to != bad || s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {
 		t.Fatalf("the banned peer is told: got %v to %v", s.b, s.to)
 	}
-	// The banned address cannot join again, from any port. Another address still can.
+	// The banned address can't join again, from any port. Another address still can.
 	for _, from := range []netip.AddrPort{bad, addr("10.0.0.2:2001")} {
 		r.handle(msg(msgJoin, []byte(code)...), from)
 		if s := last(t, out); s.b[4] != msgRefused || s.b[relayHeader] != refuseBanned {

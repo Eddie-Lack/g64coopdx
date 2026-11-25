@@ -1272,7 +1272,7 @@ static void players_window() {
     ImGui::End();
 }
 
-/* g64coopdx: the chat. The lines come from other players: they are shown as text, never as a format. */
+/* g64coopdx: the chat. The lines come from other players: they're shown as text, never as a format. */
 static char chatInput[81];
 
 static void chat_window() {
@@ -1478,7 +1478,7 @@ void save_test_shot(int w, int h) {
 }  // namespace
 
 /* g64coopdx: the one switch for the developer tools and the studio tools (menu.h). The studio build, which is the
-   online program, has them off: the menu does not show them, and their keys and variables do nothing. */
+   online program, has them off: the menu doesn't show them, and their keys and variables do nothing. */
 extern "C" int menu_tools_hidden(void) {
 #ifdef PORT_STUDIO
     return 1;

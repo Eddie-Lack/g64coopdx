@@ -57,7 +57,7 @@ static int same_progress(const g64_progress *a, const g64_progress *b) {
            a->hub_level == b->hub_level && a->worlds_done == b->worlds_done;
 }
 
-/* A session event, in the game that is about to run the event's frame (rb_engine_set_event_fn). The bytes come from
+/* A session event, in the game that's about to run the event's frame (rb_engine_set_event_fn). The bytes come from
    the network: a malformed event changes nothing. */
 extern unsigned g64PlayerColor[16][2];
 void G64SetSessionWorld(int world);
@@ -335,7 +335,7 @@ static int find_instance(g64_ihost *h, int level, int world) {
 
 static int members_of(const g64_ihost *h, int slot);
 
-/* The world the session is in: the world of an instance that has players, or of one that is about to be made
+/* The world the session is in: the world of an instance that has players, or of one that's about to be made
    (starting), or 0 while every player is in the hub. */
 static int session_world(const g64_ihost *h, int starting) {
     int i;
@@ -514,7 +514,7 @@ static int valid_exit(const g64_ihost *h, const pending_exit *e) {
 
 /* Puts player p, who is in no instance, into the instance of level and world, or into a new one, and sends them
    the move. type and from are for the log (on_move): the exit they took and the level they left, or -1 for a player
-   who joins the session. Returns 0, or -1 when there is no room. */
+   who joins the session. Returns 0, or -1 when there's no room. */
 static int enter(g64_ihost *h, int p, int level, int world, int type, int from) {
     int t = find_instance(h, level, world);
     memset(&h->move[p], 0, sizeof h->move[p]);
@@ -558,7 +558,7 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
             level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
             world = 0;
         }
-        /* An exit that leads back into the instance the player has just left: in that game they are gone from
+        /* An exit that leads back into the instance the player has just left: in that game they're gone from
            the next confirmed frame, and must be absent for a frame before they come again. They enter once the
            instance has confirmed that frame (g64_ihost_tick). */
         h->back[p].level = level;
@@ -692,7 +692,7 @@ void g64_ihost_tick(g64_ihost *h) {
             continue;
         next = rb_host_confirmed(in->host);
         if (!same_progress(&in->sent, &h->progress)) {
-            /* The whole progress: it may replace a progress event that is not confirmed yet, but not a colors
+            /* The whole progress: it may replace a progress event that isn't confirmed yet, but not a colors
                event, which waits for a frame of its own. */
             if (in->event_frame == next + 1 && in->event_colors)
                 continue;
@@ -727,8 +727,8 @@ void g64_ihost_tick(g64_ihost *h) {
             }
         if (p < h->players)
             continue;
-        /* A script's value that the instance does not have yet: one on a frame, the keys in turn. A key that changes
-           often does not hold the others back. The event carries the value as it is now. */
+        /* A script's value that the instance doesn't have yet: one on a frame, the keys in turn. A key that changes
+           often doesn't hold the others back. The event carries the value as it is now. */
         for (p = 0; p < G64_SCRIPT_KEYS; p++) {
             int k = (in->next_key + p) % G64_SCRIPT_KEYS;
             if (in->values[k] == h->values[k])
@@ -985,7 +985,7 @@ g64_iclient *g64_iclient_new_with(Engine *e, const void *boot, int players, unsi
     c->send = send;
     c->user = user;
     c->level = level;
-    /* A player who is not there at the start has no game yet: they ask the host for one (g64_iclient_step). */
+    /* A player who isn't there at the start has no game yet: they ask the host for one (g64_iclient_step). */
     if (!(members & (1u << me)))
         return c;
     memset(&r, 0, sizeof r);
@@ -1033,11 +1033,11 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
         if (g64_parse_move(data, len, &mv) != 0 || mv.players != c->players)
             return -1;
         if (c->moving && mv.instance == c->mv.instance && mv.join == c->mv.join) {
-            send_ack(c); /* the host did not get the ack */
+            send_ack(c); /* the host didn't get the ack */
             return 0;
         }
         if (!c->moving && c->rb && mv.instance == c->id && mv.join == c->mv.join) {
-            send_ack(c); /* a resent move that was already done: the host did not get the last ack */
+            send_ack(c); /* a resent move that was already done: the host didn't get the last ack */
             return 0;
         }
         drop_game(c);
@@ -1052,7 +1052,7 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
             c->log = calloc((size_t)mv.join * (size_t)c->players, sizeof(rb_input));
             c->log_event = calloc((size_t)mv.join, sizeof(rb_event));
             if (!c->log || !c->log_event) {
-                /* No room for the log: the move is not taken. The host sends it again. */
+                /* No room for the log: the move isn't taken. The host sends it again. */
                 free(c->log);
                 free(c->log_event);
                 c->log = NULL;
@@ -1089,7 +1089,7 @@ int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len) {
     }
 }
 
-/* Extra frames a player runs in one step while it is behind the host's clock (after it joined a running instance). */
+/* Extra frames a player runs in one step while it's behind the host's clock (after it joined a running instance). */
 #define CATCH_UP 8
 
 int g64_iclient_step(g64_iclient *c, rb_input local) {

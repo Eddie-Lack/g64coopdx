@@ -21,7 +21,7 @@
  *           (u16, a bit per player), players inputs (buttons u16, x s8, y s8); then the frames' session events
  *           (rb_events_write)                                                          host to player
  *   logack  0x04, instance (u8), join frame (u32), frames received (u32)              player to host
- *   ready   0x05, unused (u8): a player who is in the session and in no instance asks for one. The host puts
+ *   ready   0x05, unused (u8): a player who's in the session and in no instance asks for one. The host puts
  *           them in the instance of the session's first level and answers with a move.   player to host
  * Every message is checked before use: lengths, counts, players, instance numbers, frames.
  *
@@ -83,12 +83,12 @@ g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned
  * instance starts with them. */
 void g64_ihost_set_colors(g64_ihost *h, int p, uint32_t glove, uint32_t ball);
 /* Puts player p, who is in no instance, into the instance of the session's first level. A player's ready message
- * does the same. Returns 0, or -1 when there is no room. */
+ * does the same. Returns 0, or -1 when there's no room. */
 int g64_ihost_add(g64_ihost *h, int p);
 void g64_ihost_free(g64_ihost *h);
-/* One host frame: ticks every instance, moves the players who took an exit, and sends what is due. */
+/* One host frame: ticks every instance, moves the players who took an exit, and sends what's due. */
 void g64_ihost_tick(g64_ihost *h);
-/* A message from player from. Returns 0, or -1 when it is malformed (it is then ignored). */
+/* A message from player from. Returns 0, or -1 when it's malformed (it's then ignored). */
 int g64_ihost_receive(g64_ihost *h, int from, const uint8_t *data, size_t len);
 /* Player p left the session: they leave their instance. */
 void g64_ihost_drop(g64_ihost *h, int p);
@@ -113,13 +113,13 @@ uint32_t g64_ihost_hash_mismatches(const g64_ihost *h);
  * client's savestate window; deadline is the host's (a player who has fallen behind the host's clock catches up). */
 g64_iclient *g64_iclient_new(Engine *e, const void *boot, int players, int me, int level, int window,
                              uint32_t deadline, g64_isend_fn send, void *user);
-/* The same with the start's members and colors (g64_ihost_new_with). A player who is not a member has no game at
+/* The same with the start's members and colors (g64_ihost_new_with). A player who isn't a member has no game at
  * first: g64_iclient_step asks the host for one, and the host's move brings it. */
 g64_iclient *g64_iclient_new_with(Engine *e, const void *boot, int players, unsigned members,
                                   const uint32_t colors[16][2], int me, int level, int window, uint32_t deadline,
                                   g64_isend_fn send, void *user);
 void g64_iclient_free(g64_iclient *c);
-/* A message from the host. Returns 0, or -1 when it is malformed (it is then ignored). */
+/* A message from the host. Returns 0, or -1 when it's malformed (it's then ignored). */
 int g64_iclient_receive(g64_iclient *c, const uint8_t *data, size_t len);
 /* One frame with the local controller. Returns 1 when the local game ran a frame (its display lists are the
  * engine's latest), 0 when it waits (for the host, or while it moves to another instance). */

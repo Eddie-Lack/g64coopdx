@@ -54,7 +54,7 @@ printf '\033Lua' > compiled.lua
 printf '\000\000\000\015test.ln\000' > wrong.lev
 # A level file of 11 bytes that ends with the end token: it passes the check for packs from other players.
 printf '\000\000\000\013t.ln\000\175\000' > whole.lev
-# Glovebox's cube (tests/fixtures), and a copy with a flag that the format does not have.
+# Glovebox's cube (tests/fixtures), and a copy with a flag that the format doesn't have.
 cp "$here/tests/fixtures/cube.models.bin" cube.bin
 { head -c 8 cube.bin; printf '\002'; tail -c +10 cube.bin; } > badflag.bin
 : > empty.bin
@@ -81,7 +81,7 @@ run 0 make m --name "A test level" --level 10 --lev test.lev --models cube.bin
 echo "without a ROM, the tool says that a pack with models is sent only if it passes the ROM's rules"
 $tool make ms --name "A test level" --level 10 --lev whole.lev --models cube.bin > /dev/null 2>&1
 has_line "from the host: players can download this pack when they join, if it also passes the ROM's rules (check ms --rom ROM)" check ms
-echo "a folder that holds a models.bin is not made again without --models"
+echo "a folder that holds a models.bin isn't made again without --models"
 run 1 make m --name "No models named" --level 10 --lev test.lev
 run 1 make c2 --name "ok" --level 1 --lev test.lev --models badflag.bin
 run 1 make c2 --name "ok" --level 1 --lev test.lev --models empty.bin
@@ -89,7 +89,7 @@ run 1 make c2 --name "ok" --level 1 --lev test.lev --models missing.bin
 echo "a pack whose models.bin changed is refused"
 cp badflag.bin m/models.bin
 run 1 check m
-echo "a file that is not a ROM is refused for the ROM's rules"
+echo "a file that isn't a ROM is refused for the ROM's rules"
 run 1 check a --rom test.lev
 run 1 check a --rom missing.z64
 echo "the sample pack keeps its id"
@@ -114,7 +114,7 @@ if [ -n "$GLOVER_ROM" ] && [ -f "$GLOVER_ROM" ]; then
         n=$((n + 1))
     done
     run 1 make romx --name "ok" --level 48 --rom "$GLOVER_ROM"
-    echo "the ROM's rules: a pack with the cube passes, and a pack with one of the ROM's levels does not"
+    echo "the ROM's rules: a pack with the cube passes, and a pack with one of the ROM's levels doesn't"
     $tool make mr --name "A test level" --level 10 --lev test.lev --models cube.bin > /dev/null 2>&1
     run 0 check mr --rom "$GLOVER_ROM"
     has_line "from the host: players can download this pack when they join" check ms --rom "$GLOVER_ROM"

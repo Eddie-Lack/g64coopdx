@@ -4,7 +4,7 @@
  *
  * The test: a reader follows clients 0 and 1 after every window frame, and another reader follows an offline run of
  * the host's confirmed inputs, which has no wrong prediction. With every sound audible (g64_sound_test_all_audible):
- *   - the one-shots a client's reader played and did not stop must all be one-shots of the offline run, each played
+ *   - the one-shots a client's reader played and didn't stop must all be one-shots of the offline run, each played
  *     once, and the ones it stopped as wrong must not be (a correct sound is never cut);
  *   - the offline run's one-shots that a client's reader missed can only be ones a correction brought late;
  *   - at the end, a client's reader plays the same voices without a place and continuous sounds as the offline one.

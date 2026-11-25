@@ -23,8 +23,8 @@ void menu_shutdown(void);
 int menu_handle_event(const SDL_Event *e);
 /* True while the menu is open: the game gets no keyboard input. */
 int menu_is_open(void);
-/* g64coopdx: 1 when the developer tools (except the log) and the studio's tools are off. The menu does not show
-   them, and their keys and environment variables do nothing. The rollback engine under the online game does not
+/* g64coopdx: 1 when the developer tools (except the log) and the studio's tools are off. The menu doesn't show
+   them, and their keys and environment variables do nothing. The rollback engine under the online game doesn't
    depend on them. Weemitt's own builds return 0. */
 int menu_tools_hidden(void);
 /* Draws the menu over the finished game frame. Call it before the buffer swap. */

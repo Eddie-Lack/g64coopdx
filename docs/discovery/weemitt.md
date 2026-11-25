@@ -7,7 +7,7 @@ explaining them, such as gloveworld, the brute forcer, page tracking, an instanc
 
 weemitt was read at commit `f509ef7` (8 November 2026), and this file describes it at that commit. The status notes
 in [roadmap.md](roadmap.md) record what g64coopdx has done since. Paths without a repository name are in weemitt,
-except those that start with `experiments/`: that is this study's own folder, [experiments/](experiments/).
+except those that start with `experiments/`: that's this study's own folder, [experiments/](experiments/).
 **VERIFIED** means read in the code or docs, or measured by the discovery. **INFERRED** means concluded from them.
 The discovery's measurements were made on one machine: 4 cores, Linux, Wine 9 for the Windows builds.
 
@@ -50,7 +50,7 @@ From `docs/port64.md`, "What is left", and `docs/library.md`, "What the library 
 9. The brute forcer on `rom.c`, without its own copy of the ROM checks.
 
 Known differences from the N64 (`docs/n64-comparison.md`, "What still differs"): the N64's thread timing in the
-first frames of a level and in the second fly-through of the attract mode. These do not matter for a network game. A
+first frames of a level and in the second fly-through of the attract mode. These don't matter for a network game. A
 network game needs every PC build to agree with every other. The measurements below show that they do.
 
 ## What the port gives a network game
@@ -58,7 +58,7 @@ network game needs every PC build to agree with every other. The measurements be
 | Property | What was found | Evidence |
 | --- | --- | --- |
 | **Bit-exact logic at one whole frame per update** | Two runs with the same input give the same trace and memory hash, frame by frame | Measured: all 48 levels and the attract mode, hashes every 10 frames ([experiments](#experiments)) |
-| **The same across builds** | Linux 32-bit and Linux 64-bit: the same trace and memory hash. Linux 64-bit and Windows 64-bit: the same. Linux 32-bit and Windows 32-bit libraries: the same trace and hash. (The 32-bit Windows window program is loaded at low addresses, so its hash takes some ordinary numbers for pointers and is not comparable, `docs/testing.md`) | Measured ([experiments](#experiments)) |
+| **The same across builds** | Linux 32-bit and Linux 64-bit: the same trace and memory hash. Linux 64-bit and Windows 64-bit: the same. Linux 32-bit and Windows 32-bit libraries: the same trace and hash. (The 32-bit Windows window program is loaded at low addresses, so its hash takes some ordinary numbers for pointers and isn't comparable, `docs/testing.md`) | Measured ([experiments](#experiments)) |
 | **No other source of change** | The game's only random source is `rseed`; its only clock feeds profiler timers | `docs/testing.md`, "Recording and replay" |
 | Delta time | Not exact across systems: at updates shorter than a frame, helpers use the C library's `pow` and `exp`, which differ in the last bits between Linux and Windows | `docs/testing.md`; `docs/delta-time.md` |
 | Interpolation | The Original mode runs whole frames and blends the drawing. This is the mode a network game uses: exact logic at 20 frames a second, smooth pictures at any rate | `docs/interpolation.md` |
@@ -83,7 +83,7 @@ commits touched `src/game` (the Ballworld mode, the host world, the draw marks, 
 multi-player change lives, it changes the same files as weemitt's ongoing commits.
 
 weemitt's own rules aim at a port that plays exactly like the original game: the game's memory layout in `port_ram`
-does not change, and with one player every frame matches a recorded baseline (`tools/regress.py`). g64coopdx does not
+doesn't change, and with one player every frame matches a recorded baseline (`tools/regress.py`). g64coopdx doesn't
 follow those rules (the owner's decision). It changes the game freely where co-op needs it.
 
 ### The options
@@ -103,10 +103,10 @@ sm64coopdx, the online co-op version of the Super Mario 64 PC port, is a fork of
 fork of the PC port of the Super Mario 64 decompilation (`credits.txt:83` in sm64coopdx, VERIFIED). Its `CHANGES`
 file is that decompilation's log, and it stops at "Refresh 13" (VERIFIED). No sign of regular merges from
 upstream was found (INFERRED; the discovery's clone of sm64coopdx was shallow). The co-op changes
-went into the game's files (`mario.c`, `interaction.c`, objects), and from then on the fork could not follow its
-upstream. It kept its new systems in `src/pc/` (VERIFIED), which kept its own code readable, but did not keep the
+went into the game's files (`mario.c`, `interaction.c`, objects), and from then on the fork couldn't follow its
+upstream. It kept its new systems in `src/pc/` (VERIFIED), which kept its own code readable, but didn't keep the
 game in step. g64coopdx's copy will most likely drift from weemitt the same way. With the accuracy rules dropped,
-that is the expected cost of the choice. Keeping co-op code in its own folders keeps the drift readable.
+that's the expected cost of the choice. Keeping co-op code in its own folders keeps the drift readable.
 
 ### Recommendation: B as a vendored copy
 
@@ -115,11 +115,11 @@ The owner chose to keep g64coopdx's own copy of the game code. Option B does tha
 - **What the copy is.** All of weemitt's tree at a pinned commit, in `weemitt/` inside g64coopdx: the game's C
   (`src/game`), the runtime (`src/port`, which also names `hand` and `ball`: `hostworld.c`, `frame.c`, `platform.c`),
   the renderer (`src/gfx`), the sound player (`src/audio`), the generated tables (`gen/`), the brute forcer's engine
-  (`bruteforce/engine`) and the tools. It is added with `git subtree`, which keeps weemitt's history.
+  (`bruteforce/engine`) and the tools. It's added with `git subtree`, which keeps weemitt's history.
 - **Where it came from.** A file, `weemitt/SOURCE`, names the weemitt commit the copy came from, as weemitt's own
   `GAME_SOURCE` names its gloveworld commit. Each later pull from weemitt updates it.
 - **How fixes arrive.** By hand, when they help co-op: `git subtree pull` for a batch, or a cherry-pick for one fix.
-  weemitt's direction (accuracy, the host world, the studio) mostly does not touch co-op, so most of its commits are
+  weemitt's direction (accuracy, the host world, the studio) mostly doesn't touch co-op, so most of its commits are
   not needed.
 - **Everything new is in g64coopdx's own folders:** the network layer, sessions, rollback, the lobby, the interface,
   chat, Lua, packs, the drawing of names. Changes inside `weemitt/` are the game changes co-op needs, and nothing else.
@@ -146,18 +146,18 @@ The owner chose to keep g64coopdx's own copy of the game code. Option B does tha
   on both, the Windows program under Wine (roadmap.md, phase 0's status). On Linux the `.data.rel` sections now go
   into the engine's saved data (`DATA_REL_RENAMES` in the copy's `bruteforce/Makefile`).
   - Linux: the 64-bit program is position-independent (`docs/architecture.md`), and 6 of the game's and runtime's
-    objects in `build/headless64` have `.data.rel` sections (measured). The engine's section check did not accept
+    objects in `build/headless64` have `.data.rel` sections (measured). The engine's section check didn't accept
     them yet (`docs/port64.md`, "What is left", item 1).
   - Windows: the 64-bit objects have no `.data.rel` sections (measured with `objdump -h`). The engine had never been
     built at 64 bits, so the work was to build and test it there. This was likely small (INFERRED).
   - Until the page tracker works there, full-copy savestates do: about 0.4 ms each, about 4 ms for a rollback of 8
     frames.
 - **Why not 32-bit:** a 32-bit static build stores the machine's own addresses in the game's memory, so its hashes may
-  differ between Linux and Windows. weemitt's docs say the 32-bit Windows program's hash is not comparable
+  differ between Linux and Windows. weemitt's docs say the 32-bit Windows program's hash isn't comparable
   (`docs/testing.md`), and the brute forcer's notes name raw sound data in `pbankBuffer` as one cause
   (`bruteforce/docs/upstream.md`). Fixing that would mean the 64-bit builds' offset pointers anyway (INFERRED).
 - **Changes that weemitt may want** (the 64-bit savestates, the option that turns off PC additions in game change 7)
-  can be offered back to weemitt as pull requests. That is optional.
+  can be offered back to weemitt as pull requests. That's optional.
 
 ## Changes to the game code
 
@@ -185,7 +185,7 @@ Other files cite these as "game change N". Changes 1, 7, 8, 9 and the first part
 **What a layout change costs.** weemitt's tables in `gen/` give every global its N64 offset. Growing a global in
 `port_ram` means regenerating `gen/` from a built gloveworld, which needs gloveworld's toolchain and the MIPS tools
 (`docs/building.md`, "Regenerating the tables"). Data loaded from the ROM (the main segment: 0xF5677 bytes from
-0x80100000) cannot move. The player globals lie past it (`hand` at 0x802902D8), in memory the game zeroes. A change
+0x80100000) can't move. The player globals lie past it (`hand` at 0x802902D8), in memory the game zeroes. A change
 that allocates on the heap leaves `gen/` as it is, so it costs less than one that grows a global. Both are allowed.
 
 ## Experiments
@@ -203,11 +203,11 @@ memory hash every 10 frames. With `--other` it also runs another build and compa
 | --- | --- | --- | --- |
 | `headless` twice, then `headless64` | 0 to 47 and the attract mode | 6,000 each | Equal in all 49: each build's two runs, and the 32-bit against the 64-bit build, in trace and hash |
 | `glover-host` (the library's test host, Linux 64-bit library) twice, then `glover-host.exe` (Windows 64-bit DLL, Wine) | 0 to 47 and the attract mode | 3,000 each | Equal in all 49, in trace and hash |
-| `glover-host` (Linux 32-bit library) twice, then `glover-host.exe` (Windows 32-bit DLL, Wine) | 0 to 47 and the attract mode | 3,000 each | Equal in all 49, in trace and hash. The libraries store pointers as offsets on 32 bits too (`docs/library.md`), so their hashes compare; the 32-bit Windows window program's hash would not |
+| `glover-host` (Linux 32-bit library) twice, then `glover-host.exe` (Windows 32-bit DLL, Wine) | 0 to 47 and the attract mode | 3,000 each | Equal in all 49, in trace and hash. The libraries store pointers as offsets on 32 bits too (`docs/library.md`), so their hashes compare; the 32-bit Windows window program's hash wouldn't |
 | `headless64` (silent sound player) twice, then `headless64-mus` (the real sound player), which was compared with them by trace only | 0 to 47 and the attract mode | 3,000 each | Equal traces in all 49 |
 
 Limits: the input is generated, not played by a person. Rope swinging (`HAND_SWISH`) and other rare paths may not be
-reached. Wine is not Windows. The Windows runs used the library's test host; the window program was not compared.
+reached. Wine isn't Windows. The Windows runs used the library's test host; the window program wasn't compared.
 
 ### Savestates
 

@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     opt.startLevel = 0;
     e = engine_create(argv[1], &opt, err, sizeof err);
     if (!e) {
-        printf("FAIL the engine did not start: %s\n", err);
+        printf("FAIL the engine didn't start: %s\n", err);
         return 1;
     }
     for (f = 0; f < frames; f++) {

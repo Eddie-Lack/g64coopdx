@@ -60,7 +60,7 @@ int net_recv(net_socket *s, net_addr *from, void *buf, size_t size);
 enum { NET_RELAY_HOST = 1, NET_RELAY_JOIN = 2 };
 
 /* Puts a socket in relay mode as a host (opens a room) or a joiner (joins the room code). relays holds count of the
- * relay's addresses (1 to NET_RELAY_ADDRS). A name can have addresses that do not carry UDP: the socket sends to every
+ * relay's addresses (1 to NET_RELAY_ADDRS). A name can have addresses that don't carry UDP: the socket sends to every
  * one until the relay answers, then only to the address that answered. Returns 0, or -1. */
 int net_relay_host(net_socket *s, const net_addr *relays, int count);
 int net_relay_join(net_socket *s, const net_addr *relays, int count, const char *code);
@@ -94,7 +94,7 @@ void net_relay_announce(net_socket *s, uint32_t build, int wanted, int joined, i
                         const char *title);
 /* On a host's socket: puts joiner peer (1 to 15) out of the room. The relay refuses their address from then on. */
 void net_relay_ban(net_socket *s, int peer);
-/* Asks the relay at relays (count addresses) for the listed rooms of a build, on a socket that is not in relay mode.
+/* Asks the relay at relays (count addresses) for the listed rooms of a build, on a socket that isn't in relay mode.
  * The answer is a datagram for net_rooms_parse. */
 void net_rooms_ask(net_socket *s, const net_addr *relays, int count, uint32_t build);
 /* Reads the relay's answer d of n bytes into out (at most max rooms). Returns the number of rooms, or -1 when d is

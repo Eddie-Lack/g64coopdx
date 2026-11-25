@@ -883,7 +883,7 @@ Collectable *CreateNewPickup(u8 type, Vec3 *pos, s16 time, s16 duration) {
     Platform *platform;
 
     /* g64coopdx: the type picks one of the game's 15 pick-ups, whose object must be in the level's banks. If not,
-       the level is marked as one that cannot be played (FindObject does it for a missing object), and there is no
+       the level is marked as one that can't be played (FindObject does it for a missing object), and there's no
        pick-up. */
     if (type > 14) {
         G64Unplayable("PICKUP");

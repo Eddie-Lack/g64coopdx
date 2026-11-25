@@ -1816,7 +1816,7 @@ void NMEProcessRobot(Enemy *enemy) {
         waitForFootDown = 0;
         G64CarrierSet(0);
     }
-    /* g64coopdx: any player can be the carrier. Once there is one, the exit is theirs. */
+    /* g64coopdx: any player can be the carrier. Once there's one, the exit is theirs. */
     if (waitForFootDown) {
         p = G64CarrierBegin();
         if (p < 0) {

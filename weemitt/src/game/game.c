@@ -3108,7 +3108,7 @@ void G64CavePlayer(void) {
 }
 
 /* g64coopdx: a player who comes into a running level, with that player in the globals. They start the cave's scene
-   afresh, and it is theirs if a crystal is due now. A player who comes into the cave with a crystal due and whose
+   afresh, and it's theirs if a crystal is due now. A player who comes into the cave with a crystal due and whose
    start holds no ball (the cave started with none due) gets one at the glove: the scene flies it to the fountain. */
 void G64Arrive(void) {
     s32 due = saveSlot[currentSaveSlot].hubLevel < saveSlot[currentSaveSlot].hubTarget;
@@ -3876,7 +3876,7 @@ static s32 G64WayRoomDoorOpen(s32 tag) {
 
 /* g64coopdx: progress made in another instance, given to a running level at a confirmed frame (a session event). It
    only adds: the level bits, the all-garib bits and the worlds done are joined, and the hub counts take the larger
-   value. Progress that this level made and has not yet reported stays. The world stays. A way room door that the new
+   value. Progress that this level made and hasn't yet reported stays. The world stays. A way room door that the new
    progress opens moves away, as at the level's start. Other things the progress changes in this level show at its
    next start. */
 void G64ApplyProgress(const G64Save *save) {

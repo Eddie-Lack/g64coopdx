@@ -3,9 +3,10 @@
 g64coopdx is an online co-op version of Glover (N64, USA, NGVE) on PC, with mods. It builds on weemitt, the native
 PC port. Read this file, then docs/ (start with docs/discovery/README.md).
 
-The repository holds the design, a placeholder for the lobby server in `server/`, and `weemitt/`, g64coopdx's own
-copy of weemitt (a `git subtree`; `weemitt/SOURCE` names the weemitt commit). Co-op changes the game code in the
-copy. The work follows docs/discovery/roadmap.md, phase 0 now.
+The repository holds the design in docs/, g64coopdx's own code in `src/`, `tests/` and `tools/`, the sample pack in
+`packs/`, the lobby server and its relay in `server/`, and `weemitt/`. `weemitt/` is g64coopdx's own copy of weemitt
+(a `git subtree`; `weemitt/SOURCE` names the weemitt commit). Co-op changes the game code in the copy. The work
+follows docs/discovery/roadmap.md. Each phase's section there says what's done and what's left.
 
 ## Rules
 
@@ -22,8 +23,8 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
 - **This file's rules win over `weemitt/CLAUDE.md`**. That file is weemitt's own, and its rules for an exact copy of
   the original game (the memory layout rule, weemitt's baseline, the frame-rate and emulator checks) do not apply
   here. Its rules on the ROM and on leaked or other ports' code agree with this file.
-- **Game changes go in `weemitt/`, and only there.** Keep co-op code in its own functions and files where you can;
-  it makes weemitt's later fixes easier to take. Record each pull from weemitt in `weemitt/SOURCE`.
+- **Game changes go in `weemitt/`, and only there.** Keep co-op code in its own functions and files where you can.
+  Later fixes from weemitt then merge more easily. Record each pull from weemitt in `weemitt/SOURCE`.
 - **Pointers in the game's memory must point into `port_ram`.** On the 64-bit builds a stored pointer is an offset
   into it. Put new players' state on the game's heap. Growing a global means regenerating `gen/`.
 - **g64coopdx keeps its own baseline.** It is the commit named by `BASELINE_REF` in `weemitt/tools/regress.py`.
@@ -44,7 +45,7 @@ copy. The work follows docs/discovery/roadmap.md, phase 0 now.
   each, terms defined on first use. American English. No em dashes. No AI model names.
 - Do not end sentences with a purpose clause that explains why the preceding detail matters. State the fact and
   stop.
-- Comment code where the reason is not obvious, in plain sentences.
+- Comment code where the reason isn't obvious, in plain sentences.
 - The project's own code is MIT (`LICENSE`). Vendored code keeps its license; list it in `THIRD_PARTY_NOTICES.md`.
 
 ## Pull requests
@@ -110,7 +111,7 @@ run locally: set `GLOVER_ROM`.
 | The check of a level file's structure, and what a level file must not do | src/client (`levcheck.h`), docs/discovery/level-file-safety.md |
 | The bounded reader of compressed (FLA2) banks, and the index of the ROM's banks (ids and hashes) | src/client (`fla2.h`, `rombanks.h`; the game's ranges in `rombanks_game.c`), docs/discovery/model-banks.md; the test tests/rom/rombanks.c |
 | The check of a pack's models.bin (its header, texture bank and object bank), and its rules that need the ROM | src/client (`bankcheck.h`), docs/discovery/model-banks.md; the test tests/net/bankcheck_test.c, the fixture tests/fixtures/cube.models.bin |
-| The game's bank switch as a table, for programs that do not link the game (the pack tool, tests) | src/client (`bankranges.h`, `bankranges_table.c` written by tools/gen_bankranges.py); `make rombanks` compares it with the game |
+| The game's bank switch as a table, for programs that don't link the game (the pack tool, tests) | src/client (`bankranges.h`, `bankranges_table.c` written by tools/gen_bankranges.py); `make rombanks` compares it with the game |
 | The level file's object ids against the banks the level will have, and each level's object banks | src/client (`g64_pack_check_ids` in `pack.h`; with the committed tables, as the pack tool and the host before its offer run it, `packrom.h`; the table `g64_level_object_banks` in `bankranges.c`), weemitt/src/game/g64packbanks.c (`G64LevelBankNumbers`), docs/discovery/model-banks.md; `make levcheck` |
 | The shadow walk (a copy of the game's bank loaders that stops at any access outside the bank), and the maker of test banks | tests/fuzz (`bankwalk.h`, `bankcheck_fuzz.c`), tests/net/bankbuild.h |
 | A pack's own models in the game: where its banks are, their load into free slots, and the test against the shadow walk | weemitt/src/game/g64packbanks.c (`G64SetPackModels`, `G64LoadPackBanks`), src/client (`instances.h`, `g64_instances_pack_models`); the test tests/rom/bankwalk.c |

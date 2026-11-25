@@ -29,7 +29,7 @@
  *            repeats a line a few times; a receiver drops a line whose number is that player's last one.
  *   kick     0x47 (host to a player it removed)
  * The level pack (src/client/pack.h). A joiner whose hello names another pack than the host's, or none, is
- * welcomed all the same when the host may send its pack, and is not in the game until it has the pack:
+ * welcomed all the same when the host may send its pack, and isn't in the game until it has the pack:
  *   offer    0x49, the pack's id (16 bytes), the sizes of its manifest (u16), level file (u32), script (u32, 0
  *            for none) and models.bin (u32, 0 for none), its name (1 to 32 bytes). Host to a joiner who lacks the
  *            pack, until the joiner answers. An id and sizes of zeros, with no name, mean that the host plays
@@ -101,7 +101,7 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
 void g64_session_receive(g64_session *g, const net_addr *from, const uint8_t *data, size_t len, uint32_t now,
                          g64_game_fn on_game, void *user);
 /* For tests and the fuzz target: handles data as a message that came sealed and was opened. On the host it comes
- * from player from; on a joiner, from the host. A fuzzer cannot make a sealed datagram that opens, so this is its
+ * from player from; on a joiner, from the host. A fuzzer can't make a sealed datagram that opens, so this is its
  * way to the code behind the seal. */
 void g64_session_test_inner(g64_session *g, int from, const uint8_t *data, size_t len, uint32_t now,
                             g64_game_fn on_game, void *user);
@@ -111,7 +111,7 @@ int g64_session_players(const g64_session *g);
 int g64_session_level(const g64_session *g);
 int g64_session_deadline(const g64_session *g);
 /* This program's build: a hash of its build id. Every build of the game's code plays another game, so a host
- * refuses a joiner whose build differs (G64_REFUSE_PROTOCOL). Set it on both sides before the first poll. It is 0
+ * refuses a joiner whose build differs (G64_REFUSE_PROTOCOL). Set it on both sides before the first poll. It's 0
  * until set. */
 void g64_session_set_build(g64_session *g, uint32_t build);
 /* This machine's level pack, by its id (G64_PACK_ID_SIZE bytes; NULL or zeros: none). A pack changes the game, so
@@ -186,9 +186,9 @@ int g64_session_kick(g64_session *g, int p);
 /* On the host: starts the game now, with the players who are in. Others may still join, while there are places.
  * Without it the game starts when every place is taken. */
 void g64_session_begin(g64_session *g);
-/* After the start: a bit for each player who was in at the start. A player whose bit is not set joined later. */
+/* After the start: a bit for each player who was in at the start. A player whose bit isn't set joined later. */
 unsigned g64_session_start_members(const g64_session *g);
-/* Player p's colors at the start, or 0 for a player who was not in at the start. Every machine builds the first
+/* Player p's colors at the start, or 0 for a player who wasn't in at the start. Every machine builds the first
  * game with these. */
 void g64_session_start_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball);
 /* After the start: 1 when player p is in the game now. A joiner knows it from the host's list of players. */

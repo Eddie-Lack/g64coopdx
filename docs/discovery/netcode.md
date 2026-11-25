@@ -45,7 +45,7 @@ All from the discovery; scripts in [experiments/](experiments/); details in [wee
 | The game's whole memory (24 MB) compressed | 0.6 to 1.0 MB |
 | Can a separate program run several games in one process? | Works: one game per copy of the library file, on Linux and Windows |
 
-The discovery did not measure real networks, latency, packet loss or more than one glove. Those needed the
+The discovery didn't measure real networks, latency, packet loss or more than one glove. Those needed the
 multi-player game core first ([roadmap.md](roadmap.md)). Later tests ran up to 16 gloves in one game, and a host
 and three players in one process over a simulated lossy network.
 
@@ -58,7 +58,7 @@ frames to hide the network's delay.
 
 - Simple: no savestates, no prediction.
 - At 20 frames a second a frame is 50 ms. A delay of 2 frames hides a round trip of about 100 ms. Glover's controls
-  are slow enough that 2 frames may feel acceptable; 4 or more would not (INFERRED; test it).
+  are slow enough that 2 frames may feel acceptable; 4 or more wouldn't (INFERRED; test it).
 - The slowest player sets everyone's pace. One player's lost packet stalls all players. With 8 to 16 players on the
   internet, stalls happen often (INFERRED).
 
@@ -75,7 +75,7 @@ input arrives and differs from the prediction, it loads the state of that frame 
   needs the full draw.
 - One simulation holds one level. Players in different levels are in different simulations, called instances
   ([below](#instances)).
-- Needs: bit-exact logic everywhere (measured), cheap savestates (measured), sound that does not replay on each
+- Needs: bit-exact logic everywhere (measured), cheap savestates (measured), sound that doesn't replay on each
   rollback ([below](#sound-and-rollback)), and deterministic scripts ([mods.md](mods.md#scripts-in-a-rollback-game)).
 
 ### C. State synchronization with an authority
@@ -85,7 +85,7 @@ by the nearest player or by the host, and the owner sends their state. Events (a
 switch pressed) go as messages ([sm64coopdx.md](sm64coopdx.md), section 3).
 
 - Any latency is tolerated, for any number of players. Players can be in different levels.
-- Determinism is not needed, so the Smooth mode would be allowed.
+- Determinism isn't needed, so the Smooth mode would be allowed.
 - But every kind of object needs code to send and apply its state: Glover's enemies run instruction scripts,
   platforms follow paths, puzzles test positions, and the ball pushes switches and enemies. sm64coopdx needed a
   sync system with ids, ownership, per-object fields, event packets and delayed packets for this, and still only logs
@@ -118,7 +118,7 @@ for them. With many players that wait comes often, as in lockstep. The recommend
    few inputs repeated against loss.
 2. The host collects each instance's inputs for frame t. At a deadline (a fixed number of frames behind the host's
    own frame count)
-   it **confirms** frame t: for a player whose input has not arrived it repeats that player's last input. It sends the
+   it **confirms** frame t: for a player whose input hasn't arrived it repeats that player's last input. It sends the
    confirmed inputs to the players in that instance.
 3. Every client predicts with the latest inputs it has, and rolls back to the confirmed inputs when they arrive.
 4. A late player's own glove snaps back to what the host confirmed. Nobody else waits.
@@ -131,7 +131,7 @@ Why B (INFERRED from the measurements and the comparison):
 - The port's two unusual strengths, exact logic and cheap savestates, are what rollback needs. Model C would
   not use them.
 - Model C's per-object sync code is the largest and least testable part of sm64coopdx. Model B avoids it.
-- Only inputs travel. No ROM-derived data goes over the network, and a cheater cannot set state.
+- Only inputs travel. No ROM-derived data goes over the network, and a cheater can't set state.
 - Every frame of every machine can be checked against the host's by hash. weemitt's test tools already compare runs
   frame by frame.
 
@@ -145,7 +145,7 @@ The costs of B, and how to meet them:
 | Sound must not replay | [Sound and rollback](#sound-and-rollback) |
 | Scripts must be deterministic and in the state | [mods.md](mods.md#scripts-in-a-rollback-game) |
 | A slow machine falls behind | The host's deadline also bounds how far a client may be behind; a client that falls too far behind is told to catch up (it runs frames faster than real time) or is dropped |
-| A client's inputs reach the host after their frame is confirmed | Each confirm message carries the host's clock. A client runs up to that clock, plus one frame each time the host confirmed a frame without its own input (at most 4, `rb_client_target`). The lead does not shrink: a client that runs ahead stays ahead until it moves to another instance |
+| A client's inputs reach the host after their frame is confirmed | Each confirm message carries the host's clock. A client runs up to that clock, plus one frame each time the host confirmed a frame without its own input (at most 4, `rb_client_target`). The lead doesn't shrink: a client that runs ahead stays ahead until it moves to another instance |
 
 Model A remains a fallback inside B: a session with a large input delay and a prediction window of 0 is lockstep.
 
@@ -157,7 +157,7 @@ Model A remains a fallback inside B: a session with a large input delay and a pr
   frame weemitt's delta-time helpers use `pow` and `exp`, which differ between systems (`weemitt/docs/testing.md`).
 - A level frame is 3 video retraces (20 a second); a menu frame is 2 (30 a second) (`weemitt/docs/library.md`,
   "Time"). The session's clock counts game frames and follows the game's own retrace count.
-- The pause menu: in a shared game one player's pause cannot stop the others. Pause becomes a local overlay, and the
+- The pause menu: in a shared game one player's pause can't stop the others. Pause becomes a local overlay, and the
   game's own pause (which stops the logic) is off. The owner decided that the host may stop the game for everyone
   ([open-questions.md](open-questions.md#decided)). Done: each player has their own menu (src/client/netplay.c). A
   choice that acts in the game goes in that player's input for 3 frames: the button bit 0x0080, which no N64 controller
@@ -242,7 +242,7 @@ tables, textures). Sending it would send game data, and its host pointers are on
   (`g64TestExits`): a new instance, a join into a running one, and a return to the running hub. Every hash check
   passes, and the Linux and Windows outputs are equal.
 
-Not yet: a running instance does not see progress made elsewhere (a session event into its confirmed inputs); the
+Not yet: a running instance doesn't see progress made elsewhere (a session event into its confirmed inputs); the
 one-world rule at the hub's portals; per-player end-of-level screens. Progress into running instances and the
 one-world rule came later ([Session events](#session-events); [roadmap.md](roadmap.md#phase-2-rollback-on-a-lan)).
 The move also carries the session's world, every player's colors and the scripts' 16 values at the instance's
@@ -257,7 +257,7 @@ Every machine builds every instance the same way: it loads a state saved right a
 player in a level as well as for one who joins later. `make levelstart` checks it: each of the 43 levels a player can
 be in gives the same memory hash when it is built again after another level was played, on Linux and under Wine.
 The 43 are the hub sections, the cave, the assault course, the worlds and the way room (tests/rom/levelstart.c). The
-game's other five levels, `PRESENT` to `OUTRO` in `enum Level`, are not in the test.
+game's other five levels, `PRESENT` to `OUTRO` in `enum Level`, aren't in the test.
 
 What a level carries from the one before, and so what the start record holds beyond the level: the save slot
 (levels done, garib bits, `hubLevel`, `hubTarget`, lives), `gameInfo.world`, `prevLevel` and `prevWorld`,
@@ -364,23 +364,23 @@ same protection.
   which the recommendation below names. Monocypher builds with gcc, MinGW and clang's fuzzer with no build system
   of its own.
 
-What this protects against: someone who listens on the path, the relay included, cannot read names in the start,
-chat or inputs. Someone who is not on the path cannot forge a message, change one or play one back; that covers a
+What this protects against: someone who listens on the path, the relay included, can't read names in the start,
+chat or inputs. Someone who isn't on the path can't forge a message, change one or play one back; that covers a
 forged kick, forged inputs, and a newcomer who gets a former player's place at the relay.
 
-What it does not protect against: the players have no identities and the room code is no secret, so someone who
+What it doesn't protect against: the players have no identities and the room code is no secret, so someone who
 can change packets on the path during the hello could put their own keys in and sit in the middle. The relay is
 in that place. A forged refusal or welcome from someone who can send from the host's address can still stop a
-join. Proof of who a player is needs accounts or a shared secret, and is not planned.
+join. Proof of who a player is needs accounts or a shared secret, and isn't planned.
 
-The fuzz target reaches the parser behind the seal through `g64_session_test_inner`: a fuzzer cannot make a
+The fuzz target reaches the parser behind the seal through `g64_session_test_inner`: a fuzzer can't make a
 datagram that opens.
 
 ### Candidate libraries (licenses read from each project's LICENSE file; dates from the release feeds)
 
 | Library | License | What it gives | Fit |
 | --- | --- | --- | --- |
-| ENet | MIT | Reliable and unreliable UDP channels, in C | Good transport; no encryption or NAT traversal (the discovery could not fetch ENet's own docs to confirm this) |
+| ENet | MIT | Reliable and unreliable UDP channels, in C | Good transport; no encryption or NAT traversal (the discovery couldn't fetch ENet's own docs to confirm this) |
 | GameNetworkingSockets (Valve) | BSD-3-Clause | Messages, encryption (AES-GCM-256, Curve25519), ICE through WebRTC's code; v1.6.1, 3 October 2026 | All in one, but large dependencies; Valve's relay and signaling are Steam only; MinGW support unconfirmed |
 | libjuice | MPL-2.0 | ICE with STUN and TURN, in C; v1.7.4, 26 September 2026 | Good for NAT traversal; sm64coopdx ships it too |
 | libdatachannel | MPL-2.0 | WebRTC data channels (DTLS, SCTP), C++ | More than needed |
@@ -398,7 +398,7 @@ datagram that opens.
 **The discovery's recommendation (INFERRED):** ENet for the channels, libsodium for encryption (a key exchange at
 connect, then every packet sealed), libjuice for ICE, and a TURN relay. The three libraries are small and written in
 C. The relay is a managed service, with coturn as the fallback ([hosting.md](../hosting.md)). libjuice lists
-Windows among its platforms; a MinGW build of each library was not tried, and phase 2 tries them, with
+Windows among its platforms; a MinGW build of each library wasn't tried, and phase 2 tries them, with
 GameNetworkingSockets' MinGW build as the alternative. Their licenses (MIT, ISC, MPL-2.0) suit MIT, the
 license chosen for g64coopdx. MPL-2.0 asks that changes to libjuice's own files stay MPL-2.0 and be shared; use it
 unchanged. The encryption that was built uses Monocypher in place of libsodium ("Encryption" above).
@@ -414,7 +414,7 @@ unchanged. The encryption that was built uses Monocypher in place of libsodium (
 
 The table gives the plan. Built so far are the direct connection and the lobby. The lobby runs its own UDP relay,
 which needs no credentials (`server/relay.go`). The relay keeps the list of rooms that hosts chose to show. The lobby
-does not pass ICE candidates or hand out TURN credentials yet ([server/README.md](../../server/README.md);
+doesn't pass ICE candidates or hand out TURN credentials yet ([server/README.md](../../server/README.md);
 [hosting.md](../hosting.md#what-is-set-up-today)).
 
 The lobby server never sees game data: only session descriptions, ICE candidates and the handshake. sm64coopdx's
@@ -428,7 +428,7 @@ On connect, before anything else, the host and the joiner compare:
 | Item | Rule |
 | --- | --- |
 | Protocol version | Equal |
-| Build id | Equal: by default, the commit of g64coopdx that the program was built from (`G64_BUILD` in weemitt/studio.mk). weemitt's copy and Lua (`weemitt/third_party/lua`) are part of that commit. The compiler and its flags are not part of the id. The joiner's hello carries a 32-bit hash of the id (`build_hash` in src/client/netplay.c). sm64coopdx compares a 128-byte version string at three points ([sm64coopdx.md](sm64coopdx.md), 3.9) |
+| Build id | Equal: by default, the commit of g64coopdx that the program was built from (`G64_BUILD` in weemitt/studio.mk). weemitt's copy and Lua (`weemitt/third_party/lua`) are part of that commit. The compiler and its flags aren't part of the id. The joiner's hello carries a 32-bit hash of the id (`build_hash` in src/client/netplay.c). sm64coopdx compares a 128-byte version string at three points ([sm64coopdx.md](sm64coopdx.md), 3.9) |
 | ROM | Equal: the joiner's hello carries a 32-bit hash of its ROM (`g64_rom_hash` in src/session/session.c). The host refuses a hash that differs from its own (`G64_REFUSE_ROM`). The ROM never travels |
 | Packs | The host's list of pack hashes; the joiner downloads what it lacks, after the player agrees ([mods.md](mods.md#how-mods-reach-other-players)) |
 | Session settings | From the host |
@@ -451,5 +451,5 @@ hashes (`make crossbuild`).
 - Pack files: hashes, sizes, path rules ([mods.md](mods.md#how-mods-reach-other-players)).
 - No pointers, offsets or memory addresses in any message.
 - Rate limits on every message type; a host drops and bans peers that exceed them.
-- The lobby server checks the same, and never forwards data it has not parsed.
+- The lobby server checks the same, and never forwards data it hasn't parsed.
 - Fuzz tests for every parser in CI ([README.md](README.md#testing)).

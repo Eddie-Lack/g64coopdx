@@ -97,7 +97,7 @@ static void to_net_addr(const struct sockaddr_storage *ss, net_addr *a) {
     }
 }
 
-/* The sockaddr for sending to address a from socket s. Returns its length, or 0 when s cannot reach that family. */
+/* The sockaddr for sending to address a from socket s. Returns its length, or 0 when s can't reach that family. */
 static int to_sockaddr(const net_socket *s, const net_addr *a, struct sockaddr_storage *ss) {
     memset(ss, 0, sizeof *ss);
     if (s->v6) {
@@ -157,7 +157,7 @@ net_socket *net_open(uint16_t port, char *err, size_t errSize) {
         in.sin_addr.s_addr = htonl(INADDR_ANY);
         in.sin_port = htons(port);
         if (s->fd == BAD_SOCKET || bind(s->fd, (struct sockaddr *)&in, sizeof in) != 0) {
-            snprintf(err, errSize, "cannot bind UDP port %u (is it in use?)", (unsigned)port);
+            snprintf(err, errSize, "can't bind UDP port %u (is it in use?)", (unsigned)port);
             if (s->fd != BAD_SOCKET)
                 close_socket(s->fd);
             free(s);
@@ -165,7 +165,7 @@ net_socket *net_open(uint16_t port, char *err, size_t errSize) {
         }
     }
     if (set_nonblocking(s->fd) != 0) {
-        snprintf(err, errSize, "cannot make the socket non-blocking");
+        snprintf(err, errSize, "can't make the socket non-blocking");
         close_socket(s->fd);
         free(s);
         return NULL;
@@ -235,7 +235,7 @@ int net_resolve_all(const char *text, uint16_t defaultPort, net_addr *out, int m
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
     if (getaddrinfo(host, portText, &hints, &res) != 0 || !res) {
-        snprintf(err, errSize, "cannot find the address %s", host);
+        snprintf(err, errSize, "can't find the address %s", host);
         return -1;
     }
     /* IPv4 first: it reaches most home routers' forwarded ports. */
@@ -262,7 +262,7 @@ int net_resolve_all(const char *text, uint16_t defaultPort, net_addr *out, int m
         }
         freeaddrinfo(res);
         if (count == 0) {
-            snprintf(err, errSize, "cannot find the address %s", host);
+            snprintf(err, errSize, "can't find the address %s", host);
             return -1;
         }
         return count;

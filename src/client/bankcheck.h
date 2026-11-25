@@ -3,7 +3,7 @@
  * models.bin holds a header, then the pack's own texture bank and object bank. A bank is untrusted. The game's
  * loaders (weemitt's LoadTextureBankAt, LoadObjectBankAt, RestoreObjectPointers and RestoreDrawList) trust every
  * field of a bank: they follow its offsets and counts with no bound. This check reads the big-endian bytes as those
- * loaders do, and refuses anything it does not understand. Every byte of the file is untrusted.
+ * loaders do, and refuses anything it doesn't understand. Every byte of the file is untrusted.
  *
  * What it holds the file to, in short:
  *   - the header's sizes, flags and retail bank numbers are as model-banks.md says. A retail number must be one
@@ -53,8 +53,8 @@ typedef struct {
 } G64Models;
 
 /* Checks models.bin. exists says whether the game's bank switch has a bank of a kind (G64_BANK_TEXTURE or
- * G64_BANK_OBJECT) and number. It returns 1 or 0, as G64BankRom does; the range it gives is not used. With exists
- * NULL, no retail number is allowed. Returns NULL when the file passes, and fills out when it is not NULL. Otherwise
+ * G64_BANK_OBJECT) and number. It returns 1 or 0, as G64BankRom does; the range it gives isn't used. With exists
+ * NULL, no retail number is allowed. Returns NULL when the file passes, and fills out when it isn't NULL. Otherwise
  * returns a message, and at is the offset in the file of the byte, field or pointer at fault. */
 const char *g64_models_check(const uint8_t *file, size_t n, g64_bank_range_fn exists, void *user, G64Models *out,
                              size_t *at);

@@ -13,7 +13,7 @@ primary_region = "ord"
 [http_service]
   internal_port = 8080
   force_https = true
-  # The machine keeps running: the relay's UDP packets do not start a stopped machine, and a game must not lose its
+  # The machine keeps running: the relay's UDP packets don't start a stopped machine, and a game must not lose its
   # relay halfway through.
   auto_stop_machines = "off"
   auto_start_machines = true

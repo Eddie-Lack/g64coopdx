@@ -4,7 +4,7 @@
  * file, a script of 20,000 bytes, and Glovebox's cube (tests/fixtures/cube.models.bin). The two ROMs are made up
  * too: one holds a bank with other ids (tests/net/bankbuild.h), the other holds the cube's own banks. The host also
  * runs the rule for the level file's object ids after g64_pack_may_send, as host_offer_pack does: a pack whose level
- * names an object in no bank is not offered, and the online host stops its session. No ROM needed. It prints ids and
+ * names an object in no bank isn't offered, and the online host stops its session. No ROM needed. It prints ids and
  * messages only; Linux and Windows must print the same.
  *
  * Usage: packsend_test CUBE. */
@@ -57,7 +57,7 @@ static G64RomBanks *fake_index(const uint8_t *models, size_t n, fake_rom *r) {
 }
 
 /* Sends n bytes as a pack from a host to a joiner. The host offers id with the sizes in info. Returns a copy of the
- * joiner's download, and the offer the joiner got in got, or NULL when the download did not finish. */
+ * joiner's download, and the offer the joiner got in got, or NULL when the download didn't finish. */
 static uint8_t *send_pack(const uint8_t *bytes, const g64_pack_offer *info, const uint8_t *id, g64_pack_offer *got,
                           size_t *have) {
     char err[128];
@@ -139,8 +139,8 @@ static size_t platform_level(uint8_t *lev, size_t max, const uint32_t *ids, int 
 }
 
 /* The host's gate as host_offer_pack runs it: the rule for the level file's object ids, with the level's banks
- * levelBanks of the made-up ROM index, on a level file that passes the strict check; then g64_pack_may_send. There is
- * no ROM here, so no level is the ROM's. Returns 0 when the pack is offered, 1 when it is not offered, and -1 when the
+ * levelBanks of the made-up ROM index, on a level file that passes the strict check; then g64_pack_may_send. There's
+ * no ROM here, so no level is the ROM's. Returns 0 when the pack is offered, 1 when it isn't offered, and -1 when the
  * id rule refuses it (the online host then stops its session). Prints the message. */
 static int host_gate(const g64_pack *p, const g64_pack_banks *banks, const g64_level_banks *levelBanks,
                      G64RomBanks *index) {
@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
 
     if (blob) {
         /* A host that sends other bytes under the same offer. A changed letter in the script still reads as a pack,
-           but its id is not the offer's. A changed flag in models.bin fails the bank check. */
+           but its id isn't the offer's. A changed flag in models.bin fails the bank check. */
         uint8_t *bad = (uint8_t *)malloc(bn);
         if (bad) {
             memcpy(bad, blob, bn);

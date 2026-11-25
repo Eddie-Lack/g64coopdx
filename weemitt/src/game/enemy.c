@@ -155,8 +155,8 @@ void LoadEnemy(s32 enemyType, f32 xpos, f32 ypos, f32 zpos, s32 tag, f32 initYRo
     memclear(enemy, sizeof(Actor));
     memclear(enemy, sizeof(Enemy));
     InitActor(&enemy->actor, nmeObjectName[enemyType], xpos, ypos, zpos, 30);
-    /* g64coopdx: the enemy's object is not in the level's banks. FindObject has marked the level as one that cannot
-       be played; the enemy is not counted. */
+    /* g64coopdx: the enemy's object isn't in the level's banks. FindObject has marked the level as one that can't
+       be played; the enemy isn't counted. */
     if (enemy->actor.inst == NULL || enemy->actor.state == NULL) {
         return;
     }

@@ -6,7 +6,7 @@
  *   B. Both players' gloves are put on one garib. It is counted once.
  *   C. The players take garibs in turn. Both counts equal the number of garibs that went.
  *   D. Player 1's glove is put on a pick-up. Player 1 gets the power-up for as long as player 0 gets it alone, player
- *      0 does not get it, and it runs out. The pick-up's points go to player 1.
+ *      0 doesn't get it, and it runs out. The pick-up's points go to player 1.
  *   E. A power-up with orbiters, held by player 1 for 1,500 frames. The orbiters are actors inside the blocks that a
  *      swap exchanges, and the game once crashed on them.
  *   F. Player 0 takes a garib alone, and player 1 comes into the level afterwards. Player 1's count is the team's.

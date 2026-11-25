@@ -3,7 +3,7 @@
  * for the exchange, BLAKE2b for the keys, XChaCha20 with Poly1305 for the messages.
  *
  * What it gives: nobody on the path, the relay included, can read a sealed message, and nobody without the key
- * can forge one, change one or play one back. What it does not give: the players have no identities, so someone
+ * can forge one, change one or play one back. What it doesn't give: the players have no identities, so someone
  * who can change packets on the path during the hello (the relay can) could sit in the middle.
  * docs/discovery/netcode.md, "Encryption", has the whole account. */
 #ifndef G64_SEAL_H
@@ -33,7 +33,7 @@ int g64_seal_random(uint8_t *out, size_t n);
 /* For tests: another source of random bytes, or NULL for the system's. */
 void g64_seal_set_random(int (*fn)(uint8_t *out, size_t n));
 
-/* Clears a secret from memory, in a way the compiler does not remove. */
+/* Clears a secret from memory, in a way the compiler doesn't remove. */
 void g64_seal_wipe(void *secret, size_t n);
 
 /* A new secret key and its public key. 0, or -1 without random bytes. */
@@ -49,8 +49,8 @@ int g64_seal_keys(g64_seal *s, int host, const uint8_t secret[G64_SEAL_KEY], con
  * not fit in max bytes. */
 size_t g64_seal_lock(g64_seal *s, const uint8_t *plain, size_t n, uint8_t *out, size_t max);
 
-/* Opens a sealed datagram into plain. It gives the message's length, or -1 for a datagram that is not sealed with
- * this link's key, was changed, came before, or does not fit in max bytes. */
+/* Opens a sealed datagram into plain. It gives the message's length, or -1 for a datagram that isn't sealed with
+ * this link's key, was changed, came before, or doesn't fit in max bytes. */
 int g64_seal_unlock(g64_seal *s, const uint8_t *d, size_t n, uint8_t *plain, size_t max);
 
 #endif

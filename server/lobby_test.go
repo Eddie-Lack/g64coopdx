@@ -33,7 +33,7 @@ func TestInfo(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	want := infoReply{Name: "g64coopdx-lobby", Version: version, Protocol: protocolVersion, Placeholder: true}
+	want := infoReply{Name: "g64coopdx-lobby", Version: version, Protocol: protocolVersion, Placeholder: false}
 	if rec.Code != 200 || got != want {
 		t.Fatalf("got %d %+v, want %+v", rec.Code, got, want)
 	}

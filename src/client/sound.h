@@ -8,8 +8,8 @@
  *     change that a correction brings is applied: sounds without a place and continuous sounds are followed as the
  *     table's state, not as a list of calls;
  *   - mixed for the local player's camera: sounds with a place get their volume and pan from it, and the ones it is
- *     too far from are not played;
- *   - another player's own sounds without a place (a camera click) are not played.
+ *     too far from aren't played;
+ *   - another player's own sounds without a place (a camera click) aren't played.
  * The reader keeps its own state outside the game. It never changes the game. */
 #ifndef G64_SOUND_H
 #define G64_SOUND_H

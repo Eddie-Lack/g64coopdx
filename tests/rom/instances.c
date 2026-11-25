@@ -26,7 +26,7 @@
  * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run). The sample pack
  * plays with its raft and a retail bell, and the client refuses it with other retail banks (sample_pack,
  * sample_pack_retail). The last two runs test the session's values, which scripts keep from level to level
- * (script_session), and levels that cannot be played, which do not stop the session (pack_unplayable).
+ * (script_session), and levels that can't be played, which don't stop the session (pack_unplayable).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>
@@ -247,11 +247,11 @@ int G64PortalShut(int player);
  *   - at frame 100 player 1 walks into the Atlantis portal and player 2 into the Carnival portal. Neither game has
  *     heard of the other, so both take their exit. The host lets the first one go and puts the second back in the
  *     hub: the session is in Atlantis now;
- *   - at frame 300 player 2 walks into the Carnival portal again: it is shut in their game, and they stay;
- *   - at frame 400 player 2 walks into the Atlantis portal: it is open, and they join player 1's way room;
+ *   - at frame 300 player 2 walks into the Carnival portal again: it's shut in their game, and they stay;
+ *   - at frame 400 player 2 walks into the Atlantis portal: it's open, and they join player 1's way room;
  *   - at frame 600 players 1 and 2 choose "Back to the hub": the session is in no world again;
- *   - at frame 900 player 0 walks into the Carnival portal: everyone is in the hub, so it is open;
- *   - at frame 1000 player 1 walks into the Atlantis portal: it is shut, since the session is in Carnival. */
+ *   - at frame 900 player 0 walks into the Carnival portal: everyone is in the hub, so it's open;
+ *   - at frame 1000 player 1 walks into the Atlantis portal: it's shut, since the session is in Carnival. */
 static void one_world(Engine *e, void *boot) {
     enum { CARNIVAL = 2, CARNIVAL_EXIT = 7, RUN = 1200, THREE = 3 };
     uint32_t none[16][2];
@@ -286,7 +286,7 @@ static void one_world(Engine *e, void *boot) {
             rb_input in;
             memset(&in, 0, sizeof in);
             in.present = 1;
-            /* "Back to the hub" in the pause menu, as netplay.c sends it. It is held for a while: this network
+            /* "Back to the hub" in the pause menu, as netplay.c sends it. It's held for a while: this network
                is slow for the host's deadline, and a player who joined a running level runs a little behind the
                host's clock, so their first inputs may come too late. */
             if (p > 0 && now >= 600 && now < 612) {
@@ -849,7 +849,7 @@ static void sample_pack_retail(Engine *e) {
    state is in the game's savestate: the games go back and run frames again, and the script's count must go back
    with them. The test: with the script the glove ends 30 units from where it ends without (6 moves), no machine
    disagrees, and the script's memory counts are the same on Linux and Windows (the outputs are compared). A second
-   script runs without end: it is stopped, the same on every machine, and the game goes on. */
+   script runs without end: it's stopped, the same on every machine, and the game goes on. */
 static void script_run(Engine *e, void *boot) {
     static const char script[] =
         "local moves = 0\n"
@@ -993,11 +993,11 @@ static void script_run(Engine *e, void *boot) {
     printf("%s a level pack's script runs with the game\n", failed != before ? "FAIL" : "ok  ");
 }
 
-/* A level pack whose level names an object the game does not have. The level file is Atlantis 1's from the ROM with
+/* A level pack whose level names an object the game doesn't have. The level file is Atlantis 1's from the ROM with
    the id of its first platform's object changed. The game's parser used what its lookup gave without a test, and
-   such a file made it use a null pointer. Now the level is marked as one that cannot be played, and its players
+   such a file made it use a null pointer. Now the level is marked as one that can't be played, and its players
    go back to the hub: two players start in it, and both must end in the hub, with no machine disagreeing. */
-/* An enemy kind whose object Atlantis 1's banks do not hold. */
+/* An enemy kind whose object Atlantis 1's banks don't hold. */
 #define ENEMY_ELSEWHERE 50
 static size_t firstPlatform, firstGroup, firstEnemy, firstSpin, cameoSteps[64], conditions[64];
 static int cameoStepCount;
@@ -1018,16 +1018,16 @@ static void find_platform(void *user, size_t offset, int token) {
         conditions[conditionCount++] = offset;
 }
 
-/* which 0: the first platform's object is one the game does not have. which 1: the first group of garibs is gone
+/* which 0: the first platform's object is one the game doesn't have. which 1: the first group of garibs is gone
    (its token becomes COLL_OFFSET, which has fields of the same length and needs nothing), so the garibs after it
    come before any group. The parser kept its pointer to the last level's group, and wrote through it. which 2: the
-   first enemy is of a kind whose object Atlantis 1's banks do not hold (a boss of another world). which 3: the first
-   puzzle condition has a number the game does not have. which 4: every puzzle condition on a tag becomes "the
+   first enemy is of a kind whose object Atlantis 1's banks don't hold (a boss of another world). which 3: the first
+   puzzle condition has a number the game doesn't have. which 4: every puzzle condition on a tag becomes "the
    platform's spin is at pause 1" (AT_SPIN). Most of the tagged platforms have no spin, and none has a pause: the
    game tested the spin without asking, and divided by its count of pauses. This level must go on. which 5: the
    first SPIN is on axis 7. The game wrote four of the file's bytes at the place the axis picks. which 6: every cameo
-   instruction that names an actor names enemy 25, which the level does not have. The cameos do not start, and the
-   level goes on. which 7: the first platform is DESTRUCTIBLE with pieces of an object that the level's banks do not
+   instruction that names an actor names enemy 25, which the level doesn't have. The cameos don't start, and the
+   level goes on. which 7: the first platform is DESTRUCTIBLE with pieces of an object that the level's banks don't
    hold. which 8: 1,300 platforms without an object come first. The game stopped the program when its list of memory
    blocks was full. */
 static void unplayable_case(Engine *e, void *boot, int which) {
@@ -1055,7 +1055,7 @@ static void unplayable_case(Engine *e, void *boot, int which) {
     if (which != 6)
         check(firstPlatform != 0 && firstGroup != 0, "Atlantis 1 has a platform and a group of garibs");
     if (which == 7 || which == 8) {
-        /* Tokens go into the file: a DESTRUCTIBLE with 5 pieces of an object the level does not have, after the
+        /* Tokens go into the file: a DESTRUCTIBLE with 5 pieces of an object the level doesn't have, after the
            first platform's own 12 bytes of fields, or 1,300 DUMMY platforms before the first token. The file's first
            word is its size. */
         uint8_t *lev = with + romSize;
@@ -1196,7 +1196,7 @@ static void pack_unplayable(Engine *e, void *boot) {
 /* The session's values for scripts. Three players start in the hub with a script that every level runs. Each level's
    script asks for 5 more of value 3 at its frame 50, for 1 more of value 7 twelve times at its frame 60 (a frame
    takes 8 requests), and for 1 more of value 5 at its frame 100. Player 1 leaves the hub for the way room at the
-   hub's frame 100, the frame of a request, and player 2 follows at frame 300 into the level that is already running.
+   hub's frame 100, the frame of a request, and player 2 follows at frame 300 into the level that's already running.
    At the end every player's game must have 10, 16 and 2: both levels counted once each, also through the frames
    that ran again. The way room's script must have read 5 as value 3 in its first run, and each script must have
    heard of the changes. */
@@ -1308,7 +1308,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     fclose(rom);
-    /* The schedule of exits, in every copy of the game: it is set before the state after power-on is saved. */
+    /* The schedule of exits, in every copy of the game: it's set before the state after power-on is saved. */
     g64TestExits[0] = (G64TestExit){HUB1, 700, 1, ATLANTIS_EXIT};
     g64TestExits[1] = (G64TestExit){HUB1, 900, 2, ATLANTIS_EXIT};
     g64TestExits[2] = (G64TestExit){WAYROOM, 400, 1, LEVEL_1_EXIT};

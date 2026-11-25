@@ -14,7 +14,7 @@ enum { MSG_INPUT = 1, MSG_CONFIRM = 2, MSG_HASH = 3, MSG_DESYNC = 4, MSG_HINT = 
  *            (rb_events_write)
  *   hash     type, player, frame (u32), hash (u64)
  *   desync   type, frame (u32)
- *   hint     the layout of an input, type 5: another player's inputs as the host received them, before they are
+ *   hint     the layout of an input, type 5: another player's inputs as the host received them, before they're
  *            confirmed. The host forwards each input message at once; a client predicts with them.
  * An input is buttons (u16), x (s8), y (s8). */
 #define INPUT_HEAD 11
@@ -136,7 +136,7 @@ struct rb_client {
     void *game;
     int players, me;
     uint32_t window; /* savestates kept: slots for frames f % window */
-    uint32_t delay;  /* frames between a local input and the frame it is for (rb_client_set_input_delay) */
+    uint32_t delay;  /* frames between a local input and the frame it's for (rb_client_set_input_delay) */
     uint32_t queued; /* frames 0 .. queued - 1 have the local player's input */
     rb_send_fn send;
     rb_frame_fn on_final;
@@ -380,7 +380,7 @@ static int client_confirm(rb_client *c, const uint8_t *d, size_t len) {
         c->confirmed++;
     }
     if (wrong != UINT32_MAX) {
-        /* Back to the state before the first wrong frame, then the frames again with what is known now. */
+        /* Back to the state before the first wrong frame, then the frames again with what's known now. */
         c->ops->load(c->game, slot(c, wrong));
         for (f = wrong; f < c->frame; f++)
             run_frame(c, f);
@@ -517,7 +517,7 @@ static void host_confirm(rb_host *h) {
     uint32_t f = h->confirmed, s = f % RB_HOST_WINDOW;
     int p;
     for (p = 0; p < h->players; p++) {
-        /* A player whose input has not arrived repeats their last input. */
+        /* A player whose input hasn't arrived repeats their last input. */
         if (h->dropped[p] || !h->present[p])
             memset(&h->last[p], 0, sizeof h->last[p]);
         else if (h->have[s][p])
@@ -550,7 +550,7 @@ static void host_send_confirmed(rb_host *h, int to) {
     int p;
     if (first >= h->confirmed)
         return;
-    /* A client further behind than the kept frames cannot catch up from here. */
+    /* A client further behind than the kept frames can't catch up from here. */
     if (h->confirmed - first > RB_HOST_WINDOW)
         first = h->confirmed - RB_HOST_WINDOW;
     avail = h->confirmed - first;
@@ -606,7 +606,7 @@ static int host_input(rb_host *h, int from, const uint8_t *d, size_t len) {
     if (count > RB_INPUT_REPEAT || len != INPUT_HEAD + (size_t)count * 4 || ack > h->confirmed ||
         first > UINT32_MAX - count)
         return -1;
-    /* A player who is not in this game sends nothing it needs, for example right after they left it. */
+    /* A player who isn't in this game sends nothing it needs, for example right after they left it. */
     if (!h->present[from])
         return 0;
     {
@@ -641,7 +641,7 @@ static int host_hash(rb_host *h, int from, const uint8_t *d, size_t len) {
     if (len != HASH_SIZE || d[1] != from)
         return -1;
     f = get32(d + 2);
-    /* A client cannot have a final state of a frame the host has not confirmed, and sends only every
+    /* A client can't have a final state of a frame the host hasn't confirmed, and sends only every
      * RB_HASH_EVERY-th frame's hash. */
     if (f >= h->confirmed || f % RB_HASH_EVERY != 0)
         return -1;

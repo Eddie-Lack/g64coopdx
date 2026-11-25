@@ -1,5 +1,5 @@
 /* Every level with eight players who press buttons and push sticks at random (weemitt's g64players.c), online, with
- * the ROM. It is the closing test of the roadmap's phase 3: the whole game with 8 players.
+ * the ROM. It's the closing test of the roadmap's phase 3: the whole game with 8 players.
  * Each of the 48 levels is built from the state right after power-on with 8 players and run for 1000 frames. From
  * frame 300 each player's stick and buttons come from a seeded generator, the same on every machine: they walk,
  * jump, slam, grab and throw wherever that takes them, and they die and respawn. For each level it prints how

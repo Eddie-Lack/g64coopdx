@@ -16,7 +16,7 @@ extern "C" {
 /* A color that the player chose: this bit plus 0xRRGGBB (the session's G64_COLOR_SET). */
 #define G64_TITLE_COLOR_SET 0x1000000u
 
-/* Turns the start screen on or off. While it is on, the title screen shows the page and ignores the controller. */
+/* Turns the start screen on or off. While it's on, the title screen shows the page and ignores the controller. */
 void G64TitleOn(int on);
 /* 1 once the title screen shows the start screen's page. */
 int G64TitleReady(void);

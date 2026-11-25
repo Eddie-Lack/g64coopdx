@@ -53,7 +53,7 @@ Rules that the layout encodes:
   ([sm64coopdx.md](sm64coopdx.md)). The direct mode and the lobby mode then share all other code. In the direct mode
   the host shares an address and port, and a joiner types it. In the lobby mode players find a session through the
   lobby server ([netcode.md](netcode.md#services)).
-- The toy game stands in for the real one wherever a test does not need Glover itself.
+- The toy game stands in for the real one wherever a test doesn't need Glover itself.
 
 ## The build
 
@@ -74,7 +74,7 @@ Rules that the layout encodes:
 
 ## CI
 
-CI cannot have the ROM: it may not be committed, and a copy in CI is game data in a third party's hands. So CI tests
+CI can't have the ROM: it may not be committed, and a copy in CI is game data in a third party's hands. So CI tests
 what needs no ROM, and the rest runs where the ROM is.
 
 | Where | What |
@@ -198,7 +198,7 @@ These commands are planned; none exists yet.
 ## Candidate names
 
 `g64coopdx` names the project after sm64coopdx. That shows the idea, but it can read as part of the work of coop-deluxe,
-the team that publishes sm64coopdx, and it is hard to say. "Glover" is the game's name and a trademark of its rights
+the team that publishes sm64coopdx, and it's hard to say. "Glover" is the game's name and a trademark of its rights
 holder, so a name without it is safer for a released program (INFERRED). weemitt already follows that pattern.
 
 | Name | Note |

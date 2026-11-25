@@ -9,7 +9,7 @@
  *
  * Every file the tool reads is untrusted: sizes and offsets are checked before use. The pack it writes is read
  * back with the game's own pack reader (src/client/pack.c): a pack this tool accepts is one the game accepts.
- * The tool does not link the game: the retail bank numbers, the ROM's bank ranges and each level's object banks
+ * The tool doesn't link the game: the retail bank numbers, the ROM's bank ranges and each level's object banks
  * come from the tables of src/client/bankranges.h. */
 #include <errno.h>
 #include <stdio.h>
@@ -51,7 +51,7 @@ static int fail(const char *what, const char *detail) {
     return 1;
 }
 
-/* Reads a whole file of 1 to max bytes. The caller frees it. NULL when it cannot be read or has another size. */
+/* Reads a whole file of 1 to max bytes. The caller frees it. NULL when it can't be read or has another size. */
 static unsigned char *read_file(const char *path, size_t max, size_t *size) {
     FILE *f = fopen(path, "rb");
     unsigned char *d;
@@ -138,7 +138,7 @@ static void print_pack(const char *dir, const g64_pack *p) {
     printf("level: %d (%s)\n", p->level, levelName[p->level]);
     printf("level file: %lu bytes\n", (unsigned long)p->levSize);
     {
-        /* The structure check does not stop a pack yet: it has been compared with the game's parser on the game's
+        /* The structure check doesn't stop a pack yet: it has been compared with the game's parser on the game's
            own levels only. It tells the pack's maker what the game may read wrongly. */
         size_t at = 0;
         const char *why = g64_lev_check(p->lev, p->levSize, NULL, NULL, &at);
@@ -163,7 +163,7 @@ static void print_pack(const char *dir, const g64_pack *p) {
 
 /* The rule for the level file's object ids, as the online host runs it before it offers its pack (host_offer_pack in
  * src/client/netplay.c): every object the level names is in a bank the level will have. A level file whose structure
- * has a warning cannot be read for its ids. */
+ * has a warning can't be read for its ids. */
 static int check_objects(const g64_pack *p, const unsigned char *rom, size_t romSize) {
     size_t at = 0;
     int rule = 0;
@@ -174,14 +174,14 @@ static int check_objects(const g64_pack *p, const unsigned char *rom, size_t rom
     }
     why = g64_pack_check_ids_rom(p, rom, romSize, &rule, &at);
     if (why && !rule)
-        return fail("the level's objects could not be checked", why);
+        return fail("the level's objects couldn't be checked", why);
     if (why && rule == 2) {
         printf("the models: object bank %lu: %s\n", (unsigned long)at, why);
-        return fail("the models name a retail object bank that the game would not load", NULL);
+        return fail("the models name a retail object bank that the game wouldn't load", NULL);
     }
     if (why) {
         printf("the level's objects: at byte %lu: %s\n", (unsigned long)at, why);
-        return fail("the level names an object that the game would not find", NULL);
+        return fail("the level names an object that the game wouldn't find", NULL);
     }
     printf("the level's objects: all in the level's banks, and the retail object banks have their sprites' "
            "textures\n");
@@ -189,7 +189,7 @@ static int check_objects(const g64_pack *p, const unsigned char *rom, size_t rom
 }
 
 /* Reads a pack as the game reads the player's own folder, and prints it. With a ROM, the pack is also held to the
- * rules that need the player's ROM: its level is not one of the ROM's, its models hold none of the ROM's ids or
+ * rules that need the player's ROM: its level isn't one of the ROM's, its models hold none of the ROM's ids or
  * data, and every object its level names is in a bank the level will have. */
 static int check(const char *dir, const char *romPath) {
     g64_pack p;
@@ -207,7 +207,7 @@ static int check(const char *dir, const char *romPath) {
         G64RomBanksStats st;
         rom = read_file(romPath, ROM_MAX, &romSize);
         if (rom == NULL) {
-            return fail("cannot read the ROM", romPath);
+            return fail("can't read the ROM", romPath);
         }
         img.rom = rom;
         img.size = romSize;
@@ -221,14 +221,14 @@ static int check(const char *dir, const char *romPath) {
         if (!g64_rombanks_complete(&st)) {
             g64_rombanks_free(index);
             free(rom);
-            return fail("the ROM's banks could not all be read: its code does not say where they are, or a bank is "
+            return fail("the ROM's banks couldn't all be read: its code doesn't say where they are, or a bank is "
                         "damaged",
                         romPath);
         }
         banks.rom = index;
     }
     if (g64_pack_load(dir, &banks, &p, err, sizeof err) != 0) {
-        r = fail("the pack does not load", err);
+        r = fail("the pack doesn't load", err);
     } else {
         int level = -1, objects = 0;
         print_pack(dir, &p);
@@ -243,9 +243,9 @@ static int check(const char *dir, const char *romPath) {
             r |= objects;
         }
         /* A host sends a pack to players who lack it only when it passes the check for packs from other players
-           and the ROM's rules (g64_pack_may_send). Without a ROM the tool cannot say the second: a host does not
+           and the ROM's rules (g64_pack_may_send). Without a ROM the tool can't say the second: a host does not
            send a level file that is a copy of one of the ROM's levels, or models that fail the ROM's rules. With a
-           ROM, a pack whose models fail those rules did not load. A host whose pack fails the rule for the level's
+           ROM, a pack whose models fail those rules didn't load. A host whose pack fails the rule for the level's
            object ids, or the rule for the retail object banks' sprites, stops its session before the offer. */
         if (g64_pack_check_strict(&p, NULL) != NULL) {
             printf("from the host: not sent, the level file's structure has a warning; every player needs the "
@@ -254,7 +254,7 @@ static int check(const char *dir, const char *romPath) {
             printf("from the host: not sent, the level file is one of the ROM's; every player needs the folder\n");
         } else if (objects != 0) {
             printf("from the host: not sent, the host stops its session; the level's objects or the models' retail "
-                   "banks did not pass the check above\n");
+                   "banks didn't pass the check above\n");
         } else if (rom == NULL) {
             printf("from the host: players can download this pack when they join, if it also passes the ROM's "
                    "rules (check %s --rom ROM)\n",
@@ -329,12 +329,12 @@ static int make(int argc, char **argv) {
     if (levPath != NULL) {
         lev = read_file(levPath, G64_PACK_LEVEL_MAX, &levSize);
         if (lev == NULL) {
-            return fail("cannot read the level file, or it is empty or larger than 1 MB", levPath);
+            return fail("can't read the level file, or it is empty or larger than 1 MB", levPath);
         }
     } else {
         rom = read_file(romPath, ROM_MAX, &romSize);
         if (rom == NULL) {
-            return fail("cannot read the ROM", romPath);
+            return fail("can't read the ROM", romPath);
         }
         why = g64_pack_level_from_rom(rom, romSize, level, &at, &levSize);
         if (why == NULL) {
@@ -351,7 +351,7 @@ static int make(int argc, char **argv) {
         }
     }
     if (g64_pack_check_level(lev, levSize) != 0) {
-        fail("this is not a level file: it does not start with its own size", levPath ? levPath : romPath);
+        fail("this isn't a level file: it doesn't start with its own size", levPath ? levPath : romPath);
         goto done;
     }
     if (scriptPath != NULL) {
@@ -370,21 +370,21 @@ static int make(int argc, char **argv) {
         banks.rom = NULL;
         models = read_file(modelsPath, G64_PACK_MODELS_MAX, &modelsSize);
         if (models == NULL) {
-            fail("cannot read the models, or the file is empty or larger than 4 MiB and its header", modelsPath);
+            fail("can't read the models, or the file is empty or larger than 4 MiB plus its header", modelsPath);
             goto done;
         }
         why = g64_pack_check_models(models, modelsSize, &banks, NULL, &at);
         if (why != NULL) {
-            snprintf(msg, sizeof msg, "the models did not pass the check: %s (at byte %lu)", why, (unsigned long)at);
+            snprintf(msg, sizeof msg, "the models didn't pass the check: %s (at byte %lu)", why, (unsigned long)at);
             fail(msg, modelsPath);
             goto done;
         }
     }
     if (make_dir(dir) != 0 && errno != EEXIST) {
-        fail("cannot make the folder", dir);
+        fail("can't make the folder", dir);
         goto done;
     }
-    /* A script.lua that is already in the folder would become part of the pack without being asked for. */
+    /* A script.lua that's already in the folder would become part of the pack without being asked for. */
     if (scriptPath == NULL && file_exists(dir, "script.lua")) {
         fail("the folder already holds a script.lua: remove it, or name a script with --script", dir);
         goto done;
@@ -398,7 +398,7 @@ static int make(int argc, char **argv) {
         write_file(dir, "level.lev", lev, levSize) != 0 ||
         (script != NULL && write_file(dir, "script.lua", script, scriptSize) != 0) ||
         (models != NULL && write_file(dir, "models.bin", models, modelsSize) != 0)) {
-        fail("cannot write the pack's files", dir);
+        fail("can't write the pack's files", dir);
         goto done;
     }
     r = check(dir, NULL);

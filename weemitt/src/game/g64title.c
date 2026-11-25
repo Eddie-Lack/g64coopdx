@@ -64,7 +64,7 @@ static struct {
 } page;
 
 /* The game draws text and pictures through one buffer of about 180 letters a frame (overlay_dl, font.c). The start
-   screen has more text than that: while it is on, the game draws them through two larger buffers on the game's
+   screen has more text than that: while it's on, the game draws them through two larger buffers on the game's
    heap, one for each picture buffer. */
 #define TEXT_GFX 12000
 static Gfx *textGfx[2];
@@ -260,8 +260,8 @@ s32 G64TitleMenu(void) {
             InitActorStructures(foregroundObjects[numForegroundObjects - 1], 4);
             AnimateActor(foregroundObjects[numForegroundObjects - 1], 0, 1, 1, 0.9f + i * 0.1f);
         }
-        /* The player's glove and ball: the game's own models, from its generic banks, which the title screen does
-           not load. The textures come first: the objects find theirs when they load. */
+        /* The player's glove and ball: the game's own models, from its generic banks, which the title screen doesn't
+           load. The textures come first: the objects find theirs when they load. */
         LoadTextureBank(GENERIC_TEX_BANK);
         LoadObjectBank(1);
         initFGObject("goodglov.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);

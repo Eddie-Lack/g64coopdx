@@ -80,7 +80,7 @@ static void toy_step(void *game, const rb_input *in, int players) {
     int i, j, n = players < (int)g->players ? players : (int)g->players;
     for (i = 0; i < n; i++) {
         toy_body *b = &g->body[i];
-        /* A player who is not present stays where they are and touches nothing. */
+        /* A player who isn't present stays where they are and touches nothing. */
         if (!in[i].present)
             continue;
         b->vx += in[i].x * 16;

@@ -46,7 +46,7 @@ player", "the owner of this ball", or "the nearest player".
 
 The recommended model is rollback ([netcode.md](netcode.md)): every machine simulates every player. When a player's
 real input differs from the one a machine predicted, the machine loads a savestate and runs the frames again. Three
-facts follow that the single-player code alone does not show.
+facts follow that the single-player code alone doesn't show.
 
 1. **Every player's camera is game state.** The glove's stick direction is relative to `camera.rot.y`
    (`weemitt/src/game/hand.c:547-574`, `controller.c:361`). Enemies update only within the camera's far plane
@@ -60,7 +60,7 @@ facts follow that the single-player code alone does not show.
 2. **The draw path changes the state.** `GraphicsStep` moves animations, places collision spheres and platforms that
    follow objects, calls `Random`, steps the fade (`weemitt/bruteforce/docs/engine.md`, "The trimmed draw", the
    section that lists what the draw changes, V). It runs for every machine in every frame, so it must draw the same
-   for every machine: every glove, every ball, from a view that does not depend on who looks. What differs per
+   for every machine: every glove, every ball, from a view that doesn't depend on who looks. What differs per
    machine (the camera that draws, the HUD, the names) must come after it, outside the logic.
 3. **In weemitt, pause, tips and game over stop the whole game.** `MainGameLoop` skips almost everything while
    `gamePaused` is set (`weemitt/src/game/main.c:969-1130`, V). In a shared game these become per-player states or
@@ -68,7 +68,7 @@ facts follow that the single-player code alone does not show.
 
 ## The owner's co-op rules
 
-The owner's decisions ([open-questions.md](open-questions.md#decided)) add work that the single-player code does not
+The owner's decisions ([open-questions.md](open-questions.md#decided)) add work that the single-player code doesn't
 have at all.
 
 | Rule | What the game's code needs | Where in weemitt | Status |
@@ -118,13 +118,16 @@ session's player number. "Shared" means one copy for the session, or for the ins
 | Speed of a first prototype | Fast: a few hundred lines around `MoveHand`, `MoveBall`, `MoveCam` | Slow: about 225 functions |
 | Problems | Pointers stored elsewhere (`ball.link`, `cameraInfo.focus`, `bullet->target`, the actor and collision lists) point at the one global, which holds a different player at different times. Puzzles still see only the player swapped in. Enemies and bullets did too. In phase 3 ([roadmap.md](roadmap.md)), g64coopdx began to swap in the player that each one looks at before its update | None of these; the work is large |
 | One player | The swap is a no-op | Each rewrite can change the game; g64coopdx's own baseline shows where it did |
-| Use | A spike in phase 1 ([roadmap.md](roadmap.md)) to find the problems early; not a design to keep | The real design |
+| Use | A spike in phase 1 ([roadmap.md](roadmap.md)) to find the problems early. g64coopdx later kept it as the design | The design this study recommended. It's no longer the plan |
 
 Recommendation: start with the swap for two players in one hub level, which shows where the shared state breaks; then
 index system by system, each step checked by the determinism tests (as in
 [weemitt.md](weemitt.md#repeated-runs-with-the-same-input)). The order: input and the glove's state
 machine, the ball and its pairing, the camera, collision identity tests, enemies' targets, puzzles, garibs and
 pick-ups, checkpoints and death, exits, bosses, cameos.
+
+g64coopdx later chose the swap as its design, and indexing is no longer planned
+([roadmap.md](roadmap.md#phase-1-two-gloves-offline), game change 2).
 
 ## The frame's hard limits
 
@@ -161,9 +164,9 @@ second instance of the same data. "Shared" means one copy for everybody.
 | --- | --- | --- | --- | --- | --- |
 | `hand`: `Actor` (0xE4 bytes: pos, vel, rot, scale, flags, links, pointers to `phys`, `state`, `obj`, `anim`, `shadow`) | `weemitt/include/actor.h:359`; struct `actor.h:231-269` | 0x802902D8 (`gloveworld/symbol_addrs.txt:1749`) | 166 functions touch it (62 write it, 68 counting `&hand.pos` given to writers); 30 files | Index. Each glove needs its own `Actor` and its own `ActorPhysics`, `ActorState`, `ActorObject`, `AnimState`, `ActorShadow` blocks (allocated by `InitActorStructures`, `weemitt/src/game/object.c:124`, called from `ResetHand`) | V |
 | The glove's state machine: `hand.state->mode` (`ActorState.mode`, 45 `HAND_*` values) and `prevMode` | `weemitt/include/actor.h:7-27`, enum `weemitt/include/enums.h:68-` | in the heap (pointer in `hand`) | `ApplyAction` (`weemitt/src/game/hand.c:679-1343`), `MaintainAction` (`hand.c:1356-3011`, 1,656 lines), `ConditionsMet` (`hand.c:176`), `MoveHand` (`hand.c:3013`); also read in many other files | Index. Per-glove mode. All the code reads it as `hand.state->mode` | V |
-| `handControl`: `HandControl` (0x5B4 bytes) holds action locks and timers, gait, fall time, checkpoint, `attachedTo`, `fakeball`, spell timers, `samples[2]`, and five embedded `Actor`s (`edgeProbe`, `frontProbe`, `orbiter`, `orbiter2`, `orbiter3`) | `weemitt/include/hand.h:10-84` (def), `hand.h:101` (extern) | 0x8028FBD0 (`symbol_addrs.txt:1746`) | 114 functions (66 write), 27 files | Index (one per glove). It is a large struct and `ResetHand` clears it with `memclear(&handControl.actionLock, sizeof(HandControl) - 8)` (`hand.c:4123`) | V |
-| `player`: `Player` (0x6C bytes): `score`, `garibs`, `lives`, `health`, `levelFrames`, `powerups[15]`, `hurtTimer`, `spell`, `castSpell`, `castSpellType` | `weemitt/include/hand.h:86-99`, extern `hand.h:102` | 0x80290180 (`symbol_addrs.txt:1747`) | 61 functions (34 write), 18 files | Per player for health, hurtTimer, spells, power-ups and score; lives are not used; garibs are shared in the instance (all decided) | V |
-| Loose glove state outside the structs: `handInertia` (0x8028FBCC), `levelHandScale` (0x801EEC40), `tongueTime` (0x801EEC04), `tongueBullet`, `tongueStuck`, `tongueOffsetPos` (0x8029F398), `handQAim`, `catchPullBall`, `catchPullHand`, `locateRandomAim`, `blur1`, `blur2`, `cartwheelAccel`, `camPos`, `camPos2`, `ballWalkDismountFrame`, `prewhackCancelled`, `throwAimCancelled`, `swishSpeed` | declared as `extern` or `static` near the top of `hand.c` (`hand.c:32-150`) | see `symbol_addrs.txt` | written by `hand.c` functions (list from the scan: `tongueOffsetPos` 9 writes, `catchPull*` 6 each, `vertQ` 6, `tongueTime` 5) | Index or move into `HandControl`. They are hidden per-glove state: if left global, glove 2 overwrites glove 1 mid-frame | V (names) / I (that each is per-glove) |
+| `handControl`: `HandControl` (0x5B4 bytes) holds action locks and timers, gait, fall time, checkpoint, `attachedTo`, `fakeball`, spell timers, `samples[2]`, and five embedded `Actor`s (`edgeProbe`, `frontProbe`, `orbiter`, `orbiter2`, `orbiter3`) | `weemitt/include/hand.h:10-84` (def), `hand.h:101` (extern) | 0x8028FBD0 (`symbol_addrs.txt:1746`) | 114 functions (66 write), 27 files | Index (one per glove). It's a large struct and `ResetHand` clears it with `memclear(&handControl.actionLock, sizeof(HandControl) - 8)` (`hand.c:4123`) | V |
+| `player`: `Player` (0x6C bytes): `score`, `garibs`, `lives`, `health`, `levelFrames`, `powerups[15]`, `hurtTimer`, `spell`, `castSpell`, `castSpellType` | `weemitt/include/hand.h:86-99`, extern `hand.h:102` | 0x80290180 (`symbol_addrs.txt:1747`) | 61 functions (34 write), 18 files | Per player for health, hurtTimer, spells, power-ups and score; lives aren't used; garibs are shared in the instance (all decided) | V |
+| Loose glove state outside the structs: `handInertia` (0x8028FBCC), `levelHandScale` (0x801EEC40), `tongueTime` (0x801EEC04), `tongueBullet`, `tongueStuck`, `tongueOffsetPos` (0x8029F398), `handQAim`, `catchPullBall`, `catchPullHand`, `locateRandomAim`, `blur1`, `blur2`, `cartwheelAccel`, `camPos`, `camPos2`, `ballWalkDismountFrame`, `prewhackCancelled`, `throwAimCancelled`, `swishSpeed` | declared as `extern` or `static` near the top of `hand.c` (`hand.c:32-150`) | see `symbol_addrs.txt` | written by `hand.c` functions (list from the scan: `tongueOffsetPos` 9 writes, `catchPull*` 6 each, `vertQ` 6, `tongueTime` 5) | Index or move into `HandControl`. They're hidden per-glove state: if left global, glove 2 overwrites glove 1 mid-frame | V (names) / I (that each is per-glove) |
 | Port-side glove state: `handFallLifted` (`weemitt/include/actor.h:395`), `tickOnGround` (static, `weemitt/src/game/hand.c:145`) | `actor.h:395` | outside `port_ram` | 2 functions | Index. weemitt added them for its frame-rate rewrite (`weemitt/docs/delta-time.md`) | V |
 | Glove light, footprints, shadow: `handLightList` (`weemitt/include/light.h:48`, 0x802988C8); `handControl.footprint`; `hand.shadow` | light.h:48 | 0x802988C8 | `light.c` (2 functions write), `footprint.c`, `shadow.c` | Index (a light per glove) or share one light | V |
 | Models: the glove model is found by name (`FindObject`) and its `ObjectInstance` is held in `hand.inst` | `weemitt/src/game/hand.c:4080-4140` | n/a | `ResetHand` | Duplicate the instance (animation state lives in `Actor.anim`, which is per actor) | I |
@@ -177,7 +180,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | Ball forms: `ballControl.type` takes the `BallMode` values 0 normal (rubber), 1 bowling, 2 power, 3 bearing (ball-bearing), 4 beach, 5 snow, 6 crystal | `weemitt/include/enums.h:242-251` | n/a | `ChangeBallInto` (`weemitt/src/game/ball.c:1275`); `ActivateCollectable(nextBallState[...])` (`ball.c:1300`); `MoveBall` (`ball.c:230`) | Per ball. Ball textures and bits are loose globals: `ballTextureList`, `ballTextureData`, `ballTexturePalette`, `ballBitTexture*`, `snowBallBit`, `plaster[]` (21 writes in `ball.c`), `crystalBall`, `crystalBallBit` | V |
 | Ball state: `ballControl.state` 0 normal, 1 held, 2 burst, 5 held special | `enums.h:253-258` | n/a | 8 functions write it | Per ball | V |
 | The glove and ball are paired by pointer: `ball.link == &hand` means held. `IsHandHoldingBall()` (`weemitt/src/game/actor.c:77`) is called from 28 places; `ball.link` or `hand.link` appear on 130 lines | actor.c:77, actor.h:371 | n/a | puzzle, exit, water, enemy, collision, camera | Replace `&hand` by "this ball's owner" (`link` points at the glove that holds it). Every `== &hand` test needs the glove that holds this ball, not the global | V |
-| Ball-only globals: `ballWithHand` (0x801EFCF8, 6 fns), `ballStatic` (0x801EFCFC, 19 fns, 10 write), `ballLeftBehind` (0x801EFD00, 9 fns) | declared as `extern` in `ball.c:65`, `game.c:210,348,376` | see left | `game.c:2381-2485` (hub: the ball is left behind or stored when you change level), `ball.c`, `collect.c`, `cheat.c`, `bullet.c:1475` | Per player for `ballStatic` and `ballLeftBehind` (they are hub carry-over for one ball) | V |
+| Ball-only globals: `ballWithHand` (0x801EFCF8, 6 fns), `ballStatic` (0x801EFCFC, 19 fns, 10 write), `ballLeftBehind` (0x801EFD00, 9 fns) | declared as `extern` in `ball.c:65`, `game.c:210,348,376` | see left | `game.c:2381-2485` (hub: the ball is left behind or stored when you change level), `ball.c`, `collect.c`, `cheat.c`, `bullet.c:1475` | Per player for `ballStatic` and `ballLeftBehind` (they're hub carry-over for one ball) | V |
 | `extraBall[3]`: 3 extra `Actor`s drawn as the lumps of the "cancer" ball (`GiveBallCancer`) | `weemitt/src/game/ball.c:42`, `ball.c:185-195` | 0x80297940 | `ball.c`, `object.c:216` | Index (3 per ball) | V |
 | Ball model and `ResetBall` | `weemitt/src/game/ball.c:93-190` | n/a | `LoadLevel` (`game.c:448-450`) | Call once per player | V |
 
@@ -201,7 +204,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | `ActiveController` (`u8`): the one pad index that is processed | `weemitt/include/controller.h:30` | 0x80202218 | read on 308 lines of `src/game`; set only in `RunGameInit` (`weemitt/src/game/main.c:610-611`) | Replace by "the pad of this player". Menu code can keep `ActiveController` for the local pad | V |
 | `controllerdata[]` (`OSContPad`), `controllerPresent`, `autoPlayback`, `recordKeys`, `playbackButtons` | `controller.h:29`, `controller.c` | 0x801FB280 | `controller.c` | Per player for `controllerdata`. The demo playback (`ReadControllerFromData`) already shows a way to feed `pad[]` from stored data | V |
 | What reads the pad each frame: `ControllerStep` calls `osContStartReadData`, `osContGetReadData(controllerdata)` (all 4 pads) and then `ReadController(ActiveController)` only | `weemitt/src/game/main.c:780-794` | | | Call `ReadController(i)` for each player. In the PC port `osContGetReadData` fills only pad 0 (`weemitt/src/port/os.c:198-229`) | V |
-| `initControllers` marks `pad[i].present` for each plugged pad but returns the lowest index and sets `controllerPresent` FALSE if that is not pad 0 | `weemitt/src/game/controller.c:78-107` | | | Keep | V |
+| `initControllers` marks `pad[i].present` for each plugged pad but returns the lowest index and sets `controllerPresent` FALSE if that isn't pad 0 | `weemitt/src/game/controller.c:78-107` | | | Keep | V |
 | Gameplay readers (the part a co-op change must touch): `ProcessInput` (`controller.c:378`), `MoveHand`, `MaintainAction`, `ApplyAction`, `ConditionsMet`, `DismountBall`, `DismountEnemy` (all `hand.c`), `MoveBall`, `MoveHandToBall` (`ball.c`), `MoveCam`, `PlayerSpinCamera` (`camera.c`), `UpdateActorCollisionAndGravity`, `UpdateActorPositionDependencies` (`actor.c`), `DeactivateCollectable`, `DoCarnivalBonus`, `DoSpaceBoss3`, `NMEProcessHubChicken`, `UpdateTip`, `UpdatePause`, `CheckForExits`, cheat menu (4), ballworld (6) | | | | 30 gameplay functions. 23 of them are among the 50 that touch `pad`. The other 7 read only `ActiveController`: `DismountBall`, `DismountEnemy`, `CheckForExits`, 2 of the cheat menu's 4 and 2 of ballworld's 6. Of the other 27 functions that touch `pad`, 15 are menus and screens that can stay on the local pad: `TitleScreen`, `Update3DTitleGraphics`, `MainTitleWait`, `DoMenu`, `LevelSelectScreen`, `SlotSelRun`, `WaitNameScr`, `MainOptionsWait`, `SelectLanguage`, `HiscoresRun`, `TimeTrialScreen`, `ErrorScreen`, `EndOfLevelScreen`, `GameOverScreen` and `GameWonScreen`. The last 12 are the input path (`ReadController`, `ReadControllerFromData`, `initControllers`, `AnyButtonPressed`, `AnyDebouncePressed` and 4 in `delta.c`), the HUD (`PrintStats`), the debug input (`ProcessInputPersonal`) and `LoadLevel` | V |
 | Port: `deltaTime` ticks the pad in `delta.c` (`DeltaHoldInput`, `DeltaKeepInput`, `DeltaTakePress`, `DeltaTickPressed`) with `tickPresses[4][...]` already sized 4 | `weemitt/src/game/delta.c:220-255` | | | Fine for 4 pads. More than 4 players needs a larger array | V |
 | Input recorder: `weemitt/src/port/record.h` records "the controller values of every update" for replay | | | | A base for sending inputs: it records `(dt, buttons, stick x, stick y)` per update. Deterministic replay is an existing feature of the headless build | V |
@@ -240,7 +243,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | Exit triggers: `CheckForExits` (`weemitt/src/game/game.c:2198`) picks the glove position for exit types 6-12, 21 and a few levels (`pos = &hand.pos`, `game.c:2576-2582`) and the ball position for the others (`pos = &ball.pos`). An exit needs the glove to hold the ball (`IsHandHoldingBall() \|\| ball.link == &hand`, `game.c:2620-2623`). Timers `levelExitTimer` (0x801E7460), `worldExitTimer` (0x801E7620), `newLevExitTimer` (0x801E7466) are single globals | game.c:2198-2680 | | Each player exits alone (decided). The "pull onto exit" code moves `ball.pos` and `hand.pos` (`game.c:2194-2211`, `PullOntoExit`). The exit leaves the ball "left behind" in the hub (`ballStatic = 2`, `game.c:2653-2660`) | V |
 | `ExitLevel(type, pause, complete)` | `game.c:3716` | | Shared in the instance. Online it ends the level for every player in it (`G64EveryoneExits` in `weemitt/src/game/g64players.c`). A player who exits alone goes through `G64CheckExit` or `G64PlayerExits` instead | V |
 | `LoadLevel(num)` runs `ResetHand(1)`, `ResetBall()`, `ResetCamera()`, `SeedRandom()`, `player.garibs = 0`; level start comes from `TOKEN_HAND_START`, `TOKEN_BALL_START`, `TOKEN_CAMERA_START` in the level file (one start per level) | `game.c:808-1460`; parse `weemitt/src/game/parse.c:570-595` | | Per player start positions around the one start point | V |
-| Save: `saveSlot[6]` (`SaveSlot`, 0x1C bytes: name, `levels` bit mask, `allGaribs` bit mask, `score`, `lives`, `difficultyLevel`, `hubTarget`, `hubLevel`, `visited`, volumes), `currentSaveSlot` | `weemitt/include/save.h:6-21` | 0x801EAA44, 0x801EAB24 | One save for the session (the host's). 36 functions read `saveSlot` (14 write). Clients should not write their own save from the host's progress | V |
+| Save: `saveSlot[6]` (`SaveSlot`, 0x1C bytes: name, `levels` bit mask, `allGaribs` bit mask, `score`, `lives`, `difficultyLevel`, `hubTarget`, `hubLevel`, `visited`, volumes), `currentSaveSlot` | `weemitt/include/save.h:6-21` | 0x801EAA44, 0x801EAB24 | One save for the session (the host's). 36 functions read `saveSlot` (14 write). Clients shouldn't write their own save from the host's progress | V |
 | EEPROM layout (4 Kbit, 512 bytes): block 0 id, blocks 1-6 high scores (0x30 bytes), blocks 7-0x1E best times (0xC0), blocks 0x1F-0x33 save slots (0xA8), blocks 0x34-0x37 CRCs (0x20). Blocks 0x38-0x3F are free (64 bytes) | `weemitt/src/game/eeprom.c:111-206` | | Shared or not touched | V |
 | Progress: `UpdateSaveSlot` writes `score = player.score + player.garibs * 10`, `lives`; `levels` and `allGaribs` bits set in `weemitt/src/game/game.c:3461-3479` (`all garibs` only when `player.garibs == numGaribs`) | | | The "all garibs" bit is set when one instance's players have them all (decided) | V |
 | Hub carry: `saveSlot.hubLevel`, `hubTarget`, `ballLeftBehind`, `worldComplete[]` | `game.c:2381-2485` | | Shared | V |
@@ -259,7 +262,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | --- | --- | --- | --- |
 | Cameos (scripted sequences): `cameoList` (0x801F9628), `StartCameo` (`weemitt/src/game/cameo.c:187`), `UpdateCameos` (`cameo.c:210`), `gameInfo.cameoActive` read in 11 files. Cameo items address the glove: `actor = &hand` in `cameo.c:161,288,330,412`, `pos = &hand.pos` in `cameo.c:397,430` | | Shared script; each cameo needs a "which glove" choice. While `cameoActive` and `handControl.actionLock`, `ApplyAction` returns early (`hand.c:698-700`) | V |
 | `StartCameo` is skipped in hub 1 coming back from level 8 or 9 (`cameo.c:191`) | | | V |
-| Pause: `gamePaused` (`u8`, 0x801EC7D2) read by 26 functions, `pauseMode` (0x801EC7D3), `disablePause`. Start on `pad[ActiveController]` opens the pause menu (`controller.c:388-391`). `MainGameLoop` skips almost everything when `gamePaused` (`main.c:969-1130`) | | Online cannot freeze the world for one player. Pause must become a local overlay, and `gamePaused` set by the game over / tip / exit code needs another meaning | V / I |
+| Pause: `gamePaused` (`u8`, 0x801EC7D2) read by 26 functions, `pauseMode` (0x801EC7D3), `disablePause`. Start on `pad[ActiveController]` opens the pause menu (`controller.c:388-391`). `MainGameLoop` skips almost everything when `gamePaused` (`main.c:969-1130`) | | Online can't freeze the world for one player. Pause must become a local overlay, and `gamePaused` set by the game over / tip / exit code needs another meaning | V / I |
 | Tips: `readingTip` pauses the game while a sign is read (`UpdateTip`, `tip.c`) | | Same issue | V |
 | Intro, outro, fly-through and presentation levels (`INTRO`, `OUTRO`, `PRESENT`, `FLYTHRU`, `FLYTHRU2`) hide the glove and ball (`hand.alpha = 0`, `main.c:811-818`) | | Skip online | V |
 
@@ -393,7 +396,7 @@ An address that goes to a function counts as a write when the function and argum
 functions that modify what they receive (`WRITER` in `report.py`: `AnimateActor#0`, `AccelerateActor2D#0`,
 `SetVector2D#0`, `SubVector2D#0`, `AddToOneScaledVector#0`, `QuatSlerp#0`, `ActorHandleRotaim#0`, `SquashActor#0`,
 `ActorStartRoll#0`, `memclear#0`, and about 40 more). The list was chosen from the prototypes (`include/maths.h`,
-`include/actor.h`: first argument is the result). It is a judgment, not a proof. 253 address uses of the glove side and 64
+`include/actor.h`: first argument is the result). It's a judgment, not a proof. 253 address uses of the glove side and 64
 of the ball side hit that list.
 
 Validation: the scan's event count for `hand` and `ball` per file was compared with `grep -ow` word counts. For
@@ -406,11 +409,11 @@ Limits (the numbers are a floor, not a bound):
 - A write through a copy of the address (`Actor *a = &hand; a->vel.x = 1`) is seen only as an address use at the `&`.
   There are 26 glove-side and 17 ball-side `assign` uses and 153 identity tests (104 and 49, counting `&hand.pos` style forms). The functions that receive `&hand` as a parameter
   (`AnimateActor`, `AccelerateActor2D`, `UpdateActor`, `DestroyAndFreeActor`, ...) write `hand` through the
-  parameter. These are the generic actor functions and they work for any actor, so they are not a per-player problem
+  parameter. These are the generic actor functions and they work for any actor, so they aren't a per-player problem
   by themselves.
 - A write through a pointer stored in the actor (`hand.state->mode = x`, `hand.obj->...`, `hand.phys->...`) counts as a
   **read** of `hand` (it reads the pointer). `hand.state->mode` alone is used on hundreds of lines. These blocks are
-  separate allocations, so a per-player refactor has to allocate one set of them per player but does not have to
+  separate allocations, so a per-player refactor has to allocate one set of them per player but doesn't have to
   change those lines if the global becomes a lookup.
 - Code that walks `actorList`, `collisionList` or `distList` reaches `hand` and `ball` through the list without naming
   them (`UpdateActor`, `DrawActor`, collision loops). Not counted. They must work for any number of actors already,
@@ -419,7 +422,7 @@ Limits (the numbers are a floor, not a bound):
   for `hand`, `ball`, `handControl`, `ballControl`, `player`).
 - Only `src/game/*.c` is scanned. `weemitt/src/port` also refers to the glove and ball (`hostworld.c` 70 lines,
   `frame.c` 26, `devview.c` 10, `platform.c` 9, `spacedemo.c` 8). `weemitt/bruteforce` has its own copy of the engine
-  and is not counted.
+  and isn't counted.
 - "Functions" are definitions in the .c files of `src/game` (1,234). Functions that only pass the address along to
   another function are counted once per function.
 
@@ -786,7 +789,7 @@ touching the symbol.
   `bonus.c` (5/4).
 - The most written fields are `hand.vel` (163 writes in 32 functions), `ball.vel` (136 in 37), `ball.pos` (76 in 24),
   `hand.scale` (64), `hand.rotAim` (63), `hand.pos` (58 in 18), `handControl.actionLock` (56 in 18), `hand.flags` and
-  `ball.flags` (53 and 47). `ball.link` is written in 14 functions (26 writes): that is the glove-to-ball
+  `ball.flags` (53 and 47). `ball.link` is written in 14 functions (26 writes): that's the glove-to-ball
   pairing.
 - The hardest part is the 98 + 43 identity tests and the 56 places that store the address of the glove or ball in
   another structure. They need a decision per site: "any player" (a loop), "the owner of this ball" (use `link`), or

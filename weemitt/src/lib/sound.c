@@ -1,6 +1,6 @@
 /* g64coopdx: the library's sound player driven from outside the game (glover.h, glover_sound). The online program's
    own game runs with the stand-in sound player, which plays nothing; this library's real player plays what that game
-   asks for. Its game does not run: only its sound player does, on the clock that glover_sound_advance gives it. */
+   asks for. Its game doesn't run: only its sound player does, on the clock that glover_sound_advance gives it. */
 #include <string.h>
 
 #include "lib.h"

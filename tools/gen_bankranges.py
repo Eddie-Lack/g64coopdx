@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes src/client/bankranges_table.c: the game's bank switch as a table, for programs that do not link the game.
+"""Writes src/client/bankranges_table.c: the game's bank switch as a table, for programs that don't link the game.
 
 The game finds a bank's ROM range in TextureBankRange and ObjectBankRange (weemitt/src/game/banks.c). Each case
 names two ROM symbols. A symbol's address is in the game's code, as a "lui" and an "addiu" or "ori" pair, and
