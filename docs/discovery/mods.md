@@ -63,9 +63,9 @@ The load runs `StartNewLevel`, `LoadLevel` (`weemitt/src/game/game.c:808`), `Ini
 
 | Option | What changes | Cost | Limits |
 | --- | --- | --- | --- |
-| A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level being loaded is the custom level (option C says which number that is) | about 30 lines | Uses the shipped banks only |
+| A. Level from a buffer | `LoadLandscapeFile` (`loaders.c:213-227`) returns the custom `.lev` when the level being loaded is the custom level (option C says which number that is) | about 30 lines | Uses the vanilla banks only |
 | B. Banks from files | `LoadObjectBank` and `LoadTextureBank` (switches in `weemitt/src/game/banks.c`) take bank numbers that the ROM doesn't use from a buffer; `DMAMemory` and `convert()` handle the rest | about 100 lines | More bank slots: either new lists that `FindObject` and `FindTexture` also search, or larger `objectBanks` and `textureBanks` arrays, which means regenerating `gen/`, weemitt's tables of every global's N64 offset |
-| C. Custom level slots | A custom level borrows a shipped level's number: its row in `levelInfo` (the game's table of levels: name, song, banks) and its world. It swaps in its own `.lev` and extra banks. Glovebox's console mod (next section) borrows Space levels' numbers the same way (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
+| C. Custom level slots | A custom level borrows a vanilla level's number: its row in `levelInfo` (the game's table of levels: name, song, banks) and its world. It swaps in its own `.lev` and extra banks. Glovebox's console mod (next section) borrows Space levels' numbers the same way (`Glovebox/mod/slots.c`) | small | Keeps `NUM_LEVELS` and the save layout unchanged |
 | D. Rebuild the ROM at start | Apply a Glovebox BPS patch (a binary diff against the retail ROM, which Glovebox exports) to the player's ROM in memory | no weemitt change | Loses the console mod's features (its MIPS code doesn't run in weemitt); one ROM per level is the wrong shape for a session that changes levels |
 
 Recommendation: A, B and C together. They keep the game's own loader, drawing, puzzles, enemies and platforms.
@@ -125,7 +125,7 @@ the picture, so a player's look can be local: other players need the bank to see
 | BPS patch of a level that places existing objects | Only the changed level bytes, and the console mod's code | Not needed on the PC; packs replace it |
 | BPS patch with imported models | Yes: the level's object bank and the world's texture bank are rewritten whole (a 4.9 KB model gave a 165 KB patch, `technical.md:322-326`) | No |
 | Level XML of a level built from scratch | No: object ids, positions and scripts | Yes (INFERRED) |
-| Level XML of an edited shipped level | The unchanged parts are the original team's level design | Only as a diff against the shipped level, which the player's own ROM rebuilds (decided) |
+| Level XML of an edited vanilla level | The unchanged parts are the original team's level design | Only as a diff against the vanilla level, which the player's own ROM rebuilds (decided) |
 | Custom model set (`custom/<set>/`) | No: the packer builds the banks from the author's triangles and images | Yes, if the art is the author's |
 | Kit models (props that Glovebox's own code makes) | No (`technical.md:603-610`) | Yes |
 
@@ -140,7 +140,7 @@ A level pack is a zip file or a folder:
 | File | What it holds |
 | --- | --- |
 | `pack.json` | name, author, version, the pack format version, the Lua API version, the base level whose world and row it reuses, the object and texture ids it uses, the banks it needs, and the SHA-1 of the retail ROM |
-| `level.lev` or `level.xml` | the level. For an edited shipped level: a diff against the shipped level's XML, which the player's own ROM rebuilds |
+| `level.lev` or `level.xml` | the level. For an edited vanilla level: a diff against the vanilla level's XML, which the player's own ROM rebuilds |
 | `custom/<set>/` | the author's model banks |
 | `scripts/*.lua` | the level's scripts |
 

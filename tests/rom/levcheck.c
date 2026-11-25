@@ -13,7 +13,7 @@
  *     table of bankranges.h has the same numbers
  *   - each level's own file passes g64_pack_check_ids with its own banks, and g64_pack_check_ids_rom (packrom.h),
  *     which the online host runs with the committed tables before it offers its pack
- *   - no shipped level has a ROPEBRIDGE, a SINEBRIDGE or an ORBITBRIDGE. The test adds one of each to a copy of
+ *   - no vanilla level has a ROPEBRIDGE, a SINEBRIDGE or an ORBITBRIDGE. The test adds one of each to a copy of
  *     level 13's file, with an object of the level's own banks, and compares the ids again. It also adds a
  *     LANDSCAPE with an id that no bank has: the rule refuses that file, g64_pack_check_ids_rom refuses it at the
  *     same token, and the game stops the level as unplayable

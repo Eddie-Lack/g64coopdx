@@ -150,7 +150,7 @@ static int walk_textures(G64RomBanks *b, const uint8_t *d, size_t n) {
 
 /* ---- Object banks. */
 
-/* The most bytes the hashes of one object bank may cover: four times the bank, and 1 MiB more. The shipped banks
+/* The most bytes the hashes of one object bank may cover: four times the bank, and 1 MiB more. The vanilla banks
    hash at most 0.6 times their size. */
 #define HASH_BUDGET(n) ((size_t)(n) * 4 + ((size_t)1 << 20))
 

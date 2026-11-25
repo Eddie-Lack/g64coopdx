@@ -303,7 +303,7 @@ New tests:
 | 7 | Rollback corrections look bad for remote balls with many players | Smooth the drawing of remote players; tune the input delay; measure at 100 to 200 ms |
 | 8 | Lua scripts break determinism in ways the sandbox misses | Hash Lua's memory arena with the game; the harness runs every bundled script under rollback |
 | 9 | The copy drifts from weemitt, and a fix made there is missed | Keep co-op changes in their own functions and files where possible; review weemitt's log at each phase's end and take what helps |
-| 10 | Legal: the published builds contain decompiled code (decided: builds are published); sharing edited shipped levels | Never ship ROM data; weemitt needs a license before a release; edited shipped levels travel only as diffs against the player's own ROM |
+| 10 | Legal: the published builds contain decompiled code (decided: builds are published); sharing edited vanilla levels | Never ship ROM data; weemitt needs a license before a release; edited vanilla levels travel only as diffs against the player's own ROM |
 | 11 | Abuse: hostile players, crafted packets, crafted packs | Inputs-only model; strict parsers with fuzzing; prompts and hashes for packs; host moderation |
 | 12 | The services cost money and time to run | Direct connection first; the lobby and relay in phase 4, or never if the owner prefers |
 | 13 | 16 players' inputs mispredicted often enough that rollbacks get deep | Measure in the harness; an input delay of 1 to 2 frames; the host's deadline bounds the depth |

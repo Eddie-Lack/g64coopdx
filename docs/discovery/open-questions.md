@@ -33,11 +33,11 @@ of the report it shapes.
 | Garibs | Shared by the players in a level; the "all garibs" bit when one instance's players have them all | [README.md](README.md#garibs-and-progress) |
 | Pause | A local menu while the game goes on; the host may stop the game | [netcode.md](netcode.md#frames-and-time) |
 | Physics mode online | The Original mode (whole frames, smooth drawing); the Smooth mode is off online | [netcode.md](netcode.md#frames-and-time) |
-| Edited shipped levels in packs | Levels built from scratch as full XML; edits of shipped levels only as diffs against the player's own ROM | [mods.md](mods.md#game-data-and-the-authors-work) |
+| Edited vanilla levels in packs | Levels built from scratch as full XML; edits of vanilla levels only as diffs against the player's own ROM | [mods.md](mods.md#game-data-and-the-authors-work) |
 | The Lua API's first scope | Rules, HUD, puzzle conditions and actions, and spawns through the game's own functions | [mods.md](mods.md#what-the-api-exposes) |
 | Glovebox | An "Export level pack" action, and imported models in banks of their own, in phase 5 | [mods.md](mods.md#the-level-pack) |
 | Player models | Allowed, as packs, after phase 5 | [mods.md](mods.md#player-models) |
-| A custom level's world | The world of the shipped level whose row in `levelInfo`, the game's table of levels, it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
+| A custom level's world | The world of the vanilla level whose row in `levelInfo`, the game's table of levels, it reuses | [mods.md](mods.md#options-cheapest-first-inferred) |
 | Death in a bonus level | Sends only that player out; the others play on | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 | Cameos | The other players in that level are held still and hidden while a cameo runs | [README.md](README.md#bosses-bonus-levels-and-cameos) |
 | Where the services run | The lobby in a container on Fly.io; the relay and STUN from Cloudflare; builds on GitHub Releases; the lobby at lobby.slugs.io, a subdomain of the owner's existing domain, until the project's name is chosen. The owner left this decision to the report | [hosting.md](../hosting.md) |

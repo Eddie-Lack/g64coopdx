@@ -155,7 +155,7 @@ host's welcome (`src/session/session.h`: offer, want, piece, ready).
   ([model-banks.md](model-banks.md), "The level's object ids").
 
 The host's test for a level of the ROM compares whole files (`g64_pack_rom_level`, below). It catches exact copies
-only. A pack whose level file is a shipped level with small changes does travel.
+only. A pack whose level file is a vanilla level with small changes does travel.
 
 - `g64_pack_from_bytes` reads a pack from its files' bytes. Its strict form also holds the level file to the
   check of its structure ([level-file-safety.md](level-file-safety.md), "What is checked today"). A pack from
