@@ -175,8 +175,8 @@ static uint32_t pack_wait(const g64_pack_offer *o) {
 /* models.bin's size in an offer: 0 for none, or within its limits. */
 static int models_size_ok(size_t n) { return n == 0 || (n >= G64_PACK_MODELS_MIN && n <= G64_PACK_MODELS_LIMIT); }
 
-/* A color from the network: the chosen bit and 24 bits of color, nothing else. */
-static int valid_color(uint32_t c) { return (c >> 25) == 0; }
+/* A color from the network: the chosen bit, 24 bits of color and a model's number, nothing else. */
+static int valid_color(uint32_t c) { return (c >> 29) == 0 && ((c >> 25) & 0xFu) < G64_MODELS; }
 
 uint32_t g64_rom_hash(const uint8_t *rom, size_t size) {
     uint32_t h = 2166136261u;

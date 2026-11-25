@@ -98,7 +98,8 @@ size_t g64_write_world_event(uint8_t *d, int world);
 int g64_parse_world_event(const uint8_t *d, size_t len, int *world);
 size_t g64_write_colors_event(uint8_t *d, int player, uint32_t glove, uint32_t ball);
 int g64_parse_colors_event(const uint8_t *d, size_t len, int *player, uint32_t *glove, uint32_t *ball);
-/* 1 for a color a player may have: 0, or the chosen bit and 24 bits of color. */
+/* 1 for a color a player may have: 0, or the chosen bit and 24 bits of color, with a model's number below G64_MODELS
+   in bits 25 to 28 (session.h). */
 int g64_valid_color(uint32_t c);
 size_t g64_write_progress_event(uint8_t *d, const g64_progress *p);
 int g64_parse_progress_event(const uint8_t *d, size_t len, g64_progress *out);

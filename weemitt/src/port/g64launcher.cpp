@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../game/g64title.h"
+#include "../game/g64models.h"
 #include "g64launcher.h"
 #include "prefpath.h"
 #include "../../../src/client/netplay.h"
@@ -20,29 +21,54 @@ static char code_char(char c) {
 }
 
 /* The player's colors: a palette, or custom. Each color is chosen (G64_COLOR_SET plus 0xRRGGBB) or automatic (0, the
-   color of the player's number). The colors multiply the glove's and the ball's own: white keeps them. They're kept in
-   colors.txt, in the program's own folder: the palette's number and the two custom colors. */
+   color of the player's number). The colors multiply the glove's and the ball's own: white keeps them. The menu's
+   words are in capitals, as the game writes its own menu items.
+
+   The player also chooses a model for the glove and one for the ball (g64models.h). The Cross-Stitch palette is
+   Cross-Stitch's own model in its own colors: while it's chosen, the glove's model is Cross-Stitch.
+
+   They're kept in colors.txt, in the program's own folder: the palette's number, the two custom colors and the two
+   models. */
 typedef struct {
     const char *name;
     unsigned glove, ball;
+    const char *model; /* the glove's model, by its name in g64models.c, or NULL for the player's choice */
 } palette;
 static const palette palettes[] = {
-    {"Automatic", 0, 0},
-    {"Classic", G64_COLOR_SET | 0xFFFFFF, G64_COLOR_SET | 0xFFFFFF},
-    {"Cross-Stitch", G64_COLOR_SET | 0x3A3A44, G64_COLOR_SET | 0x8C1A1A},
-    {"Blue", G64_COLOR_SET | 0x60A0FF, G64_COLOR_SET | 0x60A0FF},
-    {"Green", G64_COLOR_SET | 0x70FF70, G64_COLOR_SET | 0x70FF70},
-    {"Yellow", G64_COLOR_SET | 0xFFE040, G64_COLOR_SET | 0xFFE040},
-    {"Red", G64_COLOR_SET | 0xFF6060, G64_COLOR_SET | 0xFF6060},
-    {"Purple", G64_COLOR_SET | 0xC070FF, G64_COLOR_SET | 0xC070FF},
-    {"Orange", G64_COLOR_SET | 0xFFA040, G64_COLOR_SET | 0xFFA040},
-    {"Cyan", G64_COLOR_SET | 0x60FFFF, G64_COLOR_SET | 0x60FFFF},
+    {"AUTOMATIC", 0, 0, NULL},
+    {"CLASSIC", G64_COLOR_SET | 0xFFFFFF, G64_COLOR_SET | 0xFFFFFF, NULL},
+    {"CROSS-STITCH", G64_COLOR_SET | 0xFFFFFF, G64_COLOR_SET | 0xFFFFFF, "CROSS-STITCH"},
+    {"BLUE", G64_COLOR_SET | 0x60A0FF, G64_COLOR_SET | 0x60A0FF, NULL},
+    {"GREEN", G64_COLOR_SET | 0x70FF70, G64_COLOR_SET | 0x70FF70, NULL},
+    {"YELLOW", G64_COLOR_SET | 0xFFE040, G64_COLOR_SET | 0xFFE040, NULL},
+    {"RED", G64_COLOR_SET | 0xFF6060, G64_COLOR_SET | 0xFF6060, NULL},
+    {"PURPLE", G64_COLOR_SET | 0xC070FF, G64_COLOR_SET | 0xC070FF, NULL},
+    {"ORANGE", G64_COLOR_SET | 0xFFA040, G64_COLOR_SET | 0xFFA040, NULL},
+    {"CYAN", G64_COLOR_SET | 0x60FFFF, G64_COLOR_SET | 0x60FFFF, NULL},
 };
 #define PALETTES ((int)(sizeof palettes / sizeof palettes[0]))
 #define CUSTOM PALETTES
 static int choice;
 static unsigned custom[2] = {G64_COLOR_SET | 0xFFFFFF, G64_COLOR_SET | 0xFFFFFF};
+static int models[2]; /* the player's choice for the glove and the ball */
 static int colorsLoaded;
+
+/* The model that's drawn for the glove (G64_MODEL_GLOVE) or the ball: the palette's, or the player's choice. */
+static int model_of(int kind) {
+    int i;
+    if (kind == G64_MODEL_GLOVE && choice < CUSTOM && palettes[choice].model) {
+        for (i = 0; i < G64ModelCount(kind); i++)
+            if (!strcmp(G64ModelLabel(kind, i), palettes[choice].model))
+                return i;
+    }
+    return models[kind] >= 0 && models[kind] < G64ModelCount(kind) ? models[kind] : 0;
+}
+
+/* The glove's and the ball's color words, each with its model's number. */
+static unsigned color_word(int kind) {
+    unsigned c = choice == CUSTOM ? custom[kind] : kind == G64_MODEL_GLOVE ? palettes[choice].glove : palettes[choice].ball;
+    return c | ((unsigned)model_of(kind) << G64_MODEL_SHIFT);
+}
 
 static void colors_path(char *out, size_t size) {
     char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
@@ -52,10 +78,7 @@ static void colors_path(char *out, size_t size) {
 }
 
 static void apply_colors(void) {
-    if (choice == CUSTOM)
-        netplay_set_colors(custom[0], custom[1]);
-    else
-        netplay_set_colors(palettes[choice].glove, palettes[choice].ball);
+    netplay_set_colors(color_word(G64_MODEL_GLOVE), color_word(G64_MODEL_BALL));
 }
 
 static void load_colors(void) {
@@ -63,14 +86,21 @@ static void load_colors(void) {
     FILE *f;
     int c;
     unsigned g, b;
+    int mg = 0, mb = 0;
     colorsLoaded = 1;
     colors_path(path, sizeof path);
     f = fopen(path, "r");
     if (f) {
-        if (fscanf(f, "%d %x %x", &c, &g, &b) == 3 && c >= 0 && c <= CUSTOM) {
+        /* A file from before the models has three numbers. */
+        int n = fscanf(f, "%d %x %x %d %d", &c, &g, &b, &mg, &mb);
+        if (n >= 3 && c >= 0 && c <= CUSTOM) {
             choice = c;
             custom[0] = G64_COLOR_SET | (g & 0xFFFFFF);
             custom[1] = G64_COLOR_SET | (b & 0xFFFFFF);
+        }
+        if (n == 5) {
+            models[0] = mg >= 0 && mg < G64ModelCount(G64_MODEL_GLOVE) ? mg : 0;
+            models[1] = mb >= 0 && mb < G64ModelCount(G64_MODEL_BALL) ? mb : 0;
         }
         fclose(f);
     }
@@ -83,7 +113,7 @@ static void save_colors(void) {
     colors_path(path, sizeof path);
     f = fopen(path, "w");
     if (f) {
-        fprintf(f, "%d %06x %06x\n", choice, custom[0] & 0xFFFFFF, custom[1] & 0xFFFFFF);
+        fprintf(f, "%d %06x %06x %d %d\n", choice, custom[0] & 0xFFFFFF, custom[1] & 0xFFFFFF, models[0], models[1]);
         fclose(f);
     }
 }
@@ -141,10 +171,10 @@ typedef struct {
     unsigned rgb;
 } named_color;
 static const named_color shades[] = {
-    {"White", 0xFFFFFF},  {"Gray", 0x909090},     {"Slate", 0x3A3A44}, {"Black", 0x000000},  {"Red", 0xFF4040},
-    {"Dark red", 0x8C1A1A}, {"Orange", 0xFFA040}, {"Yellow", 0xFFE040}, {"Lime", 0xA0FF40},  {"Green", 0x40C040},
-    {"Teal", 0x40C0A0},   {"Cyan", 0x60FFFF},     {"Sky", 0x60A0FF},   {"Blue", 0x4060FF},   {"Purple", 0xC070FF},
-    {"Pink", 0xFF80C0},   {"Brown", 0x8C5A2A},
+    {"WHITE", 0xFFFFFF},  {"GRAY", 0x909090},     {"SLATE", 0x3A3A44}, {"BLACK", 0x000000},  {"RED", 0xFF4040},
+    {"DARK RED", 0x8C1A1A}, {"ORANGE", 0xFFA040}, {"YELLOW", 0xFFE040}, {"LIME", 0xA0FF40},  {"GREEN", 0x40C040},
+    {"TEAL", 0x40C0A0},   {"CYAN", 0x60FFFF},     {"SKY", 0x60A0FF},   {"BLUE", 0x4060FF},   {"PURPLE", 0xC070FF},
+    {"PINK", 0xFF80C0},   {"BROWN", 0x8C5A2A},
 };
 #define SHADES ((int)(sizeof shades / sizeof shades[0]))
 
@@ -170,7 +200,7 @@ enum {
     R_HOST_PAGE, R_JOIN_PAGE, R_OPTIONS_PAGE, R_ALONE,
     R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_HOST,
     R_CODE, R_JOIN, R_ROOM,
-    R_NAME, R_COLORS, R_GLOVE, R_BALL, R_DELAY,
+    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY,
     R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO,
 };
 
@@ -214,10 +244,8 @@ static void note(const char *text, unsigned rgb) {
     }
 }
 
-#define GRAY 0xA0A0A0u
 #define RED 0xFF7878u
 #define YELLOW 0xFFD278u
-#define TIP 0xAAAAFFu
 
 /* The open games that the join page shows at once, below the code and Join. */
 #define ROOMS_SHOWN (G64_TITLE_ROWS - 2)
@@ -234,28 +262,9 @@ typedef struct {
     const char *relay;
 } launcher;
 
-/* A line that explains the chosen row, below the rows. */
-static const char *row_help(int what) {
-    switch (what) {
-        case R_HOST_PAGE: return "Start a game that other players join with its room code.";
-        case R_JOIN_PAGE: return "Join a game by its room code, or from the list of open games.";
-        case R_OPTIONS_PAGE: return "Your name, your colors and your input delay.";
-        case R_ALONE: return "Play the game on your own, without going online.";
-        case R_PLAYERS: return "How many players the game waits for before it starts.";
-        case R_BALL_CONTROLS: return "Easy: the ball follows the stick. Normal: the game's own ball controls.";
-        case R_ANY_BALL: return "Own: each glove takes only its own ball. Shared: any glove takes any free ball.";
-        case R_ANY_WORLD: return "Together: everyone stays in one world. Any: players go to different worlds.";
-        case R_LISTED: return "Yes puts the game in the list of open games for everyone with this version.";
-        case R_TITLE: return "The game's name in the list. Type it.";
-        case R_CODE: return "Type the room code that the host sent you. Ctrl+V pastes it.";
-        case R_NAME: return "The name the other players see. Type it.";
-        case R_COLORS: return "The colors of your glove and your ball. Custom lets you choose each.";
-        case R_DELAY: return "Frames of 50 ms. More: the other gloves jump less. Less: yours answers sooner.";
-        default: return NULL;
-    }
-}
-
-/* Builds the page's rows and text for the game to draw. */
+/* Builds the page's rows and text for the game to draw. The rows' words are in capitals, as the game writes its own
+   menu items. The page has no help or status lines: only the rows, their values, the room code while hosting, an
+   error, and the facts about a level pack that the player is asked to take. */
 static void build_page(launcher *L) {
     const char *room = netplay_room_code();
     int i;
@@ -265,23 +274,23 @@ static void build_page(launcher *L) {
         L->page = PAGE_WAIT;
     switch (L->page) {
         case PAGE_MAIN:
-            G64TitlePage("Online");
-            add_row(R_HOST_PAGE, "Host a game", "", 0);
-            add_row(R_JOIN_PAGE, "Join a game", "", 0);
-            add_row(R_OPTIONS_PAGE, "Your options", "", 0);
-            add_row(R_ALONE, "Play alone", "", 0);
+            G64TitlePage("");
+            add_row(R_HOST_PAGE, "HOST GAME", "", 0);
+            add_row(R_JOIN_PAGE, "JOIN GAME", "", 0);
+            add_row(R_OPTIONS_PAGE, "OPTIONS", "", 0);
+            add_row(R_ALONE, "SOLO", "", 0);
             break;
         case PAGE_HOST: {
             char n[8];
             snprintf(n, sizeof n, "%d", L->wanted);
-            G64TitlePage("Host a game");
-            add_row(R_PLAYERS, "Players", n, G64_TITLE_ARROWS);
-            add_row(R_BALL_CONTROLS, "Ball", netplay_host_normal_ball() ? "normal" : "easy", G64_TITLE_ARROWS);
-            add_row(R_ANY_BALL, "Balls", netplay_host_any_ball() ? "shared" : "own", G64_TITLE_ARROWS);
-            add_row(R_ANY_WORLD, "Worlds", netplay_host_any_world() ? "any" : "together", G64_TITLE_ARROWS);
-            add_row(R_LISTED, "In the list", netplay_public() ? "yes" : "no", G64_TITLE_ARROWS);
-            add_row(R_TITLE, "Title", L->title, netplay_public() ? G64_TITLE_TEXT : G64_TITLE_OFF);
-            add_row(R_HOST, "Start hosting", "", 0);
+            G64TitlePage("HOST GAME");
+            add_row(R_PLAYERS, "PLAYERS", n, G64_TITLE_ARROWS);
+            add_row(R_BALL_CONTROLS, "BALL", netplay_host_normal_ball() ? "NORMAL" : "EASY", G64_TITLE_ARROWS);
+            add_row(R_ANY_BALL, "BALLS", netplay_host_any_ball() ? "SHARED" : "OWN", G64_TITLE_ARROWS);
+            add_row(R_ANY_WORLD, "WORLDS", netplay_host_any_world() ? "ANY" : "TOGETHER", G64_TITLE_ARROWS);
+            add_row(R_LISTED, "LISTED", netplay_public() ? "YES" : "NO", G64_TITLE_ARROWS);
+            add_row(R_TITLE, "TITLE", L->title, netplay_public() ? G64_TITLE_TEXT : G64_TITLE_OFF);
+            add_row(R_HOST, "START", "", 0);
             break;
         }
         case PAGE_JOIN: {
@@ -292,9 +301,9 @@ static void build_page(launcher *L) {
                 L->roomTop = n - ROOMS_SHOWN;
             if (L->roomTop < 0)
                 L->roomTop = 0;
-            G64TitlePage("Join a game");
-            add_row(R_CODE, "Code", L->code, G64_TITLE_TEXT);
-            add_row(R_JOIN, "Join", "", strlen(L->code) == NETPLAY_ROOM_CODE ? 0 : G64_TITLE_OFF);
+            G64TitlePage("JOIN GAME");
+            add_row(R_CODE, "CODE", L->code, G64_TITLE_TEXT);
+            add_row(R_JOIN, "JOIN", "", strlen(L->code) == NETPLAY_ROOM_CODE ? 0 : G64_TITLE_OFF);
             for (i = L->roomTop; i < n && rowCount < G64_TITLE_ROWS; i++) {
                 const net_room *r = netplay_room(i);
                 char who[16];
@@ -306,29 +315,33 @@ static void build_page(launcher *L) {
         case PAGE_OPTIONS: {
             char d[8];
             int own = choice == CUSTOM;
+            int fixed = choice < CUSTOM && palettes[choice].model != NULL;
             int g = shade_of(custom[0]), b = shade_of(custom[1]);
             snprintf(d, sizeof d, "%d", netplay_input_delay());
-            G64TitlePage("Your options");
-            add_row(R_NAME, "Name", nameText, G64_TITLE_TEXT);
-            add_row(R_COLORS, "Colors", own ? "custom" : palettes[choice].name, G64_TITLE_ARROWS);
-            add_row(R_GLOVE, "Glove", own ? (g >= 0 ? shades[g].name : "saved") : "-",
+            G64TitlePage("OPTIONS");
+            add_row(R_NAME, "NAME", nameText, G64_TITLE_TEXT);
+            add_row(R_GLOVE_MODEL, "GLOVE", G64ModelLabel(G64_MODEL_GLOVE, model_of(G64_MODEL_GLOVE)),
+                    fixed ? G64_TITLE_OFF : G64_TITLE_ARROWS);
+            add_row(R_BALL_MODEL, "BALL", G64ModelLabel(G64_MODEL_BALL, model_of(G64_MODEL_BALL)), G64_TITLE_ARROWS);
+            add_row(R_COLORS, "COLORS", own ? "CUSTOM" : palettes[choice].name, G64_TITLE_ARROWS);
+            add_row(R_GLOVE, "GLOVE COLOR", own ? (g >= 0 ? shades[g].name : "SAVED") : "-",
                     own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
-            add_row(R_BALL, "Ball", own ? (b >= 0 ? shades[b].name : "saved") : "-",
+            add_row(R_BALL, "BALL COLOR", own ? (b >= 0 ? shades[b].name : "SAVED") : "-",
                     own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
-            add_row(R_DELAY, "Input delay", d, G64_TITLE_ARROWS);
+            add_row(R_DELAY, "INPUT DELAY", d, G64_TITLE_ARROWS);
             break;
         }
         case PAGE_WAIT:
-            G64TitlePage(L->hosting ? "Hosting" : "Joining");
+            G64TitlePage(L->hosting ? "HOSTING" : "JOINING");
             if (netplay_pack_asking()) {
-                add_row(R_PACK_YES, netplay_pack_kept() ? "Play with the pack" : "Download and play", "", 0);
-                add_row(R_PACK_NO, "No, leave", "", 0);
+                add_row(R_PACK_YES, netplay_pack_kept() ? "PLAY WITH THE PACK" : "DOWNLOAD AND PLAY", "", 0);
+                add_row(R_PACK_NO, "LEAVE", "", 0);
             } else {
                 if (L->hosting && room[0])
-                    add_row(R_COPY, L->copied ? "Copied" : "Copy code", "", 0);
+                    add_row(R_COPY, L->copied ? "COPIED" : "COPY CODE", "", 0);
                 if (L->hosting && (room[0] || !L->relay[0]))
-                    add_row(R_START_NOW, "Start now", "", 0);
-                add_row(R_CANCEL, "Cancel", "", 0);
+                    add_row(R_START_NOW, "START NOW", "", 0);
+                add_row(R_CANCEL, "CANCEL", "", 0);
             }
             break;
     }
@@ -347,11 +360,11 @@ static void build_page(launcher *L) {
     }
     G64TitleSelect(L->selected);
 
-    /* The text below the rows. */
+    /* The room code that the host sends to the other players, and the level pack that the host offers: its name,
+       its size and the warning are what the player decides on. */
     if (L->page == PAGE_WAIT) {
         if (L->hosting && room[0])
             G64TitleBig(room);
-        note(netplay_wait_status(), 0xFFFFFF);
         if (netplay_pack_asking()) {
             char line[200], models[48] = "";
             /* A pack's models are most of its size: up to 4 MB, about 16 seconds of download. */
@@ -362,44 +375,19 @@ static void build_page(launcher *L) {
                      (unsigned)((netplay_offer_size() + 1023) / 1024), netplay_offer_script() ? ", with a script" : "",
                      models);
             note(line, 0xFFFFFF);
-            note(netplay_pack_kept() ? "You downloaded this pack before. Play with it?"
-                                     : "You don't have it. Download it from the host?",
-                 0xFFFFFF);
             note("A pack changes the game on your computer. The program checks it before use, but the check does "
                  "not catch everything. Take a pack only from a host you trust.",
                  YELLOW);
-        } else if (L->hosting && room[0]) {
-            note("Send the code to the other players. The game starts when everyone is in, or when you press "
-                 "Start now. Others can still join after the start.",
-                 TIP);
-        }
-    } else {
-        const char *help = rowCount > 0 ? row_help(rows[L->selected].what) : NULL;
-        if (L->page == PAGE_JOIN) {
-            int n = netplay_rooms_count();
-            if (n < 0)
-                note("Open games: asking the lobby...", GRAY);
-            else if (n == 0)
-                note("Open games: none right now", GRAY);
-            else if (n > ROOMS_SHOWN) {
-                char line[64];
-                snprintf(line, sizeof line, "Open games %d to %d of %d", L->roomTop + 1, L->roomTop + ROOMS_SHOWN, n);
-                note(line, GRAY);
-            }
-        }
-        if (help)
-            note(help, TIP);
-        if (L->page == PAGE_MAIN) {
-            char build[64];
-            snprintf(build, sizeof build, "Version %s", netplay_build());
-            note(build, GRAY);
         }
     }
     if (L->error[0])
         note(L->error, RED);
-    G64TitleHints(L->page == PAGE_MAIN ? "\xa3 select" : "\xa3 select   \xa4 back");
-    G64TitleColors(choice == CUSTOM ? custom[0] : palettes[choice].glove,
-                   choice == CUSTOM ? custom[1] : palettes[choice].ball);
+    G64TitleColors(color_word(G64_MODEL_GLOVE), color_word(G64_MODEL_BALL));
+}
+
+void g64_launcher_solo(void) {
+    G64SoloModels(color_word(G64_MODEL_GLOVE), color_word(G64_MODEL_BALL));
+    G64SoloStart();
 }
 
 /* Starts hosting, or joining the room code. Returns 1 when it started. */
@@ -664,6 +652,14 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     apply_colors();
                     save_colors();
                     break;
+                case R_GLOVE_MODEL:
+                case R_BALL_MODEL: {
+                    int kind = what == R_GLOVE_MODEL ? G64_MODEL_GLOVE : G64_MODEL_BALL, n = G64ModelCount(kind);
+                    models[kind] = (model_of(kind) + change + n) % n;
+                    apply_colors();
+                    save_colors();
+                    break;
+                }
                 case R_GLOVE:
                 case R_BALL:
                     step_shade(&custom[what == R_GLOVE ? 0 : 1], change);

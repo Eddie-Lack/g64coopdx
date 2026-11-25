@@ -219,16 +219,17 @@ static void test_join_later(uint32_t start) {
     }
     j[0] = g64_session_join(js[0], &to, ROM, "first");
     g64_session_set_build(j[0], BUILD);
-    g64_session_set_colors(j[0], G64_COLOR_SET | 0x112233, G64_COLOR_SET | 0x445566);
+    /* The colors carry the glove's and the ball's models (bits 25 to 28). */
+    g64_session_set_colors(j[0], G64_COLOR_SET | 0x112233 | (1u << 25), G64_COLOR_SET | 0x445566 | (3u << 25));
     RUN_ALL(150)
     check(g64_session_poll(j[0], *clock, NULL, NULL) == G64_SESSION_STARTED && g64_session_me(j[0]) == 1 &&
               g64_session_start_members(j[0]) == 1 && g64_session_present(j[0], 1) && !g64_session_present(j[0], 2) &&
               !strcmp(g64_session_name(j[0], 0), "host"),
           "a player joins the started game, and is not one of the start's players");
     g64_session_colors(h, 1, &glove, &ball);
-    check(g64_session_present(h, 1) && g64_session_joined(h) == 2 && glove == (G64_COLOR_SET | 0x112233) &&
-              ball == (G64_COLOR_SET | 0x445566),
-          "the host has the new player, with their colors");
+    check(g64_session_present(h, 1) && g64_session_joined(h) == 2 && glove == (G64_COLOR_SET | 0x112233 | (1u << 25)) &&
+              ball == (G64_COLOR_SET | 0x445566 | (3u << 25)),
+          "the host has the new player, with their colors and models");
     firstEpoch = g64_session_epoch(h, 1);
     j[1] = g64_session_join(js[1], &to, ROM, "second");
     g64_session_set_build(j[1], BUILD);

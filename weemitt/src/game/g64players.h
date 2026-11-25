@@ -84,6 +84,13 @@ s32 G64IsProxy(struct Actor *a);
    the player's number (player 0 keeps the game's own). Set it before power-on: every machine has the same. */
 #define G64_COLOR_SET 0x1000000u
 extern u32 g64PlayerColor[G64_MAX_PLAYERS][2];
+/* The player (by number) whose glove or ball the actor is, or -1. *isBall says which. */
+s32 G64ActorOwner(struct Actor *a, s32 *isBall);
+/* 1 when DrawActor may draw the players' chosen models (g64models.c): alone, or in a player's view online. */
+s32 G64ModelDrawn(void);
+/* The object to draw for a player's glove or ball in place of its own, or NULL: their chosen model (g64models.c). It
+   moves *time onto that model's animation and sets *size, a factor for the actor's scale. */
+struct Object *G64ActorModel(struct Actor *a, f32 *time, f32 *size);
 /* The color (0xRRGGBB) to tint an actor with, for a player's glove or ball; 0 for none. */
 u32 G64ActorTint(struct Actor *a);
 /* collect.c: the other players' runs of garibs taken in quick succession count down (g64players.c). */

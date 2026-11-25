@@ -2076,6 +2076,9 @@ int main(int argc, char **argv) {
     Uint64 last;
     double acc = 0.0;
     int running = 1;
+#ifdef PORT_STUDIO
+    int soloStart = 0; /* g64coopdx: the player chose to play alone on the start screen */
+#endif
     Settings settings;
     char settingsFile[512];
     long crashTestFrame = -1;
@@ -2330,6 +2333,12 @@ int main(int argc, char **argv) {
             g64_title_begin(&settings);
             r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
             g64_title_end();
+            if (r == 0) {
+                /* Playing alone goes straight to the file select: no logos and no title menu before it. */
+                g64_launcher_solo();
+                port_set_skip_intro(1);
+                soloStart = 1;
+            }
 
             if (r < 0) {
                 return 0;
@@ -2380,6 +2389,20 @@ int main(int argc, char **argv) {
     port_game_init(opt.level);
 #endif
 #ifdef PORT_STUDIO
+    if (soloStart && opt.level < 0 && !opt.spaceDemo) {
+        /* g64coopdx: playing alone from the start screen. The game runs as fast as it can, without drawing, up to
+           the file select (g64solo.c): the logos and the title screen aren't seen. The intro's skip presses Start
+           through them, as in a normal start with the intro skipped. */
+        extern int G64SoloArrived(void);
+        PortFrameTask fast[16];
+        int k;
+
+        for (k = 0; k < 3000 && !G64SoloArrived(); k++) {
+            port_buttons = port_intro_skip_buttons();
+            port_stick_x = port_stick_y = 0;
+            port_game_frame(fast, 16);
+        }
+    }
     studio_started();
     if (netplay_active()) {
         char err[320];

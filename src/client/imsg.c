@@ -1,5 +1,6 @@
 /* The messages that move players between instances (imsg.h). */
 #include "imsg.h"
+#include "../session/session.h"
 
 static void put16(uint8_t *p, uint32_t v) {
     p[0] = (uint8_t)v;
@@ -85,7 +86,7 @@ int g64_parse_move(const uint8_t *d, size_t len, g64_move *out) {
     return 0;
 }
 
-int g64_valid_color(uint32_t c) { return (c >> 25) == 0; }
+int g64_valid_color(uint32_t c) { return (c >> 29) == 0 && ((c >> 25) & 0xFu) < G64_MODELS; }
 
 size_t g64_write_script_event(uint8_t *d, int key, uint32_t value) {
     d[0] = G64_EVENT_SCRIPT;

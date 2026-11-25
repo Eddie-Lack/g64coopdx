@@ -20,7 +20,7 @@ extern "C" {
 void G64TitleOn(int on);
 /* 1 once the title screen shows the start screen's page. */
 int G64TitleReady(void);
-/* Starts a new page with a heading. The rows, notes, big text and hints that follow belong to it. */
+/* Starts a new page with a heading (empty for none). The rows, notes and big text that follow belong to it. */
 void G64TitlePage(const char *heading);
 void G64TitleRow(const char *label, const char *value, int flags);
 void G64TitleSelect(int row);
@@ -28,9 +28,8 @@ void G64TitleSelect(int row);
 void G64TitleNote(const char *text, unsigned rgb);
 /* Large text below the rows, such as a room code. */
 void G64TitleBig(const char *text);
-/* The line at the bottom that names the buttons. */
-void G64TitleHints(const char *text);
-/* The player's glove and ball colors (0, or G64_TITLE_COLOR_SET plus 0xRRGGBB). */
+/* The player's glove and ball colors (0, or G64_TITLE_COLOR_SET plus 0xRRGGBB), each with the number of the model
+   the player chose for it (g64models.h). */
 void G64TitleColors(unsigned glove, unsigned ball);
 
 #ifdef __cplusplus

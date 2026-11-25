@@ -1080,27 +1080,57 @@ u32 g64PlayerColor[G64_MAX_PLAYERS][2];
 
 u32 G64TitleTint(Actor *a);
 
+s32 G64ActorOwner(Actor *a, s32 *isBall) {
+    s32 i, slot = -1, p;
+    *isBall = 0;
+    if (a == &hand || a == &ball) {
+        slot = swapped;
+        *isBall = a == &ball;
+    } else {
+        for (i = 1; i < slotCount; i++)
+            if (a == proxyHand[i] || a == proxyBall[i]) {
+                slot = i == swapped ? 0 : i;
+                *isBall = a == proxyBall[i];
+            }
+    }
+    if (slot < 0)
+        return -1;
+    p = g64Member[slot];
+    return p >= 0 && p < G64_MAX_PLAYERS ? p : -1;
+}
+
+s32 G64ModelDrawn(void) {
+    return !g64Online || viewDraw;
+}
+
+/* For tests: 1 when DrawActor would draw another model for a player's glove (ball 0) or ball (ball 1) now. */
+s32 G64TestModelDrawn(s32 player, s32 isBall) {
+    s32 i = slot_of(player);
+    Actor *a;
+    f32 time = 0.0f, size = 1.0f;
+    if (i < 0 || (i > 0 && (i >= slotCount || !slots[i] || !proxyHand[i] || !proxyBall[i])))
+        return 0;
+    /* With slot i in the globals for a view, the first player's glove and ball are the proxies of slot i. */
+    if (i == swapped)
+        a = isBall ? &ball : &hand;
+    else if (i == 0)
+        a = isBall ? proxyBall[swapped] : proxyHand[swapped];
+    else
+        a = isBall ? proxyBall[i] : proxyHand[i];
+    if (a->anim != NULL && a->anim->anims != NULL && a->anim->current >= 0)
+        time = a->anim->time;
+    return G64ActorModel(a, &time, &size) != NULL;
+}
+
 u32 G64ActorTint(Actor *a) {
-    s32 i, slot = -1, p, isBall = 0;
+    s32 p, isBall;
     u32 c;
     /* The online program's start screen shows the glove in the player's colors (g64title.c). */
     c = G64TitleTint(a);
     if (c)
         return c;
-    if (a == &hand || a == &ball) {
-        slot = swapped;
-        isBall = a == &ball;
-    } else {
-        for (i = 1; i < slotCount; i++)
-            if (a == proxyHand[i] || a == proxyBall[i]) {
-                slot = i == swapped ? 0 : i;
-                isBall = a == proxyBall[i];
-            }
-    }
-    if (slot < 0)
-        return 0;
-    p = g64Member[slot];
-    if (p < 0 || p >= G64_MAX_PLAYERS)
+    p = G64ActorOwner(a, &isBall);
+    if (p < 0)
         return 0;
     c = g64PlayerColor[p][isBall];
     if (c & G64_COLOR_SET) {

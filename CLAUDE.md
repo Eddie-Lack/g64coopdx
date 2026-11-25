@@ -65,7 +65,7 @@ follows docs/discovery/roadmap.md. Each phase's section there says what's done a
     make savestates-test   # its tests, the Windows program under Wine (needs the ROM)
     make rollback-game # the rollback core with the real game, on Linux and under Wine (needs the ROM)
     make sound         # the online game's sound through rollbacks, on Linux and under Wine (needs the ROM)
-    make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips, cameos, each player's ball texture and the any-ball rule with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
+    make twoplayers    # four gloves in one game; enemies, puzzles, respawns, hazards, garibs, pick-ups, bosses, bonus levels, the look-around mode, tips, cameos, each player's ball texture, each player's glove and ball models and the any-ball rule with two players; the frame's limits with 16; Linux and Wine must print the same (needs the ROM)
     make levelstart    # every level built from the power-on state gives the same hashes, on Linux and Wine (needs the ROM)
     make meshguards    # the game with meshes that have no texture coordinates and no colors, as a pack's; Linux and Wine (needs the ROM)
     make levcheck      # the level file check reads every level as the game's parser does; its object ids are the ones FindObject is asked for, in the banks LoadLevel loads; Linux and Wine (needs the ROM)
@@ -118,4 +118,6 @@ run locally: set `GLOVER_ROM`.
 | Retail banks a pack names: the table on the game's heap, its load, and the lookups in it | weemitt/src/game/g64packbanks.c (`G64SetPackRetail`, `G64PackTexture`, `G64PackObject`), the hooks in weemitt/src/game/banks.c (`FindTexture`, `FindObject`), src/client (`g64_instances_pack_retail`; the rule for their sprites' textures, `g64_pack_check_retail_sprites` in `packrom.h`, with `g64_level_texture_banks` in `bankranges.c`); the test tests/rom/packbanks.c |
 | Scripts: Lua in the game, what a script may call, and the sandbox's test | weemitt/src/port/g64lua.c, `weemitt/third_party/lua`, docs/scripts.md, tests/net/lua_test.c |
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
+| The glove and ball models a player chooses, drawn only in views online | weemitt/src/game/g64models.c (`G64ActorModel`, the lists), the hook in weemitt/src/game/object.c (`DrawActor`); the test tests/rom/playermodels.c |
+| Solo from the start screen: straight to the file select, and the complete file CHOSIS | weemitt/src/game/g64solo.c, the hooks in weemitt/src/game/main.c (`RunGameInit`) and weemitt/src/game/frontend.c (`DrawScreen`, the file names) |
 | How players host and join | docs/playing-online.md |
