@@ -124,6 +124,8 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
 void netplay_pause_toggle(void);
 void netplay_pause_pick(int item);
 int netplay_pause_open(void);
+/* 1 when this player's glove held the ball in the frame drawn last (the mouse's clicks, weemitt's mouselook.h). */
+int netplay_holds_ball(void);
 int netplay_pause_selection(void);
 int netplay_pause_items(void);
 const char *netplay_pause_item(int i);

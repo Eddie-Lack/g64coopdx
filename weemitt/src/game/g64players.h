@@ -369,6 +369,14 @@ s32 G64HazardPlace(s32 kind, s32 k, f32 *x, f32 *y, f32 *z);
 s32 G64PlayerHealth(s32 player);
 s32 G64PlayerVelocity(s32 player, f32 *x, f32 *y, f32 *z);
 s32 G64PlayerInWater(s32 player);
+/* For the mouse's clicks (weemitt's src/port/mouselook.c): 1 when the player's glove holds the ball, by the game's
+   own rule (IsHandHoldingBall). For tests: the player's glove's mode (HAND_ of enums.h), -1 when not in this game.
+   G64MouseInPlay: 1 while a level is played and the game's pause menu is closed. G64CameraContact, for tests: the first face the player's
+   camera touches (x, y, z, d) and the camera's position; 0 when it touches none. */
+s32 G64PlayerHoldsBall(s32 player);
+s32 G64PlayerHandMode(s32 player);
+s32 G64MouseInPlay(void);
+s32 G64CameraContact(s32 player, f32 *plane, f32 *pos);
 
 /* Garibs and pick-ups (collect.c). G64GaribGroupNear: 1 when another player's glove or ball is within the radius of
    a group of garibs. G64GaribTaker: the slot of the player who takes the garib at pos, the one whose glove or ball

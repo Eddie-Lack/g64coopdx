@@ -99,7 +99,7 @@ rollback-game: rollback-game-build
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), enemies, puzzles, respawns, world hazards, garibs, pick-ups, bosses and bonus levels with more than one player
-# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c), each player's ball texture (tests/rom/textures.c), each player's glove and ball models (tests/rom/playermodels.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the mouse's camera and clicks (tests/rom/mouselook.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c), each player's ball texture (tests/rom/textures.c), each player's glove and ball models (tests/rom/playermodels.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -119,6 +119,7 @@ CAMEOS_SRC := tests/rom/cameos.c weemitt/src/port/statehash.c
 TEXTURES_SRC := tests/rom/textures.c weemitt/src/port/statehash.c
 PLAYERMODELS_SRC := tests/rom/playermodels.c weemitt/src/port/statehash.c
 ANYBALL_SRC := tests/rom/anyball.c weemitt/src/port/statehash.c
+MOUSELOOK_ROM_SRC := tests/rom/mouselook.c weemitt/src/port/mouselook.c weemitt/src/port/statehash.c
 twoplayers-build: savestates
 	@mkdir -p build/tests
 	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/twoplayers $(TWOPLAYERS_SRC) $(ENGINE_LINUX) \
@@ -197,6 +198,10 @@ twoplayers-build: savestates
 	    -lm -lrt -lpthread
 	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
 	    -o build/tests/anyball.exe $(ANYBALL_SRC) $(ENGINE_WINDOWS) -lm
+	$(CC) -m64 -std=gnu99 -O2 -Wall -Wextra -Werror -no-pie -o build/tests/mouselook $(MOUSELOOK_ROM_SRC) \
+	    $(ENGINE_LINUX) -lm -lrt -lpthread
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -Wl,--disable-dynamicbase -Wl,--disable-reloc-section \
+	    -o build/tests/mouselook.exe $(MOUSELOOK_ROM_SRC) $(ENGINE_WINDOWS) -lm
 
 twoplayers: twoplayers-build
 	build/tests/twoplayers "$$GLOVER_ROM" 3000 4 > build/tests/twoplayers.out
@@ -264,6 +269,11 @@ twoplayers: twoplayers-build
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/lookaround.exe "$$GLOVER_ROM" | tr -d '\r' \
 	    > build/tests/lookaround-windows.out
 	cmp build/tests/lookaround.out build/tests/lookaround-windows.out
+	build/tests/mouselook "$$GLOVER_ROM" > build/tests/mouselook.out
+	tail -1 build/tests/mouselook.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/mouselook.exe "$$GLOVER_ROM" | tr -d '\r' \
+	    > build/tests/mouselook-windows.out
+	cmp build/tests/mouselook.out build/tests/mouselook-windows.out
 	build/tests/limits "$$GLOVER_ROM" > build/tests/limits.out
 	tail -1 build/tests/limits.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/limits.exe "$$GLOVER_ROM" | tr -d '\r' \
@@ -559,6 +569,16 @@ build/tests/loopback: tests/net/loopback.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/loopback.c $(ROLLBACK_SRC)
 
+# The mouse and the direction keys as a controller, without the game (tests/net/mouselook_test.c).
+MOUSELOOK_SRC := weemitt/src/port/mouselook.c
+build/tests/mouselook_test: tests/net/mouselook_test.c $(MOUSELOOK_SRC) weemitt/src/port/mouselook.h
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/mouselook_test.c $(MOUSELOOK_SRC)
+
+build/tests/mouselook_test.exe: tests/net/mouselook_test.c $(MOUSELOOK_SRC) weemitt/src/port/mouselook.h
+	@mkdir -p build/tests
+	$(MINGW64) $(CFLAGS_TEST) -static -o $@ tests/net/mouselook_test.c $(MOUSELOOK_SRC)
+
 # The sound reader against the sound table, without the game (tests/net/sound_test.c).
 build/tests/sound_test: tests/net/sound_test.c src/client/sound.c src/client/sound.h weemitt/src/port/soundtable.c \
                         weemitt/src/port/soundtable.h
@@ -729,7 +749,7 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 # host to a joiner, the level file check, the bank check and the scripts' sandbox.
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
         build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test \
-        build/tests/packsend_test
+        build/tests/packsend_test build/tests/mouselook_test
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux tests/fixtures/cube.models.bin > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
@@ -756,13 +776,20 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	build/tests/packsend_test tests/fixtures/cube.models.bin > build/tests/packsend_test.out \
 	    || { cat build/tests/packsend_test.out; exit 1; }
 	tail -1 build/tests/packsend_test.out
+	build/tests/mouselook_test > build/tests/mouselook_test.out || { cat build/tests/mouselook_test.out; exit 1; }
+	tail -1 build/tests/mouselook_test.out
 
 # The same tests, except the sound reader's, as a Windows program under Wine. Its offline hash must equal the Linux
 # program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
               build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
-              build/tests/levcheck_test.exe build/tests/bankcheck_test.exe build/tests/packsend_test.exe test-c
+              build/tests/levcheck_test.exe build/tests/bankcheck_test.exe build/tests/packsend_test.exe \
+              build/tests/mouselook_test.exe test-c
 	@mkdir -p build/tests/pack-windows
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/mouselook_test.exe | tr -d '\r' \
+	    > build/tests/mouselook_test-windows.out
+	tail -1 build/tests/mouselook_test-windows.out
+	cmp build/tests/mouselook_test.out build/tests/mouselook_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/packsend_test.exe tests/fixtures/cube.models.bin \
 	    | tr -d '\r' > build/tests/packsend_test-windows.out
 	tail -1 build/tests/packsend_test-windows.out

@@ -69,7 +69,7 @@ else
 AUDIO_SRCS := $(sort $(wildcard src/audio/*.c src/audio/mus/*.c src/audio/synth/*.c))
 AUDIO_DEFINES := -DPORT_AUDIO_MUS
 endif
-PLATFORM_SRCS := src/port/platform.c src/port/inputevent.c src/port/settings.c src/port/log.c src/port/record.c src/port/hostscene.c \
+PLATFORM_SRCS := src/port/platform.c src/port/inputevent.c src/port/settings.c src/port/mouselook.c src/port/log.c src/port/record.c src/port/hostscene.c \
                  src/port/rom.c src/port/statehash.c
 # The menu is C++ (Dear ImGui, third_party/imgui). Builds without a renderer get a stand-in that does nothing.
 ifeq ($(RENDERER),null)
@@ -441,7 +441,7 @@ $(BUILD)/src/game/%.o: src/game/%.c src/port/port_pre.h src/port/port_fixups.h s
 	@mkdir -p $(dir $@)
 	$(CXX) $(GAME_CXXFLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD)/src/port/platform.o: src/port/platform.c src/port/record.h src/port/frame.h src/gfx/gfx.h src/gfx/gfx_host.h src/port/menu.h src/port/settings.h src/port/inputevent.h src/port/log.h src/port/rom.h src/port/statehash.h src/port/hostworld.h src/port/hostscene.h $(AUDIO_MODE)
+$(BUILD)/src/port/platform.o: src/port/platform.c src/port/record.h src/port/frame.h src/gfx/gfx.h src/gfx/gfx_host.h src/port/menu.h src/port/settings.h src/port/mouselook.h src/port/inputevent.h src/port/log.h src/port/rom.h src/port/statehash.h src/port/hostworld.h src/port/hostscene.h $(AUDIO_MODE)
 	@mkdir -p $(dir $@)
 	$(CC) $(HOST_CFLAGS) -c $< -o $@
 
@@ -449,7 +449,11 @@ $(BUILD)/src/port/hostscene.o: src/port/hostscene.c src/port/hostscene.h
 	@mkdir -p $(dir $@)
 	$(CC) $(HOST_CFLAGS) -c $< -o $@
 
-$(BUILD)/src/port/settings.o: src/port/settings.c src/port/settings.h
+$(BUILD)/src/port/settings.o: src/port/settings.c src/port/settings.h src/port/mouselook.h
+	@mkdir -p $(dir $@)
+	$(CC) $(HOST_CFLAGS) -c $< -o $@
+
+$(BUILD)/src/port/mouselook.o: src/port/mouselook.c src/port/mouselook.h
 	@mkdir -p $(dir $@)
 	$(CC) $(HOST_CFLAGS) -c $< -o $@
 

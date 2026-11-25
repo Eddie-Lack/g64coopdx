@@ -200,7 +200,7 @@ enum {
     R_HOST_PAGE, R_JOIN_PAGE, R_OPTIONS_PAGE, R_ALONE,
     R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_HOST,
     R_CODE, R_JOIN, R_ROOM,
-    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY,
+    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY,
     R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO,
 };
 
@@ -249,6 +249,8 @@ static void note(const char *text, unsigned rgb) {
 
 /* The open games that the join page shows at once, below the code and Join. */
 #define ROOMS_SHOWN (G64_TITLE_ROWS - 2)
+/* The options page has more rows than the game draws: it shows G64_TITLE_ROWS of them, from optTop on. */
+#define OPTION_ROWS 8
 
 /* The start screen's state. */
 typedef struct {
@@ -256,6 +258,7 @@ typedef struct {
     int connecting, hosting, copied;
     int wanted;
     int roomTop; /* the first open game that the join page shows */
+    int optTop;  /* the first row that the options page shows */
     char code[NETPLAY_ROOM_CODE + 1];
     char title[33];
     char error[320];
@@ -313,22 +316,32 @@ static void build_page(launcher *L) {
             break;
         }
         case PAGE_OPTIONS: {
-            char d[8];
+            char d[8], m[8];
             int own = choice == CUSTOM;
             int fixed = choice < CUSTOM && palettes[choice].model != NULL;
             int g = shade_of(custom[0]), b = shade_of(custom[1]);
+            int v = 0;
             snprintf(d, sizeof d, "%d", netplay_input_delay());
+            snprintf(m, sizeof m, "%d", port_mouse_sensitivity());
             G64TitlePage("OPTIONS");
-            add_row(R_NAME, "NAME", nameText, G64_TITLE_TEXT);
-            add_row(R_GLOVE_MODEL, "GLOVE", G64ModelLabel(G64_MODEL_GLOVE, model_of(G64_MODEL_GLOVE)),
-                    fixed ? G64_TITLE_OFF : G64_TITLE_ARROWS);
-            add_row(R_BALL_MODEL, "BALL", G64ModelLabel(G64_MODEL_BALL, model_of(G64_MODEL_BALL)), G64_TITLE_ARROWS);
-            add_row(R_COLORS, "COLORS", own ? "CUSTOM" : palettes[choice].name, G64_TITLE_ARROWS);
-            add_row(R_GLOVE, "GLOVE COLOR", own ? (g >= 0 ? shades[g].name : "SAVED") : "-",
-                    own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
-            add_row(R_BALL, "BALL COLOR", own ? (b >= 0 ? shades[b].name : "SAVED") : "-",
-                    own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
-            add_row(R_DELAY, "INPUT DELAY", d, G64_TITLE_ARROWS);
+            /* The rows before optTop aren't shown. */
+#define OPTION(...)                \
+    do {                           \
+        if (v++ >= L->optTop)      \
+            add_row(__VA_ARGS__);  \
+    } while (0)
+            OPTION(R_NAME, "NAME", nameText, G64_TITLE_TEXT);
+            OPTION(R_GLOVE_MODEL, "GLOVE", G64ModelLabel(G64_MODEL_GLOVE, model_of(G64_MODEL_GLOVE)),
+                   fixed ? G64_TITLE_OFF : G64_TITLE_ARROWS);
+            OPTION(R_BALL_MODEL, "BALL", G64ModelLabel(G64_MODEL_BALL, model_of(G64_MODEL_BALL)), G64_TITLE_ARROWS);
+            OPTION(R_COLORS, "COLORS", own ? "CUSTOM" : palettes[choice].name, G64_TITLE_ARROWS);
+            OPTION(R_GLOVE, "GLOVE COLOR", own ? (g >= 0 ? shades[g].name : "SAVED") : "-",
+                   own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
+            OPTION(R_BALL, "BALL COLOR", own ? (b >= 0 ? shades[b].name : "SAVED") : "-",
+                   own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
+            OPTION(R_DELAY, "INPUT DELAY", d, G64_TITLE_ARROWS);
+            OPTION(R_SENSITIVITY, "SENSITIVITY", m, G64_TITLE_ARROWS);
+#undef OPTION
             break;
         }
         case PAGE_WAIT:
@@ -588,6 +601,33 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 move = 0;
             }
         }
+        /* On the options page, moving past its first or last shown row shows the one before or after. Past the very
+           first or last row, the choice goes round to the other end. */
+        if (move != 0 && L.page == PAGE_OPTIONS && rowCount > 0) {
+            int i, more = 0;
+            for (i = L.selected + move; i >= 0 && i < rowCount; i += move)
+                if (!(rows[i].flags & G64_TITLE_OFF)) {
+                    more = 1;
+                    break;
+                }
+            if (!more) {
+                if (move > 0 && L.optTop < OPTION_ROWS - G64_TITLE_ROWS) {
+                    L.optTop++;
+                    L.selected = rowCount - 1;
+                } else if (move < 0 && L.optTop > 0) {
+                    L.optTop--;
+                    L.selected = 0;
+                } else if (move > 0) {
+                    L.optTop = 0;
+                    L.selected = 0;
+                } else {
+                    L.optTop = OPTION_ROWS - G64_TITLE_ROWS;
+                    L.selected = rowCount - 1;
+                }
+                move = 0;
+                build_page(&L);
+            }
+        }
         /* Up and down skip rows that are grayed out. */
         if (move != 0 && rowCount > 0) {
             int i, s = L.selected;
@@ -671,6 +711,9 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     netplay_set_input_delay(d < 0 ? 0 : d > 8 ? 8 : d);
                     break;
                 }
+                case R_SENSITIVITY:
+                    port_set_mouse_sensitivity(port_mouse_sensitivity() + change);
+                    break;
                 default:
                     break;
             }
@@ -684,6 +727,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 case R_OPTIONS_PAGE:
                     L.page = what == R_HOST_PAGE ? PAGE_HOST : what == R_JOIN_PAGE ? PAGE_JOIN : PAGE_OPTIONS;
                     L.selected = 0;
+                    L.optTop = 0;
                     L.error[0] = 0;
                     break;
                 case R_ALONE:

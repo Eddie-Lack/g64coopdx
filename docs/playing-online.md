@@ -249,18 +249,48 @@ as the host.
 
 ## Controls
 
-A gamepad works as an N64 controller. On the keyboard:
+A gamepad works as an N64 controller. On the mouse and keyboard:
 
-| Key | N64 |
-| --- | --- |
-| Arrow keys or W A S D | Stick |
-| Space | A |
-| X | B |
-| Z or left Shift | Z |
-| Q, E | L, R |
-| I, K, J, L | C buttons |
-| Enter | Start |
-| Esc | The menu |
+| Mouse or key | N64 | What it does |
+| --- | --- | --- |
+| Mouse left and right | C-left and C-right | Turns the camera |
+| Left click | A, or B with the ball | Jumps; with the ball, bounces it |
+| Right click | B, or A with the ball | Points; with the ball, lobs it or slaps it |
+| W A S D or arrow keys | Stick | Moves; a diagonal is as fast as a straight move |
+| Left Shift or Z | Z | |
+| Space or Q | L | |
+| R or E | R | |
+| C | A | For menus and tips |
+| X | B | For menus and tips |
+| I, K, J, L | C buttons | |
+| Enter | Start | |
+| Esc | | The menu |
+
+The window holds the mouse while you play: the pointer's hidden and only its motion counts. It lets go while the
+Esc menu or your pause menu is open, and when you switch to another window. When you play alone, it also lets go on
+the game's title screen and its menus.
+
+The mouse turns the camera with the C buttons, as a controller does. So the camera keeps the game's own rules: walls
+and floors stop it, and it turns no faster than a held C button turns it. Moving the mouse up or down does nothing.
+**SENSITIVITY** under **OPTIONS** sets how far the camera turns for the same motion, from 1 to 40 (10 at first).
+The program keeps it with your other settings.
+
+Each click gives the button the game expects for what your glove does when the click starts:
+
+- Without the ball, a left click is A: it jumps. A right click is B: hold it to point, or click near your ball to
+  grab it.
+- With the ball, a left click is B: a quick click bounces the ball, and a held click aims a throw that goes when
+  you let go.
+- With the ball, a right click is A. The game lobs the ball for a short A and winds up a slap for a long one. A
+  right click that you let go within 4 frames (a fifth of a second) gives a short A: a lob. One that you hold
+  longer gives A until you let go, and at least 4 frames of it: the glove winds up and slaps when you let go.
+- While you read a tip, a left click is A and a right click is B.
+
+Your mouse sends nothing of its own over the network. It only presses your controller's buttons. The others get them
+as your normal input.
+
+If you played before this version, your settings file keeps your old keys: Space stays A, and R does nothing. Esc,
+**Settings**, **Controls**, **Keyboard**, **Reset to defaults** gives you the new keys.
 
 Esc opens the menu at the top of the window, as in weemitt, the PC port of Glover that g64coopdx builds on.
 **Settings** has **Graphics**, **Audio** and **Controls**: in Controls you set your keys and your controller's

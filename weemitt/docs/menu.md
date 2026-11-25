@@ -64,7 +64,8 @@ window loop reads it: the frame-rate limit each frame, the key mapping in `read_
 - Settings, Controls has two tabs. Keyboard: every input that the keyboard drives (A, B, Z, Start, L, R, the C buttons,
   the D-pad and the four directions of the stick) has two keys. Click a key button, then press the new key. Escape
   cancels. A right-click clears the key. A key belongs to one input: binding it takes it from the input that had it.
-  Reset to defaults restores the original mapping (arrow keys and WASD for the stick, Space for A, and so on).
+  Reset to defaults restores the default mapping (arrow keys and WASD for the stick, C for A, Space for L, and so
+  on). In g64coopdx the mouse also gives A and B and turns the camera (docs/playing-online.md of g64coopdx).
 - Controller: the same inputs, two bindings each. Click a slot, then press a controller button or move a trigger or
   a stick past about 60% (axes bind per direction). Escape cancels, a right-click clears, and a binding belongs to one
   input. The defaults: A is A, B is B and X, Z is the left trigger, Start is Start, L is the left shoulder, R is the

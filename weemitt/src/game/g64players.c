@@ -3243,6 +3243,67 @@ s32 G64PlayerVelocity(s32 who, f32 *x, f32 *y, f32 *z) {
     return 1;
 }
 
+/* The mouse's clicks (weemitt's src/port/mouselook.c) give A or B by whether the player's glove holds the ball. This
+   reads the same modes as the game's own IsHandHoldingBall, for any player, and changes nothing. Alone, the player
+   is in the globals even when there are no slots. */
+s32 G64PlayerHoldsBall(s32 who) {
+    s32 i = slot_of(who);
+    Actor *h;
+    s32 mode;
+    if (i < 0 && who == 0 && g64Players <= 1)
+        i = 0;
+    if (i < 0 || !slot_used(i))
+        return 0;
+    h = slot_glove(i);
+    if (!h->state || slot_hand_control(i)->releaseTimer || slot_ball(i)->link != &hand)
+        return 0;
+    mode = h->state->mode;
+    return mode == HAND_JOINED || mode == HAND_PREWHACK || mode == HAND_THROWAIM || mode == HAND_THROW2CUP
+           || mode == HAND_BOUNCE || mode == HAND_BOUNCE2CUP || mode == HAND_AIRBOURNEWHACK || mode == HAND_SPIN
+           || mode == HAND_ROTOR;
+}
+
+s32 G64PlayerHandMode(s32 who) {
+    s32 i = slot_of(who);
+    if (i < 0 && who == 0 && g64Players <= 1)
+        i = 0;
+    if (i < 0 || !slot_used(i) || !slot_glove(i)->state)
+        return -1;
+    return slot_glove(i)->state->mode;
+}
+
+extern u8 pauseMode;
+
+/* 1 while a level is played (the levels before PRESENT, in the game's play mode 4) and the game's pause menu is
+   closed. The title screen runs FLYTHRU, and the front end's screens use other modes. */
+s32 G64MouseInPlay(void) {
+    return gameInfo.mode == 4 && gameInfo.level >= 0 && gameInfo.level < PRESENT && !pauseMode;
+}
+
+/* For tests: the first face the player's camera touches, as the plane's x, y, z and d (CollFace's Plane), and the
+   camera's position. Returns 0 when it touches none or the player isn't in this game. */
+s32 G64CameraContact(s32 who, f32 *plane, f32 *pos) {
+    s32 i = slot_of(who);
+    const Actor *c;
+    const Plane *p;
+    if (i < 0 && who == 0 && g64Players <= 1)
+        i = 0;
+    if (i < 0 || !slot_used(i))
+        return 0;
+    c = i ? &((G64Slot *)slots[i])->camera : &camera;
+    pos[0] = c->pos.x;
+    pos[1] = c->pos.y;
+    pos[2] = c->pos.z;
+    if (!c->obj || !c->obj->planes[0])
+        return 0;
+    p = (const Plane *)c->obj->planes[0];
+    plane[0] = p->x;
+    plane[1] = p->y;
+    plane[2] = p->z;
+    plane[3] = p->d;
+    return 1;
+}
+
 s32 G64PlayerInWater(s32 who) {
     s32 i = slot_of(who);
     if (i < 0 || !slot_used(i) || !slot_glove(i)->state)
