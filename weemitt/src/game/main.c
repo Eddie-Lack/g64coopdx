@@ -616,6 +616,8 @@ void SendLastFrame(void) {
     }
 }
 
+void G64SoloFillSave(void);
+
 /* On the N64, RunGame, ControllerProc and DrawGraphics are threads. Each waits for the scheduler's message, which
    comes once every desiredFrameRate video retraces, and then does one frame's work. The PC port runs the same work
    on one thread: port_frame (src/port/frame.c) calls ControllerStep, GameStep and GraphicsStep in that order. */
@@ -649,6 +651,8 @@ void RunGameInit(void) {
         currentName[1] = 'T';
         currentName[2] = 'A';
     }
+    /* g64coopdx: playing alone from the start screen, the second file is a complete game (g64solo.c). */
+    G64SoloFillSave();
     gameInfo.mode = 1;
 }
 

@@ -473,8 +473,20 @@ void DrawActor(Actor *ptr) {
            look). The renderer puts one texture word for another until the clearing word (gfx_dl.c). */
         u32 texFrom[4];
         u32 texTo[4];
-        s32 textures = G64ActorTextures(ptr, texFrom, texTo, 4);
+        s32 textures;
         s32 t;
+        /* g64coopdx: a player's glove or ball in the model they chose (g64models.c), with its own textures. */
+        f32 modelTime = animTime;
+        f32 modelSize = 1.0f;
+        Object *model = G64ActorModel(ptr, &modelTime, &modelSize);
+        if (model != NULL) {
+            actorScale.x *= modelSize;
+            actorScale.y *= modelSize;
+            actorScale.z *= modelSize;
+            textures = 0;
+        } else {
+            textures = G64ActorTextures(ptr, texFrom, texTo, 4);
+        }
         for (t = 0; t < textures; t++) {
             glistp->words.w0 = 0xC0000001;
             glistp->words.w1 = texFrom[t];
@@ -483,7 +495,9 @@ void DrawActor(Actor *ptr) {
             glistp->words.w1 = texTo[t];
             glistp++;
         }
-        if (ptr->inst->obj != NULL) {
+        if (model != NULL) {
+            TransformAndDrawObject(model, modelTime, 0, 0);
+        } else if (ptr->inst->obj != NULL) {
             TransformAndDrawObject(ptr->inst->obj, animTime, 0, 0);
         }
         if (textures) {

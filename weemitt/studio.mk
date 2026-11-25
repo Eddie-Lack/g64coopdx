@@ -65,7 +65,7 @@ $(BUILD)/g64/monocypher.o: $(G64_ROOT)/third_party/monocypher/monocypher.c
 	@mkdir -p $(dir $@)
 	$(CC) $(BF_CFLAGS) -c $< -o $@
 
-$(BUILD)/src/port/g64launcher.o: src/port/g64launcher.cpp src/port/g64launcher.h src/game/g64title.h $(G64_ROOT)/src/client/netplay.h
+$(BUILD)/src/port/g64launcher.o: src/port/g64launcher.cpp src/port/g64launcher.h src/game/g64title.h src/game/g64models.h $(G64_ROOT)/src/client/netplay.h
 	@mkdir -p $(dir $@)
 	$(CXX) $(HOST_CXXFLAGS) -c $< -o $@
 

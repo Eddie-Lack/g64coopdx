@@ -22,6 +22,8 @@
  *            players: a player may join a game that has started, and takes a free place or the place of a player
  *            who is gone.
  * A color is G64_COLOR_SET plus 0xRRGGBB when the player chose it, or 0 for the color of their player number.
+ * Bits 25 to 28 of a color hold the number of the model the player chose for the glove or the ball (weemitt's
+ * g64models.h), less than G64_MODELS. 0 is the game's own model. The model only changes what's drawn.
  *   ping     0x44 (either way; keeps the connection and a router's mapping open)
  *   game     0x45, then one rollback message
  *   chat     0x46, from (u8: the sender's player number; the host fills it in from the address), line number (u8),
@@ -62,6 +64,7 @@
 #define G64_FLAG_ANY_WORLD 0x04   /* players may go to different worlds; without it, one world at a time */
 #define G64_FLAGS_KNOWN 0x07
 #define G64_COLOR_SET 0x1000000u
+#define G64_MODELS 8
 #define G64_NAME_MAX 16
 #define G64_CHAT_MAX 80
 /* The bytes of a level pack's id (src/client/pack.h). */

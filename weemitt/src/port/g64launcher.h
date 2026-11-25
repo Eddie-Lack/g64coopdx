@@ -26,6 +26,10 @@ int g64_title_pad(void);
 #define G64_PAD_RIGHT 8
 #define G64_PAD_A 16
 #define G64_PAD_B 32
+/* After the start screen, when the player chose to play alone: the player's glove and ball models, the file select
+   at once, and the save's second file as a complete game (G64SoloStart). Call it after the state from before the
+   start screen is back (g64_title_end). */
+void g64_launcher_solo(void);
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);
 

@@ -58,7 +58,6 @@ static struct {
     u32 noteColor[NOTES];
     s32 noteCount;
     char big[16];
-    char hints[64];
     u32 glove;
     u32 ball;
 } page;
@@ -87,17 +86,24 @@ static s32 lastSelected = -1;
 static s32 lastCount = -1;
 static f32 gloveTurn;
 
-/* The glove shows one of these moves after another, a few seconds each, as a character's profile does in a
-   fighting game's menu. None of them needs the ball. */
-static const s32 showAnims[] = {
-    HANDANIM_IDLE1, HANDANIM_WAVE, HANDANIM_THUMBSUP, HANDANIM_CARTWHEEL, HANDANIM_OKAY, HANDANIM_POINTCYCLE,
-    HANDANIM_TIPTOE, HANDANIM_SPIN, HANDANIM_IDLE2WAVE, HANDANIM_RUN, HANDANIM_WHACK1, HANDANIM_DENIS,
+/* The glove stands, then shows one of these moves, then stands again, a few seconds each, as a character does on a
+   fighting game's character screen. Each move plays at its own speed. A move that loops plays for SHOW_TIME; a move
+   that doesn't plays once. The game's own queue starts the next move when the one before has ended (AnimateActor),
+   as the title's glove does. None of them needs the ball. */
+typedef struct {
+    s32 anim;
+    s32 loop;
+} ShowMove;
+static const ShowMove showMoves[] = {
+    {HANDANIM_WAVE, 0},  {HANDANIM_TIPTOE, 1},    {HANDANIM_THUMBSUP, 0}, {HANDANIM_CARTWHEEL, 0},
+    {HANDANIM_OKAY, 0},  {HANDANIM_DENIS, 1},     {HANDANIM_POINTCYCLE, 1}, {HANDANIM_RUN, 1},
 };
-#define SHOW_ANIMS ((s32)(sizeof showAnims / sizeof showAnims[0]))
-/* Original frames that each move lasts. */
+#define SHOW_MOVES ((s32)(sizeof showMoves / sizeof showMoves[0]))
+/* Original frames that the glove stands between two moves, and that a looping move lasts. */
 #define SHOW_TIME 90
-static s32 showAnim;
+static s32 showMove;
 static s32 showTime;
+static s32 showing; /* 1 while a move plays, 0 while the glove stands */
 
 /* The name at the left, where the title has its Glover logo: one letter above the other. */
 static const char logoName[] = "G64COOPDX";
@@ -110,28 +116,29 @@ static const char logoName[] = "G64COOPDX";
    glove and ball turn at the right of them. */
 #define BAR_X -31.0f
 #define MID 185
+/* The bars' width: the red tile is TILE_WIDTH points wide at a scale of 1. A row's text keeps TILE_MARGIN from the
+   tile's ends, and a row with a minus and a plus keeps ARROW_ROOM more on each side for them. */
+#define BAR_SCALE 1.1f
+#define TILE_WIDTH 126.0f
+#define TILE_MARGIN 8.0f
+#define ARROW_ROOM 14.0f
 static Actor *bar(s32 i) {
     return foregroundObjects[i < 4 ? i : i + 1];
 }
 
 /* Copies the program's text into the page. The game's fonts have capitals, digits and a few marks only. A
    character they lack is drawn as a space; the percent sign would be read as a format. The small font draws the
-   controller's buttons for the bytes from 0xA3 up: only the program's own button line may have them, not a name or
-   a title that another player typed. */
-static void copy_text_icons(char *out, s32 size, const char *text, s32 icons) {
+   controller's buttons for the bytes from 0xA3 up, which a name or a title that another player typed must not have. */
+static void copy_text(char *out, s32 size, const char *text) {
     s32 n = 0;
     for (; text != NULL && *text != 0 && n < size - 1; text++) {
         char c = *text;
         if (c >= 'a' && c <= 'z')
             c = c - 'a' + 'A';
-        if ((c >= 32 && c < 127 && c != '%') || (icons && (u8)c >= 0xA3))
+        if (c >= 32 && c < 127 && c != '%')
             out[n++] = c;
     }
     out[n] = 0;
-}
-
-static void copy_text(char *out, s32 size, const char *text) {
-    copy_text_icons(out, size, text, 0);
 }
 
 void G64TitleOn(int on) {
@@ -144,7 +151,6 @@ void G64TitlePage(const char *heading) {
     page.selected = 0;
     page.noteCount = 0;
     page.big[0] = 0;
-    page.hints[0] = 0;
 }
 
 void G64TitleRow(const char *label, const char *value, int flags) {
@@ -170,10 +176,6 @@ void G64TitleNote(const char *text, unsigned rgb) {
 
 void G64TitleBig(const char *text) {
     copy_text(page.big, sizeof page.big, text);
-}
-
-void G64TitleHints(const char *text) {
-    copy_text_icons(page.hints, sizeof page.hints, text, 1);
 }
 
 void G64TitleColors(unsigned glove, unsigned ball) {
@@ -208,6 +210,22 @@ u32 G64TitleTint(Actor *a) {
     return c ? c : 0x010101;
 }
 
+/* The player's chosen model for the glove or the ball on the start screen: their color word, which holds the
+   model's number (g64models.h), or 0 for another actor. *kind says which. */
+u32 G64TitleModelWord(Actor *a, s32 *kind) {
+    if (!page.on || a == NULL || !barsMade)
+        return 0;
+    if (a == foregroundObjects[PLAYER_GLOVE]) {
+        *kind = 0;
+        return page.glove;
+    }
+    if (a == foregroundObjects[PLAYER_BALL]) {
+        *kind = 1;
+        return page.ball;
+    }
+    return 0;
+}
+
 /* The layout of the rows: up to four as large as the title's, more as smaller bars. */
 static void row_layout(s32 count, f32 *top, f32 *step, f32 *size) {
     if (count <= 4) {
@@ -219,6 +237,14 @@ static void row_layout(s32 count, f32 *top, f32 *step, f32 *size) {
         *top = 46.0f + *step / 2.0f;
         *size = *step / 42.0f;
     }
+}
+
+/* The width that a text of the large font has on the screen at a scale. The font's space between letters is below
+   0, and the sprite scales it with the letters (sprite.c), so the width is the width at scale 1 times the scale.
+   GetStringPixelLength adds the space unscaled: it gives more than this at a scale below 1. */
+static f32 drawn_width(char *s, f32 scale) {
+    SetFont(0);
+    return GetStringPixelLength(s, 1.0f, 1.0f) * scale;
 }
 
 /* Draws one line of the page's text, which copy_text has already made safe. The game keeps 63 characters of a
@@ -266,7 +292,7 @@ s32 G64TitleMenu(void) {
         LoadObjectBank(1);
         initFGObject("goodglov.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);
         InitActorStructures(foregroundObjects[PLAYER_GLOVE], 4);
-        AnimateActor(foregroundObjects[PLAYER_GLOVE], showAnims[0], 1, 0, 1.0f);
+        AnimateActor(foregroundObjects[PLAYER_GLOVE], HANDANIM_STAND, 1, 0, 0.0f);
         initFGObject("gball.ndo", 5000.0f, 0.0f, 400.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 255);
         textGfx[0] = (Gfx *)JallocAlloc(TEXT_GFX * sizeof(Gfx), 0, "G64Text0");
         textGfx[1] = (Gfx *)JallocAlloc(TEXT_GFX * sizeof(Gfx), 0, "G64Text1");
@@ -309,7 +335,7 @@ s32 G64TitleMenu(void) {
             /* A larger y is higher in the picture. The bar's middle stands 11 points above the text's place. */
             b->pos.y = (121.0f - y) / 0.77f;
             b->pos.z = 400.0f;
-            b->scale.x = 0.85f;
+            b->scale.x = BAR_SCALE;
             /* A newly chosen bar swells and settles. The title's bars spin instead, but these bars turn around a
                point far from their middle. */
             b->scale.y = size * (sel ? 1.0f : 0.9f) * (1.0f + jog[i] * 0.04f);
@@ -331,36 +357,39 @@ s32 G64TitleMenu(void) {
             } else {
                 copy_text(line, sizeof line, page.rows[i].label);
             }
-            /* The chosen row of typed text shows a blinking mark at its end. */
-            if (sel && (page.rows[i].flags & G64_TITLE_TEXT) && (frameCount2 & 8)) {
+            /* The chosen row of typed text shows a blinking mark at its end. A space holds its place while it's
+               off: the row keeps its size. */
+            if (sel && (page.rows[i].flags & G64_TITLE_TEXT)) {
                 s32 n = strlen(line);
                 if (n < 62) {
-                    line[n] = '-';
+                    line[n] = (frameCount2 & 8) ? '-' : ' ';
                     line[n + 1] = 0;
                 }
             }
-            /* A long row gets smaller letters: the bar is about 150 points wide. */
-            SetFont(0);
+            /* The text fits inside the tile: a long row gets smaller letters. */
             {
-                s32 w = GetStringPixelLength(line, scale, scale);
-                if (w > 150)
-                    scale = scale * 150.0f / w;
-            }
-            text(MID, (s32)y, off ? 0xA0A0A0 : 0xFFFFFF, alpha, scale, 0, line, 1);
-            /* A value that left and right change has a minus and a plus at its ends (the large font has no
-               plus). */
-            if (sel && (page.rows[i].flags & G64_TITLE_ARROWS)) {
-                s32 half;
-                SetFont(0);
-                half = GetStringPixelLength(line, scale, scale) / 2;
-                text(MID - half - 10, (s32)y + 2, 0xFFFF60, 255, 0.8f, 1, "-", 1);
-                text(MID + half + 10, (s32)y + 2, 0xFFFF60, 255, 0.8f, 1, "+", 1);
-            }
-            if (sel) {
-                SetFont(0);
-                aimBallX = MID - GetStringPixelLength(line, scale, scale) / 2 -
-                           (page.rows[i].flags & G64_TITLE_ARROWS ? 34 : 22);
-                aimBallY = (s32)y - 10;
+                f32 room = TILE_WIDTH * BAR_SCALE - 2.0f * TILE_MARGIN;
+                f32 width;
+                if (sel && (page.rows[i].flags & G64_TITLE_ARROWS))
+                    room -= 2.0f * ARROW_ROOM;
+                if (drawn_width(line, scale) > room)
+                    scale = scale * room / drawn_width(line, scale);
+                width = drawn_width(line, scale);
+                /* The game centers a text by a width that is wrong for a scale below 1 (drawn_width), so the row is
+                   placed by its left end. The game moves a centered text up by 12 points at its scale. */
+                text(MID - (s32)(width / 2.0f), (s32)(y - scale * 12.0f), off ? 0xA0A0A0 : 0xFFFFFF, alpha, scale,
+                     0, line, 0);
+                /* A value that left and right change has a minus and a plus at its ends (the large font has no
+                   plus). */
+                if (sel && (page.rows[i].flags & G64_TITLE_ARROWS)) {
+                    s32 half = (s32)(width / 2.0f);
+                    text(MID - half - (s32)ARROW_ROOM / 2 - 2, (s32)y + 2, 0xFFFF60, 255, 0.8f, 1, "-", 1);
+                    text(MID + half + (s32)ARROW_ROOM / 2 + 2, (s32)y + 2, 0xFFFF60, 255, 0.8f, 1, "+", 1);
+                }
+                if (sel) {
+                    aimBallX = MID - (s32)(width / 2.0f) - (page.rows[i].flags & G64_TITLE_ARROWS ? 34 : 22);
+                    aimBallY = (s32)y - 10;
+                }
             }
         }
     }
@@ -385,19 +414,32 @@ s32 G64TitleMenu(void) {
             text(160, (s32)y + i * 9, page.noteColor[i], 255, 0.45f, 1, page.notes[i], 1);
         }
     }
-    if (page.hints[0]) {
-        text(160, 236, 0xFFFFFF, 255, 0.6f, 1, page.hints, 1);
-    }
     /* The player's glove and ball turn slowly at the right, in the player's colors: the glove's middle at y 80 and the
        ball's at y 130. */
     {
         Actor *g = foregroundObjects[PLAYER_GLOVE];
         Actor *b = foregroundObjects[PLAYER_BALL];
         gloveTurn += 0.02f * deltaTime;
-        if (deltaTick && ++showTime >= SHOW_TIME) {
+        /* The next move, or standing again, starts at the end of the current one's cycle (the queue). The time
+           counts from when the queue is empty: the move before has started. */
+        if (g->anim != NULL && g->anim->queue[0] != -1) {
             showTime = 0;
-            showAnim = (showAnim + 1) % SHOW_ANIMS;
-            AnimateActor(g, showAnims[showAnim], 1, 0, 1.0f);
+        } else if (deltaTick && ++showTime >= SHOW_TIME && g->anim != NULL) {
+            showTime = 0;
+            g->anim->loop = 0;
+            if (!showing) {
+                const ShowMove *m = &showMoves[showMove];
+                showMove = (showMove + 1) % SHOW_MOVES;
+                AnimateActor(g, m->anim, m->loop, 1, 0.0f);
+                if (!m->loop) {
+                    AnimateActor(g, HANDANIM_STAND, 1, 1, 0.0f);
+                } else {
+                    showing = 1;
+                }
+            } else {
+                AnimateActor(g, HANDANIM_STAND, 1, 1, 0.0f);
+                showing = 0;
+            }
         }
         g->pos.x = -165.0f;
         g->pos.y = 51.0f;

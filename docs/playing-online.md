@@ -24,12 +24,12 @@ camera. It's a test build: see "Limits" below.
 
 1. Put your ROM next to the program (`g64coopdx.exe` on Windows, `g64coopdx` on Linux) and name it `glover.z64`.
 2. Start the program: double-click `g64coopdx.exe` on Windows, or run `./g64coopdx` on Linux. The start screen opens.
-   It's the game's own title menu, with the online choices on its bars (its rows): **Host a game**, **Join a
-   game**, **Your options** and **Play alone**.
-3. To host: open **Host a game**, set **Players** and press **Start hosting**. The screen shows a room code such as
-   `F3J7WZ`; press **Copy code** and send it to the other players. The game starts when everyone is in, or when you
-   press **Start now**.
-4. To join: open **Join a game**, type the code on the **Code** bar (Ctrl+V pastes it) and press **Join**.
+   It's the game's own title menu, with the online choices on its bars (its rows): **HOST GAME**, **JOIN GAME**,
+   **OPTIONS** and **SOLO**.
+3. To host: open **HOST GAME**, set **PLAYERS** and press **START**. The screen shows a room code such as
+   `F3J7WZ`; press **COPY CODE** and send it to the other players. The game starts when everyone is in, or when you
+   press **START NOW**.
+4. To join: open **JOIN GAME**, type the code on the **CODE** bar (Ctrl+V pastes it) and press **JOIN**.
 
 On the start screen:
 
@@ -50,13 +50,16 @@ place: they come into the game's first level, or the hub's newest stage if it st
 leaves frees their place for the next one. The host finds the room code again under Esc, **Online game**,
 **Players**.
 
-A host can set **In the list** to yes and type a **Title**. Every player with the same version
-([below](#everyone-needs-the-same-version)) then sees the game on **Join a game**, below the code, with the number of
+A host can set **LISTED** to **YES** and type a **TITLE**. Every player with the same version
+([below](#everyone-needs-the-same-version)) then sees the game on **JOIN GAME**, below the code, with the number of
 players in it. Pressing it joins. No code is needed. The game
 stays on the list while it has a free place, also after it has started. Without the list, only players with the code
 can join. `--public TITLE` does the same from a command prompt.
 
-**Play alone** starts the normal game.
+**SOLO** starts the normal game at its file select. There, the second file is **CHOSIS**, a complete game: every
+level done, every garib, every crystal in the cave. It's the only file with a name of more than 3 letters. The
+program keeps the save in memory when you play alone and never writes it to disk. CHOSIS doesn't replace your own
+second file.
 
 ## From a command prompt
 
@@ -79,22 +82,37 @@ The relay runs on the lobby server, the project's own server on the internet. Wi
 program on networks. Allow it.
 
 Each program applies your input 1 frame (50 ms) after you press it, and sends it at once: the others then get it
-before they need it, and the other gloves move without corrections. The start screen's **Input delay** (or
+before they need it, and the other gloves move without corrections. The start screen's **INPUT DELAY** (or
 `--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump to a
 corrected place; a lower one makes your own glove answer sooner. Each player chooses their own. It's under
-**Your options**.
+**OPTIONS**.
 
-Your glove's and ball's colors are under **Your options**, **Colors**: **Automatic** (the color of your player
-number), **Classic** (the game's own), **Cross-Stitch**, a few plain colors, or **Custom**. With Custom, **Glove** and
-**Ball** each step through a list of colors. A color tints the glove's and the ball's own, so white keeps them as they
-are. A glove and a ball at the right of the start screen show your choice. Every player sees everyone's choice. The
-start screen keeps yours for next time.
+Your glove's and ball's colors are under **OPTIONS**, **COLORS**: **AUTOMATIC** (the color of your player number),
+**CLASSIC** (the game's own), **CROSS-STITCH**, a few plain colors, or **CUSTOM**. CROSS-STITCH makes your glove
+Cross-Stitch, the evil glove, in his own colors. With CUSTOM, **GLOVE COLOR** and **BALL COLOR** each step through a
+list of colors. A color tints the glove's and the ball's own, so white keeps them as they are.
+
+**GLOVE** and **BALL** choose the models of your glove and your ball, each on its own:
+
+| Bar | Models |
+| --- | --- |
+| GLOVE | GLOVER (the game's own), CROSS-STITCH, WEEVIL, FISH, BUTTERFLY |
+| BALL | BALL (the game's own), WEEVIL, FISH, BUTTERFLY |
+
+They come from the game's GENERIC bank, which every level has. Nothing more is loaded. A model only changes the
+picture: the game itself still has Glover and his ball. The glove's model takes your moves as well as it can: it
+walks when you walk, and stands when you stand. When the frog spell turns you into a frog, you're the game's frog.
+Your ball keeps the game's look while a cheat has made it an enemy.
+
+A glove and a ball at the right of the start screen show your choice. Every player sees everyone's choice: only the
+numbers of your models and colors go over the network, and each program draws the models from its own ROM. The start
+screen keeps your choice for next time.
 
 The host is player 1. With **Automatic** colors, player 1's glove keeps the game's colors; player 2's is blue,
 player 3's green and player 4's yellow. Player 5's is red, player 6's purple, player 7's orange and player 8's cyan.
 Players 9 and 10 are blue, and players 11 to 16 have the colors of players 3 to 8.
 
-Everyone plays with the easy ball controls. The host can set **Ball** to normal on **Host a game** (or add
+Everyone plays with the easy ball controls. The host can set **BALL** to **NORMAL** on **HOST GAME** (or add
 `--normal-ball`) for the game's own controls; every player then has them.
 
 The session is in one world at a time. When a player goes through a portal to a world, the hub's portals to the
@@ -145,7 +163,7 @@ the same folder.
 
 A player who joins without the pack can download it from the host:
 
-- On the start screen, the program shows the pack's name and size and asks: **Download and play** or **No, leave**.
+- On the start screen, the program shows the pack's name and size and asks: **DOWNLOAD AND PLAY** or **LEAVE**.
   Nothing is downloaded before you say yes. If you say no, you leave the game.
 - A pack with models also shows the size of its models. Models make a pack larger: they may be up to 4 MB.
 - How long a download takes depends on the time a message needs to go to the host and back. The program gets about
@@ -207,7 +225,7 @@ pick-ups and water, and the extra level slots. Glovebox says when a level needs 
 
 ## Names, the player list and chat
 
-Type your name under **Your options**, **Name** (or add `--name NAME`). It can have 16 letters, and the program keeps it for
+Type your name under **OPTIONS**, **NAME** (or add `--name NAME`). It can have 16 letters, and the program keeps it for
 next time.
 
 In a game, press Esc and open **Online game**:
@@ -224,8 +242,8 @@ such as someone in the same household, is refused too.
 
 ## Everyone needs the same version
 
-Every version of the program plays a slightly different game, and two machines must run the same one. The start
-screen shows your build: the commit the program was built from, as a short code such as `3f5352f67584`. A host
+Every version of the program plays a slightly different game, and two machines must run the same one. The log of an
+online game names your build: the commit the program was built from, as a short code such as `3f5352f67584`. A host
 refuses a player whose build is another: that player sees "the host has another version". Download the same release
 as the host.
 

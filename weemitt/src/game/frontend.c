@@ -693,7 +693,17 @@ void FreeFGObjects(void) {
     numForegroundObjects = 0;
 }
 
+s32 G64SoloSkipTitle(void);
+const char *G64SlotName(s32 slot);
+
 void DrawScreen(s32 *cond) {
+    /* g64coopdx: playing alone from the start screen, the title menu's set-up gives way to the file select, the
+       screen its START leads to (g64solo.c). */
+    if (currentScreen == 1 && currentAnim == 1 && G64SoloSkipTitle()) {
+        currentScreen = screenList[1].spots[1].next;
+        nextScreen = 13;
+        currentAnim = 0;
+    }
     fgSpin.maxSpot = screenList[currentScreen].numSpots;
     fgSpin.minSpot = 0;
     if (currentAnim >= 7) {
@@ -1088,7 +1098,8 @@ s32 SlotSelRun(s32 *act, Screen *me) {
             NEW_TEXT(i * 50 + 35 + x, yPsn + 30, 255, 255, 0, 255, 0.8f, 0.8f, 1,
                      menuStrings[5][gameInfo.language], 1);
         } else {
-            NEW_TEXT(i * 50 + 35 + x, yPsn + 30, 255, 255, 255, 255, 0.8f, 0.8f, 1, (char *)saveSlot[i].name, 1);
+            /* g64coopdx: the name of a file, which may be longer than the save keeps (g64solo.c). */
+            NEW_TEXT(i * 50 + 35 + x, yPsn + 30, 255, 255, 255, 255, 0.8f, 0.8f, 1, (char *)G64SlotName(i), 1);
         }
         SetFont(0);
     }

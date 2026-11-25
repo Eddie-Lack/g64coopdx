@@ -188,8 +188,13 @@ static uint32_t myGlove, myBall;
 extern unsigned g64PlayerColor[16][2];
 
 void netplay_set_colors(uint32_t glove, uint32_t ball) {
-    myGlove = glove & 0x1FFFFFFu;
-    myBall = ball & 0x1FFFFFFu;
+    myGlove = glove & 0x1FFFFFFFu;
+    myBall = ball & 0x1FFFFFFFu;
+    /* A model past the lists is the game's own. */
+    if (((myGlove >> 25) & 0xFu) >= G64_MODELS)
+        myGlove &= 0x1FFFFFFu;
+    if (((myBall >> 25) & 0xFu) >= G64_MODELS)
+        myBall &= 0x1FFFFFFu;
 }
 
 void netplay_apply_colors(void) {
