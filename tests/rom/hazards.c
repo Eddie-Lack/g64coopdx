@@ -74,7 +74,7 @@ static void run(int kind, int k, int who, unsigned present, Result *r) {
     G64HazardPlace(kind, k, &x, &y, &z);
     r->water = 0;
     for (g = 0; g < RUN; g++) {
-        /* Water gets three frames at its surface; a spike is fallen onto. */
+        /* Water gets three frames at its surface; the glove falls onto a spike. */
         if (g < (kind == WATER ? 3 : 1))
             G64PlacePlayer(who, x, y + (kind == SPIKE ? 12.0f : 0.0f), z);
         frame(READY + (unsigned)g, present);

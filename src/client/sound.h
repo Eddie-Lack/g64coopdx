@@ -39,7 +39,7 @@ void g64_sound_reset(g64_sound *s);
 void g64_sound_update(g64_sound *s, int me);
 /* For tests: every sound with a place is audible, wherever the camera is. */
 void g64_sound_test_all_audible(g64_sound *s, int on);
-/* For tests: sounds started and stopped so far, and stops of sounds that a wrong prediction started. */
+/* For tests: the one-shots started so far, and the one-shots stopped so far because a rollback took them back. */
 unsigned g64_sound_starts(const g64_sound *s);
 unsigned g64_sound_wrong(const g64_sound *s);
 /* For tests: the voices without a place and the continuous sounds that play now. */

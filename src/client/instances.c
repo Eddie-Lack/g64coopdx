@@ -512,7 +512,6 @@ static int valid_exit(const g64_ihost *h, const pending_exit *e) {
            e->r.world >= 0 && e->r.world < G64_NUM_WORLDS;
 }
 
-/* Moves the player of an exit. The exits' progress is already merged (g64_ihost_tick). */
 /* Puts player p, who is in no instance, into the instance of level and world, or into a new one, and sends them
    the move. type and from are for the log (on_move): the exit they took and the level they left, or -1 for a player
    who joins the session. Returns 0, or -1 when there is no room. */
@@ -540,6 +539,7 @@ static int enter(g64_ihost *h, int p, int level, int world, int type, int from) 
     return 0;
 }
 
+/* Moves the player of an exit. The exits' progress is already merged (g64_ihost_tick). */
 static void take_exit(g64_ihost *h, const pending_exit *e) {
     int p = e->r.player, s = e->slot, from, level = e->r.level;
     if (!valid_exit(h, e))
@@ -727,8 +727,8 @@ void g64_ihost_tick(g64_ihost *h) {
             }
         if (p < h->players)
             continue;
-        /* A script's value that the instance does not have yet: one on a frame, the keys in turn, so a key that
-           changes often does not hold the others back. The event carries the value as it is now. */
+        /* A script's value that the instance does not have yet: one on a frame, the keys in turn. A key that changes
+           often does not hold the others back. The event carries the value as it is now. */
         for (p = 0; p < G64_SCRIPT_KEYS; p++) {
             int k = (in->next_key + p) % G64_SCRIPT_KEYS;
             if (in->values[k] == h->values[k])

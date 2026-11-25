@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Runs a weemitt headless build (or the library's test host) twice with the same input and compares the trace and
-the memory hash at every frame. With --other EXE, also compares a second build with the first.
+"""Runs a weemitt headless build (or the library's test host) twice with the same input and compares the trace at
+every frame and the memory hash every HASH_EVERY frames (an environment variable, 5 by default). With --other EXE,
+also compares a second build with the first.
 
 Set WEEMITT to a weemitt checkout (default ../weemitt): the input generator is tools/regress.py's.
-Usage: determinism.py --rom ROM --exe EXE [--other EXE2 [--other-prefix 'wine']] [--frames N] LEVEL... (or attract)
+Usage: determinism.py --rom ROM --exe EXE [--other EXE2 [--other-prefix 'wine'] [--other-env NAME=VALUE,...]
+       [--no-hash-compare]] [--frames N] LEVEL... (or attract)
+--other-env sets environment variables for the second build. With --no-hash-compare, the second build's hashes are
+not compared, only its trace.
 Input is the same generator that weemitt's tools/regress.py uses, so it covers walking, jumps, the ball buttons,
 the camera and the pause menu.
 """

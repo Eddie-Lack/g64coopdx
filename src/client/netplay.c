@@ -319,14 +319,14 @@ void netplay_set_public(int on, const char *title) {
 int netplay_public(void) { return publicRoom; }
 const char *netplay_public_title(void) { return publicTitle; }
 
-/* The host tells the relay about its room: every two seconds while it waits, and once more when the game starts,
-   which takes the room off the list. */
+/* The host tells the relay about its room. While the room has free places, before and after the game starts, the
+   host announces it every two seconds. */
 static int announcedOpen;
 static void announce_room(int open) {
     uint32_t t = now_ms();
     if (!publicRoom || !sock || !session || !chost || !crelay[0])
         return;
-    /* An open room is announced every two seconds. A room that is full or has started is taken off the list once. */
+    /* An open room is announced every two seconds. A full room is taken off the list once. */
     if (open ? announced && announcedOpen && t - announced < 2000 : announced && !announcedOpen)
         return;
     announced = t ? t : 1;
@@ -409,7 +409,7 @@ int netplay_player_gone(int p) {
 }
 
 /* The ban goes to the relay five times, half a second apart: one lost packet does not lose it. The relay holds the
-   banned player's place for ten seconds, so the repeats cannot reach a newcomer. */
+   banned player's place for ten seconds. The repeats cannot reach a newcomer. */
 static void send_ban(void) {
     uint32_t t = now_ms();
     if (!banSends || !sock || (banTime && t - banTime < 500))
@@ -447,7 +447,7 @@ void netplay_kick(int p) {
 }
 
 /* This program's build id: the commit it was built from (weemitt/studio.mk writes g64build.h), or "dev" for a build
- * without one. Every change to the game's code plays another game, so players of different builds cannot play
+ * without one. Every change to the game's code makes another game, so players of different builds cannot play
  * together: the host refuses a joiner whose build differs. The Windows and Linux programs of one commit have the same
  * id. */
 #ifdef G64_BUILD_HEADER
@@ -1345,8 +1345,8 @@ static void restore_view(void) {
 }
 
 /* Each player's own pause menu. It does not stop the game: while it is open the player's glove gets no input. A
- * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames,
- * so the host confirms it even if one input is lost; doing it twice does nothing more. */
+ * choice that acts in the game goes in the player's input (weemitt's G64_ACTION_BUTTON, g64players.h) for a few frames.
+ * The host confirms it even if one input is lost. Doing it twice does nothing more. */
 #define ACTION_BUTTON 0x0080
 /* A player who came into a running level runs a little behind the host's clock, and on a slow connection their
    first inputs after a pause may come too late for the host: the choice is held for 8 frames. */

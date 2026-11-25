@@ -1,19 +1,22 @@
 # sm64coopdx: what it is and how it works
 
 sm64coopdx is an online multiplayer version of the Super Mario 64 PC port. This file says what it does and how, and
-what carries over to a Glover co-op game. It answers question 1 of the discovery.
+what carries over to a Glover co-op game. It answers question 1 of the discovery. The discovery is the study that
+[README.md](README.md) reports, and its section "The documents" lists the questions. Its
+[Terms](README.md#terms) define the words used here, such as rollback, instance, start record, input log, NAT
+traversal and ICE.
 
 ## How this was studied
 
 - Source: a shallow clone of github.com/coop-deluxe/sm64coopdx at commit `8cd6e5977d9f920d51ca71f2c61801d019ed79c6`
-  (31 May 2026), read only. Nothing from it was built or run. Raw files on raw.githubusercontent.com were read for
-  files outside the clone.
+  (31 May 2026), read only. Nothing from it was built or run. Files outside the clone, on other branches and in
+  other repositories (section 1), were read as raw files on raw.githubusercontent.com.
 - Paths are relative to that repository's root, with line numbers where they help.
 - **VERIFIED** means read in the source or its docs. **INFERRED** means concluded from what was read. **UNKNOWN**
   means not found.
 - No code is copied. Only identifiers (file, function and constant names) are quoted.
 - Limits: the clone has one commit, so its history and merges are not visible. GitHub's web pages and API were
-  blocked from this session, so its issues and most of its wiki were not read.
+  blocked during the study, so its issues and most of its wiki were not read.
 
 ## Summary
 
@@ -26,8 +29,8 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 | Tick | 30 Hz game logic (`src/pc/pc_main.c:91`, VERIFIED) |
 | Late join | A joiner downloads the host's mods, gets the host's save, then asks a player in the same area for that area's state |
 | Different levels | Allowed. Packets carry course, act, level and area; players in other areas are filtered out |
-| Desync | Logged and partly repaired by "forgetting" broken objects. No full resync |
-| Mods | Lua 5.3, about 2,000 functions generated from C headers, 69 hook types, sync tables, DynOS for models, levels and textures. The host's mods download to every joiner, with an MD5 cache and a 35 MB cap per mod |
+| Desync | Logged. An object that fails a check is "forgotten": it leaves the sync. Recovery is partial (section 3.8). No full resync |
+| Mods | Lua 5.3, about 2,000 functions generated from C headers, 69 hook types, sync tables (section 4.4), DynOS for models, levels and textures (section 4.7). The host's mods download to every joiner, with an MD5 cache and a 35 MB cap per mod |
 | Tests | CI builds five platforms. It runs no tests (VERIFIED) |
 
 ## What carries over to Glover
@@ -35,9 +38,9 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 | sm64coopdx feature | For Glover | Why |
 | --- | --- | --- |
 | Up to 16 players | Carries over, with work | The owner wants 8 or more. Glover's frame limits (256 object matrices, the display list buffer, 800 vertices) need raising for 16 gloves and 16 balls: see [state-inventory.md](state-inventory.md) |
-| Direct connection plus a lobby and signaling server | Carries over | The same split (a lobby that only introduces players, then peer to peer with a relay as fallback) fits. g64coopdx must not use CoopNet's code (AGPL, and another port's code); it can use libjuice or GameNetworkingSockets: see [netcode.md](netcode.md) |
+| Direct connection plus a lobby and signaling server | Carries over | The same split fits: a lobby that only introduces players, then peer to peer with a relay as fallback. g64coopdx must not use CoopNet's code (AGPL, and another port's code). It can use libjuice from the libjuice project itself (MPL-2.0, section 1.2) or Valve's GameNetworkingSockets: see [netcode.md](netcode.md). The copy of libjuice to avoid is sm64coopdx's prebuilt one (section 1.3) |
 | A network layer behind a table of functions (`struct NetworkSystem`) | Carries over as a design idea | It lets the direct mode and the lobby mode share all game code |
-| State replication with nearest-player ownership | Does not fit as well | Glover's logic is bit-exact and its savestates cost about 0.02 ms, which makes rollback cheap. Rollback needs no per-object sync code. sm64coopdx needs thousands of lines of it: see [netcode.md](netcode.md) |
+| State replication with nearest-player ownership | Does not fit as well | Glover's logic is bit-exact (the same inputs give the same state, bit for bit, on every machine) and its savestates cost about 0.02 ms, which makes rollback cheap. Rollback needs no per-object sync code. sm64coopdx needs thousands of lines of it: see [netcode.md](netcode.md) |
 | Players in different levels | Carries over, within one world | The owner chose it. Each occupied level is its own rollback simulation (an instance), and packets belong to an instance, as sm64coopdx's carry a level and area: see [netcode.md](netcode.md#instances) |
 | Late join from a peer in the same area | Changes | With rollback a joiner replays the instance's inputs from its start; the host keeps every instance's start record and input log |
 | Exact version string match, shown in the lobby list | Carries over | A rollback game needs the same build on every machine even more |
@@ -57,12 +60,13 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 - The lobby and signaling split, and a network layer behind a function table: [netcode.md](netcode.md#transport-and-services).
 - The exact version handshake, the host's save as the session's save, and moderation with a confirm step:
   [netcode.md](netcode.md#the-handshake) and [README.md](README.md).
-- Stable object ids from the order of the level's load, plus id blocks per player for spawned objects: used in
-  [netcode.md](netcode.md) for the state-sync option, and not needed with rollback.
+- Stable object ids from the order of the level's load, plus id blocks per player for spawned objects. They are
+  used in [netcode.md](netcode.md) for option C, state sync. Rollback, the model that netcode.md recommends, does not
+  need them.
 - Mod delivery by manifest and hash, and its gaps (no prompt, unclear path checks, bytecode accepted):
   [mods.md](mods.md#how-mods-reach-other-players).
 - The player-index trap (indices differ per machine): [mods.md](mods.md#the-lua-api).
-- Its history as a fork of a fork that stopped following its upstream: [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt).
+- Its history as a fork of a fork that stopped following its upstream (section 5): [weemitt.md](weemitt.md#how-g64coopdx-relates-to-weemitt).
 
 ## Details
 
@@ -78,7 +82,7 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
   - `tools/sm64tools.LICENSE`
 - VERIFIED: raw.githubusercontent.com returns 404 for `LICENSE`, `LICENSE.md` and `COPYING` on branches `main`, `master` and `dev` of coop-deluxe/sm64coopdx.
   The same files return 404 for djoslin0/sm64ex-coop (branch `coop`), sm64pc/sm64ex (branch `nightly`) and sm64-port/sm64-port (branch `master`).
-  This matches the known fact that the N64 decompilation line of projects has no license file. (The 404s for the other repos are VERIFIED; the link to "known fact" is INFERRED.)
+  The 404s for the other repos are VERIFIED. INFERRED: the N64 decompilation line of projects has no license file, and these 404s match that.
 - VERIFIED: README.md (lines 1-22) and credits.txt contain no license statement.
 - Conclusion: the license of sm64coopdx as a whole is UNKNOWN. No grant of rights is written down in the repo.
 
@@ -101,11 +105,11 @@ what carries over to a Glover co-op game. It answers question 1 of the discovery
 #### 1.3 What this means for a project that studies but does not copy
 
 - INFERRED: no license means default copyright applies. Nobody has a written right to copy or adapt the code. The code is also a derivative of decompiled Nintendo code, so even the authors may have no clean grant to give.
-- INFERRED: studying the design, reading the docs, and writing an own implementation is safe from a copyright view. Ideas, protocols as concepts, and architecture are not copyrightable.
+- INFERRED: studying the design, reading the docs, and writing your own implementation is safe from a copyright view. Ideas, protocols as concepts, and architecture are not copyrightable.
   Copying code, structures with their exact layout and field order, or text of the docs is not safe.
 - INFERRED: the coopnet server is AGPL-3.0. A project that reads its code and then writes a lobby server must keep the rules in its own words. Running a copy of it, changed or not, as a network service obliges the operator to offer its source to the users of that service (AGPL section 13). Reading its README or the header `lib/coopnet/include/libcoopnet.h` for the idea of a lobby API is low risk. Do not copy the header's declarations.
-- INFERRED: bundling their prebuilt `libcoopnet.a` / `libjuice.a` into g64coopdx would raise AGPL questions (the lib is built from AGPL source, the license of the client library itself is UNKNOWN). Avoid it. Write an own relay and lobby, or use a library with a clear license.
-- VERIFIED: weemitt's CLAUDE.md already forbids code from other ports, and g64coopdx applies the same rule. Study notes like these are fine; code is not.
+- INFERRED: bundling their prebuilt `libcoopnet.a` / `libjuice.a` into g64coopdx would raise AGPL questions (the lib is built from AGPL source, the license of the client library itself is UNKNOWN). Avoid it. Write your own relay and lobby, or use a library with a clear license.
+- VERIFIED: weemitt's rules file, CLAUDE.md, already forbids code from other ports, and g64coopdx applies the same rule. Study notes like these are fine; code is not.
 - Their own rule on external code: their repo has no CONTRIBUTING/license policy file that this study found (UNKNOWN).
 
 ---
@@ -137,7 +141,7 @@ What it is (VERIFIED facts first):
 - `src/pc/network/coopnet/coopnet.c` (320 lines) is the second `NetworkSystem`, named "CoopNet" (`coopnet.c:317`). It wraps the client library `libcoopnet`, shipped only as a binary (prebuilt in `lib/coopnet/`).
 - Build switch: `COOPNET ?= 1` in the Makefile (line 53); forced to 0 on some targets (Makefile around line 313). `#ifdef COOPNET` guards the system in `network.c:104`.
 - Default server: `DEFAULT_COOPNET_IP "net.coop64.us"` and `DEFAULT_COOPNET_PORT 34197` (`src/pc/configfile.h:17-18`). Both are config values (`coopnet_ip`, `coopnet_port`, `coopnet_password`, `coopnet_dest` in `configfile.c:388-392`), so a user can point the game at another server.
-- Hosted by the project: INFERRED yes. The default host name is a project-controlled domain (not proven who owns it; ownership is UNKNOWN). The server source is public at github.com/coop-deluxe/coopnet (AGPL-3.0, section 1.2), described as "Signaling server / lobby manager for P2P connections".
+- Hosted by the project: INFERRED yes, from the default host name. Who owns that domain is UNKNOWN. The server source is public at github.com/coop-deluxe/coopnet (AGPL-3.0, section 1.2), described as "Signaling server / lobby manager for P2P connections".
 - The server can redirect clients: callback `OnLoadBalance(host, port)` rewrites the saved coopnet host and port (`coopnet.c` coopnet_on_load_balance). VERIFIED. So the project can move load between servers.
 
 How the library is used (VERIFIED from `lib/coopnet/include/libcoopnet.h`, identifiers only):
@@ -151,11 +155,11 @@ How the library is used (VERIFIED from `lib/coopnet/include/libcoopnet.h`, ident
 How lobbies work (VERIFIED in `coopnet.c`):
 - A lobby entry carries: game name (`GAME_NAME` = "sm64coopdx", "sm64coopdx-dev" or "sm64coopdx-intl", `src/pc/network/version.h`), version string, host player name, a "mode" string (name of the main enabled mod, `mods_get_main_mod_name`), max connections, optional password, and a description of up to 1024 characters (`MAX_COOPNET_DESCRIPTION_LENGTH`). The description is the version plus the list of enabled mod names (`coopnet_populate_description`).
 - Host: connect to coopnet, then `coopnet_lobby_create` on first update (`ns_coopnet_update`). On a rehost it calls `coopnet_lobby_update` instead.
-- Joiner: connect, `coopnet_lobby_join(gCoopNetDesiredLobby, gCoopNetPassword)`. After `OnLobbyJoined` a client immediately sends a mod list request (`network_send_mod_list_request`, `coopnet.c` coopnet_on_lobby_joined). So the game level handshake runs inside the lobby.
+- Joiner: connect, `coopnet_lobby_join(gCoopNetDesiredLobby, gCoopNetPassword)`. After `OnLobbyJoined` a client immediately sends a mod list request (`network_send_mod_list_request`, `coopnet.c` coopnet_on_lobby_joined). So the game's own handshake runs inside the lobby.
 - Invites: lobby id string is "coopnet:<lobbyId>", secret "coopnet:<lobbyId>:<password>" (`ns_coopnet_get_lobby_id`, `..._get_lobby_secret`). Used for Discord invites (2.9). A password-protected lobby only gives an invite secret to the owner (`coopnet_allow_invite`).
 - Peer identity: each remote player has a 64-bit userId plus a "destId" that stays the same across sessions (`coopnet_id.c`: `coopnet_save_dest_id`, `coopnet_get_dest_id`; config `coopnet_dest`). The ban and moderator lists use the destId string (`ns_coopnet_get_id_str`). So bans persist across rejoin.
 
-NAT traversal (the question asked):
+NAT traversal:
 - VERIFIED: the repo ships `libjuice` next to `libcoopnet` in `lib/coopnet/{linux,win32,win64,mac_arm,mac_intel}`. The callbacks include OnPeerConnected, OnPeerDisconnected and the error MERR_PEER_FAILED ("peer failed").
 - INFERRED: libjuice is an ICE/STUN peer-to-peer connection library. With the one-line coopnet README ("Signaling server / lobby manager for P2P connections") this means: the coopnet server only matches players and passes connection setup messages (signaling). The game packets then go peer to peer through ICE hole punching. Evidence for P2P data path: the CoopNet system has `requireServerBroadcast = false` (`coopnet.c:316`), and `coopnet_send_to(peerId, ...)` addresses individual peers.
 - UNKNOWN: whether a TURN-style relay fallback exists when hole punching fails. The client shows "peer failed" for that player (`coopnet_on_error`, case MERR_PEER_FAILED). This study found no relay code in the repo.
@@ -193,7 +197,7 @@ NAT traversal (the question asked):
   Checked on every received packet by the host in `packets/packet.c` packet_receive: a banned sender is sent `EKT_BANNED` and the packet is dropped.
 - VERIFIED: `/permban` = permanent flag (`gBanPerm`); `/ban` = this session only (`ban_list_add(..., false)` in `packet_command_mod.c`).
 - VERIFIED: moderators: `src/pc/network/moderator_list.c/.h`, `gNetworkPlayers[i].moderator`, packet `PACKET_MODERATOR`. A moderator can kick and ban but only by asking the host: `network_send_chat_command` sends `PACKET_COMMAND` to the host, the host checks `moderator_list_contains` (`packet_command_mod.c:26`), accepts only CCC_KICK and CCC_BAN, then kicks. A moderator cannot make moderators (host only: the `/moderator` command exists in `chat_commands.c:203`; host-only gate is INFERRED).
-- VERIFIED: kick packet `PACKET_KICK` with reasons `EKT_CLOSE_CONNECTION, EKT_FULL_PARTY, EKT_KICKED, EKT_BANNED, EKT_REJOIN` (`packets/packet.h`). The client only honors a kick that comes from the server player (`packet_kick.c` network_receive_kick: "Kick came from non-server... refuse!"). `EKT_REJOIN` makes the client reconnect (rehost flow).
+- VERIFIED: kick packet `PACKET_KICK` with reasons `EKT_CLOSE_CONNECTION, EKT_FULL_PARTY, EKT_KICKED, EKT_BANNED, EKT_REJOIN` (`packets/packet.h`). The client only honors a kick that comes from the server player (`packet_kick.c` network_receive_kick: "Kick came from non-server... refuse!"). `EKT_REJOIN` makes the client reconnect (the rehost flow, 2.10).
 - VERIFIED: an automatic anti-cheat check: in release builds, a player packet whose action is `ACT_DEBUG_FREE_MOVE` gets the sender kicked (`packet_player.c` network_receive_player). In `DEVELOPMENT` builds it only shows a popup.
 - VERIFIED: server-side permissions are limited. Server settings (`ServerSettings`) are pushed to clients in the join packet: player interactions (none, solid, PvP), bouncy level bounds, knockback strength, stay-in-level after star, skip intro, bubble death, nametags, max players, pause anywhere, PvP type.
 - VERIFIED: rate limiting of sent packets: `MAX_PACKETS_PER_SECOND_PER_PLAYER ((u16)100)` in `network.c:59`; the sender drops packets above the cap per second (`network_send_to`). This limits only outgoing traffic, not incoming. Incoming flood protection: UNKNOWN (not found).
@@ -224,7 +228,9 @@ VERIFIED facts:
 - CoopNet mode sends to each peer directly (`requireServerBroadcast = false`), so the same logical packet reaches everyone without the host's forwarding.
 - Level state authority is NOT purely server-side. The host owns the save, the server settings, the mod list, and the moderation decisions. Everything in the game world is owned by whoever is closest (3.3).
 
-#### 3.2 What is synced (VERIFIED by packet list, `packets/packet.h` enum PacketType)
+#### 3.2 What is synced
+
+VERIFIED by packet list, `packets/packet.h` enum PacketType:
 
 | Group | Packet types | Notes |
 | --- | --- | --- |
@@ -232,7 +238,7 @@ VERIFIED facts:
 | Player state | PACKET_PLAYER, PACKET_PLAYER_SETTINGS, PACKET_DEATH, PACKET_NETWORK_PLAYERS (+ _REQUEST) | Whole Mario state each send (struct PacketPlayerData, about 150 bytes plus the object's raw regular fields) |
 | Objects | PACKET_OBJECT, PACKET_SPAWN_OBJECTS, PACKET_SPAWN_STAR, PACKET_SPAWN_STAR_NLE, PACKET_COLLECT_STAR, PACKET_COLLECT_COIN, PACKET_COLLECT_ITEM | Per sync object; spawn and collect events are reliable |
 | World events | PACKET_CHANGE_WATER_LEVEL, PACKET_GLOBAL_POPUP, PACKET_SAVE_FILE, PACKET_SAVE_SET_FLAG, PACKET_SAVE_REMOVE_FLAG | Water level and save flags |
-| Level and area sync | PACKET_CHANGE_LEVEL, PACKET_CHANGE_AREA, PACKET_LEVEL_AREA_REQUEST, PACKET_LEVEL_REQUEST, PACKET_LEVEL, PACKET_AREA_REQUEST, PACKET_AREA, PACKET_SYNC_VALID, PACKET_LEVEL_SPAWN_INFO, PACKET_LEVEL_MACRO, PACKET_LEVEL_AREA_INFORM, PACKET_LEVEL_RESPAWN_INFO, PACKET_REQUEST_FAILED | See 3.7 |
+| Level and area sync | PACKET_CHANGE_LEVEL, PACKET_CHANGE_AREA, PACKET_LEVEL_AREA_REQUEST, PACKET_LEVEL_REQUEST, PACKET_LEVEL, PACKET_AREA_REQUEST, PACKET_AREA, PACKET_SYNC_VALID, PACKET_LEVEL_SPAWN_INFO, PACKET_LEVEL_MACRO, PACKET_LEVEL_AREA_INFORM, PACKET_LEVEL_RESPAWN_INFO, PACKET_REQUEST_FAILED | See 3.8 |
 | Session | PACKET_JOIN_REQUEST, PACKET_JOIN, PACKET_KICK, PACKET_LEAVING, PACKET_KEEP_ALIVE, PACKET_PING, PACKET_PONG, PACKET_CHAT, PACKET_COMMAND, PACKET_MODERATOR | |
 | Mods | PACKET_MOD_LIST_REQUEST, PACKET_MOD_LIST, PACKET_MOD_LIST_ENTRY, PACKET_MOD_LIST_FILE, PACKET_MOD_LIST_DONE, PACKET_DOWNLOAD_REQUEST, PACKET_DOWNLOAD | See 4.6 |
 | Lua | PACKET_LUA_SYNC_TABLE_REQUEST, PACKET_LUA_SYNC_TABLE, PACKET_LUA_CUSTOM, PACKET_LUA_CUSTOM_BYTESTRING | See 4.4 and 4.5 |
@@ -258,7 +264,7 @@ VERIFIED design:
   - a mod can override (`override_ownership`);
   - in the credits sequence everyone owns everything and no object packets are sent (act 99).
   Only the owner sends `PACKET_OBJECT` for it. Receivers write the received fields straight into their object.
-- Update rate (VERIFIED, `network_update_objects`): `updateRate = distance / 1000` seconds, clamped between `minUpdateRate` (default 0.33 s) and an optional `maxUpdateRate`. So far objects update at most about 3 per second and nearby ones as often as the update loop allows. A held object always uses 0.33 s.
+- Update rate (VERIFIED, `network_update_objects`): `updateRate = distance / 1000` seconds, the time between two sends. It is raised to the optional `maxUpdateRate` when that is above 0, and then to at least `minUpdateRate` (default 0.33 s). Both are lower bounds on the time. So with the default every object updates at most about 3 times a second, and distant ones less often. For a held object the code puts 0.33 s in place of `distance / 1000`, then applies the same two bounds.
 - Reliability per object: unreliable normally; reliable when the object is deactivated (death) or the sync distance is ONLY_EVENTS (`network_send_object`). The last reliable packet of each object is remembered (`lastReliablePacket`) so it can be resent to a late joiner.
 - Ordering: each sent object packet carries a 16-bit `txEventId`. The receiver keeps `rxEventId` per sender and drops older ids (wrap aware, half range compare) (`packet_read_object_header`).
 - Safety checks on receive (VERIFIED): unknown sync id, null object, behavior id mismatch (with a short whitelist of allowed behavior changes for penguins and coins), extra-field count mismatch, and "a player holding an object cannot be updated by others". A mismatch makes the receiver "forget" the sync object (`sync_object_forget`, freed after `FORGET_TIMEOUT 10` updates).
@@ -458,7 +464,7 @@ VERIFIED statements in the repo:
 - `README.md:3`: "...The project was started by the Coop Deluxe Team. The purpose is to actively maintain and improve, but also continue sm64ex-coop, created by djoslin0."
 - `credits.txt:83`: "sm64coopdx was built on top of sm64ex-coop, which was built on top of sm64ex, which was built on top of the sm64 decomp project."
 - `credits.txt` lists "sm64coopdx Developers" (Agent X, AngelicMiracles, FluffaMario, Isaac0-dev, theclashingfritz, PeachyPeach), "sm64ex-coop Developers" (including djoslin0, who also gets credit for the ROM asset extractor), and a long contributor list for each.
-- `CHANGES` (352 lines) is the upstream decompilation's "Refresh N" log. It stops at "Refresh 13" (the last item mentions "No more nonmatchings remain..." and "Shindou matching (#1081)"). It was never extended for the fork. This file is a frozen copy of the original project's change log.
+- `CHANGES` (352 lines) is the upstream decompilation's "Refresh N" log. It stops at "Refresh 13" (the last item mentions "No more nonmatchings remain..." and "Shindou matching (#1081)"). It was never extended for the fork.
 - `src/pc/network/version.h` has `VERSION_OFFSET 37 // difference from old versioning system`. So the version counter was reset or renumbered when the coopdx line began (the old line used plain integers).
 - The tree still holds the N64 build pieces: `tools/` (IDO 5.3 recompiler, n64graphics, audiofile, asm_processor), `lib/src/*.c` (libultra stand-ins: `guLookAtRef.c`, `guMtxF2L.c`, `leointerrupt.c`, and so on), `Makefile` options for `VERSION ?= us` with `jp`, `eu`, `sh` variants, `Dockerfile` that still says "see https://github.com/n64decomp/sm64/blob/master/README.md for advanced usage". The repo root holds ROM hash files `sm64.us.sha1`, `sm64.jp.sha1`, `sm64.eu.sha1` and `sm64.sh.sha1`, and 73 files under `src/` contain `ifdef VERSION_SH` or `VERSION_EU` guards (counted with grep).
 - ROM handling: the game extracts assets from the player's own ROM at build time (`extract_assets.py`, `assets.json`). weemitt reads the ROM at run time instead, and neither project commits a ROM.
@@ -469,14 +475,16 @@ INFERRED about upstream handling:
 - Work split: game logic files in `src/game`, `src/engine` kept close to decomp style; everything new is in `src/pc/` (network, lua, mods, djui, discord, gfx, fs). INFERRED purpose: keeps the diff against the decomp tree readable.
 - Docs: C docs `docs/c/c.md` only covers naming conventions (camelCase variables, snake_case functions, PascalCase structs, `g` prefix for globals, `s` prefix for statics) and three sections (smlua, configfile, djui). They are short. Lua docs are large and generated.
 
-#### Lessons for a project that builds on a port (INFERRED, from the above)
+#### Lessons for a project that builds on a port
+
+INFERRED, from the above:
 
 1. Decide early whether you will keep merging from the port. They did not (or could not): the multiplayer needs changes inside gameplay code (hooks in `mario.c`, `interaction.c`, objects), which makes merges conflict.
 2. Put new systems in their own directory (`src/pc/network`, `src/pc/lua`) and keep game-file edits small and marked. weemitt already follows this idea with `src/port/`, `gen/` and `bruteforce/`.
 3. Network code needs a stable object identity. They solved it with a fixed id block per player plus load-order ids from deterministic level loading. Glover would need the same: object ids from the level's object list order plus per-player id blocks for spawned objects.
 4. Keep a version string exact match at every stage and tie lobby listing to it. The cost is that every release splits the player base. They accept that cost.
 5. A network layer behind a function table (`struct NetworkSystem`) let them add CoopNet without changing game code. Do the same.
-6. Scripting API generated from headers (autogen) keeps docs and bindings in step. The doc-comment format `|description|` in headers is the hook.
+6. Scripting API generated from headers (autogen) keeps docs and bindings in step. The generator takes a function's doc from an optional `|description|` comment in the C header.
 7. Keep the exact old API stable: their `NetworkPlayer` struct keeps "legacy fields to allow mods not to fully break (they don't do anything anymore)" (`network_player.h`). A packet enum with unused slots (PACKET_UNUSED_23) is the same habit.
 
 ---
@@ -487,9 +495,9 @@ INFERRED about upstream handling:
 - Jobs: `build-linux` (ubuntu-22.04, installs build-essential, libglew, libsdl2, zlib, libcurl, zip, runs `make -j`), `build-steamos` (same with `HANDHELD=1`), `build-windows` (windows-latest with MSYS2 mingw64/i686, SDL2 and GLEW packages, `make`), `build-macos-arm` (macos-26, builds GLEW 2.2.0 and SDL2 2.30.9 from source with minimum macOS 11, ad-hoc code sign), `build-macos-intel` (macos-15-intel, same).
 - Each job: build, compute a hash of the binary with `tools/hash_file.cpp` and print it as a CI notice, zip, upload artifact. The zip contents: `dynos`, `lang`, `mods`, `palettes`, the Discord SDK lib, the game, and `coopdx_updater`.
 - VERIFIED: no test step, no unit tests, no headless network tests, no lint step in CI. A `find` for test files finds only example assets (`actors/test_platform`, `docs/lua/examples/audio-test`, `docs/lua/examples/custom-hud-texture/textures/test.*`). There are `.clang-format` and `.clang-tidy` and `format.sh`, `tools/clang-tidy.sh`, but they are not run in CI.
-- Headless mode exists (`--headless`) and a Docker recipe says `make -j HEADLESS=1` (`Dockerfile`), and `gfx_dummy.c` is a no-render backend. Use for dedicated servers; no automated test that this study found uses it.
+- Headless mode exists (`--headless`) and a Docker recipe says `make -j HEADLESS=1` (`Dockerfile`), and `gfx_dummy.c` is a no-render backend. Headless mode is for dedicated servers; no automated test that this study found uses it.
 - Dev aids: `DEVELOPMENT` build option (Makefile line 23) enables the debug-sync broadcast, extra logs and unsafe Lua libs (with `LUA_UNSAFE`), a fake "broken clock" test in `network_update_area_timer` (commented out), `network_send_debug_sync` every 5 s.
-- Lesson: they test by playing. weemitt's `tools/regress.py` plus a headless network test would already cover more than this project's CI does.
+- Lesson: they test by playing. weemitt's `tools/regress.py` plus a headless network test would already cover more than sm64coopdx's CI does.
 
 ---
 

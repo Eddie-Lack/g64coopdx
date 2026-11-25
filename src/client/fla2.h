@@ -3,8 +3,8 @@
  * A stream starts with "FLA2" and the size of its data, as a 32-bit little-endian word. Then come groups of a flag
  * byte and 8 items, high bit first. A clear bit is one literal byte. A set bit is two bytes b0 and b1: b0 of 0 ends
  * the stream; otherwise the item copies (b0 & 15) + 2 bytes from (b0 >> 4) * 256 + b1 bytes back in the window. The
- * window starts as zeros. This is the game's decompressor (weemitt/src/game/decompress.c), which ends a stream on
- * b0 alone.
+ * window starts as zeros. This is the format as the game's decompressor reads it (weemitt/src/game/decompress.c).
+ * The decompressor ends a stream on b0 alone.
  *
  * The game's decompressor has no bounds. This one reads and writes only inside its buffers, and refuses a stream
  * that ends early, runs past its source, or gives more or fewer bytes than its header says. Every byte of the

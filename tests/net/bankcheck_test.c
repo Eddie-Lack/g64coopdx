@@ -366,7 +366,8 @@ static void large(void) {
     printf("67500 faces: %u bytes\n", (unsigned)n);
     expect("45 meshes of 1500 faces", out, n, NULL, 0);
 
-    /* One list of 17000 commands and more: 1700 texture loads of 10 commands each. */
+    /* One list of 17000 commands and more: 1700 steps of 10 commands each, a texture load (9 commands) and one
+       triangle. */
     bb_begin(&b, 1);
     bb_texture(&b, 0x0A000001, 8, 8, 0);
     s.faces = 1;

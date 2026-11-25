@@ -26,7 +26,7 @@ int g64_seal_random(uint8_t *out, size_t n) {
     return BCryptGenRandom(NULL, out, (ULONG)n, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0 ? 0 : -1;
 #else
     {
-        /* The kernel's generator. A short read is read on; any failure gives no key. */
+        /* The kernel's generator. After a short read the loop reads the rest; any failure gives no key. */
         int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
         size_t got = 0;
         if (fd < 0)

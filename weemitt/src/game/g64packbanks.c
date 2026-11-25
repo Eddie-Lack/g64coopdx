@@ -12,11 +12,11 @@
    is copied into the table, and the five slots come back. FindTexture and FindObject (banks.c) search the table
    after the slots. With the header's first flag, FindTexture searches it before the slots too.
 
-   The slots are freed with the level's own banks (FreeLevel2 in game.c, and frontend.c), and the heap is set up
-   again after that. The table is dropped at the same places (G64DropPackBanks). The statics hold ROM offsets,
-   sizes, bank numbers, the table's address as the game stores it, and the value of portHeapInits when the table
-   was made. A lookup uses the table only while that value is current: JallocInit raises it, so a table on a heap
-   that was set up again is never read.
+   The slots are freed with the level's own banks (FreeScreen and FreeLevel2 in game.c, and frontend.c), and the
+   heap is set up again after that. The table is dropped at the same places (G64DropPackBanks). The statics hold ROM
+   offsets, sizes, bank numbers, the table's address as the game stores it, and the value of portHeapInits when the
+   table was made. A lookup uses the table only while that value is current: JallocInit raises it, so a table on a
+   heap that was set up again is never read.
 
    The ball's and the hand's names: RestoreDrawList (src/port/loaders.c) points the game's ball and hand texture
    words at a display list of an object named gball, cball, GShinL, GShinR or gbl_bt. The bank check refuses those
@@ -144,8 +144,8 @@ static G64BankTable *LiveTable(void) {
     return PORT_W2P(G64BankTable, tableWord);
 }
 
-/* The levels' slots are about to be freed, and the heap set up again after (FreeLevel2 in game.c, and frontend.c).
-   The game looks up textures between the two, in LoadFont. */
+/* The levels' slots are about to be freed, and the heap set up again after (FreeScreen and FreeLevel2 in game.c, and
+   frontend.c). The game looks up textures between the two, in LoadFont. */
 void G64DropPackBanks(void) {
     tableWord = 0;
 }
@@ -272,7 +272,7 @@ s32 G64SpriteTextureMissing(Object *obj) {
 /* Loads retail bank num into the table with the swap of Glovebox's mod (mod/banks.c): the five slots of its kind go
    aside and are emptied, the game's loader puts the bank in slot 0, and slot 0 is copied into the table. A texture
    bank's animated textures are dropped: cyclingTextures is put back as it was. During an object bank's load the
-   texture slots stay, so its objects find the level's textures and the table's. */
+   texture slots stay. Its objects find the level's textures and the table's. */
 static void LoadRetail(G64BankTable *t, s32 objects, u32 num) {
     TextureBank texSlots[5];
     ObjectBank objSlots[5];

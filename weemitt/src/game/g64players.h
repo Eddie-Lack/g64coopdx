@@ -165,8 +165,8 @@ void G64OtherEnd(s32 k);
 /* Sets the camera's height above its target for every player. */
 void G64SetLevelCamHeight(s32 height);
 /* The first space boss's carrier, the player who brought their ball to the robot's platform. G64CarrierSet(1) notes
-   the player in the globals, G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the globals: it returns a value for G64CarrierEnd, 0
-   when nothing was swapped, or -1 when the carrier has left the game. */
+   the player in the globals, G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the globals:
+   it returns a value for G64CarrierEnd, 0 when nothing was swapped, or -1 when the carrier has left the game. */
 void G64CarrierSet(s32 on);
 s32 G64CarrierBegin(void);
 void G64CarrierEnd(s32 k);
@@ -228,7 +228,7 @@ s32 IsCameraZoneAction(s16 type);
 
 /* Respawns (g64players.c, "Respawns"): 1 when each player respawns at their own checkpoint (online, or more than one
    player). The countdown, the camera's place and RestartPlayer's frame stamp k of the player in the globals for their
-   checkpoint gate; offline with one player, the gate's own fields and own. G64CheckRestartGate: the gate's touch test
+   checkpoint gate; offline with one player, the gate's own fields and `own`. G64CheckRestartGate: the gate's touch test
    for every player's ball. */
 s32 G64PerPlayerRestart(void);
 s16 *G64RestartTimer(struct Platform *gate);

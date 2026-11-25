@@ -1,9 +1,11 @@
 /* The online mode of the window program (weemitt's studio build at 64 bits): the session, the instances, the
  * rollback core and the game, put together. weemitt/src/port/platform.c calls these functions.
  *
- * One player hosts; the others join by room code or by address. The game starts when everyone is in. Player 0 is the
- * host, and each joiner controls the glove the host gave it. Each level that has players in it is its own game, an
- * instance (instances.h): a machine runs the one its player is in, and the host runs a copy of every one. */
+ * One player hosts; the others join by room code or by address. The game starts when everyone is in, or when the host
+ * starts it with the players who are in (netplay_start_now, netplay_set_start_alone). Others then join the running
+ * game while it has places. Player 0 is the host, and each joiner controls the glove the host gave it. Each level
+ * that has players in it is its own game, an instance (instances.h): a machine runs the one its player is in, and the
+ * host runs a copy of every one. */
 #ifndef G64_NETPLAY_H
 #define G64_NETPLAY_H
 
@@ -48,7 +50,8 @@ int netplay_is_host(void);
 const char *netplay_error(void);
 int netplay_level(void);
 int netplay_players(void);
-/* 1 after a successful netplay_connect. */
+/* 1 once the game has started: netplay_poll has returned 1, also inside netplay_connect. netplay_cancel sets it back
+ * to 0. */
 int netplay_active(void);
 /* The host's option: the game's normal ball controls (1) or the easy ones (0, the default). Call it before
  * netplay_start. Every machine plays with the host's choice: netplay_normal_ball gives it after the start. */
@@ -68,11 +71,11 @@ const char *netplay_pack_name(void);
  * netplay_set_pack_cache names the folder that keeps downloaded packs (in DIR/packs). netplay_set_pack_policy says
  * what a joiner does with the host's offer: ask the player (ask 1), take it (yes 1), or end the session with a
  * message (both 0, the default). Call both before netplay_start.
- * While netplay_pack_asking is 1 during netplay_poll, the offer waits: netplay_offer_name, netplay_offer_size (bytes,
- * all of the pack), netplay_offer_script (1 for a pack with a script) and netplay_offer_models (the bytes of its
- * models.bin, 0 for none) describe it, netplay_pack_kept is 1 when this machine has
- * kept that pack from an earlier download, and netplay_pack_answer gives the player's answer. A downloaded pack is
- * used only when it reads as a pack, passes the check, and has the id the host named. */
+ * While netplay_pack_asking is 1 during netplay_poll, the offer waits. These functions describe it: netplay_offer_name,
+ * netplay_offer_size (bytes, all of the pack), netplay_offer_script (1 for a pack with a script) and
+ * netplay_offer_models (the bytes of its models.bin, 0 for none). netplay_pack_kept is 1 when this machine has kept
+ * that pack from an earlier download. netplay_pack_answer gives the player's answer. A downloaded pack is used only
+ * when it reads as a pack, passes the check, and has the id the host named. */
 void netplay_set_pack_cache(const char *dir);
 void netplay_set_pack_policy(int ask, int yes);
 int netplay_pack_asking(void);
@@ -131,8 +134,8 @@ int netplay_tip_lines(void);
 const char *netplay_tip_line(int i);
 int netplay_tip_more(void);
 /* The host's choice, before netplay_start: put the room on the relay's list (1), with a title of up to 32
- * characters, for players of the same build to find; or keep it to the room code (0, the default). The room leaves
- * the list when the game starts. */
+ * characters, for players of the same build to find; or keep it to the room code (0, the default). The room stays
+ * on the list while it has a free place, also after the game starts. */
 void netplay_set_public(int on, const char *title);
 int netplay_public(void);
 const char *netplay_public_title(void);

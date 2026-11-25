@@ -5,8 +5,8 @@
 #include <string.h>
 
 /* weemitt's memory hash (weemitt/src/port/statehash.c): it counts pointers into the game's memory as offsets and
- * pointers to the program as one value, so the Linux and Windows programs give the same hash for the same state. The
- * engine's own hash also covers variables that hold program addresses, which differ between the two. */
+ * pointers to the program as one value. The Linux and Windows programs then give the same hash for the same state.
+ * The engine's own hash also covers variables that hold program addresses, which differ between the two. */
 unsigned int port_hash_ram(void);
 int G64LuaActive(void);
 unsigned int G64LuaHash(void);
@@ -14,8 +14,8 @@ unsigned int G64LuaHash(void);
 /* The hash that machines compare: the game's memory in the low half. With a script, the high half is the script's
    own number (weemitt's g64lua.c, G64LuaHash): its memory counts, its random numbers' state and the players it has
    seen. The scripts' block itself holds addresses and cannot be compared, but two machines whose scripts ran
-   differently soon differ in that number. The top bit is set, so a machine whose script was stopped differs from
-   one whose script runs. Without a script the hash is the game's memory alone. */
+   differently soon differ in that number. The top bit is set: a machine whose script was stopped differs from one
+   whose script runs. Without a script the hash is the game's memory alone. */
 static uint64_t game_hash(void) {
     uint64_t h = port_hash_ram();
     if (G64LuaActive()) {

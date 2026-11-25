@@ -9,7 +9,7 @@
  *   C. A player next to a droid in level 37. The droid's code read a stored 32-bit pointer as a native one, which
  *      broke the 64-bit builds with one player too.
  *   D. An enemy that shoots (level 25, enemy 0) aims at player 1 next to it: its bullets come as close to player 1 as
- *      to player 0 alone next to it, and stay far from that spot when nobody is there.
+ *      to player 0 alone next to it. With nobody next to it, they stay far from player 0, who is far away.
  *   E. Spank's two babies (level 23) pass one ball between them. Two players walk about for 6,000 frames; the babies
  *      take a ball, but never hold both players' balls at once.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares

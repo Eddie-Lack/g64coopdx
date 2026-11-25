@@ -97,7 +97,7 @@ static void to_net_addr(const struct sockaddr_storage *ss, net_addr *a) {
     }
 }
 
-/* The sockaddr for sending to a from socket s. Returns its length, or 0 when s cannot reach that family. */
+/* The sockaddr for sending to address a from socket s. Returns its length, or 0 when s cannot reach that family. */
 static int to_sockaddr(const net_socket *s, const net_addr *a, struct sockaddr_storage *ss) {
     memset(ss, 0, sizeof *ss);
     if (s->v6) {

@@ -193,8 +193,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             __builtin_trap();
         }
     }
-    /* The reader of a ROM's level files: the input stands for a ROM, with its first word and its two code pointers
-       put right so the walk over the files is reached. A file it finds lies inside the input. */
+    /* The reader of a ROM's level files: the input stands for a ROM, with its first word put right. When the input's
+       second byte is odd, its two code pointers are put right too, and the reader can then reach its walk over the
+       files. A file it finds lies inside the input. */
     if (size >= 4) {
         static uint8_t rom[0x60000];
         size_t at = 0, n = 0, len = size < sizeof rom - 0x54000 ? size : sizeof rom - 0x54000;

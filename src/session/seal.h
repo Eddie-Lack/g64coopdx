@@ -4,8 +4,8 @@
  *
  * What it gives: nobody on the path, the relay included, can read a sealed message, and nobody without the key
  * can forge one, change one or play one back. What it does not give: the players have no identities, so someone
- * who can change packets on the path during the hello (the relay can) could sit in the middle. docs/discovery/
- * netcode.md, "Encryption", has the whole account. */
+ * who can change packets on the path during the hello (the relay can) could sit in the middle.
+ * docs/discovery/netcode.md, "Encryption", has the whole account. */
 #ifndef G64_SEAL_H
 #define G64_SEAL_H
 

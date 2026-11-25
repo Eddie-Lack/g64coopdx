@@ -99,7 +99,7 @@ rollback-game: rollback-game-build
 # Two to four players in one game (tests/rom/twoplayers.c), players who join and leave it (tests/rom/members.c), the pause menu's choices
 # (tests/rom/pause.c), each player's crystal scene in the cave (tests/rom/cave.c) and
 # exits in the online game (tests/rom/exits.c), enemies, puzzles, respawns, world hazards, garibs, pick-ups, bosses and bonus levels with more than one player
-# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c) each player's ball texture (tests/rom/textures.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
+# (tests/rom/enemies.c, tests/rom/puzzles.c, tests/rom/respawn.c, tests/rom/hazards.c, tests/rom/collect.c, tests/rom/bosses.c, tests/rom/bonus.c), the look-around mode (tests/rom/lookaround.c), the frame's limits with 16 players (tests/rom/limits.c), tips (tests/rom/tips.c), a cameo that a player sets off (tests/rom/cameos.c), each player's ball texture (tests/rom/textures.c) and the host's "any ball" rule (tests/rom/anyball.c), on Linux and under Wine; the outputs must be equal (needs the ROM).
 TWOPLAYERS_SRC := tests/rom/twoplayers.c weemitt/src/port/statehash.c
 MEMBERS_SRC := tests/rom/members.c weemitt/src/port/statehash.c
 PAUSE_SRC := tests/rom/pause.c weemitt/src/port/statehash.c
@@ -401,10 +401,10 @@ packbanks: packbanks-build
 	tr -d '\r' < build/tests/packbanks-windows.raw > build/tests/packbanks-windows.out
 	cmp build/tests/packbanks.out build/tests/packbanks-windows.out
 
-# Many scenery objects in one level file (tests/rom/scenery.c): the note's case of object bank 29 in level 35, also
-# with 16 players; each of 9 levels with its objects in turn and with one object again and again up to the parser's
-# limit; and every level with an unknown object. The level plays or stops as unplayable, on Linux and under Wine. The
-# two outputs must be equal (needs the ROM in GLOVER_ROM).
+# Many scenery objects in one level file (tests/rom/scenery.c): the case from docs/discovery/model-banks.md (object
+# bank 29 in level 35), also with 16 players; each of 9 levels with its objects in turn and with one object again and
+# again up to the parser's limit; and every level with an unknown object. The level plays or stops as unplayable, on
+# Linux and under Wine. The two outputs must be equal (needs the ROM in GLOVER_ROM).
 SCENERY_SRC := tests/rom/scenery.c src/client/levcheck.c src/client/rombanks.c src/client/fla2.c \
     src/client/rombanks_game.c $(BANKRANGES_SRC) third_party/monocypher/monocypher.c weemitt/src/port/statehash.c
 scenery-build: savestates
@@ -453,8 +453,6 @@ models: models-build
 	    echo "variant Z (a measurement): Linux and Windows give the same output"; \
 	else echo "variant Z (a measurement): Linux and Windows differ"; fi
 
-# Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
-# "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
 SWAPS_SRC := tests/rom/swaps.c src/client/levcheck.c src/client/pack.c $(MODELS_SRC) third_party/monocypher/monocypher.c \
     weemitt/src/port/statehash.c
 swaps-build: savestates
@@ -467,6 +465,8 @@ swaps: swaps-build
 	build/tests/swaps "$$GLOVER_ROM" 1500 > build/tests/swaps.out || { grep FAIL build/tests/swaps.out; exit 1; }
 	tail -1 build/tests/swaps.out
 
+# Every level with 8 and with 16 players who press buttons and push sticks at random, and with 8 under the host's
+# "any ball" rule (tests/rom/bots.c), on Linux and under Wine; the outputs must be equal (needs the ROM in GLOVER_ROM).
 BOTS_SRC := tests/rom/bots.c weemitt/src/port/statehash.c
 # Level 14 from frame 0 with seeds that once crashed the game: two players' frog tongues shared one bullet. Each run
 # is PLAYERS,FRAMES and its words, split at the commas.
@@ -714,7 +714,9 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 	@mkdir -p build/tests
 	clang -std=c99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/rollback_fuzz.c $(ROLLBACK_SRC)
 
-# The loopback tests (2 to 16 clients over simulated networks) and the UDP tests (real sockets on this machine).
+# The loopback tests (2 to 16 clients over simulated networks), the UDP and session tests (real sockets on this
+# machine), and the tests of the sealed messages, the sound reader, the pack reader, the pack tool, a pack sent from a
+# host to a joiner, the level file check, the bank check and the scripts' sandbox.
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
         build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test \
         build/tests/packsend_test
@@ -745,7 +747,8 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	    || { cat build/tests/packsend_test.out; exit 1; }
 	tail -1 build/tests/packsend_test.out
 
-# The same tests as a Windows program under Wine. Its offline hash must equal the Linux program's.
+# The same tests, except the sound reader's, as a Windows program under Wine. Its offline hash must equal the Linux
+# program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
               build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
               build/tests/levcheck_test.exe build/tests/bankcheck_test.exe build/tests/packsend_test.exe test-c

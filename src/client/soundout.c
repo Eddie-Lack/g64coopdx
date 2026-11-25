@@ -165,7 +165,8 @@ int soundout_open(const unsigned char *rom, unsigned long romSize) {
         game = NULL;
         return -1;
     }
-    /* The library's game started like a new game: nothing of it plays. */
+    /* The library's game started as at power-on (startLevel -1). None of its own sound plays: this stops every
+       effect and song (flags 3). */
     memset(&stop, 0, sizeof stop);
     stop.op = GLOVER_SOUND_STOP_ALL;
     stop.a = 3;

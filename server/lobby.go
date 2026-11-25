@@ -63,7 +63,8 @@ type infoReply struct {
 	Name     string `json:"name"`
 	Version  string `json:"version"`
 	Protocol int    `json:"protocol"`
-	// Placeholder is true until the lobby can list sessions.
+	// Placeholder is true while the server is unfinished. It lists sessions, but /v1/ice gives STUN servers only
+	// (server/README.md).
 	Placeholder bool `json:"placeholder"`
 	// Relay describes the relay when it runs.
 	Relay *relayInfo `json:"relay,omitempty"`

@@ -1,6 +1,6 @@
 /* A libFuzzer target for the bounded FLA2 reader (src/client/fla2.h) and the index of the ROM's banks
  * (src/client/rombanks.h). Neither may read or write outside its buffers, whatever the input holds. Every buffer
- * is a block of exactly its size, so the sanitizer sees any access past it.
+ * is a block of exactly its size: the sanitizer sees any access past it.
  *
  *   - The reader decompresses the input into a block of the size its header gives, and into a block one byte
  *     smaller, which it must refuse.
@@ -16,7 +16,7 @@
 #include "../../src/client/fla2.h"
 #include "../../src/client/rombanks.h"
 
-/* The reader refuses a size past this here. A run then allocates at most 1 MiB. */
+/* Here the reader refuses a size larger than this. A run then allocates at most 1 MiB. */
 #define MAX_OUT (1u << 20)
 
 static size_t romSize;

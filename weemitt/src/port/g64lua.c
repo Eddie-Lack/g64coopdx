@@ -19,7 +19,7 @@
 unsigned char g64LuaArena[G64_LUA_ARENA] __attribute__((aligned(16)));
 
 /* The allocator: blocks with their size in front, a free list in the order of addresses, first fit. Its whole
-   state is here and in the block, so the same calls give the same places on every machine. */
+   state is here and in the block. The same calls give the same places on every machine. */
 typedef struct Block {
     size_t size;
     struct Block *next;
@@ -129,8 +129,8 @@ static void arena_free(void *q) {
 }
 
 /* Lua's allocator (lua_Alloc). A request the block cannot meet gives NULL, and Lua ends the script's call with a
-   memory error: at the same point on every machine. Each new byte also counts as work, so a function of Lua's
-   libraries that builds a large text cannot run past the limit. */
+   memory error: at the same point on every machine. Each new byte also counts as work. A function of Lua's
+   libraries that builds a large text then cannot run past the limit. */
 static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     void *n;
     (void)ud;
@@ -538,7 +538,7 @@ const char *G64LuaShown(int player) {
 }
 
 /* The next random number: 64 bits (splitmix64). The state starts from the script's text and the level
-   (G64LuaLoad), so every machine draws the same numbers. The game's own random numbers are not touched. */
+   (G64LuaLoad). Every machine draws the same numbers from it. The game's own random numbers are not touched. */
 static unsigned long long random_next(void) {
     unsigned long long z = (luaRandom += 0x9E3779B97F4A7C15ull);
     z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;

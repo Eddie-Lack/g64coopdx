@@ -1,10 +1,10 @@
 # The Lua trial
 
-Before any scripting code, a trial answered five questions about Lua in a game where every machine must reach the
-same state ([mods.md](mods.md#scripts-in-a-rollback-game)). It ran on 22 November 2026 with Lua 5.4.8, built for
-64-bit Linux (gcc) and for 64-bit Windows (MinGW-w64, static), the Windows program under Wine. Both builds used the
-game's float flag (`-ffp-contract=off`). The trial's program is not in the repository; this file holds what it
-found and what follows from it.
+Before g64coopdx had any scripting code, a trial answered five questions about Lua in a game where every machine
+must reach the same state ([mods.md](mods.md#scripts-in-a-rollback-game)). It ran on 22 November 2026 with Lua 5.4.8,
+built for 64-bit Linux (gcc) and for 64-bit Windows (MinGW-w64, static), the Windows program under Wine. Both builds
+used the game's float flag (`-ffp-contract=off`). The trial's program is not in the repository; this file holds what
+it found and what follows from it. [roadmap.md](roadmap.md), phase 5, says what g64coopdx built after it.
 
 ## The source
 
@@ -25,7 +25,7 @@ full collection. The program then printed the allocator's own counts and a hash 
 | --- | --- |
 | Are a script's results the same? | Yes: every line the script printed was equal, the `math` library's sine, cosine, exponent and logarithm included |
 | Is the order of `pairs` the same? | For text, number and boolean keys: yes, once the string hash's seed is a constant (`luai_makeseed`). For table and function keys: no, as built. Lua hashes such a key by its address |
-| Can that be fixed? | Yes. Lua's `point2uint` turns an address into a hash. With it defined as the address's offset in the block (and 0 for an address outside it), the order was equal on both systems. Lua 5.4.8 defines `point2uint` without a guard, so this needs one changed line in `llimits.h` |
+| Can that be fixed? | Yes. Lua's `point2uint` turns an address into a hash. With it defined as the address's offset in the block (and 0 for an address outside it), the order was equal on both systems. Lua 5.4.8 defines `point2uint` without a guard (an `#if !defined` test that lets the build give its own definition), so this needs one changed line in `llimits.h` |
 | Does the allocator behave the same? | Yes: the block's high mark, the bytes in use, the peak, and the numbers of allocations and frees were equal |
 | Are the block's bytes the same? | No. The block holds addresses: of its own objects, of Lua's C functions, and of Lua's static objects. Its hash differed between the systems, and between two runs on Linux |
 
@@ -35,20 +35,26 @@ full collection. The program then printed the allocator's own counts and a hash 
    block-offset `point2uint`, and the game's float flags.
 2. **The block is saved but not hashed.** A savestate must hold the block: a rollback restores the scripts with the
    game, in the same process, where the addresses are still right. The state hash that machines compare must leave
-   it out. The engine saves and hashes the game's data sections together today
-   (`weemitt/bruteforce/engine/engine.c`), so it needs a section that is saved and tracked but not hashed.
+   it out. At the time of the trial, the brute forcer's engine saved and hashed the game's data sections together
+   (`weemitt/bruteforce/engine/engine.c`). The trial proposed a section for the block that is saved and tracked but
+   not hashed. g64coopdx did not make one. The block is a global of the game's code (`g64LuaArena` in
+   weemitt/src/port/g64lua.c). It lies in the game's data sections, and the engine's savestate holds it. The hash
+   that machines compare is not the engine's (`game_hash` in src/rollback/engine_game.c). It covers the game's memory
+   (`port_ram`), which does not hold the block. With a script, it also covers a number made from the scripts' state.
 3. **A script's state is compared through numbers, not bytes.** The allocator's counts were equal on both systems.
    Kept as game variables, they are in the hash, and a script that went another way on one machine shows as a
-   mismatch soon after. A script also changes the game only through the API, so the game's own hash shows a
-   difference that matters.
-4. **C functions as table keys** hash to one value (their addresses are outside the block). They still work, and
+   mismatch soon after. A script also changes the game only through the scripts' API
+   ([mods.md](mods.md#the-lua-api)), so the game's own hash shows a difference that matters.
+4. **C functions as table keys** all hash to 0, because their addresses are outside the block. Such keys work, and
    their order is the order they were put in.
 5. **Number to text and text to number go through the C library** (`snprintf` with `%.14g`, `strtod`). They agreed
-   here. Wine's C library is not Windows's, so this is not proven for a real Windows machine. MinGW's own `printf`
-   and `strtod` (`__USE_MINGW_ANSI_STDIO`) are linked into the program and do not depend on the system: build with
-   them, and keep number to text out of a script's logic as [mods.md](mods.md) already says.
-6. **The `math` library's functions come from the C library too.** They agreed here for the values tried. The plan
-   stays to replace them with the game's own sine and cosine and with functions made of the four basic operations.
+   in the trial, on Linux and under Wine. Wine's C library is not Windows's, so this is not proven for a real Windows
+   machine. MinGW's own `printf` and `strtod` (`__USE_MINGW_ANSI_STDIO`) are linked into the Windows program and do
+   not depend on the system: build with them, and keep number to text out of a script's logic as [mods.md](mods.md)
+   already says.
+6. **The `math` library's functions come from the C library too.** They agreed in the trial for the values tried.
+   The plan in [mods.md](mods.md) is to replace them with the game's own sine and cosine and with functions made of
+   the four basic operations.
 
 ## Not tried
 

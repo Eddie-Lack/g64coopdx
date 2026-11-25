@@ -1,6 +1,6 @@
-/* The game's bank switch as a table, for programs that do not link the game (the pack tool and the tests), and for
- * the online program before the game has read its ROM (netplay.c). tools/gen_bankranges.py writes
- * bankranges_table.c from weemitt's src/game/banks.c and gen/romsyms.c.
+/* The game's bank switch as a table, for programs that do not link the game (the pack tool, the pack tests in
+ * tests/net and the pack fuzz target), and for the online program before the game has read its ROM (netplay.c).
+ * tools/gen_bankranges.py writes bankranges_table.c from weemitt's src/game/banks.c and gen/romsyms.c.
  *
  * The game knows a bank by its kind (G64_BANK_TEXTURE or G64_BANK_OBJECT, rombanks.h) and number. Each bank's range
  * in the ROM runs from one ROM symbol to another. A symbol's address is in the game's code, as a pair of

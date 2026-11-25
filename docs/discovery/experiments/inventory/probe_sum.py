@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarise probe/L*.txt (gdb output of probe.gdb): per level, the peak object matrices, vertices and display list bytes per frame."""
+"""Summarize probe/L*.txt (gdb output of probe.gdb): per level, the peak object matrices, vertices and display list bytes per frame."""
 import glob,re,collections,os
 rows=[]
 for f in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)),'probe/L*.txt')),key=lambda s:int(re.search(r'L(\d+)',s).group(1))):

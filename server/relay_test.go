@@ -217,7 +217,7 @@ func FuzzRelayHandle(f *testing.F) {
 	addrs := []netip.AddrPort{addr("1.1.1.1:1"), addr("2.2.2.2:2"), addr("3.3.3.3:3"), addr("1.1.1.1:4")}
 	f.Fuzz(func(t *testing.T, d []byte, who byte) {
 		from := addrs[int(who)%len(addrs)]
-		// A room code that exists, now and then, so joins succeed.
+		// Now and then, a room code that exists. A join with it can succeed.
 		if len(d) == relayHeader+relayCodeLen && who&0x80 != 0 {
 			for code := range r.rooms {
 				copy(d[relayHeader:], code)

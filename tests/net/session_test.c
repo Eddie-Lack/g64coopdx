@@ -811,7 +811,7 @@ int main(void) {
         }
         check(chatCount[0] == before0 && chatCount[2] == before2, "a chat line in the clear is dropped");
     }
-    /* A kick in the clear, as if from the host's address: the joiner stays. So does it after a sealed-looking
+    /* A kick in the clear, as if from the host's address: the joiner stays. It also stays after a sealed-looking
        datagram that does not open. */
     {
         uint8_t kick = 0x47, junk[40] = {0x48, 1};
@@ -821,7 +821,7 @@ int main(void) {
               "a kick in the clear and a datagram that does not open change nothing");
     }
     /* A flood: ten different lines from one joiner at once, as opened messages. The host passes on the first and
-       drops the rest, so no player can bury the others in lines. */
+       drops the rest. */
     {
         int before0 = chatCount[0], before2 = chatCount[2], k;
         clock += 1000;

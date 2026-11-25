@@ -1,6 +1,8 @@
 #!/bin/sh
-# Reruns every measurement. Needs clang, python3 3.8+, and the weemitt checkout at $REPO (default /home/user/weemitt).
-# The gdb probes (probe*.gdb) also need gdb, a built build/headless/weemitt and a ROM in $ROM; they print only numbers.
+# Reruns the scans and the frame-limit probe. Needs clang, python3 3.8+, and the weemitt checkout at $REPO (default
+# /home/user/weemitt).
+# The gdb probe (probe.gdb) also needs gdb, a built build/headless/weemitt and a ROM in $ROM; it prints only numbers.
+# This script does not run probe2.gdb or probe3.gdb.
 set -e
 H=$(cd "$(dirname "$0")" && pwd)
 REPO=${REPO:-/home/user/weemitt}

@@ -2,8 +2,8 @@
  * (src/client/bankcheck.c), with the ROM.
  *
  * A level marks an object for moving texture coordinates with WATER or MODGE. DeformTextures then changes them on
- * every frame. The space boss's shield changes the vertex colors of the first foreground object. Both wrote through
- * the mesh's pointer without a test, and a pack object in such a place would crash the game.
+ * every frame. The space boss's shield changes the vertex colors of the first foreground object. Both write through
+ * the mesh's pointer. Without a test of that pointer, a pack object in such a place would crash the game.
  *   A. Atlantis 1. The test marks the first actor's object as MODGE does, and takes its texture coordinates away
  *      (G64TestDeformWithoutUV, weemitt's water.c). It runs the level on.
  *   B. The space boss's last part, after its opening (frame 700). The test takes the colors away from the first

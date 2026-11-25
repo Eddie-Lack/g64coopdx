@@ -8,7 +8,7 @@
  *   g64pack levels
  *
  * Every file the tool reads is untrusted: sizes and offsets are checked before use. The pack it writes is read
- * back with the game's own pack reader (src/client/pack.c), so a pack this tool accepts is one the game accepts.
+ * back with the game's own pack reader (src/client/pack.c): a pack this tool accepts is one the game accepts.
  * The tool does not link the game: the retail bank numbers, the ROM's bank ranges and each level's object banks
  * come from the tables of src/client/bankranges.h. */
 #include <errno.h>
