@@ -24,7 +24,7 @@ const char *G64ModelLabel(int kind, int i);
    before. */
 void G64SoloModels(unsigned glove, unsigned ball);
 /* Playing alone (g64solo.c): the game goes from its start straight to the file select, and the save's second file
-   is a complete game, CHOSIS, while the game runs. The save on disk doesn't change. */
+   is a complete game, CHOSIS, from each start. Solo's save file is its own (platform.c, load_solo_save). */
 void G64SoloStart(void);
 
 #ifdef __cplusplus

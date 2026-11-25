@@ -56,10 +56,20 @@ players in it. Pressing it joins. No code is needed. The game
 stays on the list while it has a free place, also after it has started. Without the list, only players with the code
 can join. `--public TITLE` does the same from a command prompt.
 
-**SOLO** starts the normal game at its file select. There, the second file is **CHOSIS**, a complete game: every
-level done, every garib, every crystal in the cave. It's the only file with a name of more than 3 letters. The
-program keeps the save in memory when you play alone and never writes it to disk. CHOSIS doesn't replace your own
-second file.
+**SOLO** starts the vanilla game at its file select. There, the second file is **CHOSIS**, a complete game: every
+level done, every garib, every crystal in the cave. It's the only file with a name of more than 3 letters.
+
+Solo play keeps its progress. The game saves at the usual times, for example when you leave a level or copy a file.
+The save goes to its own file, `eeprom-solo.bin`, in g64coopdx's folder ([below](#how-it-works)). It isn't weemitt's
+save, and online games don't touch it. `--save FILE --launcher` uses another file, and its file 2 becomes CHOSIS too.
+
+- Files 1, 3, 4, 5 and 6 are yours. They're there the next time you start SOLO.
+- File 2 is CHOSIS again at every SOLO start. What you do with CHOSIS isn't kept. Copy it to another file to keep a
+  game that starts from 100%.
+- A damaged save file is read as weemitt reads one: a file whose checksum is wrong comes up empty. A short save
+  file is read as far as it goes, and the rest is zeros.
+
+An online game doesn't read or write this file. It starts from an empty save, which lasts as long as the game.
 
 ## From a command prompt
 

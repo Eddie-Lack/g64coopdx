@@ -3,8 +3,9 @@
    the cave. It's the only file whose name has more than 3 letters. The save keeps 3 letters of a name: the file holds
    CHO, and the file select draws the whole name (G64SlotName).
 
-   The online program keeps the save in memory and never writes it to disk (platform.c). The player's own second file
-   on disk stays as it was. */
+   Solo keeps its save in a file of its own, eeprom-solo.bin in the program's folder (platform.c, load_solo_save).
+   The game writes it as it writes its EEPROM. The second file becomes CHOSIS again at each start, whatever the file
+   holds; the other five files keep their games. Online, the save stays in memory. */
 PORT_C_BEGIN
 #include "common.h"
 #include "libc.h"
@@ -36,7 +37,8 @@ void G64SoloModels(unsigned glove, unsigned ball) {
     g64PlayerColor[0][1] = ball & G64_MODEL_MASK;
 }
 
-/* RunGameInit, after the game has read the save: the second file becomes CHOSIS. */
+/* RunGameInit, after the game has read the save: the second file becomes CHOSIS. The game writes it to disk with
+   the other files at its next save. */
 void G64SoloFillSave(void) {
     SaveSlot *s = &saveSlot[CHOSIS_SLOT];
     s32 i;
