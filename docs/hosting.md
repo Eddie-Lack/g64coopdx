@@ -12,14 +12,15 @@ machine does ([discovery/netcode.md](discovery/netcode.md#recommendation-b-with-
 
 | Thing | What it does | Needed from |
 | --- | --- | --- |
-| The lobby server | Lists open sessions; passes connection details between a host and a joiner; hands out relay credentials. It speaks HTTPS and never sees game data | Phase 4 |
+| The lobby server | Lists open sessions; passes connection details between a host and a joiner; hands out relay credentials. It speaks HTTPS and never sees game data | Now: the relay and the list of open games. The rest in phase 4 |
 | STUN | Tells a machine its public address | Phase 4 |
-| The relay (TURN) | Carries the game's packets when two machines cannot reach each other directly | Phase 4 |
+| The relay (TURN) | Carries the game's packets when two machines cannot reach each other directly | Now, as the lobby's own relay (below) |
 | Downloads | The released Windows and Linux builds | Phase 6 |
 | The source and CI | The repository and its tests | Now |
 
-The first playable versions (phases 1 to 3) connect directly and need no service
-([discovery/roadmap.md](discovery/roadmap.md)).
+The plan had the first playable versions (phases 1 to 3) connect directly, with no service
+([discovery/roadmap.md](discovery/roadmap.md)). The relay came before phase 4, on 15 November 2026. The lobby and its
+relay run now ("The decision", below).
 
 ## The decision
 
@@ -55,7 +56,8 @@ libjuice, the library chosen for NAT traversal, can replace it in phase 4.
   That is about 30 MB an hour.
 - **The relay's place matters.** Every relayed packet travels to the relay and on to the other player. A relay far
   from both players adds delay to every input.
-- **The services are needed from phase 4.** Until then nothing should cost money or need care.
+- **The services are needed from phase 4.** Until then nothing should cost money or need care. The relay came
+  earlier, at the owner's request (above).
 - **One person runs it.** A server that faces the internet needs updates and watching. Less of that is better.
 - **Others must be able to run their own.** The lobby stays an ordinary program in a container, with no code that
   only one provider can run.
@@ -80,13 +82,15 @@ fallback, and the lobby's reply on `/v1/ice` has the same shape for both, so the
 
 | Option | Price | Fit |
 | --- | --- | --- |
-| **Fly.io, one small machine that stops when idle** | $2.19 a month while running; a stopped machine costs $0.15 per GB of its disk image a month, and the image is 8 MB. No free allowance | Runs the container as it is. HTTPS comes with it. The lobby needs no UDP |
+| **Fly.io, one small machine** | $2.19 a month while running; a stopped machine costs $0.15 per GB of its disk image a month, and the image is 8 MB. No free allowance | Runs the container as it is. HTTPS comes with it. The relay's UDP needs a dedicated IPv4 address, $2 a month |
 | Cloudflare Workers | Free: 100,000 requests a day | The lobby would have to be written for that one platform, which breaks "others must be able to run their own" |
 | A Hetzner cloud server | From €5.49 a month, always | Also right if the fallback relay (coturn on a server) is ever needed; then the lobby moves there too |
 | The owner's own machine | Free | Needs a public address and uptime; not for a public service |
 
-A stopped lobby loses nothing: a session exists only while its host stays connected, and a connected host keeps
-the machine running.
+The first plan let the machine stop when idle. A stopped lobby lost nothing: a session existed only while its host
+stayed connected, and a connected host kept the machine running. With the relay, the machine keeps running
+(`server/fly.toml`). The relay's UDP packets do not start a stopped machine, and a game must not lose its relay
+halfway through.
 
 ### Downloads
 
@@ -106,12 +110,13 @@ weemitt's MIT license.
 - **A deploy workflow** (`.github/workflows/deploy-lobby.yml`). It deploys on a push to `main` that changes
   `server/`, or when started by hand.
 
-The lobby runs on Fly.io at `https://lobby.slugs.io`. The relay answers at `g64coopdx-lobby.fly.dev:27065` once the
-app has its dedicated IPv4 address (below).
+The lobby runs on Fly.io at `https://lobby.slugs.io`. The relay answers at `g64coopdx-lobby.fly.dev:27065`, on the
+app's dedicated IPv4 address (below).
 
 ## Setting up the lobby
 
-The placeholder is online. These are the steps that put it there, for reference:
+The lobby is online, with its relay. These are the steps that put them there, for reference. The steps for
+Cloudflare's relay, at the end, are for later.
 
 The owner's Fly.io account already runs another project, slugs-game. The lobby is a second app in that account. An
 app has its own machine, address, secrets and bill line. The two projects do not touch each other.

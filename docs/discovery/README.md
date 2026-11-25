@@ -10,9 +10,9 @@ version; players may be in different levels of the same world; no lives; each pl
 ## Summary
 
 **Feasibility.** The project is feasible. A rollback network game (see [Terms](#terms)) needs game logic that gives
-the same result on every machine, and savestates that are cheap to save and load. The PC port, weemitt, has both, and
-this discovery measured them (the fast savestates exist only in its 32-bit brute forcer today; the 64-bit build
-needs game change 8 first):
+the same result on every machine, and savestates that are cheap to save and load. The PC port, weemitt, has both. At
+the time of the discovery, the fast savestates were only in its 32-bit brute forcer. Game change 8 made them work at
+64 bits in phase 0 (`make savestates`). This discovery measured the game logic and the savestates:
 
 - The same inputs gave the same game state on every run and every build tested: Linux and Windows, 32-bit and
   64-bit. The test ran all 48 levels and the attract mode. 196 pairs of repeated runs and 147 pairs of different
@@ -36,9 +36,9 @@ chooses whether a glove may pick up only its own ball or any ball; a lost ball a
 **instance**). Every machine runs its own level's instance on the inputs of the players in it. It shows its own player
 at once, predicts the others, and steps back through savestates when the real inputs differ. The host decides each
 frame's final inputs for every instance. When a player's input arrives too late, the host repeats that player's last
-input, and the others go on without waiting. Only inputs and session messages
-cross the network: a few bytes per player per frame, and no game data. A player who enters a level that others are
-already playing replays that instance's inputs from its start. [netcode.md](netcode.md).
+input, and the others go on without waiting. Only inputs and session messages cross the network: a few bytes per
+player per frame, and no game data. A player who enters a level that others are already playing replays that
+instance's inputs from its start. [netcode.md](netcode.md).
 
 **How the project relates to weemitt.** g64coopdx carries its own copy of weemitt, taken at a pinned commit, and
 changes the game code in it freely. weemitt's rules for an exact copy of the original game do not apply to g64coopdx.
@@ -230,9 +230,11 @@ g64coopdx does not follow that rule (the owner's decision). Two facts still shap
 
 - Player 0 keeps the N64 addresses: `hand` at 0x802902D8, `ball` at 0x8029F978, and the others
   ([state-inventory.md](state-inventory.md)).
-- Every player slot (16) is allocated on the game's heap when the session starts, and a player who joins an instance
-  fills a slot at a confirmed frame. The heap is in `port_ram` and has
-  about 21 MB free in a level (`weemitt/docs/host-world.md`); weemitt's host world already allocates there.
+- The other players' slots, up to 15, are allocated on the game's heap. The game makes one for each other player in
+  a level's first frame of play (`G64ExtraPlayersStart` in `weemitt/src/game/g64players.c`). A player who joins a
+  running instance gets a new slot at the frame whose confirmed inputs add them (`G64SetPresent`, `G64AddPlayer`).
+  The heap is in `port_ram` and has about 21 MB free in a level (`weemitt/docs/host-world.md`); weemitt's host world
+  already allocates there.
 - A table of pointers per player (`players[i].hand` and so on) points at the N64 globals for player 0 and at the heap
   for the others.
 - Larger frame buffers (the object matrices, the display list, the vertices) go on the heap too, or into enlarged
@@ -316,7 +318,7 @@ New tests:
 | Hub and world | The game's levels are grouped in worlds: the hub (whose sections lead to the worlds) and six worlds, each with levels, a boss and a bonus level |
 | The library | weemitt built as `libglover.so` or `glover.dll`, which another program can load to run the game |
 | Frame and update | A game frame is one step of the game's logic: 1/20 s of game time in a level. An update is one call that advances the game; at the original timing one update is one frame |
-| Pack | A zip file of one custom level, its scripts and its author's models, with no game data ([mods.md](mods.md#the-level-pack)) |
+| Pack | A folder with one custom level, its script and its author's models, and no game data ([level-pack.md](level-pack.md)). The design in [mods.md](mods.md#the-level-pack) also allows a zip file |
 | Lua | A small scripting language; mods are written in it ([mods.md](mods.md#the-lua-api)) |
 | Glover | An N64 platform game. The player steers a glove (the **glove**, `hand` in the code) that walks, jumps and carries, rolls or throws a **ball**, and must bring the ball to each level's exit |
 | Garib | The game's collectables; each level has a set number |

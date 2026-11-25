@@ -110,8 +110,9 @@ Glovebox's CI works the same way: the tests that need the ROM skip themselves (`
 
 Facts (VERIFIED):
 
-- weemitt, gloveworld and Glovebox have no license file. gloveworld's README says its license "is not chosen yet";
+- gloveworld and Glovebox have no license file. gloveworld's README says its license "is not chosen yet";
   Glovebox's Cargo.toml names `THIRD_PARTY_NOTICES.md` in its `license-file` field.
+- weemitt has an MIT license file (`LICENSE`). The copy in `weemitt/` keeps it (`weemitt/LICENSE`).
 - sm64coopdx has no license file, so no right to its code exists. g64coopdx does not use its code in any case.
 - CoopNet, sm64coopdx's lobby server, is AGPL-3.0. g64coopdx does not use it.
 - In the repository: Monocypher (BSD 2-Clause or CC0) in `third_party/monocypher`, for the session's encryption.

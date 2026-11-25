@@ -77,9 +77,9 @@ have at all.
 | Players join and leave a running level | A glove, ball and camera that appear or vanish at a frame, set up as `ResetHand`, `ResetBall`, `ResetCamera` do for the level's start, without touching the other players. Every per-player list and table must allow a gap | `ResetHand` (`hand.c:4080-4140`), `ResetBall` (`ball.c:93-190`) | I |
 | A ball's real owner never changes | A new per-ball field, apart from `ball.link`, which in weemitt means "held by" (`ball.link == &hand`, written in 14 functions). Pickup checks the host's rule: own ball only, or any ball | `IsHandHoldingBall` (`actor.c:77`) and the 130 lines with `ball.link` or `hand.link` | V (code) / I (plan) |
 | A lost ball kills its real owner | `BurstBall` (`ball.c:570`), a ball's fall out of the world and a drowned ball must kill the owner, not "the glove" | `ball.c`, `collision.c:1369-1380` | V (code) / I (plan) |
-| No lives | `LoseLife` never takes a life and never starts the game over; a death in a bonus level sends only that player out. The game's own cheat bit 8 already skips the loss (`hand.c:3804`) | `LoseLife` (`hand.c:3798-3821`) | Done online, but for the bonus levels |
+| No lives | `LoseLife` never takes a life and never starts the game over; a death in a bonus level sends only that player out. The game's own cheat bit 8 already skips the loss (`hand.c:3804`) | `LoseLife` (`hand.c:3798-3821`) | Done online (g64coopdx's `LoseLife` calls `G64PerPlayerRestart` and `G64PlayerExits`) |
 | Respawn at the player's own checkpoint | `handControl.checkpoint` is per glove already; the gate test must use the ball of each player (`platform.c:1519-1522` tests the one `ball`). `RestartPlayer` must restart one player and no enemies | `CheckRestartGate`, `RestartPlayer` (`platform.c:1513-1700`) | Done online (`g64players.c` in `weemitt/src/game`, the comment "Respawns") |
-| Each player exits alone | `CheckForExits` and `ExitLevel` act for one player and remove only that player from the instance; the exit timers become per player | `game.c:2198-2680`, `game.c:3716` | V |
+| Each player exits alone | `CheckForExits` acts for one player and removes only that player from the instance; the exit timers become per player | `game.c:2198-2680`, `game.c:3716` | V |
 | One world at a time | A session rule in g64coopdx, applied at the hub's world portals | `gameInfo.world` | I |
 
 ## What each system needs
@@ -130,12 +130,12 @@ pick-ups, checkpoints and death, exits, bosses, cameos.
 
 | Limit | Value | Measured with one idle glove (29 levels, 600 frames each; section 3 lists them) | For 16 players |
 | --- | --- | --- | --- |
-| Object matrices | 256 per frame (`Mtx objectMtx[256]`, `weemitt/include/display.h:9`); no bounds check at the write sites | peak 158 (level 0) | 158 + 15 × (14 + 1) = about 383, for 15 more gloves of up to 14 matrices and their balls of 1: must be raised (I) |
-| Display list | `Gfx glist[20000]` (160,000 bytes) per buffer; the game drops a task of 20,000 bytes or more, an eighth of the buffer (`main.c:578-582`) | peak 11,704 bytes in one task, 14,224 in a frame | likely over the per-task check: must be raised (I) |
+| Object matrices | 256 per frame (`Mtx objectMtx[256]`, `weemitt/include/display.h:9`); no bounds check at the write sites | peak 158 (level 0) | 158 + 15 × (14 + 1) = about 383, for 15 more gloves of up to 14 matrices and their balls of 1: must be raised (I). Since raised to 1024 |
+| Display list | `Gfx glist[20000]` (160,000 bytes) per buffer; the game drops a task of 20,000 bytes or more, an eighth of the buffer (`main.c:578-582`) | peak 11,704 bytes in one task, 14,224 in a frame | likely over the per-task check: must be raised (I). Since raised: a frame's tasks may fill the whole buffer |
 | Vertices | 800 per frame (`objectsVtx[2][800]`) | peak 606 (level 37) | depends on what the gloves draw from it: measure |
 | Tasks | 10 per buffer | 5 | fine |
-| Heap | PC: 22,344,432 bytes (`weemitt/src/port/port_fixups.h:44`); N64: 1,356,528 | 1.31 MB static at most (level 37) | fine on the PC |
-| Heap block table | 1,280 blocks | up to 750 static and 95 dynamic | each player adds blocks: measure |
+| Heap | PC: 22,344,432 bytes (`weemitt/src/port/port_fixups.h:44`); N64: 1,372,912 | 1.31 MB static at most (level 37) | fine on the PC |
+| Heap block table | 1,280 blocks | up to 750 static and 95 dynamic | each player adds blocks: measure. Since raised: the dynamic blocks move to a table of 2048 when they meet the static ones |
 | Enemies | 30 (`enemies[30]`, no bounds check at `enemy.c:152`) | | shared, unchanged |
 | Collision sphere hits | 64 a frame (`NUM_SPHERE_HITS`, `collision.c:94`) | | more gloves, more hits: measure |
 | CPU matrix stack | 20 | | fine |
@@ -202,7 +202,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | `controllerdata[]` (`OSContPad`), `controllerPresent`, `autoPlayback`, `recordKeys`, `playbackButtons` | `controller.h:29`, `controller.c` | 0x801FB280 | `controller.c` | Per player for `controllerdata`. The demo playback (`ReadControllerFromData`) already shows a way to feed `pad[]` from stored data | V |
 | What reads the pad each frame: `ControllerStep` calls `osContStartReadData`, `osContGetReadData(controllerdata)` (all 4 pads) and then `ReadController(ActiveController)` only | `weemitt/src/game/main.c:780-794` | | | Call `ReadController(i)` for each player. In the PC port `osContGetReadData` fills only pad 0 (`weemitt/src/port/os.c:198-229`) | V |
 | `initControllers` marks `pad[i].present` for each plugged pad but returns the lowest index and sets `controllerPresent` FALSE if that is not pad 0 | `weemitt/src/game/controller.c:78-107` | | | Keep | V |
-| Gameplay readers (the part a co-op change must touch): `ProcessInput` (`controller.c:378`), `MoveHand`, `MaintainAction`, `ApplyAction`, `ConditionsMet`, `DismountBall`, `DismountEnemy` (all `hand.c`), `MoveBall`, `MoveHandToBall` (`ball.c`), `MoveCam`, `PlayerSpinCamera` (`camera.c`), `UpdateActorCollisionAndGravity`, `UpdateActorPositionDependencies` (`actor.c`), `DeactivateCollectable`, `DoCarnivalBonus`, `DoSpaceBoss3`, `NMEProcessHubChicken`, `UpdateTip`, `UpdatePause`, `CheckForExits`, cheat menu (4), ballworld (6) | | | | 25 gameplay functions. Another 25 are menu or screen functions (title, level select, save slots, end screens) that can stay on the local pad | V |
+| Gameplay readers (the part a co-op change must touch): `ProcessInput` (`controller.c:378`), `MoveHand`, `MaintainAction`, `ApplyAction`, `ConditionsMet`, `DismountBall`, `DismountEnemy` (all `hand.c`), `MoveBall`, `MoveHandToBall` (`ball.c`), `MoveCam`, `PlayerSpinCamera` (`camera.c`), `UpdateActorCollisionAndGravity`, `UpdateActorPositionDependencies` (`actor.c`), `DeactivateCollectable`, `DoCarnivalBonus`, `DoSpaceBoss3`, `NMEProcessHubChicken`, `UpdateTip`, `UpdatePause`, `CheckForExits`, cheat menu (4), ballworld (6) | | | | 30 gameplay functions. 23 of them are among the 50 that touch `pad`. The other 7 read only `ActiveController`: `DismountBall`, `DismountEnemy`, `CheckForExits`, 2 of the cheat menu's 4 and 2 of ballworld's 6. Of the other 27 functions that touch `pad`, 15 are menus and screens that can stay on the local pad: `TitleScreen`, `Update3DTitleGraphics`, `MainTitleWait`, `DoMenu`, `LevelSelectScreen`, `SlotSelRun`, `WaitNameScr`, `MainOptionsWait`, `SelectLanguage`, `HiscoresRun`, `TimeTrialScreen`, `ErrorScreen`, `EndOfLevelScreen`, `GameOverScreen` and `GameWonScreen`. The last 12 are the input path (`ReadController`, `ReadControllerFromData`, `initControllers`, `AnyButtonPressed`, `AnyDebouncePressed` and 4 in `delta.c`), the HUD (`PrintStats`), the debug input (`ProcessInputPersonal`) and `LoadLevel` | V |
 | Port: `deltaTime` ticks the pad in `delta.c` (`DeltaHoldInput`, `DeltaKeepInput`, `DeltaTakePress`, `DeltaTickPressed`) with `tickPresses[4][...]` already sized 4 | `weemitt/src/game/delta.c:220-255` | | | Fine for 4 pads. More than 4 players needs a larger array | V |
 | Input recorder: `weemitt/src/port/record.h` records "the controller values of every update" for replay | | | | A base for sending inputs: it records `(dt, buttons, stick x, stick y)` per update. Deterministic replay is an existing feature of the headless build | V |
 
@@ -217,7 +217,7 @@ second instance of the same data. "Shared" means one copy for everybody.
 | `player.score`, extra life every `difficultyStats[...].lifeScore` | `hand.h:88`; `AddToScore` `collect.c:885` | | Per player | V |
 | `player.powerups[15]`, `player.spell`, `castSpell`, `castSpellType`, `player.hurtTimer`; glove side: `handControl.spellTimer[3]`, orbiters, `handControl.frog` | `hand.h` | `ActivateCollectable` (`collect.c:487`), `DeactivateCollectable` (`collect.c:651`), `UpdatePickups` (`collect.c:346`), `spell.c`, HUD `overlay.c:1055-1101` | Per player. Pickups have 15 types (`weemitt/include/enums.h:260-276`): stun, death, frog, suction, hercules, speedup, rotor blades, bowling, power, ball bearing, beach, snow, crystal, boomerang, vanish | V |
 | `memclear(&player.score, 100)` clears the player block at new game and continue | `game.c:1333,1360` | | Needs a per player version | V |
-| Cheats: `cheatActivated` (bit mask, 0x80297BEC) 26 functions read it, 8 write it; bits seen: 8 no life loss (`hand.c:3804`), 0x40 no damage (`hand.c:3738`), 0x20 | `weemitt/src/game/cheat.c` | | Shared (a room setting) | V |
+| Cheats: `cheatActivated` (bit mask, 0x80297BEC) 26 functions read it, 8 write it; bits seen: 8 no life loss (`hand.c:3804`), 0x40 no damage (`hand.c:3738`), 0x20 | `weemitt/src/game/cheat.c` | | Shared (a session setting) | V |
 
 #### 2.6 Checkpoints, respawn, death
 
@@ -235,12 +235,12 @@ second instance of the same data. "Shared" means one copy for everybody.
 
 | Item | Defined | N64 address | What N players need | Status |
 | --- | --- | --- | --- | --- |
-| `gameInfo`: `GameInfo` (mode, level, prevLevel, world, `worldComplete[7]`, fade, `exitType`, `cameoActive`, `exitPlatform`, language) | `weemitt/include/game.h:6-24`, extern line 41 | 0x801E7530 | Shared. 144 functions read it (42 write). The host decides the level | V |
+| `gameInfo`: `GameInfo` (mode, level, prevLevel, world, `worldComplete[7]`, fade, `exitType`, `cameoActive`, `exitPlatform`, language) | `weemitt/include/game.h:6-24`, extern line 41 | 0x801E7530 | Shared in the instance. 144 functions read it (42 write). The host puts each player in the instance of a level, and makes the start record of a new instance (`take_exit`, `enter` and `new_instance` in g64coopdx's `src/client/instances.c`) | V |
 | Levels: 48 (`HUB1`..`OUTRO`, `NUM_LEVELS`), 7 worlds (hub, Atlantis, Carnival, Pirates, Prehistoric, Fear, Space), 8 hub levels, 6 boss levels (Atlantis, Carnival, Pirates, Prehistoric, Fear, Space 3), 6 bonus levels | `weemitt/include/enums.h:286-347` | | Shared | V |
 | Exit triggers: `CheckForExits` (`weemitt/src/game/game.c:2198`) picks the glove position for exit types 6-12, 21 and a few levels (`pos = &hand.pos`, `game.c:2576-2582`) and the ball position for the others (`pos = &ball.pos`). An exit needs the glove to hold the ball (`IsHandHoldingBall() \|\| ball.link == &hand`, `game.c:2620-2623`). Timers `levelExitTimer` (0x801E7460), `worldExitTimer` (0x801E7620), `newLevExitTimer` (0x801E7466) are single globals | game.c:2198-2680 | | Each player exits alone (decided). The "pull onto exit" code moves `ball.pos` and `hand.pos` (`game.c:2194-2211`, `PullOntoExit`). The exit leaves the ball "left behind" in the hub (`ballStatic = 2`, `game.c:2653-2660`) | V |
-| `ExitLevel(type, pause, complete)` | `game.c:3716` | | Shared; once per room | V |
+| `ExitLevel(type, pause, complete)` | `game.c:3716` | | Shared in the instance. Online it ends the level for every player in it (`G64EveryoneExits` in `weemitt/src/game/g64players.c`). A player who exits alone goes through `G64CheckExit` or `G64PlayerExits` instead | V |
 | `LoadLevel(num)` runs `ResetHand(1)`, `ResetBall()`, `ResetCamera()`, `SeedRandom()`, `player.garibs = 0`; level start comes from `TOKEN_HAND_START`, `TOKEN_BALL_START`, `TOKEN_CAMERA_START` in the level file (one start per level) | `game.c:808-1460`; parse `weemitt/src/game/parse.c:570-595` | | Per player start positions around the one start point | V |
-| Save: `saveSlot[6]` (`SaveSlot`, 0x1C bytes: name, `levels` bit mask, `allGaribs` bit mask, `score`, `lives`, `difficultyLevel`, `hubTarget`, `hubLevel`, `visited`, volumes), `currentSaveSlot` | `weemitt/include/save.h:6-21` | 0x801EAA44, 0x801EAB24 | One save for the room (the host's). 36 functions read `saveSlot` (14 write). Clients should not write their own save from the host's progress | V |
+| Save: `saveSlot[6]` (`SaveSlot`, 0x1C bytes: name, `levels` bit mask, `allGaribs` bit mask, `score`, `lives`, `difficultyLevel`, `hubTarget`, `hubLevel`, `visited`, volumes), `currentSaveSlot` | `weemitt/include/save.h:6-21` | 0x801EAA44, 0x801EAB24 | One save for the session (the host's). 36 functions read `saveSlot` (14 write). Clients should not write their own save from the host's progress | V |
 | EEPROM layout (4 Kbit, 512 bytes): block 0 id, blocks 1-6 high scores (0x30 bytes), blocks 7-0x1E best times (0xC0), blocks 0x1F-0x33 save slots (0xA8), blocks 0x34-0x37 CRCs (0x20). Blocks 0x38-0x3F are free (64 bytes) | `weemitt/src/game/eeprom.c:111-206` | | Shared or not touched | V |
 | Progress: `UpdateSaveSlot` writes `score = player.score + player.garibs * 10`, `lives`; `levels` and `allGaribs` bits set in `weemitt/src/game/game.c:3461-3479` (`all garibs` only when `player.garibs == numGaribs`) | | | The "all garibs" bit is set when one instance's players have them all (decided) | V |
 | Hub carry: `saveSlot.hubLevel`, `hubTarget`, `ballLeftBehind`, `worldComplete[]` | `game.c:2381-2485` | | Shared | V |
@@ -303,8 +303,9 @@ second instance of the same data. "Shared" means one copy for everybody.
 ### 3. Frame limits and hard-coded sizes
 
 The table gives the N64 game's limits as they were measured for the design. g64coopdx has since raised three of
-them for 16 players: the object matrices (1024 a frame), the heap's block table (2048 more dynamic blocks) and the
-display list task's size check (the whole buffer). [roadmap.md](roadmap.md), phase 3, item 9, has the numbers.
+them for 16 players: the object matrices (1024 a frame), the heap's block table (the dynamic blocks move to a table
+of 2048) and the display list task's size check (the whole buffer). [roadmap.md](roadmap.md), phase 3, item 9, has
+the numbers.
 
 | Limit | Value | Where | Measured use | Status |
 | --- | --- | --- | --- | --- |
@@ -314,7 +315,7 @@ display list task's size check (the whole buffer). [roadmap.md](roadmap.md), pha
 | Tasks per frame | `tlist[2][10]` (10 per buffer) | `main.c:164, 919-931` | 5 per frame observed | V |
 | Vertices per frame | 800 per draw buffer (`objectsVtx[2][800]`), no bounds check seen at `vtxPtr` increments | `weemitt/src/game/object.c:74, 312` | peak 606 (level 37), 414 (level 27) | V |
 | CPU matrix stack | `Matrix stack[20]` | `weemitt/include/maths.h:10-14` | | V |
-| Heap | N64: `JallocInit(jallocHeapStart, 0x80400000 - jallocHeapStart)` = 0x14F2F0 = 1,356,528 bytes (`gloveworld/src/main.c:917`; `jallocHeapStart` 0x802B0D10). PC port: runs to 0x1800000 past the base (`weemitt/src/port/port_fixups.h:44`), 22,344,432 bytes | `main.c:918` | static part at frame 400, idle: level 0 1,301,584; level 10 988,624; level 12 1,204,496; level 13 965,120; level 27 1,198,208; level 37 1,312,048; level 39 973,984. Dynamic part 800 to 6,600 | V (measured on the PC build; the used sizes are the game's own allocation sizes) |
+| Heap | N64: `JallocInit(jallocHeapStart, 0x80400000 - jallocHeapStart)` = 0x14F2F0 = 1,372,912 bytes (`gloveworld/src/main.c:917`; `jallocHeapStart` 0x802B0D10). PC port: runs to 0x1800000 past the base (`weemitt/src/port/port_fixups.h:44`), 22,344,432 bytes | `main.c:918` | static part at frame 400, idle: level 0 1,301,584; level 10 988,624; level 12 1,204,496; level 13 965,120; level 27 1,198,208; level 37 1,312,048; level 39 973,984. Dynamic part 800 to 6,600 | V (measured on the PC build; the used sizes are the game's own allocation sizes) |
 | Heap block table | `JALLOC_NUM_BLOCKS 0x500` = 1,280 blocks of 0x14 bytes; statics grow up, dynamics grow down | `weemitt/include/jalloc.h:7-20`, `jalloc.c:327-340` | up to 750 static blocks (level 12) and 95 dynamic blocks (level 0) in use at frame 400 | V |
 | Enemies | `enemies[30]` (0x802996E8 to 0x8029F0F0 holds 30 x 0x300), "The game has room for 30 enemies" | `weemitt/src/game/puzzle.c:66-67`; `enemy.c:152-160` allocates `&enemies[numberOfEnemies++]` with no bound check | | V (no check) / I (size from addresses) |
 | Debris | `debris[120]` | `weemitt/src/game/debris.c:29, 89` | | V |
@@ -327,11 +328,11 @@ display list task's size check (the whole buffer). [roadmap.md](roadmap.md), pha
 | Cameos per script | 20 items (`items[0x14]`) | `weemitt/include/cameo.h:25` | | V |
 | Console memory | Heap sizes above are for the 4 MB console. Glovebox's builder has `--expansion`, a mod that may use the Expansion Pak (the emulator always has it) | Glovebox `CLAUDE.md` | | I (not checked in Glovebox code) |
 
-How the measurements were made: `gdb` on `weemitt/build/headless/weemitt` with the player's ROM from the upload folder
-(not copied, not committed). A breakpoint at `main.c:578` (`CleanupAndSendDisplayList`) printed `objectMatrix`,
-`actualGFXListLength[currentTask]`, `vtxPtr - objectsVtx[...]` and `jallocControl`. Each of 29 levels ran 600 original
-frames with no input, so the glove stood still and the numbers are a floor, not a worst case. The levels were 0, 8-18,
-20-23, 25-28, 30-33, 35-39. Table below.
+How the measurements were made: `gdb` on `weemitt/build/headless/weemitt` with the player's own ROM, kept outside every
+repository (not copied, not committed). A breakpoint at `main.c:578` (`CleanupAndSendDisplayList`) printed
+`objectMatrix`, `actualGFXListLength[currentTask]`, `vtxPtr - objectsVtx[...]` and `jallocControl`. Each of 29 levels
+ran 600 original frames with no input, so the glove stood still and the numbers are a floor, not a worst case. The
+levels were 0, 8-18, 20-23, 25-28, 30-33, 35-39. Table below.
 
 #### 3.1 Measured peaks per level (idle glove, 600 frames each)
 
@@ -372,11 +373,12 @@ frames with no input, so the glove stood still and the numbers are a floor, not 
 
 #### 4.1 How the script works
 
-`inv/access.py` runs clang on every `weemitt/src/game/*.c` with the game's own compile flags (the Makefile's
-`GAME_CXXFLAGS`: C++14, `-m32`, `-malign-double`, `-DPORT`, `-include src/port/port_pre.h`) and dumps the syntax tree
-(`-Xclang -ast-dump`). It parses the text dump as a tree and, for each use of a chosen global, climbs the chain of
-member accesses and array indexes (`hand.pos.x`, `pad[0].button[3]`, `(&hand.pos)->x` from the vector macros) to the
-whole expression, then looks at what the parent does with it:
+`access.py` (in [experiments/inventory/](experiments/inventory/)) runs clang on every `weemitt/src/game/*.c` with the
+game's own compile flags (the Makefile's `GAME_CXXFLAGS`: C++14, `-m32`, `-malign-double`, `-DPORT`,
+`-include src/port/port_pre.h`) and dumps the syntax tree (`-Xclang -ast-dump`). It parses the text dump as a tree and,
+for each use of a chosen global, climbs the chain of member accesses and array indexes (`hand.pos.x`,
+`pad[0].button[3]`, `(&hand.pos)->x` from the vector macros) to the whole expression, then looks at what the parent
+does with it:
 
 | Parent | Recorded as |
 | --- | --- |
@@ -724,7 +726,8 @@ Notes: `cmp` is an identity test such as `actor == &hand`. `store-ptr` stores th
 
 #### 4.4 Other globals that assume one player (readers and writers)
 
-From `inv/all/events.json` (every global in `src/game`). "functions" counts distinct functions touching the symbol.
+From `experiments/inventory/all/events.json` (every global in `src/game`). "functions" counts distinct functions
+touching the symbol.
 
 | Global | reads | writes | & | functions | writing fns | files |
 | --- | --- | --- | --- | --- | --- | --- |

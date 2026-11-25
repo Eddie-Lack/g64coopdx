@@ -196,12 +196,14 @@ that the game may read wrongly.
 The game also checks a level as it reads it. If a pack's level names something the game does not have, the level
 cannot be played: the game tells you, and sends everyone in it back to the hub.
 
-What a pack cannot hold yet:
+A pack's level may use models you imported into Glovebox, and objects of another level. The pack holds the
+imported models in its `models.bin`. For objects of another level, it names that level's banks, and each player's
+game loads them from their own ROM. A pack names at most 4 texture banks and 4 object banks of the game. Glovebox's
+**Export level pack** button, in its **Export patch** dialog, writes the pack, with a `models.bin` when the level
+needs one. With `--models FILE`, `g64pack make` adds a `models.bin` that Glovebox wrote.
 
-- A level that uses what Glovebox's game mod adds: rotation and scale on enemies, platforms and pick-ups, more
-  bank slots, and the extra level slots. Glovebox says when a level needs the mod.
-- Models you imported into Glovebox.
-- Objects of another level. A pack's level uses the objects of the level whose place it takes.
+A pack cannot yet hold a level that uses what Glovebox's game mod adds: rotation and scale on enemies, platforms,
+pick-ups and water, and the extra level slots. Glovebox says when a level needs the mod.
 
 ## Names, the player list and chat
 
@@ -248,8 +250,9 @@ buttons, also in the middle of an online game. **Online game** has the pause men
 ([below](#your-pause-menu)) for the mouse. The game goes on for everyone while the menu is open,
 and your keyboard goes to the menu.
 
-The menu has no cheats, enhancements, developer tools or studio tools, online or alone. Only the **Log** window is
-there besides the settings. The keys that pause or step the game do nothing.
+The menu has no cheats, enhancements, developer tools or studio tools, online or alone. When you play alone, it has
+**Settings** and **Log** only. In an online game it also has **Online game**. The keys that pause or step the game do
+nothing.
 
 ## Your pause menu
 
@@ -299,8 +302,9 @@ started stops, and a sound it had missed plays, up to half a second late.
 
 g64coopdx keeps its own folder for your settings, saves and logs: `%APPDATA%\g64coopdx\Glover` on Windows. On its
 first start it copies weemitt's settings, if there are any, so your keys and picture settings carry over. In an
-online game, the settings that change the game (cheats, the easy ball controls, the camera) are always off: every
-machine must run the same game.
+online game, your own settings that change the game do not apply: the cheats are off, the camera follows at the
+original game's speed, and the ball controls are the host's choice ([above](#from-a-command-prompt)). Every machine
+must run the same game.
 
 Each program writes a log of the online game, `g64coopdx-host.log` or `g64coopdx-join.log`, in that folder. It has a status line every 100 frames. On the host, it also lists where the
 host's own game and its copy of the same level differ, when they do: send it with a report of desyncs. It holds no

@@ -36,7 +36,11 @@ full collection. The program then printed the allocator's own counts and a hash 
 2. **The block is saved but not hashed.** A savestate must hold the block: a rollback restores the scripts with the
    game, in the same process, where the addresses are still right. The state hash that machines compare must leave
    it out. At the time of the trial, the brute forcer's engine saved and hashed the game's data sections together
-   (`weemitt/bruteforce/engine/engine.c`). The block needs a section that is saved and tracked but not hashed.
+   (`weemitt/bruteforce/engine/engine.c`). The trial proposed a section for the block that is saved and tracked but
+   not hashed. g64coopdx did not make one. The block is a global of the game's code (`g64LuaArena` in
+   weemitt/src/port/g64lua.c). It lies in the game's data sections, and the engine's savestate holds it. The hash
+   that machines compare is not the engine's (`game_hash` in src/rollback/engine_game.c). It covers the game's memory
+   (`port_ram`), which does not hold the block. With a script, it also covers a number made from the scripts' state.
 3. **A script's state is compared through numbers, not bytes.** The allocator's counts were equal on both systems.
    Kept as game variables, they are in the hash, and a script that went another way on one machine shows as a
    mismatch soon after. A script also changes the game only through the scripts' API

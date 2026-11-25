@@ -1,7 +1,7 @@
 # The lobby server
 
-The lobby server introduces players to each other. Its finished form lists open sessions, passes connection details
-between a host and a joiner, and hands out short-lived credentials for a TURN relay
+The lobby server introduces players to each other. It lists open sessions. Its finished form also passes connection
+details between a host and a joiner, and hands out short-lived credentials for a TURN relay
 ([docs/hosting.md](../docs/hosting.md#the-relay)). It never sees game data. The relay that the server runs today
 needs no credentials.
 
@@ -15,8 +15,9 @@ leaves the list 10 seconds after its host's last announcement. The answer is nev
 request is as long as the longest answer. The relay then cannot be used to flood a forged address. A host can also
 ban a joiner (the game's **Remove** button): the relay then refuses that joiner's address for the room.
 
-The other HTTP routes are still a placeholder. Phase 4 of the [roadmap](../docs/discovery/roadmap.md) writes the
-real one. [docs/hosting.md](../docs/hosting.md) says where it runs.
+The server is still a placeholder in part: `/v1/ice` gives STUN servers only, and `/v1/info` reports
+`"placeholder": true`. Phase 4 of the [roadmap](../docs/discovery/roadmap.md) writes the finished server.
+[docs/hosting.md](../docs/hosting.md) says where the server runs.
 
 | Route | Answer |
 | --- | --- |

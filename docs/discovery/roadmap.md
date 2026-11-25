@@ -66,14 +66,15 @@ their control blocks live in a slot on the game's heap and are swapped into the 
 frame. The other players' gloves and balls are drawn as proxy actors. A proxy actor is an actor in the game's actor list
 that only shows what a player's slot holds. Four gloves play the first hub level for 3,000 frames with the same output
 and hashes on Linux and Windows (`make twoplayers`); with one player the game still equals the baseline. Each player's
-view is drawn with that player swapped in, and the gloves after the first have colors of their own. Known gap: enemies,
-collectables and puzzles see only player 1. Phase 3 (below) records the later work on them.
+view is drawn with that player swapped in, and the gloves after the first have colors of their own. The known gap on
+that date: enemies, collectables and puzzles saw only player 1. Phase 3 (below) records the later work on them.
 
 - Game change 1: a pad per player.
 - Game change 7: an option that turns off every PC addition of weemitt's that the controller can reach, such as the
   cheat list in the pause menu.
 - A spike first: two players by swapping the player's state in and out ([state-inventory.md](state-inventory.md#two-ways-to-make-the-game-multi-player)),
-  in one hub level. It finds the shared state that breaks. It is thrown away.
+  in one hub level. It finds the shared state that breaks. The plan was to throw it away. It is kept for now, as the
+  status above says.
 - Game change 2, first part: per-player glove, ball and camera, indexed, with the second player's state on the game's
   heap. The glove's state machine, the ball and which glove holds it, the camera per player, and the collision code's
   tests of whether an actor is the glove (`== &hand`).
@@ -314,12 +315,17 @@ tests/net/lua_test.c and tests/fuzz/lua_fuzz.c for the sandbox). The trial's pat
 keeps Lua from reading a hexadecimal number with the system's `strtod` (`weemitt/third_party/lua/README.md`). A script
 reads the players' places, balls and
 counts, moves, hurts and heals a glove, shows a line of text to a player, draws seeded random numbers, uses the game's own sine and cosine, and is told when a player
-comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory. In place of the scripts' block, it covers a
-number made of the script's memory counts and random state. A script gives a player a life and puts one of the game's pick-ups in the
-level (`game.add_life`, `game.spawn_pickup`), and hears when a player reaches a checkpoint or takes a pick-up
-(`on_checkpoint`, `on_pickup`). A script reads and sets the level's 100 puzzle variables, which ties it to
-every condition and action that the level's puzzles have. A script keeps 16 values across levels: a level's script asks
-the host to add to one, and the new value reaches every instance as a session event. Left: writes to garibs.
+comes or goes, takes a garib or dies. The hash that machines compare covers the game's memory. In place of the scripts'
+block, it covers one number from the script (`G64LuaHash` in `weemitt/src/port/g64lua.c`). That number is made from the
+script's memory counts, its random state, the players it has seen, the events that wait for it, the text it shows
+and until which frame, and the session's values with the requests to add to them. A script gives a player a life and
+puts one of the game's pick-ups in the level (`game.add_life`, `game.spawn_pickup`), and hears when a player reaches a
+checkpoint or takes a pick-up (`on_checkpoint`, `on_pickup`). A script reads and sets the level's 100 puzzle
+variables. The level's puzzles test and set the same variables (puzzle.c). A puzzle's condition can test a variable.
+A script that sets that variable can then start the puzzle's actions, which can be any the game has. A puzzle's
+action can set a variable, and the script can read it ([scripts.md](../scripts.md#a-script-and-the-levels-puzzles)).
+A script keeps 16 values across levels: a level's script asks the host to add to one, and the new value reaches every
+instance as a session event. Left: writes to garibs.
 
 Playable: a session on a custom Glovebox level with a script, joined by players who did not have the pack. Test: the
 pack reader's fuzz target; a script's state equal on every client after rollbacks; a level built from scratch loads

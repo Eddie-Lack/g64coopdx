@@ -10,10 +10,13 @@ A level pack is a folder with a custom level for a session. This file is the for
 - The host gives the pack's folder to the online program (`--pack FOLDER`). A joiner who lacks the pack downloads
   it from the host, after the player says yes ("Packs that came from a host" below). A joiner may also have the
   folder already.
-- The level places objects that the borrowed level's own banks hold, and the pack's own models
-  ([model-banks.md](model-banks.md)). The borrowed level is the game's level whose place the pack's level takes. A
-  bank is one block of the ROM: a texture bank holds pictures, and an object bank holds objects. A level file that
-  names an object the banks do not hold makes the game stop: there is no check for it yet.
+- The level places objects that its banks hold: the borrowed level's own banks, the pack's own models, and the
+  retail banks that the pack names ([model-banks.md](model-banks.md)). The borrowed level is the game's level whose
+  place the pack's level takes. A bank is one block of the ROM: a texture bank holds pictures, and an object bank
+  holds objects. A retail bank is one of the ROM's own banks. A level file that names an object that none of these
+  banks hold makes the level unplayable. `g64pack check DIR --rom ROM` checks for it. The online program checks on
+  the host before its offer, on a joiner after a download, and when the game starts ([model-banks.md](model-banks.md),
+  "The level's object ids").
 - A pack with models travels as the other files do. The host checks its models on its own ROM before it offers
   the pack, and a joiner checks them again on theirs.
 
@@ -145,11 +148,9 @@ host's welcome (`src/session/session.h`: offer, want, piece, ready).
 - The host's pack is the joiner's for that session only. The joiner's next session starts with its own pack.
 - The host does not offer a pack whose models fail the bank check or the rules that need the host's ROM
   (`g64_pack_may_send`). Its log says why.
-- The host does not offer a pack whose level file is a level of the ROM, one whose level file fails the check of its
-  structure, or one that
-  takes the place of a hub, a boss level, a bonus level or a scene. The game's code for those levels expects fixed
-  things in them ([level-file-safety.md](level-file-safety.md)). In that case the host refuses a joiner who lacks
-  the pack.
+- The host does not offer a pack whose level file is a level of the ROM, or one whose level file fails the check of
+  its structure. In that case the host refuses a joiner who lacks the pack. A pack from the host may take the place
+  of any level: a hub, a boss level, a bonus level or a scene too ([level-file-safety.md](level-file-safety.md)).
 - A pack whose level file names an object that no bank of its level has stops the host's session before the offer
   ([model-banks.md](model-banks.md), "The level's object ids").
 
@@ -184,5 +185,4 @@ pointer to the pack. The game loads the pack's banks when the pack's level start
   prompt before a download tells the joiner to take a pack only from a host they trust.
 - **A list of packs in the lobby.** A room's entry on the relay's list does not name its pack yet. A room is a
   host's session on the relay ([server/README.md](../../server/README.md)).
-- **The rest of models in a pack:** the loading of retail banks. [model-banks.md](model-banks.md) is the plan.
-- **More in a pack:** more than one level, and more for a script to call.
+- **More in a pack.** More than one level, and more for a script to call.

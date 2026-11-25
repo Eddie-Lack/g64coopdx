@@ -2,9 +2,10 @@
 
 The game's level parser (`weemitt/src/game/parse.c`) is the original game's. It trusts the level file. This file
 lists what a level file must satisfy for that parser, and the code that uses what it parsed, to stay inside its
-memory. It comes from a read of the code on 22 November 2026; nothing here was tested with a hostile file. Line
-numbers are of that day. `P:` means `weemitt/src/game/parse.c`. README.md's [terms](README.md#terms) define the
-words that this file uses without explaining them, such as the host, the hub, a garib, a cameo and the baseline.
+memory. The sections from "How the parser reads" on come from a read of the code on 22 November 2026. Their line
+numbers are of that day. The sections before them say what is checked and guarded now, and which tests play hostile
+level files. `P:` means `weemitt/src/game/parse.c`. README.md's [terms](README.md#terms) define the words that this
+file uses without explaining them, such as the host, the hub, a garib, a cameo and the baseline.
 
 It exists for one decision: whether g64coopdx may load a level pack that comes from another player
 ([level-pack.md](level-pack.md)). A pack comes from a folder the player chose, or from the host after the player
@@ -15,8 +16,13 @@ said yes to the download. A pack from the host must pass the check below.
 A check that makes a hostile level file safe must walk the file exactly as the parser does, hold about a hundred
 rules on values and order, and know which objects, sub-objects, meshes and animations the borrowed level's banks
 hold in the player's own ROM. The borrowed level is the game's level whose place the pack's level takes. Parts of
-the game that use parsed values were not read (the last section). Until such a check exists and has been fuzzed
-against the real parser, a level file from a stranger can crash the game or write outside its memory.
+the game that use parsed values were not read (the last section).
+
+g64coopdx does this work in two places: before a level loads, and in the game itself. Before the level loads, a
+check walks the file as the parser does and holds it to some of these rules ("What is checked today"). A second rule
+checks the file's object ids against the level's banks ("The level's object ids"). The game itself tests many of
+the other values where it uses them ("What the game itself guards"). Some cases are still open, and the end of that
+section lists them. One is memory that fills while the level runs: the program then stops.
 
 ## What is checked today
 
@@ -40,17 +46,23 @@ rules:
 - a puzzle condition's number is 9 to 44 and an action's 45 to 87; a confine condition names limit 0 to 5
 - a TIP's number is 0 to 32
 
-Every rule passes on all 48 levels of the ROM. Of "The most dangerous" below, these cover points 1, 2 and 3 but for
-a cameo's extra camera spheres, and the plank count of point 9.
+The numbers of puzzle conditions and actions in this list are the file's. The game numbers them from 0: its number
+is the file's number less 9 for a condition and less 45 for an action (the CONDITION and ACTION tokens in parse.c).
+The rest of this file gives the game's numbers. Only point 6 below gives a file's number: a condition's id.
+
+Every rule passes on all 48 levels of the ROM. Of "The most dangerous" below, these rules cover points 2 and 5,
+point 1 but for puzzle action 6's axis, and point 3 but for a cameo's extra camera spheres. They also cover a
+condition's id of point 6, the tip's number of point 8, the plank count of point 9 and STARTPOINT of point 10.
 
 How it is proven: the game's parser records each token it reads (`G64ParseTrace`, for tests only), and
 `tests/rom/levcheck.c` compares that record with the check's walk on all 48 levels of the ROM. The check accepts
 every one and names the same tokens at the same offsets. 26 of the parser's tokens are in no level of the ROM; their
 lengths come from the code alone. The check's fuzz target shows that it never reads outside the file.
 
-What it does not check: the other values (points 4 to 11 below, and the rest of the table of ranges). The numbered
-list below still holds for a file that passes. `g64pack` prints the check's result for a pack's maker. The game does
-not refuse a pack on it yet.
+What it does not check: the other parts of "The most dangerous" below, and the rest of the table of value ranges.
+The numbered list below still holds for a file that passes. `g64pack` prints the check's result for a pack's maker.
+The online program refuses a pack from another player that fails it: a host does not offer such a pack, and a
+joiner refuses such a download. A pack from the player's own folder need not pass it.
 
 ## The level's object ids
 
@@ -101,11 +113,11 @@ says what the game did before them, and the present tense says what the copy doe
 - A DESTRUCTIBLE platform's pieces must be of an object the level's banks hold (or of none, as in the game's own
   levels), and a platform breaks into at most 64.
 - A level file may not fill the game's memory. The game stops the program when its heap or its list of 1,280 memory
-  blocks is full. Before each token the parser asks for 4 MB of free heap and for fewer than 1,100 blocks in use; the
+  blocks is full. Before each token the parser asks for 4 MiB of free heap and for fewer than 1,100 blocks in use; the
   largest of the game's levels uses 957 blocks and about 1 MB of the heap's 22 MiB while it is read.
 - The collision planes after the parse must fit too (`G64PlanesFit`, parse.c). Each LANDSCAPE, BACKGROUND or WATER
   actor takes one more block and 120 bytes for each face of its mesh. Before any plane is made, the parser adds them
-  up. The level stops as unplayable ("TOO LARGE") when they would leave less than 4 MB free, or would bring the
+  up. The level stops as unplayable ("TOO LARGE") when they would leave less than 4 MiB free, or would bring the
   blocks in use to 1,100. A level file that named one object some hundreds of times filled the list of blocks here,
   and the game stopped the program. With 16 players the game's own levels need at most 101 blocks and 288,048
   bytes, and reach at most 1,035 blocks in use.

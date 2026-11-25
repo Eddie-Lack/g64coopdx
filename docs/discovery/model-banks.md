@@ -18,7 +18,7 @@ The owner decided these points.
 - A pack may also name retail banks by number. A retail bank is one of the ROM's own banks. Each player's game
   loads it from their own ROM. Only the number crosses the network. The session already checks that every player
   has the same ROM.
-- The models in a pack are at most 4 MB.
+- The models in a pack are at most 4 MiB.
 - Custom models may be platforms, if a test shows that they give the same game on Linux and Windows. The test
   passed ("Platforms" below).
 
@@ -113,15 +113,18 @@ With the player's ROM, the client also refuses:
   less than 64 bytes is allowed, and so is a texture of one color.
 - A level file that names an object found in no bank the level will have, or a cameo of the pack's own model
   ("The level's object ids").
-- A level whose actors would need more memory for their collision than the budget allows.
+
+The client does not limit the memory for a level's collision. The game's parser does: a level whose collision
+would need more memory than the budget allows stops as unplayable (`G64PlanesFit` in parse.c, "The heap" below).
 
 The check's API is `g64_models_check` and `g64_models_check_rom` (`src/client/bankcheck.h`). Each returns a message and
 the offset in `models.bin` of the fault. The caller gives the first one a function that says which bank numbers the game
 has, and each bank's range in the ROM. A program that links the game, such as the online program, asks `G64BankRom`
-(`g64_rombanks_game_range`). The pack tool and the tests do not link the game. They use a table of the game's bank
-switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`). `make rombanks` compares the table with
-`G64BankRom`. `g64_models_check_rom` applies the first two rules of the list above that need the ROM: the ROM's ids, and
-data equal to the ROM's. The rule for the level file is a separate one ("The level's object ids").
+(`g64_rombanks_game_range`). The pack tool, the pack tests in `tests/net` and the pack fuzz target do not link
+the game. They use a table of the game's bank switch (`src/client/bankranges.h`, written by `tools/gen_bankranges.py`).
+`make rombanks` compares the table with `G64BankRom`. `g64_models_check_rom` applies the first two rules of the list
+above that need the ROM: the ROM's ids, and data equal to the ROM's. The rule for the level file is a separate one
+("The level's object ids").
 
 The pack reader (`src/client/pack.h`) runs the check on every `models.bin`, from a folder too. The online program
 runs the rules that need the ROM: the rules of `models.bin` and the rule for the level file's object ids ("The
@@ -275,8 +278,9 @@ game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
 - The client copies the pack's files after the ROM's own bytes, in the memory that holds the ROM (the ROM buffer).
   `G64SetPackModels` says where the two banks are in the ROM buffer, after the pack's other files. Its values are
   statics in the game's saved data, and hold no pointer. The client sets them with `g64_instances_pack_models`.
-- The pack's banks are freed with the level's own, at the three places that free the five slots (`FreeLevel2` twice in
-  game.c, and frontend.c). The end of level screen loads its banks only after `FreeLevel`, which calls `FreeLevel2`.
+- The pack's banks are freed with the level's own, at the three places that free the five slots (`FreeScreen` and
+  `FreeLevel2` in game.c, and frontend.c). The end of level screen loads its banks only after `FreeLevel`, which
+  calls `FreeLevel2`.
 - `RestoreDrawList` points the game's words for the ball's and the hand's textures at an object named `gball`, `cball`,
   `GShinL`, `GShinR` or `gbl_bt`. The check refuses those names in the pack's own bank. Retail banks hold them: OUTRO
   has `GShinL` and `GShinR`, and FLYTHRU has `gball`. So `RestoreDrawList` skips those names while `G64LoadPackBanks`
@@ -479,8 +483,8 @@ and the count of matrix words that a NaN gives. At frame 1000 it saves, runs 100
 again. It also checks that the pack's actors are in the level, that the level never stops as unplayable, and that
 `calcMtx` stays 0. In the PLATFORM, ROPEBRIDGE and SINEBRIDGE cases, a glove or a ball must stand on or touch one
 of the pack's platforms in some frame. The test reads each glove's and ball's platform and contact platform on
-every frame. The ORBITBRIDGE case has no such check. In the test no glove or ball touched one of its planks, even
-one that starts under the glove. The likely reason is in parse.c: it calls no `InitPlatformInfo` for these planks.
+every frame. The ORBITBRIDGE case has no such check. In the test no glove or ball touched one of its planks. The
+likely reason is in parse.c: it calls no `InitPlatformInfo` for these planks.
 So their collision radius stays 0, and their faces never get the normals that `RecalculatePlatformInfo` keeps for
 a platform with no motion and no rotation.
 

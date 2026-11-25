@@ -18,7 +18,8 @@ repository may appear by a shorter path. A short path in a sentence about sm64co
 - A Glover level is one command stream (a `.lev` file) that names models and textures by a CRC id. The models and
   textures live in banks in the ROM. A level that only places existing objects needs no new bank (VERIFIED).
 - weemitt reads every ROM byte through a few functions over one memory buffer. Loading a level or a bank from a file
-  at run time is a small change: about 30 lines for the level, a little more for banks (INFERRED).
+  at run time is a small change: about 30 lines for the level and about 100 for banks (INFERRED; options A and B
+  below).
 - Glovebox already writes levels and models in the game's own formats. It needs one new export, a **level pack**: a
   zip file of one level, its scripts and the author's own models, with no game data ([details](#the-level-pack)). Its
   imported models must then go into banks of their own, which its `modCustom` path already supports (VERIFIED:
@@ -95,12 +96,20 @@ that uses Glover as a character. A custom Glover level is better served by the g
   with option B.
 - Glovebox already makes such banks: `custom/<set>/<id>.obj.bin` and `textures.tex.bin`
   (`Glovebox/docs/technical.md:910-922`). They are in the game's own format, so weemitt's converters
-  (`port_convert_object_bank`, `port_convert_texture_bank`) should take them as they are (INFERRED, not tried).
+  (`port_convert_object_bank`, `port_convert_texture_bank`) should take them as they are (INFERRED). These files
+  were not tried as they are. A pack carries its models in `models.bin`. Glovebox's pack export writes that file
+  (`model_banks` in `Glovebox/crates/core/src/custom/pack.rs`). The export links the level's imported models into one
+  object bank and puts the textures they use in one texture bank. It writes the identity rotation key, (0, 0, 0, 1), in
+  place of a key of all zeros. `make bankwalk` loads such a file, a cube, in a real level
+  ([model-banks.md](model-banks.md#the-check)).
 - weemitt's renderer interprets F3DEX display lists and textures from any address in `port_ram`
   (`weemitt/src/gfx/gfx.h`). The limits of the game's C stay: 800 vertices a frame in `objectsVtx`
   (`gloveworld/docs/game.md:117`), 2,048 texels per texture load.
-- UNKNOWN: whether a custom model with an all-zero first rotation key, used as a platform, gives NaN in weemitt's
-  `QuaternionToMatrix`. Glovebox's builder does not allow custom models as platforms on the console. Test it before allowing it.
+- A custom model with an all-zero first rotation key, used as a platform, gives NaN (not a number) in weemitt's
+  `QuaternionToMatrix` (VERIFIED). The bank check refuses such a key, and Glovebox's pack export writes the identity
+  key in its place. Custom models may be platforms: `make models` (`tests/rom/models.c`) tested it
+  ([model-banks.md](model-banks.md#platforms)). Glovebox's builder does not allow custom models as platforms on the
+  console.
 
 ### Player models
 
@@ -159,8 +168,8 @@ What each project needs:
 | Memory and step limits | custom allocator; `lua_sethook` with a count | the count hook does not reach compiled loops | interrupt callback |
 
 **Recommendation: PUC Lua 5.4, vendored at a fixed version**, compiled with the game's flags (`-ffp-contract=off`,
-SSE2, no fast math). sm64coopdx uses Lua 5.3 the same way ([sm64coopdx.md](sm64coopdx.md)). Choose Luau only if the
-sandbox matters more than the C dependency.
+SSE2, no fast math). sm64coopdx uses Lua 5.3 the same way ([sm64coopdx.md](sm64coopdx.md)). Choose Luau only if its
+built-in sandbox matters more than a runtime in plain C99: Luau needs C++17 (the table above).
 
 ### Scripts in a rollback game
 
@@ -185,7 +194,7 @@ frame, so every update is a tick. Three rules follow.
 | `math.sin`, `cos`, `exp`, `log`, `pow`, `fmod` (the C library's; they differ between systems) | Replace with the game's own `sinf` and `cosf` (`weemitt/src/port/libultra.c`, bit-exact polynomials) and functions made only of `+ - * /` |
 | `os.time`, `os.clock`, `os.date` | Remove; give `game.frame()` |
 | `math.random` | Replace with the session's seeded generator; never the game's `rseed` unless the script means to change the game |
-| `pairs` and `next` order over hash tables: Lua 5.4 seeds its string hash from the time and from addresses (`lstate.c:58-80` in Lua 5.4.7, VERIFIED) | Define `luai_makeseed` as a constant when building Lua (the source allows it: `#if !defined(luai_makeseed)`), and forbid tables and functions as keys in logic, since their hash is their address |
+| `pairs` and `next` order over hash tables: Lua 5.4 seeds its string hash from the time and from addresses (`lstate.c:58-80` in Lua 5.4.7, VERIFIED) | Define `luai_makeseed` as a constant when building Lua (the source allows it: `#if !defined(luai_makeseed)`). Lua hashes a table or a function as a key by its address: define `point2uint` as the address's offset in the arena, and 0 outside it. Lua 5.4.8 defines `point2uint` with no guard. The build adds one in `llimits.h` ([lua-trial.md](lua-trial.md); `weemitt/src/port/g64lua_conf.h`, `weemitt/third_party/lua/llimits.h`) |
 | `tostring` of tables, `%p` | Remove |
 | `__gc`, weak tables, `collectgarbage` | Remove; run the collector at a fixed point of the tick with a fixed step |
 | Number to text in logic | Allowed only for display |
@@ -193,13 +202,17 @@ frame, so every update is a tick. Three rules follow.
 | Bytecode | Never accepted; source only |
 | Lua built with other options on another machine | One vendored Lua, one set of options, in the version handshake |
 
-The memory hash used for desync checks then covers the arena too.
+The memory hash used for desync checks does not cover the arena. The arena holds addresses, and they differ between
+machines. With a script, the hash that machines compare also covers a number made from the scripts' state, such as
+its memory counts and its random numbers' state (`G64LuaHash` in `weemitt/src/port/g64lua.c`, `game_hash` in
+`src/rollback/engine_game.c`, [lua-trial.md](lua-trial.md)).
 
 ### Hook points
 
 The port already has a hook pattern: function pointers in `weemitt/src/port/porthooks.h`, NULL by default
-(VERIFIED). The Lua layer uses the same pattern. Each function below exists in the game (VERIFIED). The design adds
-a hook to it.
+(VERIFIED). The Lua layer uses the same pattern. Each row below says where a hook goes. The rows for each tick and for
+the level freed name port hooks that exist already (VERIFIED). The last two rows name new places, not functions of
+the game. Each other row names a function of the game (VERIFIED), and the design adds a hook to it.
 
 | Event | Where |
 | --- | --- |
@@ -249,7 +262,9 @@ game's memory, which holds ROM data). See [netcode.md](netcode.md#instances) for
 
 ## Open points
 
-- Whether Glovebox's custom banks load in weemitt unchanged: try in phase 5 of the [roadmap](roadmap.md).
-- The custom-platform NaN question above.
+- Glovebox's custom banks: its pack export writes them into a pack's `models.bin`, and the game loads that file
+  ([Custom models and textures](#custom-models-and-textures)). The set's own files were not tried as they are.
+- The custom-platform NaN question above is settled: custom models may be platforms
+  ([model-banks.md](model-banks.md#platforms)).
 - The Lua API's first scope is decided: rules, HUD, puzzle conditions and actions, and spawns through the game's own
   functions ([open-questions.md](open-questions.md#decided)).

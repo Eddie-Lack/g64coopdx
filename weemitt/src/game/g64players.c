@@ -8,8 +8,10 @@
 
    What a swap leaves alone: the list links of every swapped actor (the first 0x18 bytes: the actor lists hold the
    globals' addresses), and every world system. Enemies and bullets swap in the player they look at ("Enemies and
-   bullets", below). Collectables, puzzles and platforms still see only the first player. With one player nothing here
-   runs, and the game is unchanged. */
+   bullets", below). A puzzle's condition and the platforms that wait for a glove or a ball look at every player, and
+   every player can take garibs and pick-ups ("Puzzles and platforms" and "Garibs and pick-ups", below). Offline with
+   one player nothing here runs, and the game is unchanged. Online some of it runs even for a player alone, such as
+   the respawns and the tips ("Respawns" and "Tips", below). */
 PORT_C_BEGIN
 #include "common.h"
 #include "actor.h"
@@ -1070,7 +1072,7 @@ s32 G64PlayerBallType(s32 player) {
     return i ? ((G64Slot *)slots[i])->ballControl.type : ballControl.type;
 }
 
-/* Each player's color as 0xRRGGBB, multiplied into the glove's and ball's colors. Player 1 keeps the game's own. */
+/* Each player's color as 0xRRGGBB, multiplied into the glove's and ball's colors. Player 0 keeps the game's own. */
 static const u32 playerColor[8] = {0, 0x60A0FF, 0x70FF70, 0xFFE040, 0xFF6060, 0xC070FF, 0xFFA040, 0x60FFFF};
 
 u32 g64PlayerColor[G64_MAX_PLAYERS][2];
@@ -2003,8 +2005,9 @@ void G64SetLevelCamHeight(s32 height) {
 
 /* The first space boss's level ends when a player brings their ball to the robot's platform. From then until the
    exit the robot's code deals with that player, the carrier: the number, plus 1, is kept here. G64CarrierSet(1) notes
-   the player in the globals, and G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the globals when another player is there, and
-   returns their slot (0 when nothing was swapped, -1 when the carrier has left the game); G64CarrierEnd undoes it. */
+   the player in the globals, and G64CarrierSet(0) that there is none. G64CarrierBegin puts the carrier in the
+   globals when another player is there, and returns their slot (0 when nothing was swapped, -1 when the carrier has
+   left the game); G64CarrierEnd undoes it. */
 static s32 carrier;
 
 void G64CarrierSet(s32 on) {

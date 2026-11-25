@@ -17,7 +17,8 @@ package main
 //	from host 0x85, payload                relay -> joiner
 //	announce  0x05, build (u32), wanted (u8), joined (u8), flags (u8), open (u8), title (up to 32 bytes)
 //	                                       host -> relay: list the room for players of this build (open 1), or
-//	                                       take it off the list (open 0). The host repeats it while it waits.
+//	                                       take it off the list (open 0). The host repeats it every two seconds
+//	                                       while the room has free places, also after the game starts.
 //	list      0x06, build (u32), padding   anyone -> relay: which listed rooms does this build have? The datagram
 //	                                       must be relayListMin bytes long: the answer is never longer than the
 //	                                       question. The relay then cannot be used to flood a forged address.
@@ -191,7 +192,7 @@ func header(t byte) []byte {
 	return append([]byte(relayMagic), t)
 }
 
-// handle deals with one datagram from addr.
+// handle deals with one datagram, d, that came from the address from.
 func (r *relay) handle(d []byte, from netip.AddrPort) {
 	if len(d) < relayHeader || string(d[:4]) != relayMagic {
 		return
@@ -387,7 +388,7 @@ func (r *relay) expire() {
 	}
 }
 
-// rooms counts the open rooms and their players, for /v1/info.
+// counts gives the number of open rooms and of their players, for /v1/info.
 func (r *relay) counts() (rooms, players int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

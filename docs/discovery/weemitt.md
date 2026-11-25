@@ -123,6 +123,10 @@ The owner chose to keep g64coopdx's own copy of the game code. Option B does tha
   not needed.
 - **Everything new is in g64coopdx's own folders:** the network layer, sessions, rollback, the lobby, the interface,
   chat, Lua, packs, the drawing of names. Changes inside `weemitt/` are the game changes co-op needs, and nothing else.
+  The code today puts some of these inside the copy: Lua (`weemitt/src/port/g64lua.c`), the start screen
+  (`weemitt/src/port/g64launcher.cpp`, `weemitt/src/game/g64title.c`), the Players and Chat windows
+  (`weemitt/src/port/menu.cpp`), and the chat lines drawn in the game's font (`G64ChatView` in
+  `weemitt/src/game/g64players.c`).
 - **The first commit of the copy is weemitt unchanged.** weemitt's `tools/regress.py check` must pass on it. That
   proves the copy builds and plays like weemitt before any co-op change.
 - **From then on g64coopdx keeps its own baseline**: recorded runs of its own build, re-recorded on purpose when a
@@ -136,13 +140,16 @@ The owner chose to keep g64coopdx's own copy of the game code. Option B does tha
   offsets (`docs/port64.md`), and their memory hashes were equal on Linux and Windows in all 49 runs of this
   discovery's tests.
 - **The savestates must first work at 64 bits** (game change 8 below, in phase 0 of [roadmap.md](roadmap.md)). At
-  `f509ef7` the brute forcer and its savestates exist only as 32-bit programs (`docs/building.md`: "The studio, the
-  Space demo and the brute forcer stay 32-bit").
+  `f509ef7` the brute forcer and its savestates existed only as 32-bit programs (`docs/building.md`: "The studio, the
+  Space demo and the brute forcer stay 32-bit"). The points below describe that commit. Game change 8 has been done
+  since: the engine builds at 64 bits for Linux and Windows (g64coopdx's `make savestates`), and all its tests pass
+  on both, the Windows program under Wine (roadmap.md, phase 0's status). On Linux the `.data.rel` sections now go
+  into the engine's saved data (`DATA_REL_RENAMES` in the copy's `bruteforce/Makefile`).
   - Linux: the 64-bit program is position-independent (`docs/architecture.md`), and 6 of the game's and runtime's
-    objects in `build/headless64` have `.data.rel` sections (measured). The engine's section check does not accept
+    objects in `build/headless64` have `.data.rel` sections (measured). The engine's section check did not accept
     them yet (`docs/port64.md`, "What is left", item 1).
-  - Windows: the 64-bit objects have no `.data.rel` sections (measured with `objdump -h`). The engine has never been
-    built at 64 bits, so the work is to build and test it there. This is likely small (INFERRED).
+  - Windows: the 64-bit objects have no `.data.rel` sections (measured with `objdump -h`). The engine had never been
+    built at 64 bits, so the work was to build and test it there. This was likely small (INFERRED).
   - Until the page tracker works there, full-copy savestates do: about 0.4 ms each, about 4 ms for a rollback of 8
     frames.
 - **Why not 32-bit:** a 32-bit static build stores the machine's own addresses in the game's memory, so its hashes may

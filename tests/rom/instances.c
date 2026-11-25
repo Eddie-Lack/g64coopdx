@@ -25,7 +25,8 @@
  * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
  * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run). The sample pack
  * plays with its raft and a retail bell, and the client refuses it with other retail banks (sample_pack,
- * sample_pack_retail).
+ * sample_pack_retail). The last two runs test the session's values, which scripts keep from level to level
+ * (script_session), and levels that cannot be played, which do not stop the session (pack_unplayable).
  *
  * Usage: instances ROM. Without a ROM file it prints that it was skipped and exits with 0. */
 #include <stdio.h>

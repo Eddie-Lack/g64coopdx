@@ -118,7 +118,7 @@ static void test_toy_over_udp(void) {
         uint8_t buf[NET_MAX_DATAGRAM];
         net_addr from;
         int n, j;
-        /* The host knows its clients by address, as the session layer will. */
+        /* The host knows its clients by address, as the session layer does. */
         while ((n = net_recv(host_sock, &from, buf, sizeof buf)) >= 0)
             for (j = 0; j < PLAYERS; j++)
                 if (net_addr_equal(&from, &client_addr[j]))

@@ -319,14 +319,14 @@ void netplay_set_public(int on, const char *title) {
 int netplay_public(void) { return publicRoom; }
 const char *netplay_public_title(void) { return publicTitle; }
 
-/* The host tells the relay about its room: every two seconds while it waits, and once more when the game starts,
-   which takes the room off the list. */
+/* The host tells the relay about its room. While the room has free places, before and after the game starts, the
+   host announces it every two seconds. */
 static int announcedOpen;
 static void announce_room(int open) {
     uint32_t t = now_ms();
     if (!publicRoom || !sock || !session || !chost || !crelay[0])
         return;
-    /* An open room is announced every two seconds. A room that is full or has started is taken off the list once. */
+    /* An open room is announced every two seconds. A full room is taken off the list once. */
     if (open ? announced && announcedOpen && t - announced < 2000 : announced && !announcedOpen)
         return;
     announced = t ? t : 1;

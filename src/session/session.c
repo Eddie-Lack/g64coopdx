@@ -77,8 +77,8 @@ typedef struct {
        start who is gone; its new player is not one of the start's. */
     int late;
     /* On the host: this player does not have the host's level pack yet. They hold a place and are not in the game:
-       they are not counted, not sent the start, and their game and chat messages are dropped. since is when
-       they came; served is when the host last sent them pieces. */
+       they are not counted, not sent the start, and their game and chat messages are dropped. packSince is when
+       they came; packServed is when the host last sent them pieces; lastOffer is when it last sent them the offer. */
     int needPack;
     uint32_t packSince, packServed, lastOffer;
     size_t packSent; /* the pack's bytes sent to this peer so far */

@@ -1,5 +1,6 @@
 /* A UDP socket for the direct mode: one player hosts on a port, the others connect to the host's address
- * (docs/discovery/netcode.md). Plain sockets on Linux and Winsock on Windows; nothing blocks.
+ * (docs/discovery/netcode.md). Plain sockets on Linux and Winsock on Windows. The socket never blocks. Resolving
+ * a name may block (net_resolve, net_resolve_all).
  *
  * Addresses are IPv4 or IPv6. Every datagram received is untrusted: the caller checks its contents. */
 #ifndef G64_NET_UDP_H

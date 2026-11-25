@@ -29,7 +29,7 @@ traversal and ICE.
 | Tick | 30 Hz game logic (`src/pc/pc_main.c:91`, VERIFIED) |
 | Late join | A joiner downloads the host's mods, gets the host's save, then asks a player in the same area for that area's state |
 | Different levels | Allowed. Packets carry course, act, level and area; players in other areas are filtered out |
-| Desync | Logged and partly repaired by "forgetting" broken objects (section 3.8). No full resync |
+| Desync | Logged. An object that fails a check is "forgotten": it leaves the sync. Recovery is partial (section 3.8). No full resync |
 | Mods | Lua 5.3, about 2,000 functions generated from C headers, 69 hook types, sync tables (section 4.4), DynOS for models, levels and textures (section 4.7). The host's mods download to every joiner, with an MD5 cache and a 35 MB cap per mod |
 | Tests | CI builds five platforms. It runs no tests (VERIFIED) |
 
@@ -238,7 +238,7 @@ VERIFIED by packet list, `packets/packet.h` enum PacketType:
 | Player state | PACKET_PLAYER, PACKET_PLAYER_SETTINGS, PACKET_DEATH, PACKET_NETWORK_PLAYERS (+ _REQUEST) | Whole Mario state each send (struct PacketPlayerData, about 150 bytes plus the object's raw regular fields) |
 | Objects | PACKET_OBJECT, PACKET_SPAWN_OBJECTS, PACKET_SPAWN_STAR, PACKET_SPAWN_STAR_NLE, PACKET_COLLECT_STAR, PACKET_COLLECT_COIN, PACKET_COLLECT_ITEM | Per sync object; spawn and collect events are reliable |
 | World events | PACKET_CHANGE_WATER_LEVEL, PACKET_GLOBAL_POPUP, PACKET_SAVE_FILE, PACKET_SAVE_SET_FLAG, PACKET_SAVE_REMOVE_FLAG | Water level and save flags |
-| Level and area sync | PACKET_CHANGE_LEVEL, PACKET_CHANGE_AREA, PACKET_LEVEL_AREA_REQUEST, PACKET_LEVEL_REQUEST, PACKET_LEVEL, PACKET_AREA_REQUEST, PACKET_AREA, PACKET_SYNC_VALID, PACKET_LEVEL_SPAWN_INFO, PACKET_LEVEL_MACRO, PACKET_LEVEL_AREA_INFORM, PACKET_LEVEL_RESPAWN_INFO, PACKET_REQUEST_FAILED | See 3.7 |
+| Level and area sync | PACKET_CHANGE_LEVEL, PACKET_CHANGE_AREA, PACKET_LEVEL_AREA_REQUEST, PACKET_LEVEL_REQUEST, PACKET_LEVEL, PACKET_AREA_REQUEST, PACKET_AREA, PACKET_SYNC_VALID, PACKET_LEVEL_SPAWN_INFO, PACKET_LEVEL_MACRO, PACKET_LEVEL_AREA_INFORM, PACKET_LEVEL_RESPAWN_INFO, PACKET_REQUEST_FAILED | See 3.8 |
 | Session | PACKET_JOIN_REQUEST, PACKET_JOIN, PACKET_KICK, PACKET_LEAVING, PACKET_KEEP_ALIVE, PACKET_PING, PACKET_PONG, PACKET_CHAT, PACKET_COMMAND, PACKET_MODERATOR | |
 | Mods | PACKET_MOD_LIST_REQUEST, PACKET_MOD_LIST, PACKET_MOD_LIST_ENTRY, PACKET_MOD_LIST_FILE, PACKET_MOD_LIST_DONE, PACKET_DOWNLOAD_REQUEST, PACKET_DOWNLOAD | See 4.6 |
 | Lua | PACKET_LUA_SYNC_TABLE_REQUEST, PACKET_LUA_SYNC_TABLE, PACKET_LUA_CUSTOM, PACKET_LUA_CUSTOM_BYTESTRING | See 4.4 and 4.5 |
@@ -264,7 +264,7 @@ VERIFIED design:
   - a mod can override (`override_ownership`);
   - in the credits sequence everyone owns everything and no object packets are sent (act 99).
   Only the owner sends `PACKET_OBJECT` for it. Receivers write the received fields straight into their object.
-- Update rate (VERIFIED, `network_update_objects`): `updateRate = distance / 1000` seconds, clamped between `minUpdateRate` (default 0.33 s) and an optional `maxUpdateRate`. So distant objects update at most about 3 per second and nearby ones as often as the update loop allows. A held object always uses 0.33 s.
+- Update rate (VERIFIED, `network_update_objects`): `updateRate = distance / 1000` seconds, the time between two sends. It is raised to the optional `maxUpdateRate` when that is above 0, and then to at least `minUpdateRate` (default 0.33 s). Both are lower bounds on the time. So with the default every object updates at most about 3 times a second, and distant ones less often. For a held object the code puts 0.33 s in place of `distance / 1000`, then applies the same two bounds.
 - Reliability per object: unreliable normally; reliable when the object is deactivated (death) or the sync distance is ONLY_EVENTS (`network_send_object`). The last reliable packet of each object is remembered (`lastReliablePacket`) so it can be resent to a late joiner.
 - Ordering: each sent object packet carries a 16-bit `txEventId`. The receiver keeps `rxEventId` per sender and drops older ids (wrap aware, half range compare) (`packet_read_object_header`).
 - Safety checks on receive (VERIFIED): unknown sync id, null object, behavior id mismatch (with a short whitelist of allowed behavior changes for penguins and coins), extra-field count mismatch, and "a player holding an object cannot be updated by others". A mismatch makes the receiver "forget" the sync object (`sync_object_forget`, freed after `FORGET_TIMEOUT 10` updates).

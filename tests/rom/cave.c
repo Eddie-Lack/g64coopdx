@@ -11,7 +11,8 @@
  *      ball the cave gave at its start). The target then rises: player 1 brought no crystal and has no scene. Player 2
  *      comes in with it due and puts it in.
  *   F. Two players start in the cave as the seventh crystal goes in: the ending holds both.
- *   G. The single-player game (offline): one player puts the crystal in, as before the change.
+ *   G. The single-player game (offline, g64Online 0): one player puts the crystal in. The hub level becomes 1 and
+ *      the ball goes to y -5000.
  * It prints what it checks and a memory hash per case: make twoplayers runs it on Linux and under Wine and compares
  * the outputs.
  *

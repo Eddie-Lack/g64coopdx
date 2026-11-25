@@ -22,10 +22,11 @@ handshake. The terms are defined in [README.md](README.md#terms).
   with inputs a controller could give.
 - A player who enters a level that others are playing replays that instance's inputs from its start, which a machine
   runs at more than 20,000 frames a second. Late join is the same step.
-- Transport: UDP with encryption; direct connection to the host, NAT traversal with ICE (libjuice), and a TURN relay
-  as fallback. A small lobby server of the project's own. For now the relay is the lobby's own UDP relay, with rooms
-  joined by code. Cloudflare's TURN service, or direct connections through libjuice, can replace it in phase 4
-  ([hosting.md](../hosting.md#the-decision)).
+- Transport, as the discovery recommends: UDP with encryption; direct connection to the host, NAT traversal with ICE
+  (libjuice), and a TURN relay as fallback. A small lobby server of the project's own. Built so far: encrypted UDP, a
+  direct connection to the host's address, and the lobby's own UDP relay, with rooms joined by code
+  (`server/relay.go`). The game has no NAT traversal yet. Cloudflare's TURN service, or direct connections through
+  libjuice, can replace the relay in phase 4 ([hosting.md](../hosting.md#the-decision)).
 
 ## The measurements
 
@@ -184,7 +185,10 @@ At 20 frames a second with 16 players, a client receives about 70 bytes a frame,
 - The host compares each client's hash with its own reference copy of the client's instance.
 - On a mismatch the host tells the client, and the client rebuilds the level from the instance's start record and
   input log ([Instances](#instances)). A log of the first frame that differs, with the trace line, goes to a bug report.
-- The hash must cover the scripts' state (the Lua arena) and the session's own state.
+- The hash must cover the scripts' state and the session's own state. The scripts' block of memory (the Lua arena)
+  holds addresses, and its bytes differ between machines. The hash leaves the block out. With a script, the hash
+  covers a number made from the scripts' state in the block's place (`G64LuaHash` in weemitt/src/port/g64lua.c;
+  `game_hash` in src/rollback/engine_game.c).
 
 ### Instances
 
@@ -202,9 +206,10 @@ record**:
   `weemitt/src/game/game.c:1454`; `maths.c:31`).
 
 **A machine runs one instance:** the one its player is in. The host runs a reference copy of every instance on
-confirmed inputs. With one game per process (the static build, or one library copy), the host runs each extra
-instance in a worker process. Its cost is small: a confirmed frame costs 0.03 to 0.05 ms, so 16 instances cost under
-1 ms per 50 ms frame (INFERRED from the measured frame cost).
+confirmed inputs. One copy of the game's code holds one game (the static build, or one library copy). The host's
+copies take turns in one engine, in one process (src/rollback/engine_game.h). The copies cost little: a confirmed
+frame costs 0.03 to 0.05 ms, so 16 instances cost under 1 ms per 50 ms frame (INFERRED from the measured frame cost).
+Each switch between copies adds a save and a load.
 
 **Entering a level.**
 
@@ -407,6 +412,11 @@ unchanged. The encryption that was built uses Monocypher in place of libsodium (
 | TURN relay | Carries the traffic when traversal fails | Cloudflare's managed TURN service, with coturn on a server of the project's own as the fallback ([hosting.md](../hosting.md#the-relay)) |
 | STUN | Tells a machine its public address | Cloudflare's public STUN server; the lobby names the servers, so they can change |
 
+The table gives the plan. Built so far are the direct connection and the lobby. The lobby runs its own UDP relay,
+which needs no credentials (`server/relay.go`). The relay keeps the list of rooms that hosts chose to show. The lobby
+does not pass ICE candidates or hand out TURN credentials yet ([server/README.md](../../server/README.md);
+[hosting.md](../hosting.md#what-is-set-up-today)).
+
 The lobby server never sees game data: only session descriptions, ICE candidates and the handshake. sm64coopdx's
 lobby (CoopNet) does the same job. g64coopdx follows its design: a lobby that only introduces players, the version in
 the lobby list, the game name as a filter. It does not use CoopNet's code.
@@ -418,14 +428,17 @@ On connect, before anything else, the host and the joiner compare:
 | Item | Rule |
 | --- | --- |
 | Protocol version | Equal |
-| Build id | Equal: g64coopdx's commit, weemitt's commit, the compiler and its flags, the Lua version. sm64coopdx compares a 128-byte version string at three points ([sm64coopdx.md](sm64coopdx.md), 3.9) |
-| ROM | Each machine sends the SHA-1 of its own ROM (`270be17b...` for Glover USA); equal. The ROM never travels |
+| Build id | Equal: by default, the commit of g64coopdx that the program was built from (`G64_BUILD` in weemitt/studio.mk). weemitt's copy and Lua (`weemitt/third_party/lua`) are part of that commit. The compiler and its flags are not part of the id. The joiner's hello carries a 32-bit hash of the id (`build_hash` in src/client/netplay.c). sm64coopdx compares a 128-byte version string at three points ([sm64coopdx.md](sm64coopdx.md), 3.9) |
+| ROM | Equal: the joiner's hello carries a 32-bit hash of its ROM (`g64_rom_hash` in src/session/session.c). The host refuses a hash that differs from its own (`G64_REFUSE_ROM`). The ROM never travels |
 | Packs | The host's list of pack hashes; the joiner downloads what it lacks, after the player agrees ([mods.md](mods.md#how-mods-reach-other-players)) |
 | Session settings | From the host |
 | Player | name, colors, the glove and ball models chosen; checked for length and characters |
 
-g64coopdx ships only 64-bit builds. One session still requires one build id (INFERRED: a single build id catches any difference between builds, including ones not yet
-measured).
+g64coopdx ships only 64-bit builds. One session still requires one build id (INFERRED: builds of two commits may run
+different logic, also in ways not yet measured). The id names the commit only, unless a release passes its own
+(weemitt/studio.mk). Two builds of one commit have the same id, even when one has uncommitted changes or was built
+with another compiler. The Linux and Windows builds of one commit have the same id too. They give equal states and
+hashes (`make crossbuild`).
 
 ### Input from the network
 
