@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "settings.h"
+#include "mouselook.h"
 #include "prefpath.h"
 
 /* The file names an input by these words. */
@@ -15,12 +16,14 @@ static const char *const inputNames[IN_COUNT] = {
 };
 
 static const int defaultKeys[IN_COUNT][KEY_SLOTS] = {
-    [IN_A] = {SDL_SCANCODE_SPACE, 0},
+    /* g64coopdx: the mouse and keyboard layout. The left and right clicks give A and B (mouselook.c), Space is L and
+       R is R. C and X are A and B for the menus and the tips, when the mouse is free. */
+    [IN_A] = {SDL_SCANCODE_C, 0},
     [IN_B] = {SDL_SCANCODE_X, 0},
     [IN_Z] = {SDL_SCANCODE_Z, SDL_SCANCODE_LSHIFT},
     [IN_START] = {SDL_SCANCODE_RETURN, 0},
-    [IN_L] = {SDL_SCANCODE_Q, 0},
-    [IN_R] = {SDL_SCANCODE_E, 0},
+    [IN_L] = {SDL_SCANCODE_SPACE, SDL_SCANCODE_Q},
+    [IN_R] = {SDL_SCANCODE_R, SDL_SCANCODE_E},
     [IN_CUP] = {SDL_SCANCODE_I, 0},
     [IN_CDOWN] = {SDL_SCANCODE_K, 0},
     [IN_CLEFT] = {SDL_SCANCODE_J, 0},
@@ -137,6 +140,7 @@ void settings_defaults(Settings *st) {
     st->stickDead = STICK_DEAD_DEFAULT;
     st->stickRange = STICK_RANGE_DEFAULT;
     st->cameraFollow = 1.0f;
+    st->mouseSensitivity = ML_SENS_DEFAULT;
     st->volume = VOLUME_DEFAULT;
     st->musicVolume = 100;
     st->effectsVolume = 100;
@@ -404,6 +408,10 @@ void settings_load(Settings *st, const char *path) {
             double v = atof(val);
 
             st->cameraFollow = v < 1.0 ? 1.0f : v > 3.0 ? 3.0f : (float)v;
+        } else if (!strcmp(key, "mouse_sensitivity")) {
+            int v = atoi(val);
+
+            st->mouseSensitivity = v < ML_SENS_MIN ? ML_SENS_MIN : v > ML_SENS_MAX ? ML_SENS_MAX : v;
         } else if (!strcmp(key, "log_file")) {
             st->logFile = atoi(val) != 0;
         } else if (!strcmp(key, "log_verbose")) {
@@ -500,8 +508,8 @@ int settings_save(const Settings *st, const char *path) {
     if (path == NULL || path[0] == 0 || (f = fopen(path, "w")) == NULL) {
         return -1;
     }
-    fprintf(f, "# weemitt settings. The menu (Escape) writes this file.\n# Keys are SDL scancode numbers (4 is A, 44 is Space); 0 means no key.\n[graphics]\nphysics_mode=%d\nvsync=%d\nmax_fps=%d\n[enhancements]\neasy_ball=%d\nballworld=%d\ncamera_follow=%.2f\n[audio]\nmaster_volume=%d\n[developer]\nlog_file=%d\nlog_verbose=%d\nrecord_input=%d\n[controller]\nstick_dead=%d\nstick_range=%d\n[keys]\n",
-            st->physicsMode, st->vsync, st->maxFps, st->easyBall, st->ballworld, (double)st->cameraFollow, st->volume, st->logFile, st->logVerbose, st->recordInput, st->stickDead, st->stickRange);
+    fprintf(f, "# weemitt settings. The menu (Escape) writes this file.\n# Keys are SDL scancode numbers (4 is A, 44 is Space); 0 means no key.\n[graphics]\nphysics_mode=%d\nvsync=%d\nmax_fps=%d\n[enhancements]\neasy_ball=%d\nballworld=%d\ncamera_follow=%.2f\n[audio]\nmaster_volume=%d\n[developer]\nlog_file=%d\nlog_verbose=%d\nrecord_input=%d\n[controller]\nstick_dead=%d\nstick_range=%d\nmouse_sensitivity=%d\n[keys]\n",
+            st->physicsMode, st->vsync, st->maxFps, st->easyBall, st->ballworld, (double)st->cameraFollow, st->volume, st->logFile, st->logVerbose, st->recordInput, st->stickDead, st->stickRange, st->mouseSensitivity);
     fprintf(f, "[play]\nmusic_volume=%d\neffects_volume=%d\nmute_unfocused=%d\nskip_intro=%d\ninfinite_lives=%d\ninfinite_health=%d\nunlock_all=%d\nlevel_select=%d\npause_cheats=%d\n",
             st->musicVolume, st->effectsVolume, st->muteUnfocused, st->skipIntro, st->infiniteLives, st->infiniteHealth,
             st->unlockAll, st->levelSelect, st->pauseCheats);

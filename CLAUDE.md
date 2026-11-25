@@ -120,4 +120,5 @@ run locally: set `GLOVER_ROM`.
 | The start screen: its pages (host, join, options) and the game's title screen that draws them | weemitt/src/port/g64launcher.cpp, weemitt/src/game/g64title.c; the reset after it in weemitt/src/port/platform.c (`g64_title_begin`, `g64_title_end`) |
 | The glove and ball models a player chooses, drawn only in views online | weemitt/src/game/g64models.c (`G64ActorModel`, the lists), the hook in weemitt/src/game/object.c (`DrawActor`); the test tests/rom/playermodels.c |
 | Solo from the start screen: straight to the file select, and the complete file CHOSIS | weemitt/src/game/g64solo.c, the hooks in weemitt/src/game/main.c (`RunGameInit`) and weemitt/src/game/frontend.c (`DrawScreen`, the file names) |
+| Mouse and keyboard: the mapper from mouse and keys to controller input, and its tests | weemitt/src/port/mouselook.c (`mouselook.h`), the events and the grab in weemitt/src/port/platform.c; tests/net/mouselook_test.c, tests/rom/mouselook.c (`make twoplayers`) |
 | How players host and join | docs/playing-online.md |

@@ -30,6 +30,7 @@ int engine_load(struct Engine *e, const void *buffer);
 #include "../game/g64title.h"
 #endif
 #include "settings.h"
+#include "mouselook.h"
 
 #ifdef PORT_STUDIO
 /* g64coopdx: the developer tools and the studio's tools are off in the online program (menu.h). */
@@ -462,10 +463,9 @@ static void read_input(const Settings *st) {
     int y = 0;
 
     if (!menu_is_open()) {
-        if (settings_input_down(st, k, IN_STICK_LEFT)) x -= STICK_MAX;
-        if (settings_input_down(st, k, IN_STICK_RIGHT)) x += STICK_MAX;
-        if (settings_input_down(st, k, IN_STICK_UP)) y += STICK_MAX;
-        if (settings_input_down(st, k, IN_STICK_DOWN)) y -= STICK_MAX;
+        /* g64coopdx: a diagonal on the keys is as long as a straight move (mouselook.c). */
+        ml_keys_stick(settings_input_down(st, k, IN_STICK_UP), settings_input_down(st, k, IN_STICK_DOWN),
+                      settings_input_down(st, k, IN_STICK_LEFT), settings_input_down(st, k, IN_STICK_RIGHT), &x, &y);
         if (settings_input_down(st, k, IN_A)) b |= BTN_A;
         if (settings_input_down(st, k, IN_B)) b |= BTN_B;
         if (settings_input_down(st, k, IN_Z)) b |= BTN_Z;
@@ -1006,6 +1006,69 @@ static void start_recording(const char *path, const Settings *st) {
    any more (a tap shorter than a drawn frame). The next update has them held. */
 static unsigned short tapPending;
 
+/* ---- g64coopdx: the mouse (mouselook.h). The window holds the mouse while the game is played: the pointer is
+   hidden and only its motion counts. It lets go while the menu or a pause menu is open, in the game's own title and
+   menus when playing alone, and when the window isn't the active one. The mouse gives controller buttons only while it's held. */
+int G64PlayerHoldsBall(int player);
+int G64MouseInPlay(void);
+static MouseLook mouse;
+static int mouseHeld;        /* the window holds the mouse (SDL's relative mode) */
+static int mouseSkip;        /* the first motion after the window takes the mouse is the jump to where it was */
+static float mouseTime;      /* alone: the original frames since the mouse's last step */
+static unsigned short mouseButtons; /* alone: the buttons of the mouse's last step */
+static Settings *mouseSettings;     /* the settings that hold the sensitivity, and their file */
+static const char *mouseSettingsPath;
+
+int port_mouse_sensitivity(void) {
+    return mouseSettings ? mouseSettings->mouseSensitivity : ML_SENS_DEFAULT;
+}
+
+void port_set_mouse_sensitivity(int s) {
+    if (mouseSettings) {
+        mouseSettings->mouseSensitivity = ml_clamp_sensitivity(s);
+        if (mouseSettingsPath && mouseSettingsPath[0]) {
+            settings_save(mouseSettings, mouseSettingsPath);
+        }
+    }
+}
+
+/* Takes or lets go of the mouse. Whatever the mouse held ends either way. */
+static void hold_mouse(int on) {
+    if (on == mouseHeld) {
+        return;
+    }
+    if (SDL_SetRelativeMouseMode(on ? SDL_TRUE : SDL_FALSE) != 0 && on) {
+        plog_printf("g64coopdx: the window cannot hold the mouse: %s", SDL_GetError());
+    }
+    plog_printf("g64coopdx: the window %s the mouse", on ? "holds" : "lets go of");
+    mouseHeld = on;
+    mouseSkip = on;
+    mouseTime = 0.0f;
+    mouseButtons = 0;
+    ml_reset(&mouse);
+}
+
+/* The mouse's events. Returns 1 when it used the event. */
+static int mouse_event(const SDL_Event *e, const Settings *st) {
+    if (!mouseHeld) {
+        return 0;
+    }
+    if (e->type == SDL_MOUSEMOTION) {
+        if (mouseSkip) {
+            mouseSkip = 0;
+        } else {
+            ml_motion(&mouse, e->motion.xrel, e->motion.yrel, st->mouseSensitivity);
+        }
+        return 1;
+    }
+    if ((e->type == SDL_MOUSEBUTTONDOWN || e->type == SDL_MOUSEBUTTONUP)
+        && (e->button.button == SDL_BUTTON_LEFT || e->button.button == SDL_BUTTON_RIGHT)) {
+        ml_button(&mouse, e->button.button == SDL_BUTTON_LEFT ? ML_LEFT : ML_RIGHT, e->type == SDL_MOUSEBUTTONDOWN);
+        return 1;
+    }
+    return 0;
+}
+
 /* One update of the game, written to the recording first. dt is what the game gets. */
 static long run_update(float dt, PortFrameTask *tasks, int max) {
     unsigned long reads = port_controller_reads;
@@ -1015,6 +1078,16 @@ static long run_update(float dt, PortFrameTask *tasks, int max) {
     port_buttons |= tapPending;
     tapPending = 0;
     port_buttons |= port_intro_skip_buttons();
+    /* g64coopdx: alone, the mouse steps once for each original frame, and its buttons hold until the next step. The
+       recording has them. */
+    if (mouseHeld) {
+        mouseTime += dt;
+        while (mouseTime >= 1.0f) {
+            mouseTime -= 1.0f;
+            mouseButtons = ml_step(&mouse, G64PlayerHoldsBall(0), 0);
+        }
+        port_buttons |= mouseButtons;
+    }
 #ifdef PORT_STUDIO
     studio_before_update(&port_buttons, &port_stick_x, &port_stick_y);
 #endif
@@ -1970,6 +2043,33 @@ static void inject_taps(long ticks, const Settings *st) {
     SDL_PushEvent(&e);
 }
 
+/* Test option: WEEMITT_MOUSE_TEST=START,DX,COUNT. From window frame START, each window frame gets a mouse motion of
+   DX counts to the right, COUNT times, while the window holds the mouse. */
+static long mouseTestStart = -1;
+static int mouseTestDx;
+static long mouseTestCount;
+
+static void parse_mouse_test(void) {
+    const char *t = getenv("WEEMITT_MOUSE_TEST");
+
+    if (t == NULL || sscanf(t, "%ld,%d,%ld", &mouseTestStart, &mouseTestDx, &mouseTestCount) != 3) {
+        mouseTestStart = -1;
+    }
+}
+
+static void inject_mouse(long frame) {
+    SDL_Event e;
+
+    if (mouseTestStart < 0 || mouseTestCount <= 0 || frame < mouseTestStart || !mouseHeld) {
+        return;
+    }
+    mouseTestCount--;
+    memset(&e, 0, sizeof(e));
+    e.type = SDL_MOUSEMOTION;
+    e.motion.xrel = mouseTestDx;
+    SDL_PushEvent(&e);
+}
+
 /* Test options for the Developer menu's frame step: WEEMITT_PAUSE_AT=N pushes the pause key once the game has run N
    original frames, and WEEMITT_STEP_PRESSES=C then pushes the step key C times, one every 5 drawn frames. */
 static long pauseAt = -1;
@@ -2252,12 +2352,15 @@ int main(int argc, char **argv) {
     }
     SDL_GL_SetSwapInterval(settings.vsync ? 1 : 0);
     menu_init(window, gl, &settings);
+    mouseSettings = &settings;
+    mouseSettingsPath = settingsFile;
     load_pad_mappings();
     make_virtual_pads();
     if (getenv("WEEMITT_DEBUG_PAD") != NULL && !TOOLS_HIDDEN()) {
         settings.debugPad = !strcmp(getenv("WEEMITT_DEBUG_PAD"), "second") ? DEBUGPAD_SECOND : DEBUGPAD_KEYBOARD;
     }
     parse_taps();
+    parse_mouse_test();
     parse_step_test();
     open_pad();
     gfx_set_loader(SDL_GL_GetProcAddress);
@@ -2427,6 +2530,7 @@ int main(int argc, char **argv) {
         int h;
 
         inject_taps(windowTicks, &settings);
+        inject_mouse(drawn);
         inject_step_test(windowTicks, &settings);
         while (SDL_PollEvent(&e)) {
             /* Every event goes through input_event_buttons, which follows the axes and hats. */
@@ -2439,6 +2543,9 @@ int main(int argc, char **argv) {
             /* g64coopdx: Escape opens the menu in the online game too. There it offers only the player's own
                settings (the picture, the sound, the controls) and the online pause menu's choices (menu.cpp). */
             if (menu_handle_event(&e)) {
+                continue;
+            }
+            if (mouse_event(&e, &settings)) {
                 continue;
             }
             tapPending |= pressed;
@@ -2487,6 +2594,18 @@ int main(int argc, char **argv) {
                     open_pad();
                 }
             }
+        }
+        /* g64coopdx: the window holds the mouse while the game is played (hold_mouse). */
+        {
+            int play = (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) && !menu_is_open() && !scriptCount
+                       && !opt.replayPath;
+#ifdef PORT_STUDIO
+            play = play && !(studio_paused() && !menu_tools_hidden())
+                   && (netplay_active() ? !netplay_pause_open() : G64MouseInPlay());
+#else
+            play = play && G64MouseInPlay();
+#endif
+            hold_mouse(play);
         }
         read_input(&settings);
         virtual_press(windowTicks);
@@ -2547,7 +2666,11 @@ int main(int argc, char **argv) {
                 netplay_set_volumes(settings.muteUnfocused && !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS)
                                         ? 0 : settings.volume,
                                     settings.musicVolume, settings.effectsVolume);
-                n = netplay_frame(port_buttons | tapPending, port_stick_x, port_stick_y, tasks, 16);
+                /* g64coopdx: the mouse steps once for each game frame. Its clicks take A or B by whether this
+                   player's glove held the ball in the frame drawn last; while a tip is read they're A and B. */
+                n = netplay_frame(port_buttons | tapPending
+                                      | (mouseHeld ? ml_step(&mouse, netplay_holds_ball(), netplay_tip_lines() > 0) : 0),
+                                  port_stick_x, port_stick_y, tasks, 16);
                 tapPending = 0;
                 if (netplay_quit_requested()) {
                     running = 0;

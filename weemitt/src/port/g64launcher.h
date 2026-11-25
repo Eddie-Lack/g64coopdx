@@ -30,6 +30,10 @@ int g64_title_pad(void);
    at once, and the save's second file as a complete game (G64SoloStart). Call it after the state from before the
    start screen is back (g64_title_end). */
 void g64_launcher_solo(void);
+/* The mouse's camera sensitivity (mouselook.h), kept in settings.ini with the other settings (platform.c). The new
+   value is kept in range and saved at once. */
+int port_mouse_sensitivity(void);
+void port_set_mouse_sensitivity(int s);
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);
 

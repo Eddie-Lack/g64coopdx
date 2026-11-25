@@ -54,6 +54,7 @@ void G64LineView(const char *text);
 void G64ChatView(const char *const *lines, int count);
 void G64CannonView(int p);
 int G64PortalShut(int player);
+int G64PlayerHoldsBall(int player);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
 int port_game_draw_view(void *tasks, int max);
 /* weemitt's log (src/port/log.c): the online program has no console on Windows, so its lines go to a file too. */
@@ -1473,6 +1474,12 @@ static void read_tip(void) {
 }
 
 int netplay_tip_lines(void) { return tipLines; }
+
+/* Whether this player's glove holds the ball in the frame drawn last: the mouse's clicks take A or B by it (weemitt's
+   src/port/mouselook.c). It's read from the game the player is in, and only chooses which button the player's own
+   input holds. */
+static int holdsBall;
+int netplay_holds_ball(void) { return holdsBall; }
 const char *netplay_tip_line(int i) { return i >= 0 && i < tipLines ? tipText[i] : ""; }
 int netplay_tip_more(void) { return tipMore; }
 
@@ -1622,11 +1629,13 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     if (!game) {
         soundMoved = 1;
         tipLines = 0;
+        holdsBall = 0;
         return 0;
     }
     /* The engine may hold another game (the host's instances): the local game's newest frame goes back in, and is
        drawn with this player swapped into the globals. */
     rb_engine_game_enter(game);
+    holdsBall = G64PlayerHoldsBall(me) != 0;
     engine_save(engine, viewState);
     viewPending = 1;
     read_tip();

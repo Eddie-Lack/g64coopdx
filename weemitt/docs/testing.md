@@ -86,6 +86,9 @@ test variables exist (window builds only, the fourth also in the headless build)
 - `WEEMITT_QUIT_FRAMES=N` quits after N original frames.
 - `WEEMITT_TAPS=START,SPACING,COUNT` pushes a key down and a key up event for L at once, COUNT times, every SPACING
   original frames from frame START: a tap that the keyboard state never shows.
+- `WEEMITT_MOUSE_TEST=START,DX,COUNT` (g64coopdx) pushes a mouse motion of DX counts to the right in each drawn
+  frame from drawn frame START, COUNT times, while the window holds the mouse. With `--trace`, the camera's turn shows
+  in the trace.
 - `WEEMITT_DUMP_END=FILE` writes the game's memory to FILE when a recording or a replay ends.
 
 ```sh
