@@ -8,8 +8,7 @@ says what is done and what is left.
 - [Playing online](docs/playing-online.md): how to host and join a game.
 - [The design](docs/discovery/README.md): what will be built, and why.
 - [Hosting](docs/hosting.md): where the project's online services and downloads run.
-- [The lobby server](server/README.md): the relay and the list of open games. The rest of the server is still a
-  placeholder.
+- [The lobby server](server/README.md): the relay and the list of open games.
 
 You will need your own Glover (USA) ROM to play. The project never contains or shares it.
 

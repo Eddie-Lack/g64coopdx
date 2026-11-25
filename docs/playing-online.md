@@ -4,7 +4,7 @@ This is the first online version. Two to sixteen players play together over the 
 starts in the hub, the level with the portals to the game's worlds. The hub has a stage for each crystal in its
 fountain (HUB1 to HUB8), and everyone starts in the first. Each player can then go through portals and doors alone:
 every player sees the level they are in, with the other players who are in it. Each player sees their own glove's
-camera. It is a test build: see "What does not work yet" below.
+camera. It is a test build: see "Limits" below.
 
 ## What you need
 
@@ -310,7 +310,7 @@ Each program writes a log of the online game, `g64coopdx-host.log` or `g64coopdx
 host's own game and its copy of the same level differ, when they do: send it with a report of desyncs. It holds no
 game data, only addresses and counts.
 
-## What does not work yet
+## Limits
 
 - Every boss sees every player. In the last space boss's level each player has a turret of their own, and the
   boss goes for the players in turn. The shield's glow and the crosshair's fade on screen are the first player's.

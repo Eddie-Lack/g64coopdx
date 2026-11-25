@@ -15,14 +15,14 @@ leaves the list 10 seconds after its host's last announcement. The answer is nev
 request is as long as the longest answer. The relay then cannot be used to flood a forged address. A host can also
 ban a joiner (the game's **Remove** button): the relay then refuses that joiner's address for the room.
 
-The server is still a placeholder in part: `/v1/ice` gives STUN servers only, and `/v1/info` reports
-`"placeholder": true`. Phase 4 of the [roadmap](../docs/discovery/roadmap.md) writes the finished server.
+`/v1/info` reports `"placeholder": false`. `/v1/ice` gives STUN servers only. Phase 4 of the
+[roadmap](../docs/discovery/roadmap.md) adds the TURN relay's credentials to it.
 [docs/hosting.md](../docs/hosting.md) says where the server runs.
 
 | Route | Answer |
 | --- | --- |
 | `GET /healthz` | `ok` |
-| `GET /v1/info` | The server's name, version and protocol version, `"placeholder": true`, and the relay's port with its open rooms and players |
+| `GET /v1/info` | The server's name, version and protocol version, `"placeholder": false`, and the relay's port with its open rooms and players |
 | `GET /v1/sessions` | The rooms on the list: code, title, wanted and joined players |
 | `GET /v1/ice` | The STUN servers a client should use |
 

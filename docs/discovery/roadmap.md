@@ -60,8 +60,8 @@ Status (15 November 2026):
 
 ## Phase 1: two gloves offline
 
-Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`), and kept for now: it is the fastest
-way to two gloves for the first online tests. A spike is a prototype. Each extra player's glove, ball, camera, pad and
+Status (15 November 2026): the swap spike is in (`weemitt/src/game/g64players.c`). A spike is a prototype. The swap
+is now the design (game change 2, below). Each extra player's glove, ball, camera, pad and
 their control blocks live in a slot on the game's heap and are swapped into the globals for that player's part of the
 frame. The other players' gloves and balls are drawn as proxy actors. A proxy actor is an actor in the game's actor list
 that only shows what a player's slot holds. Four gloves play the first hub level for 3,000 frames with the same output
@@ -73,11 +73,13 @@ that date: enemies, collectables and puzzles saw only player 1. Phase 3 (below) 
 - Game change 7: an option that turns off every PC addition of weemitt's that the controller can reach, such as the
   cheat list in the pause menu.
 - A spike first: two players by swapping the player's state in and out ([state-inventory.md](state-inventory.md#two-ways-to-make-the-game-multi-player)),
-  in one hub level. It finds the shared state that breaks. The plan was to throw it away. It is kept for now, as the
-  status above says.
-- Game change 2, first part: per-player glove, ball and camera, indexed, with the second player's state on the game's
-  heap. The glove's state machine, the ball and which glove holds it, the camera per player, and the collision code's
-  tests of whether an actor is the glove (`== &hand`).
+  in one hub level. It finds the shared state that breaks. The plan was to throw it away. It became the design
+  instead.
+- Game change 2, first part: per-player glove, ball and camera, by the swap (`weemitt/src/game/g64players.c`). The
+  swap is the design. Indexing every use of the globals is no longer the plan. Each extra player's glove, ball,
+  camera, pad and their control blocks live in a slot on the game's heap. Before that player's part of the frame,
+  the slot's contents and the globals trade places. After it, they trade back. The game's tests of whether an actor
+  is the glove (`== &hand`) then see the player swapped in. With one player the swap does nothing.
 - g64coopdx draws every player's glove and ball from the local player's camera, and gives the second glove its own
   color.
 - Game change 9: start a level from a record, and compare its memory with a level reached by play
@@ -253,7 +255,7 @@ wide because each boss and each bonus level has its own code.
 - The relay: Cloudflare's managed TURN service, tested with libjuice first; coturn on a server as the fallback
   ([hosting.md](../hosting.md)). For now the relay is the lobby's own UDP relay (`server/relay.go`), with rooms joined
   by code ([hosting.md](../hosting.md#the-decision)).
-- The lobby deployed where [hosting.md](../hosting.md) says; its placeholder is already in `server/`.
+- The lobby deployed where [hosting.md](../hosting.md) says. Done: the lobby server in `server/` runs on Fly.io.
 - An HTTPS client in the game for the lobby: the system's own on Windows (WinHTTP), libcurl on Linux (INFERRED;
   chosen in this phase).
 - The handshake: protocol, build id, ROM hash, packs, settings ([netcode.md](netcode.md#the-handshake)).

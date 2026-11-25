@@ -10,8 +10,8 @@ import (
 // version names the build. The build sets it with -ldflags "-X main.version=...".
 var version = "dev"
 
-// protocolVersion is the version of the lobby's messages. A client and a lobby must agree on it. It stays 0 while
-// the server is a placeholder.
+// protocolVersion is the version of the lobby's messages. A client and a lobby must agree on it. No client reads
+// the lobby's HTTP routes yet, and the version is still 0.
 const protocolVersion = 0
 
 // maxSTUNURLs bounds the list that the configuration may hold.
@@ -63,8 +63,8 @@ type infoReply struct {
 	Name     string `json:"name"`
 	Version  string `json:"version"`
 	Protocol int    `json:"protocol"`
-	// Placeholder is true while the server is unfinished. It lists sessions, but /v1/ice gives STUN servers only
-	// (server/README.md).
+	// Placeholder is false: the server lists sessions and runs the relay. /v1/ice still gives STUN servers only;
+	// TURN relay credentials come with phase 4 (server/README.md).
 	Placeholder bool `json:"placeholder"`
 	// Relay describes the relay when it runs.
 	Relay *relayInfo `json:"relay,omitempty"`
@@ -92,8 +92,8 @@ type iceServer struct {
 }
 
 type iceReply struct {
-	// ICEServers lists the servers a client uses to find a path to another player. The placeholder lists STUN
-	// servers only. Relay credentials come with phase 4.
+	// ICEServers lists the servers a client uses to find a path to another player. It lists STUN servers
+	// only. TURN relay credentials come with phase 4.
 	ICEServers []iceServer `json:"iceServers"`
 }
 
@@ -105,7 +105,7 @@ func newLobby(cfg config) http.Handler {
 		w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("GET /v1/info", func(w http.ResponseWriter, r *http.Request) {
-		reply := infoReply{Name: "g64coopdx-lobby", Version: version, Protocol: protocolVersion, Placeholder: true}
+		reply := infoReply{Name: "g64coopdx-lobby", Version: version, Protocol: protocolVersion, Placeholder: false}
 		if activeRelay != nil {
 			rooms, players := activeRelay.counts()
 			reply.Relay = &relayInfo{Port: activeRelayPort, Rooms: rooms, Players: players}

@@ -36,7 +36,7 @@ jobs:
             if curl -fsS http://localhost:8080/healthz; then break; fi
             sleep 1
           done
-          curl -fsS http://localhost:8080/v1/info | grep '"placeholder":true'
+          curl -fsS http://localhost:8080/v1/info | grep '"placeholder":false'
 
   game:
     name: Game builds

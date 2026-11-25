@@ -370,7 +370,7 @@ static int make(int argc, char **argv) {
         banks.rom = NULL;
         models = read_file(modelsPath, G64_PACK_MODELS_MAX, &modelsSize);
         if (models == NULL) {
-            fail("cannot read the models, or the file is empty or larger than 4 MiB and its header", modelsPath);
+            fail("cannot read the models, or the file is empty or larger than 4 MiB plus its header", modelsPath);
             goto done;
         }
         why = g64_pack_check_models(models, modelsSize, &banks, NULL, &at);

@@ -1,5 +1,6 @@
-/* g64coopdx: more than one player in one game, by swapping. A prototype (docs/discovery/state-inventory.md, "Two
-   ways to make the game multi-player").
+/* g64coopdx: more than one player in one game, by swapping. It began as a prototype and is now the design
+   (docs/discovery/roadmap.md, game change 2; docs/discovery/state-inventory.md, "Two ways to make the game
+   multi-player").
 
    The game has one glove, one ball and one camera, and its code tests for them by address (actor == &hand). So the
    other players do not get globals of their own. Each extra player has a slot on the game's heap that holds their

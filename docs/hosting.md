@@ -104,7 +104,7 @@ weemitt's MIT license.
   itself, and runs the relay on UDP port 27065. The relay keeps the list of open games that hosts chose to show. The
   program is built with a supported Go release (1.27 in `server/Dockerfile` and in CI).
 - **Its container image**, built by `make image` from `server/Dockerfile`.
-- **CI** (`.github/workflows/ci.yml`): on every pull request it tests the placeholder, builds the image, runs it
+- **CI** (`.github/workflows/ci.yml`): on every pull request it tests the lobby server, builds the image, runs it
   and asks it for its health. On every push to `main` it also publishes the image to ghcr.io.
 - **The Fly.io settings** in `server/fly.toml`. They hold no secret.
 - **A deploy workflow** (`.github/workflows/deploy-lobby.yml`). It deploys on a push to `main` that changes
@@ -180,7 +180,7 @@ For Cloudflare's relay, if the lobby's own one ever carries too much:
    fly secrets set TURN_KEY_ID=... TURN_KEY_API_TOKEN=...
    ```
 
-The placeholder does not read these two settings yet. Phase 4 adds the code that does.
+The lobby server does not read these two settings yet. Phase 4 adds the code that does.
 
 ## Rules for the services
 

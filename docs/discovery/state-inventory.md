@@ -118,13 +118,16 @@ session's player number. "Shared" means one copy for the session, or for the ins
 | Speed of a first prototype | Fast: a few hundred lines around `MoveHand`, `MoveBall`, `MoveCam` | Slow: about 225 functions |
 | Problems | Pointers stored elsewhere (`ball.link`, `cameraInfo.focus`, `bullet->target`, the actor and collision lists) point at the one global, which holds a different player at different times. Puzzles still see only the player swapped in. Enemies and bullets did too. In phase 3 ([roadmap.md](roadmap.md)), g64coopdx began to swap in the player that each one looks at before its update | None of these; the work is large |
 | One player | The swap is a no-op | Each rewrite can change the game; g64coopdx's own baseline shows where it did |
-| Use | A spike in phase 1 ([roadmap.md](roadmap.md)) to find the problems early; not a design to keep | The real design |
+| Use | A spike in phase 1 ([roadmap.md](roadmap.md)) to find the problems early. g64coopdx later kept it as the design | The design this study recommended. It is no longer the plan |
 
 Recommendation: start with the swap for two players in one hub level, which shows where the shared state breaks; then
 index system by system, each step checked by the determinism tests (as in
 [weemitt.md](weemitt.md#repeated-runs-with-the-same-input)). The order: input and the glove's state
 machine, the ball and its pairing, the camera, collision identity tests, enemies' targets, puzzles, garibs and
 pick-ups, checkpoints and death, exits, bosses, cameos.
+
+g64coopdx later chose the swap as its design, and indexing is no longer planned
+([roadmap.md](roadmap.md#phase-1-two-gloves-offline), game change 2).
 
 ## The frame's hard limits
 
