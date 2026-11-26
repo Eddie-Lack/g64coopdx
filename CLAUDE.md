@@ -78,6 +78,7 @@ follows docs/discovery/roadmap.md. Each phase's section there says what's done a
     make swaps         # every level with every other level's file in its place: played or stopped, never a crash (needs the ROM)
     make scenery       # level files with hundreds of scenery objects, in 10 levels, also with 16 players: played or stopped, never a crash; Linux and Wine must print the same (needs the ROM)
     make solosave      # SOLO keeps its save: play, save, quit, start again; CHOSIS comes back; damaged files; Linux and Wine, under Xvfb (needs the ROM)
+    make startscreen   # the start screen's wait pages, chat typed after the start screen, a removed player, a host who leaves; Linux, under Xvfb, through a local lobby (needs the ROM and xdotool)
     make regress       # the game's logic against g64coopdx's baseline (needs the ROM; records it on the first run)
     make server        # the lobby server: build/lobby (needs Go)
     make test          # the server's checks, the rollback core's loopback tests and the UDP tests; no ROM needed

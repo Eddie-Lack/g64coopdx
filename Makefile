@@ -7,7 +7,7 @@ WEEMITT := $(MAKE) -C weemitt -j$(JOBS)
 
 PHONY_SOUND := sound sound-build
 .PHONY: $(PHONY_SOUND)
-.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk packbanks-build packbanks scenery-build scenery models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild solosave regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
+.PHONY: test-relay client game windows headless savestates savestates-test rollback-game-build rollback-game twoplayers-build twoplayers levelstart-build levelstart meshguards-build meshguards bankwalk-build bankwalk packbanks-build packbanks scenery-build scenery models-build models levcheck-build levcheck rombanks-build rombanks bots-build bots swaps-build swaps instances-build instances crossbuild-build crossbuild solosave startscreen regress server test test-c test-windows fuzz $(FUZZ_TARGETS) image packtool packtool-windows
 
 # The online program for Linux: weemitt/build/studio64/weemitt-studio (needs SDL2). It's weemitt's studio at 64 bits
 # with g64coopdx's online mode: --host PORT --players N, or --join HOST[:PORT] (docs/playing-online.md). Its sound comes
@@ -552,6 +552,12 @@ solosave: client
 	python3 tests/rom/solosave.py --exe weemitt/build/studio64/weemitt-studio
 	WINEPREFIX=$(WINEPREFIX64) python3 tests/rom/solosave.py --exe weemitt/build/studio-windows64/weemitt-studio.exe \
 	    --wine $(WINE64)
+
+# The online program from its start screen, under Xvfb, through a lobby on this machine: the wait pages' lines, chat
+# typed in a game that the start screen started, a removed player, and a host who leaves (needs the ROM, Xvfb and
+# xdotool). Linux only.
+startscreen: client server
+	python3 tests/rom/startscreen.py --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
 # The game's logic against g64coopdx's baseline (needs the ROM). The first run records the baseline from the commit
 # that BASELINE_REF in weemitt/tools/regress.py names.
