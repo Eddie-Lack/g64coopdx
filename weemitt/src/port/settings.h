@@ -60,6 +60,7 @@ enum { PHYSICS_SMOOTH, PHYSICS_ORIGINAL };
 typedef struct Settings {
     int physicsMode;                   /* PHYSICS_SMOOTH or PHYSICS_ORIGINAL */
     int vsync;
+    int fullscreen;                    /* the window fills the screen (F11, Alt+Enter, the Graphics window) */
     int maxFps;                        /* frames a second to draw, FPS_LIMIT_MIN to FPS_LIMIT_MAX (0: no limit) */
     int keys[IN_COUNT][KEY_SLOTS];     /* SDL scancodes (0: not bound) */
     int pads[IN_COUNT][KEY_SLOTS];     /* game controller bindings, see PAD_AXIS_BASE (0: not bound) */

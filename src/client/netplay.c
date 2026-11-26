@@ -252,11 +252,11 @@ static net_socket *listSock;
 static net_addr listRelays[NET_RELAY_ADDRS];
 static int listRelayCount, listCount = -1;
 static net_room listRooms[12];
-static uint32_t listAsked;
+static uint32_t listAsked, listRtt;
 
 /* This player's name (netplay_set_name), and the chat's latest lines with the time each came. Names and chat are
  * the players' own words: they stay out of the game's state and out of its inputs. */
-static char myName[G64_NAME_MAX + 1] = "Player";
+static char myName[G64_NAME_MAX + 1];
 /* 1 after netplay_set_name: the start screen then keeps the given name and doesn't read the saved one. */
 static int nameChosen;
 /* The players whose removal the chat has already said (netplay_kick). */
@@ -281,12 +281,23 @@ void netplay_set_name(const char *name) {
     for (i = 0; i < G64_NAME_MAX && name && name[i]; i++)
         myName[i] = name[i] >= 32 && name[i] < 127 ? name[i] : '?';
     myName[i] = 0;
-    if (!myName[0])
-        snprintf(myName, sizeof myName, "Player");
     nameChosen = 1;
 }
 
 int netplay_name_chosen(void) { return nameChosen; }
+
+/* Player p's name as the program shows it: the name they typed, or "Player N" with their number. */
+const char *netplay_display_name(int p) {
+    static char shown[4][G64_NAME_MAX + 12];
+    static int next;
+    const char *name = session ? g64_session_name(session, p) : "";
+    char *out = shown[next++ % 4];
+    if (name[0])
+        snprintf(out, sizeof shown[0], "%s", name);
+    else
+        snprintf(out, sizeof shown[0], "Player %d", p + 1);
+    return out;
+}
 
 const char *netplay_name(void) { return myName; }
 
@@ -363,8 +374,10 @@ static void announce_room(int open) {
         return;
     announced = t ? t : 1;
     announcedOpen = open;
-    net_relay_announce(sock, build_hash(), cwanted, g64_session_joined(session), g64_session_flags(session), open,
-                       publicTitle[0] ? publicTitle : myName);
+    /* The list marks a room whose game has started. */
+    net_relay_announce(sock, build_hash(), cwanted, g64_session_joined(session),
+                       g64_session_flags(session) | (active ? NET_ROOM_STARTED : 0), open,
+                       publicTitle[0] ? publicTitle : myName[0] ? myName : "Player 1");
 }
 
 /* The list of rooms for the start screen. netplay_rooms_refresh asks the relay again (at most once a second) and
@@ -405,6 +418,9 @@ void netplay_rooms_refresh(const char *relay) {
             if (got >= 0) {
                 memcpy(listRooms, fresh, sizeof listRooms);
                 listCount = got;
+                /* This machine's own round trip to the relay: the list answers the last question. */
+                if (listAsked && t - listAsked < 1000)
+                    listRtt = t - listAsked;
             }
         }
     }
@@ -415,6 +431,12 @@ void netplay_rooms_refresh(const char *relay) {
 }
 
 int netplay_rooms_count(void) { return listCount; }
+/* A room's ping for the list: the host's round trip to the relay, which the relay measures, and this machine's own. 0
+ * when the relay hasn't measured the host yet. */
+int netplay_room_ping(int i) {
+    const net_room *r = netplay_room(i);
+    return r && r->ping ? (int)r->ping + (int)listRtt : 0;
+}
 const net_room *netplay_room(int i) { return i >= 0 && i < listCount ? &listRooms[i] : NULL; }
 
 void netplay_rooms_close(void) {
@@ -475,7 +497,7 @@ void netplay_kick(int p) {
     if (!session || g64_session_me(session) != 0 || p < 1 || p >= g64_session_players(session))
         return;
     snprintf(note, sizeof note, "%s was removed by the host",
-             g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
+             netplay_display_name(p));
     a = g64_session_peer_addr(session, p);
     if (a && a->family == NET_FAMILY_RELAY)
         place = a->ip[0];
@@ -900,6 +922,7 @@ int netplay_poll(void) {
         if (net_relay_state(sock) < 0)
             return fail_connect(net_relay_refusal(sock) == 2   ? "that room is full"
                                 : net_relay_refusal(sock) == 3 ? "the host has removed you from that room"
+                                : net_relay_refusal(sock) == 4 ? "your address has 4 open games, the relay's limit"
                                                                : "there's no room with that code");
         if (net_relay_state(sock) == 0) {
             if ((int32_t)(t - cstart) > 15000) {
@@ -1416,6 +1439,14 @@ enum { PAUSE_RESUME, PAUSE_CHECKPOINT, PAUSE_HUB, PAUSE_LEAVE, PAUSE_ITEMS };
 static const char *const pauseItems[PAUSE_ITEMS] = {"Resume", "Back to checkpoint", "Back to the hub",
                                                     "Leave the online game"};
 static int pauseOpen, pauseSelection, pauseQuit, actionFrames, action;
+/* Leave asks once more: the menu then holds Yes and No (leaveAsk), with No chosen at first. */
+enum { LEAVE_YES, LEAVE_NO, LEAVE_ITEMS };
+static const char *const leaveItems[LEAVE_ITEMS] = {"Yes", "No"};
+static int leaveAsk, leaveSelection;
+
+const char *netplay_leave_question(void) {
+    return chost ? "Leave? The game ends for everyone." : "Leave?";
+}
 /* The game the choice was made in: it isn't repeated in the next one. */
 static int actionInstance;
 static uint16_t lastButtons;
@@ -1427,6 +1458,7 @@ static int8_t lastStickY;
 void netplay_pause_toggle(void) {
     pauseOpen = !pauseOpen;
     pauseSelection = 0;
+    leaveAsk = 0;
     heldBack = lastButtons;
 }
 
@@ -1475,6 +1507,21 @@ static void pause_menu(uint16_t buttons, int8_t stickY) {
             netplay_pause_toggle();
         return;
     }
+    if (leaveAsk) {
+        /* B or Start goes back to the menu, at Leave. */
+        if (pressed & (0x1000 | 0x4000)) {
+            leaveAsk = 0;
+            return;
+        }
+        if (up || down)
+            leaveSelection = (leaveSelection + 1) % LEAVE_ITEMS;
+        if (pressed & 0x8000) {
+            if (leaveSelection == LEAVE_YES)
+                pauseQuit = 1;
+            leaveAsk = 0;
+        }
+        return;
+    }
     if (pressed & (0x1000 | 0x4000)) {
         netplay_pause_toggle();
         return;
@@ -1485,6 +1532,11 @@ static void pause_menu(uint16_t buttons, int8_t stickY) {
         pauseSelection = (pauseSelection + 1) % PAUSE_ITEMS;
     if (!(pressed & 0x8000))
         return;
+    if (pauseSelection == PAUSE_LEAVE) {
+        leaveAsk = 1;
+        leaveSelection = LEAVE_NO;
+        return;
+    }
     netplay_pause_pick(pauseSelection);
     netplay_pause_toggle();
 }
@@ -1624,7 +1676,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
                 g64_session_colors(session, p, &glove, &ball);
                 g64_ihost_set_colors(ihost, p, glove, ball);
                 snprintf(note, sizeof note, "%s joined the game",
-                         g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
+                         netplay_display_name(p));
                 chat_add(-1, note);
                 plog_printf("g64coopdx: player %d joined the running game", p + 1);
             }
@@ -1642,7 +1694,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
                 if (!kickNoted[p]) {
                     char note[64];
                     snprintf(note, sizeof note, "%s left the game",
-                             g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player");
+                             netplay_display_name(p));
                     chat_add(-1, note);
                 }
             }
@@ -1664,11 +1716,33 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
             if (p != me && ((now ^ seenPresent) >> p) & 1) {
                 char note[64];
                 snprintf(note, sizeof note, "%s %s the game",
-                         g64_session_name(session, p)[0] ? g64_session_name(session, p) : "A player",
+                         netplay_display_name(p),
                          (now >> p) & 1 ? "joined" : "left");
                 chat_add(-1, note);
             }
         seenPresent = now;
+    }
+    {
+        /* Another player who goes to another level: the chat says where, by the level names of g64pack levels. The
+           host knows at once; a joiner learns it with the list of players. */
+        static int levelSeen[G64_SESSION_MAX_PLAYERS];
+        static Engine *levelsFor;
+        int p;
+        if (levelsFor != engine) {
+            levelsFor = engine;
+            for (p = 0; p < G64_SESSION_MAX_PLAYERS; p++)
+                levelSeen[p] = -1;
+        }
+        for (p = 0; p < players && p < G64_SESSION_MAX_PLAYERS; p++) {
+            int level = p != me && g64_session_present(session, p) ? netplay_player_level(p) : -1;
+            if (level >= 0 && levelSeen[p] >= 0 && level != levelSeen[p]) {
+                char note[80];
+                snprintf(note, sizeof note, "%s went to %s", netplay_display_name(p), g64_level_name(level));
+                chat_add(-1, note);
+            }
+            if (level >= 0 || p == me || !g64_session_present(session, p))
+                levelSeen[p] = level;
+        }
     }
     {
         /* For tests: G64_TEST_KICK=FRAME makes the host remove player 2 at that frame. */
@@ -1837,7 +1911,10 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         if (n > 0)
             G64ChatView(lines, n);
         /* The pause menu covers the middle of the picture: the script's line waits behind it. */
-        if (pauseOpen)
+        if (pauseOpen && leaveAsk) {
+            G64LineView(netplay_leave_question(), 40);
+            G64MenuView(leaveItems, LEAVE_ITEMS, leaveSelection);
+        } else if (pauseOpen)
             G64MenuView(pauseItems, PAUSE_ITEMS, pauseSelection);
         else if (scriptLine[0] != 0)
             G64LineView(scriptLine, tipLines > 0 ? 22 : 50); /* above an open tip's box */

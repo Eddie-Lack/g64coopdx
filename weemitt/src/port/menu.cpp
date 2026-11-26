@@ -63,6 +63,8 @@ void save_settings() {
 /* g64coopdx: the chat key's line (quickChat), whether it has had the keyboard yet, and a typed letter of the chat
    key that must not go into it. */
 bool quickChat, quickFocused, skipText;
+/* g64coopdx: Leave was clicked once in the Online game menu: it asks once more. */
+bool leaveAsked;
 /* g64coopdx: the Chat window was on show in the last frame of the open menu. */
 bool chatWasOpen;
 
@@ -71,6 +73,7 @@ void set_open(bool open) {
     if (!open) {
         quickChat = false;
         chatWasOpen = false;
+        leaveAsked = false;
     }
     rebindDev = 0;
     rebindInput = -1;
@@ -209,6 +212,13 @@ void graphics_window() {
                               "(glitches that need whole steps, such as wall clips, work). The picture is drawn at the\n"
                               "frame rate below and blends the two latest steps. This adds up to one step of delay.");
         }
+    }
+    bool full = port_fullscreen() != 0;
+    if (ImGui::Checkbox("Full screen", &full)) {
+        port_set_fullscreen(full);
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("F11 and Alt+Enter do the same.");
     }
     bool vsync = cfg->vsync != 0;
     if (ImGui::Checkbox("VSync", &vsync)) {
@@ -1258,13 +1268,13 @@ static void players_window() {
         ImGui::Separator();
     }
     for (int p = 0; p < n; p++) {
-        const char *name = netplay_player_name(p);
+        const char *name = netplay_display_name(p);
         /* A place that nobody has taken, or whose player left, is not listed. */
         if (!netplay_player_present(p)) {
             continue;
         }
         ImGui::PushID(p);
-        ImGui::Text("%2d  %s%s%s", p + 1, name[0] ? name : "(no name)", p == 0 ? "  (host)" : "", p == me ? "  (you)" : "");
+        ImGui::Text("%2d  %s%s%s", p + 1, name, p == 0 ? "  (host)" : "", p == me ? "  (you)" : "");
         /* The level the player is in, by the names that g64pack levels prints. */
         if (netplay_player_level(p) >= 0) {
             ImGui::SameLine();
@@ -1382,11 +1392,7 @@ static void draw_name_tags() {
         if (sx < view.frameX || sx > view.frameX + view.frameW || sy < view.frameY || sy > view.frameY + view.frameH) {
             continue;
         }
-        if (netplay_player_name(p)[0]) {
-            snprintf(text, sizeof(text), "%s", netplay_player_name(p));
-        } else {
-            snprintf(text, sizeof(text), "%d", p + 1);
-        }
+        snprintf(text, sizeof(text), "%s", netplay_display_name(p));
         ImVec2 textSize = ImGui::CalcTextSize(text);
         ImVec2 at = ImVec2(sx * size.x - textSize.x * 0.5f, sy * size.y - textSize.y);
         list->AddRectFilled(ImVec2(at.x - 3.0f, at.y - 1.0f), ImVec2(at.x + textSize.x + 3.0f, at.y + textSize.y + 1.0f),
@@ -1429,6 +1435,24 @@ void menu_bar() {
                 ImGui::Separator();
             }
             for (int i = over ? netplay_pause_items() - 1 : 1; i < netplay_pause_items(); i++) {
+                /* Leave asks once more, as Remove does. After the game has ended there's nothing to ask. */
+                if (i == netplay_pause_items() - 1 && !over) {
+                    if (!leaveAsked) {
+                        if (ImGui::Selectable(netplay_pause_item(i), false, ImGuiSelectableFlags_DontClosePopups)) {
+                            leaveAsked = true;
+                        }
+                    } else {
+                        ImGui::TextDisabled("%s", netplay_leave_question());
+                        if (ImGui::MenuItem("Yes")) {
+                            netplay_pause_pick(i);
+                            set_open(false);
+                        }
+                        if (ImGui::Selectable("No", false, ImGuiSelectableFlags_DontClosePopups)) {
+                            leaveAsked = false;
+                        }
+                    }
+                    continue;
+                }
                 if (ImGui::MenuItem(netplay_pause_item(i))) {
                     netplay_pause_pick(i);
                     set_open(false);

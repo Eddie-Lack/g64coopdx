@@ -25,6 +25,9 @@ int menu_handle_event(const SDL_Event *e);
 int menu_is_open(void);
 /* Opens the menu, as Escape does. */
 void menu_open(void);
+/* Puts the window in full screen (1) or back (0), and keeps the choice in the settings (platform.c). */
+void port_set_fullscreen(int on);
+int port_fullscreen(void);
 /* g64coopdx: 1 when the developer tools (except the log) and the studio's tools are off. The menu doesn't show
    them, and their keys and environment variables do nothing. The rollback engine under the online game doesn't
    depend on them. Weemitt's own builds return 0. */

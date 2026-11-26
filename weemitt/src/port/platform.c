@@ -185,7 +185,7 @@ static void die(const char *fmt, const char *arg) {
         signal(SIGTERM, SIG_DFL);
 #endif
         wrap_box(box, sizeof(box), msg);
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Glover", box, NULL);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, PORT_PRODUCT, box, NULL);
     }
     exit(1);
 }
@@ -214,6 +214,15 @@ static void load_rom(const char *path) {
     fclose(f);
     if (port_rom_prepare(rom, (unsigned long)size, err, sizeof(err)) != 0) {
         char msg[1400];
+        char *port = strstr(err, "The port ");
+
+        /* The ROM check calls the program "the port" (rom.c): the box names this program. */
+        if (port != NULL && strcmp(PORT_PRODUCT, "Glover") != 0) {
+            char rest[256];
+
+            snprintf(rest, sizeof(rest), "%s", port + strlen("The port"));
+            snprintf(port, sizeof(err) - (size_t)(port - err), "%s%s", PORT_PRODUCT, rest);
+        }
 
         snprintf(msg, sizeof(msg), "%s %s", path, err);
         die("%s", msg);
@@ -1141,6 +1150,26 @@ static float mouseTime;      /* alone: the original frames since the mouse's las
 static unsigned short mouseButtons; /* alone: the buttons of the mouse's last step */
 static Settings *mouseSettings;     /* the settings that hold the sensitivity, and their file */
 static const char *mouseSettingsPath;
+
+/* The window that F11, Alt+Enter and the Graphics window put in full screen. The choice is kept in settings.ini
+   (mouseSettings is the program's settings). */
+static SDL_Window *fullWindow;
+
+int port_fullscreen(void) {
+    return fullWindow != NULL && (SDL_GetWindowFlags(fullWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+}
+
+void port_set_fullscreen(int on) {
+    if (fullWindow == NULL) {
+        return;
+    }
+    SDL_SetWindowFullscreen(fullWindow, on ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+    if (mouseSettings != NULL && mouseSettingsPath != NULL) {
+        mouseSettings->fullscreen = on != 0;
+        settings_save(mouseSettings, mouseSettingsPath);
+    }
+}
+
 
 int port_mouse_sensitivity(void) {
     return mouseSettings ? mouseSettings->mouseSensitivity : ML_SENS_DEFAULT;
@@ -2324,6 +2353,7 @@ int main(int argc, char **argv) {
     int vsyncSlack = 0; /* drawn frames in a row that VSync did not slow down */
     int startW = 960;
     int startH = 720;
+    char windowTitle[64];
     int vsyncFails = 0; /* VSync is on but does not pace: the software limiter takes over */
 
 #ifdef PORT_STUDIO
@@ -2469,10 +2499,12 @@ int main(int argc, char **argv) {
         startW = 960;
         startH = 720;
     }
-    window = SDL_CreateWindow(rec_active() ? (opt.spaceDemo ? "Glover: Space demo [REC]" : "Glover [REC]")
-                                           : (opt.spaceDemo ? "Glover: Space demo" : "Glover"), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, startW, startH,
+    snprintf(windowTitle, sizeof(windowTitle), "%s%s%s", PORT_PRODUCT, opt.spaceDemo ? ": Space demo" : "",
+             rec_active() ? " [REC]" : "");
+    window = SDL_CreateWindow(windowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, startW, startH,
                               SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
-                                  | (opt.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
+                                  | (opt.fullscreen || settings.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
+    fullWindow = window;
     if (window == NULL) {
         die("cannot open a window: %s", SDL_GetError());
     }
@@ -2730,11 +2762,9 @@ int main(int argc, char **argv) {
                     settings.stepRequests++;
                 }
             } else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F11) {
-                Uint32 full = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
-                SDL_SetWindowFullscreen(window, full ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+                port_set_fullscreen(!port_fullscreen());
             } else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)) {
-                Uint32 full = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
-                SDL_SetWindowFullscreen(window, full ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+                port_set_fullscreen(!port_fullscreen());
             } else if (e.type == SDL_JOYDEVICEADDED) {
                 log_device(e.jdevice.which, "joystick found:");
                 open_pad();

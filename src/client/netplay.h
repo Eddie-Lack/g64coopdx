@@ -48,6 +48,9 @@ void netplay_cancel(void);
 /* While connecting: a line for the player, the room's code once the relay has given one ("" before), and how many
  * players are in (on the host). */
 const char *netplay_wait_status(void);
+/* The ping of open game i of the list (netplay_room): the host's round trip through the relay and this machine's,
+ * in ms, or 0 before the relay has measured the host. */
+int netplay_room_ping(int i);
 const char *netplay_room_code(void);
 int netplay_joined(void);
 int netplay_is_host(void);
@@ -138,6 +141,8 @@ int netplay_pause_selection(void);
 int netplay_pause_items(void);
 const char *netplay_pause_item(int i);
 int netplay_quit_requested(void);
+/* The question before leaving: for the host it says that the game ends for everyone. */
+const char *netplay_leave_question(void);
 /* The tip that the local player reads, as of the last netplay_frame: the number of lines on its page (0 when the
  * player reads none), each line, and 1 when another page follows. The game holds the reader and takes their A. */
 int netplay_tip_lines(void);
@@ -166,6 +171,8 @@ int netplay_name_chosen(void);
  * host only). */
 int netplay_me(void);
 const char *netplay_player_name(int p);
+/* Player p's name as the program shows it: the name they typed, or "Player N" with their number (N from 1). */
+const char *netplay_display_name(int p);
 /* 1 when player p is in the game now. Places of the game that nobody has taken, and players who left, are not. */
 int netplay_player_present(int p);
 /* The host starts the game now, with the players who are in; others join the running game while it has places.
