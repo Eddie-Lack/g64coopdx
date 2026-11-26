@@ -743,3 +743,16 @@ void g64_pack_free(g64_pack *p) {
         p->level = -1;
     }
 }
+
+/* The game's levels by number (weemitt's enum Level). */
+static const char *const levelNames[G64_PACK_LEVELS] = {
+    "Hub 1",          "Hub 2",          "Hub 3",         "Hub 4",           "Hub 5",          "Hub 6",
+    "Hub 7",          "Hub 8",          "Crystal cave",  "Training course", "Atlantis 1",     "Atlantis 2",
+    "Atlantis 3",     "Atlantis boss",  "Atlantis bonus", "Carnival 1",     "Carnival 2",     "Carnival 3",
+    "Carnival boss",  "Carnival bonus", "Pirates 1",     "Pirates 2",       "Pirates 3",      "Pirates boss",
+    "Pirates bonus",  "Prehistoric 1",  "Prehistoric 2", "Prehistoric 3",   "Prehistoric boss", "Prehistoric bonus",
+    "Fear 1",         "Fear 2",         "Fear 3",        "Fear boss",       "Fear bonus",     "Space 1",
+    "Space 2",        "Space 3",        "Space boss 1",  "Space boss, between", "Space boss 3", "Space bonus",
+    "Wayroom",        "Presents",       "Flythrough 1",  "Flythrough 2",    "Intro",          "Outro"};
+
+const char *g64_level_name(int level) { return level >= 0 && level < G64_PACK_LEVELS ? levelNames[level] : ""; }

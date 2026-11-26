@@ -60,6 +60,8 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY, MSG
 #define PING_EVERY 500
 #define TIMEOUT 10000
 #define NAME_MAX 16
+/* A player's level in the list of players: unknown (in no level, or moving). */
+#define LEVEL_NONE 0xFF
 
 typedef struct {
     int used;
@@ -139,6 +141,8 @@ struct g64_session {
     uint32_t colors[G64_SESSION_MAX_PLAYERS][2];
     /* After the start: every player's name, by player number. */
     char names[G64_SESSION_MAX_PLAYERS][NAME_MAX + 1];
+    /* Each player's level, for the list of players only: the host's own view, which it sends; a joiner's copy. */
+    uint8_t levels[G64_SESSION_MAX_PLAYERS];
     /* Chat. This machine's latest line goes out CHAT_SENDS times, CHAT_EVERY ms apart: a datagram can be lost. Each
        line has a number, and a line whose number is the player's last one is a repeat. */
     char chatOut[G64_CHAT_MAX + 1];
@@ -209,6 +213,8 @@ g64_session *g64_session_host(net_socket *s, int players, uint32_t rom, int leve
         deadline > 255)
         return NULL;
     g = calloc(1, sizeof *g);
+    if (g)
+        memset(g->levels, LEVEL_NONE, sizeof g->levels);
     if (!g)
         return NULL;
     g->sock = s;
@@ -226,6 +232,8 @@ g64_session *g64_session_join(net_socket *s, const net_addr *to, uint32_t rom, c
     if (!s || !to)
         return NULL;
     g = calloc(1, sizeof *g);
+    if (g)
+        memset(g->levels, LEVEL_NONE, sizeof g->levels);
     if (!g)
         return NULL;
     g->sock = s;
@@ -271,7 +279,7 @@ static void send_welcome(g64_session *g, int p) {
 
 /* The start's bytes before the players, and for each player: two colors and a name. */
 #define START_HEAD 9
-#define START_EACH (8 + NAME_MAX)
+#define START_EACH (9 + NAME_MAX)
 
 /* On the host: 1 for a player who's in the game now. */
 static int host_present(const g64_session *g, int p) {
@@ -309,6 +317,7 @@ static void send_start(g64_session *g, int p) {
         put32(e, first ? g->startColors[q][0] : q == 0 ? g->glove : g->peers[q].glove);
         put32(e + 4, first ? g->startColors[q][1] : q == 0 ? g->ball : g->peers[q].ball);
         memcpy(e + 8, name, strlen(name) < NAME_MAX ? strlen(name) : NAME_MAX);
+        e[8 + NAME_MAX] = g->levels[q];
     }
     send_sealed(g, &g->peers[p], m, START_HEAD + START_EACH * (size_t)g->players);
 }
@@ -615,6 +624,9 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
                 g->colors[q][0] = get32(d + START_HEAD + START_EACH * q);
                 g->colors[q][1] = get32(d + START_HEAD + 4 + START_EACH * q);
                 clean_text(g->names[q], sizeof g->names[q], d + START_HEAD + 8 + START_EACH * q, NAME_MAX);
+                g->levels[q] = d[START_HEAD + 8 + NAME_MAX + START_EACH * q];
+                if (g->levels[q] >= G64_SESSION_LEVELS)
+                    g->levels[q] = LEVEL_NONE;
             }
             g->present = present;
             if (g->state == G64_SESSION_WAITING) {
@@ -1057,6 +1069,17 @@ const net_addr *g64_session_peer_addr(const g64_session *g, int p) {
 
 void g64_session_set_name(g64_session *g, const char *name) {
     clean_text(g->name, sizeof g->name, (const uint8_t *)(name ? name : ""), NAME_MAX);
+}
+
+void g64_session_set_level(g64_session *g, int p, int level) {
+    if (g->me == 0 && p >= 0 && p < g->players)
+        g->levels[p] = level >= 0 && level < G64_SESSION_LEVELS ? (uint8_t)level : LEVEL_NONE;
+}
+
+int g64_session_player_level(const g64_session *g, int p) {
+    if (p < 0 || p >= g->players || g->levels[p] == LEVEL_NONE)
+        return -1;
+    return g->levels[p];
 }
 
 const char *g64_session_name(const g64_session *g, int p) {

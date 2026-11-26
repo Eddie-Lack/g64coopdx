@@ -60,8 +60,18 @@ void save_settings() {
     }
 }
 
+/* g64coopdx: the chat key's line (quickChat), whether it has had the keyboard yet, and a typed letter of the chat
+   key that must not go into it. */
+bool quickChat, quickFocused, skipText;
+/* g64coopdx: the Chat window was on show in the last frame of the open menu. */
+bool chatWasOpen;
+
 void set_open(bool open) {
     menuOpen = open;
+    if (!open) {
+        quickChat = false;
+        chatWasOpen = false;
+    }
     rebindDev = 0;
     rebindInput = -1;
     rebindPad = false;
@@ -1238,8 +1248,8 @@ static void players_window() {
         ImGui::End();
         return;
     }
-    if (me == 0 && netplay_room_code()[0]) {
-        /* The host can still hand the code out: players join a running game while it has places. */
+    if (netplay_room_code()[0]) {
+        /* Every player can hand the code out: players join a running game while it has places. */
         ImGui::Text("Room code: %s", netplay_room_code());
         ImGui::SameLine();
         if (ImGui::SmallButton("Copy")) {
@@ -1255,6 +1265,11 @@ static void players_window() {
         }
         ImGui::PushID(p);
         ImGui::Text("%2d  %s%s%s", p + 1, name[0] ? name : "(no name)", p == 0 ? "  (host)" : "", p == me ? "  (you)" : "");
+        /* The level the player is in, by the names that g64pack levels prints. */
+        if (netplay_player_level(p) >= 0) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("  %s", netplay_level_name(netplay_player_level(p)));
+        }
         if (netplay_player_gone(p)) {
             ImGui::SameLine();
             ImGui::TextDisabled("gone");
@@ -1303,7 +1318,9 @@ static void chat_window() {
     if (chatFocus) {
         ImGui::SetKeyboardFocusHere();
         chatFocus = false;
-        plog_printf("menu test: the chat's line has the keyboard");
+        if (getenv("G64_TEST_CHAT_FOCUS")) {
+            plog_printf("menu test: the chat's line has the keyboard");
+        }
     }
     bool send = ImGui::InputText("##say", chatInput, sizeof(chatInput), ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
@@ -1314,6 +1331,68 @@ static void chat_window() {
         ImGui::SetKeyboardFocusHere(-1);
     }
     ImGui::End();
+}
+
+/* g64coopdx: the chat key's line. Y opens it over the picture with the keyboard; Enter sends the line and closes it,
+   and Escape closes it. The Chat window has the lines. */
+static void quick_chat_window() {
+    ImVec2 size = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(ImVec2(20.0f, size.y - 120.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(size.x * 0.6f < 300.0f ? 300.0f : size.x * 0.6f, 0.0f), ImGuiCond_Always);
+    if (!ImGui::Begin("Chat##quick", NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+                                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::End();
+        return;
+    }
+    ImGui::SetNextItemWidth(-1.0f);
+    if (!quickFocused) {
+        ImGui::SetKeyboardFocusHere();
+        quickFocused = true;
+    }
+    if (ImGui::InputText("##quicksay", chatInput, sizeof(chatInput), ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (chatInput[0]) {
+            netplay_chat_send(chatInput);
+            chatInput[0] = 0;
+        }
+        set_open(false);
+    }
+    ImGui::End();
+}
+
+/* g64coopdx: each other player's name over their glove, where the last drawn picture has it. It changes nothing in
+   the game. */
+static void draw_name_tags() {
+    GfxSceneView view;
+    ImVec2 size = ImGui::GetIO().DisplaySize;
+    ImDrawList *list = ImGui::GetBackgroundDrawList();
+
+    if (!gfx_scene_view(&view)) {
+        return;
+    }
+    for (int p = 0; p < netplay_players(); p++) {
+        float x, y, z, sx, sy, depth;
+        char text[24];
+        if (!netplay_tag(p, &x, &y, &z) || !netplay_player_present(p)) {
+            continue;
+        }
+        /* Just above the glove: its place is about its middle. */
+        if (!gfx_scene_project(&view, x, y + 22.0f, z, &sx, &sy, &depth)) {
+            continue;
+        }
+        if (sx < view.frameX || sx > view.frameX + view.frameW || sy < view.frameY || sy > view.frameY + view.frameH) {
+            continue;
+        }
+        if (netplay_player_name(p)[0]) {
+            snprintf(text, sizeof(text), "%s", netplay_player_name(p));
+        } else {
+            snprintf(text, sizeof(text), "%d", p + 1);
+        }
+        ImVec2 textSize = ImGui::CalcTextSize(text);
+        ImVec2 at = ImVec2(sx * size.x - textSize.x * 0.5f, sy * size.y - textSize.y);
+        list->AddRectFilled(ImVec2(at.x - 3.0f, at.y - 1.0f), ImVec2(at.x + textSize.x + 3.0f, at.y + textSize.y + 1.0f),
+                            IM_COL32(0, 0, 0, 140), 3.0f);
+        list->AddText(at, IM_COL32(255, 255, 255, 255), text);
+    }
 }
 #endif
 
@@ -1584,6 +1663,33 @@ int menu_handle_event(const SDL_Event *e) {
         rebindDev = 0;
         return 1;
     }
+#ifdef PORT_STUDIO
+    /* g64coopdx: the letter of the chat key arrives as text right after the key: it isn't typed into the line. */
+    if (skipText && e->type == SDL_TEXTINPUT) {
+        skipText = false;
+        return 1;
+    }
+    if (e->type == SDL_KEYDOWN) {
+        skipText = false;
+    }
+    /* g64coopdx: Y opens the chat's line in an online game, unless the player gave Y to an input. */
+    if (e->type == SDL_KEYDOWN && !e->key.repeat && e->key.keysym.scancode == SDL_SCANCODE_Y && !menuOpen &&
+        menu_online() && !netplay_failed() && rebindInput < 0) {
+        bool bound = false;
+        for (int i = 0; i < IN_COUNT; i++) {
+            for (int s = 0; s < KEY_SLOTS; s++) {
+                bound |= cfg->keys[i][s] == SDL_SCANCODE_Y;
+            }
+        }
+        if (!bound) {
+            set_open(true);
+            quickChat = true;
+            quickFocused = false;
+            skipText = SDL_IsTextInputActive() == SDL_TRUE;
+            return 1;
+        }
+    }
+#endif
     if (e->type == SDL_KEYDOWN && !e->key.repeat) {
         SDL_Scancode sc = e->key.keysym.scancode;
 
@@ -1619,6 +1725,10 @@ int menu_handle_event(const SDL_Event *e) {
 
 int menu_is_open(void) {
     return menuOpen;
+}
+
+void menu_open(void) {
+    set_open(true);
 }
 
 void menu_draw(SDL_Window *window) {
@@ -1669,8 +1779,9 @@ void menu_draw(SDL_Window *window) {
         plog_printf("menu test: the log window shows the latest lines");
     }
 #ifdef PORT_STUDIO
+    bool tags = menu_online() && netplay_name_tags() && !netplay_failed();
     if (!menuOpen && !showFps && !rec_active() && !cfg->showNames && !cfg->pauseLogic && testFrames < 0
-        && !studio_paused()) {
+        && !studio_paused() && !tags) {
         return;
     }
 #else
@@ -1686,6 +1797,14 @@ void menu_draw(SDL_Window *window) {
     if (ImGui::GetIO().WantTextInput && !SDL_IsTextInputActive()) {
         SDL_StartTextInput();
     }
+#ifdef PORT_STUDIO
+    if (tags) {
+        draw_name_tags();
+    }
+    if (menuOpen && quickChat) {
+        quick_chat_window();
+    } else
+#endif
     if (menuOpen) {
         menu_bar();
         /* Fresh windows start in a tidy cascade below the bar. */
@@ -1714,6 +1833,11 @@ void menu_draw(SDL_Window *window) {
             float chatY = ImGui::GetIO().DisplaySize.y - 280.0f;
             ImGui::SetNextWindowPos(ImVec2(20, chatY < 40.0f ? 40.0f : chatY > 420.0f ? 420.0f : chatY),
                                     ImGuiCond_FirstUseEver);
+            /* A Chat window that opens gives its line the keyboard. */
+            if (win.chat && !chatWasOpen) {
+                chatFocus = true;
+            }
+            chatWasOpen = win.chat;
             if (win.chat) chat_window();
         }
 #endif

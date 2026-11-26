@@ -71,6 +71,8 @@ void netplay_set_any_ball(int on);
  * before netplay_start. An empty dir means no pack. Returns 0, or -1 with a message in err. */
 int netplay_set_pack(const char *dir, char *err, size_t errSize);
 const char *netplay_pack_name(void);
+/* The folder of the player's own pack (netplay_set_pack), or "" without one. */
+const char *netplay_pack_dir(void);
 /* A joiner who lacks the host's pack can download it from the host (session.h). The host sends a pack only when its
  * level file passes the check (levcheck.h) and is not a level of the ROM, and its models.bin, if it has one, passes
  * the bank check and the rules that need the host's ROM (bankcheck.h). The joiner checks the same on its own ROM.
@@ -188,6 +190,20 @@ const char *netplay_status(void);
 /* 1 when the session has failed (the player was removed, or the host is gone); netplay_status says why. The
  * picture then stays on the last frame, with the reason in it. */
 int netplay_failed(void);
+/* The level player p is in (0 to 47), for the list of players, or -1 when it isn't known. */
+int netplay_player_level(int p);
+/* A level's name, as g64pack levels lists it ("" for another number). */
+const char *netplay_level_name(int level);
+/* The player's choice: draw each other player's name over their glove (1, the default) or not. It changes only the
+ * picture. */
+void netplay_set_name_tags(int on);
+int netplay_name_tags(void);
+/* Where to draw player p's name over the picture, as of the last netplay_frame: 1 and the place over their glove,
+ * in the game's world, when p is another player in this player's level. Only the picture uses it. */
+int netplay_tag(int p, float *x, float *y, float *z);
+/* The level the host starts the game in, before netplay_start (a pack's test, --try-pack). The default is the
+ * hub's first stage. */
+void netplay_set_start_level(int level);
 
 #ifdef __cplusplus
 }

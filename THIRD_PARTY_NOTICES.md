@@ -57,7 +57,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## Lua
 
 `weemitt/third_party/lua/` holds [Lua](https://www.lua.org) 5.4.8: its core, its auxiliary library and four of its
-libraries. It runs the scripts of level packs (weemitt/src/port/g64lua.c). Two lines are changed, in `llimits.h` and
+libraries. It runs the scripts of level packs (weemitt/src/port/g64lua.c). The pack tool, g64pack, holds its core
+and its auxiliary library too. It compiles a pack's script with them (tools/g64pack_lua.c). Two lines are changed, in `llimits.h` and
 `luaconf.h`; `weemitt/third_party/lua/README.md` names the source, the archive's checksum and the changes. Lua is under the MIT
 license:
 

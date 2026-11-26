@@ -157,7 +157,8 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
   says why (`script: ...`), and the online program shows that line with the chat's notices. A script stops when an
   error reaches the game, or when a call uses up its work. `pcall`
   can catch an error, a memory error too. It can't keep a script going that has used up its work.
-- A script with an error in its text doesn't start.
+- A script with an error in its text doesn't start. `g64pack make` and `g64pack check` compile the script as the
+  game does, and say where its text is wrong.
 - Do not let the game's course depend on a number turned into text. Such text gave the same result on Linux and
   under Wine in a trial, but that isn't proven on a real Windows machine
   ([discovery/lua-trial.md](discovery/lua-trial.md)).

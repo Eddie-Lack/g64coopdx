@@ -30,19 +30,11 @@
 #include "../src/client/packrom.h"
 #include "../src/client/rombanks.h"
 
-/* The game's levels by number (weemitt's enum Level). */
-static const char *const levelName[G64_PACK_LEVELS] = {
-    "Hub 1",          "Hub 2",          "Hub 3",         "Hub 4",           "Hub 5",          "Hub 6",
-    "Hub 7",          "Hub 8",          "Crystal cave",  "Training course", "Atlantis 1",     "Atlantis 2",
-    "Atlantis 3",     "Atlantis boss",  "Atlantis bonus", "Carnival 1",     "Carnival 2",     "Carnival 3",
-    "Carnival boss",  "Carnival bonus", "Pirates 1",     "Pirates 2",       "Pirates 3",      "Pirates boss",
-    "Pirates bonus",  "Prehistoric 1",  "Prehistoric 2", "Prehistoric 3",   "Prehistoric boss", "Prehistoric bonus",
-    "Fear 1",         "Fear 2",         "Fear 3",        "Fear boss",       "Fear bonus",     "Space 1",
-    "Space 2",        "Space 3",        "Space boss 1",  "Space boss, between", "Space boss 3", "Space bonus",
-    "Wayroom",        "Presents",       "Flythrough 1",  "Flythrough 2",    "Intro",          "Outro"};
-
 /* The largest ROM the tool reads. The game's is 8 MB, and one that Glovebox built can be larger. */
 #define ROM_MAX (64u << 20)
+
+/* Lua's parser (tools/g64pack_lua.c): NULL when the script's text compiles as the game loads it, or Lua's message. */
+const char *g64pack_compile(const char *text, size_t size, char *msg, size_t msgSize);
 
 static int fail(const char *what, const char *detail) {
     /* What the tool printed comes first, also when both go to one pipe. */
@@ -135,7 +127,7 @@ static void print_pack(const char *dir, const g64_pack *p) {
     int i;
     printf("pack: %s\n", dir);
     printf("name: %s\n", p->name);
-    printf("level: %d (%s)\n", p->level, levelName[p->level]);
+    printf("level: %d (%s)\n", p->level, g64_level_name(p->level));
     printf("level file: %lu bytes\n", (unsigned long)p->levSize);
     {
         /* The structure check doesn't stop a pack yet: it has been compared with the game's parser on the game's
@@ -265,6 +257,13 @@ static int check(const char *dir, const char *romPath) {
         if (level >= 0) {
             r = fail("the pack holds game data: its level file is one of the ROM's", NULL);
         }
+        /* The game compiles the script when a level starts; a script that doesn't compile never runs. */
+        if (p.script != NULL) {
+            char msg[300];
+            if (g64pack_compile((const char *)p.script, p.scriptSize, msg, sizeof msg) != NULL) {
+                r = fail("the script doesn't compile", msg);
+            }
+        }
         /* The online program doesn't start with such a pack (netplay_set_pack). */
         if (g64_pack_check_strict(&p, NULL) != NULL) {
             r = fail("the pack's level file doesn't pass the check", g64_pack_check_strict(&p, NULL));
@@ -371,6 +370,13 @@ static int make(int argc, char **argv) {
             fail("the script must be Lua source text of at most 256 KB, with no zero byte", scriptPath);
             goto done;
         }
+        {
+            char msg[300];
+            if (g64pack_compile((const char *)script, scriptSize, msg, sizeof msg) != NULL) {
+                fail("the script doesn't compile", msg);
+                goto done;
+            }
+        }
     }
     if (modelsPath != NULL) {
         /* The models are checked as the game checks them, before anything is written. */
@@ -445,7 +451,7 @@ int main(int argc, char **argv) {
     }
     if (argc == 2 && strcmp(argv[1], "levels") == 0) {
         for (i = 0; i < G64_PACK_LEVELS; i++) {
-            printf("%2d  %s\n", i, levelName[i]);
+            printf("%2d  %s\n", i, g64_level_name(i));
         }
         return 0;
     }

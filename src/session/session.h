@@ -18,7 +18,8 @@
  *   start    0x43, players (u8: the game's places), level (u8), deadline (u8), flags (u8: the host's options,
  *            G64_FLAG_), present (u16: a bit for each player who is in now), start members (u16: a bit for each
  *            player who was in at the start), and for each place: glove color (u32), ball color (u32), name (16
- *            bytes, padded with zeros). After the start the host sends it again every second as the list of
+ *            bytes, padded with zeros), level (u8: the level the player is in, 0 to 47, or 255 when unknown; it's for
+ *            the list of players only, and never enters a game). After the start the host sends it again every second as the list of
  *            players: a player may join a game that has started, and takes a free place or the place of a player
  *            who is gone.
  * A color is G64_COLOR_SET plus 0xRRGGBB when the player chose it, or 0 for the color of their player number.
@@ -56,7 +57,9 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 12
+#define G64_PROTOCOL 13
+/* The game's levels (0 to 47), for the list of players. */
+#define G64_SESSION_LEVELS 48
 #define G64_DEFAULT_PORT 27064
 #define G64_SESSION_MAX_PLAYERS 16
 /* The host's options, which every machine must share (they change the game's logic). */
@@ -190,6 +193,10 @@ int g64_session_kick(g64_session *g, int p);
 /* This end leaves the session: the host tells every player, a joiner tells the host (the bye message). Call it
  * before g64_session_free. The other end then acts as on a timeout, at once. */
 void g64_session_bye(g64_session *g);
+/* The level each player is in, for the list of players (the start's level byte). The host sets it; it reaches the
+ * joiners with the list. g64_session_player_level gives it, or -1 when it isn't known. */
+void g64_session_set_level(g64_session *g, int p, int level);
+int g64_session_player_level(const g64_session *g, int p);
 /* On the host: starts the game now, with the players who are in. Others may still join, while there are places.
  * Without it the game starts when every place is taken. */
 void g64_session_begin(g64_session *g);

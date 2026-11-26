@@ -51,6 +51,9 @@ run() {
 printf '\000\000\000\014test.ln\000' > test.lev
 printf 'function on_frame() end\n' > script.lua
 printf '\033Lua' > compiled.lua
+printf 'function on_frame()\n  print(1\nend\n' > broken.lua
+printf 'local x = 2 ^ 0.3\n' > power.lua
+printf 'local x = 2 ^ 3\n' > whole_power.lua
 printf '\000\000\000\015test.ln\000' > wrong.lev
 # A level file of 11 bytes that ends with the end token: it passes the check for packs from other players.
 printf '\000\000\000\013t.ln\000\175\000' > whole.lev
@@ -65,6 +68,10 @@ run 0 make a --name "A test level" --level 10 --lev whole.lev
 run 0 check a
 echo "the same with a script: its id is another"
 run 0 make b --name "A test level" --level 10 --lev whole.lev --script script.lua
+echo "a script must compile as the game loads it, with the game's rule for the power operator"
+run 1 make s1 --name "A test level" --level 10 --lev whole.lev --script broken.lua
+run 1 make s2 --name "A test level" --level 10 --lev whole.lev --script power.lua
+run 0 make s3 --name "A test level" --level 10 --lev whole.lev --script whole_power.lua
 echo "a level file whose structure has a warning: the tool writes the pack and says it fails (the program refuses it)"
 run 1 make w --name "A test level" --level 10 --lev test.lev
 run 1 check w

@@ -198,6 +198,7 @@ int netplay_set_pack(const char *dir, char *err, size_t errSize) {
 }
 
 const char *netplay_pack_name(void) { return pack.lev ? pack.name : ""; }
+const char *netplay_pack_dir(void) { return pack.lev ? ownPackDir : ""; }
 int netplay_pack_level(void) { return pack.lev ? pack.level : -1; }
 
 void netplay_set_any_world(int on) { hostFlags = on ? hostFlags | G64_FLAG_ANY_WORLD : hostFlags & ~G64_FLAG_ANY_WORLD; }
@@ -231,10 +232,14 @@ void netplay_apply_colors(void) {
     }
 }
 
-/* The level the host starts the game in: the first hub section, or G64_START_LEVEL for tests. */
+/* The level the host starts the game in: the first hub section, the level of netplay_set_start_level (a pack's
+   test), or G64_START_LEVEL for tests. */
+static int startLevel = START_LEVEL;
+void netplay_set_start_level(int level) { startLevel = level >= 0 && level < G64_NUM_LEVELS ? level : START_LEVEL; }
+
 static int start_level(void) {
     const char *v = getenv("G64_START_LEVEL");
-    int level = v ? atoi(v) : START_LEVEL;
+    int level = v ? atoi(v) : startLevel;
     return level >= 0 && level < G64_NUM_LEVELS ? level : START_LEVEL;
 }
 
@@ -431,6 +436,22 @@ void netplay_start_now(void) {
 }
 
 int netplay_player_present(int p) { return session && g64_session_present(session, p); }
+const char *netplay_level_name(int level) { return g64_level_name(level); }
+
+/* The names over the other gloves (netplay_set_name_tags). */
+static int nameTags = 1;
+void netplay_set_name_tags(int on) { nameTags = on != 0; }
+int netplay_name_tags(void) { return nameTags; }
+
+/* The level player p is in, for the list of players: the host knows it, a joiner has it from the host's list. -1
+ * when it isn't known. */
+int netplay_player_level(int p) {
+    if (!session || !active)
+        return -1;
+    if (ihost)
+        return g64_ihost_level_of(ihost, p);
+    return g64_session_player_level(session, p);
+}
 int netplay_player_gone(int p) {
     return session && g64_session_me(session) == 0 && p > 0 && g64_session_gone(session, p);
 }
@@ -1547,6 +1568,19 @@ static int draw_failed(void *tasks, int max) {
     return port_game_draw_view(tasks, max);
 }
 
+/* The name tags' places (netplay_tag). */
+static float tagPos[G64_SESSION_MAX_PLAYERS][3];
+static int tagHave[G64_SESSION_MAX_PLAYERS];
+
+int netplay_tag(int p, float *x, float *y, float *z) {
+    if (p < 0 || p >= G64_SESSION_MAX_PLAYERS || !tagHave[p] || failed)
+        return 0;
+    *x = tagPos[p][0];
+    *y = tagPos[p][1];
+    *z = tagPos[p][2];
+    return 1;
+}
+
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
     rb_input in;
     rb_engine_game *game;
@@ -1615,6 +1649,9 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         flush_local();
         g64_ihost_tick(ihost);
         flush_local();
+        /* Each player's level goes to the joiners with the list of players. It's for the list only. */
+        for (p = 0; p < players; p++)
+            g64_session_set_level(session, p, g64_session_present(session, p) ? g64_ihost_level_of(ihost, p) : -1);
         /* The room stays on the list while it has free places. */
         announce_room(g64_session_joined(session) < players);
     } else {
@@ -1698,6 +1735,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     /* While the player moves to another level, nothing is drawn. */
     game = g64_iclient_game(iclient);
     if (!game) {
+        memset(tagHave, 0, sizeof tagHave);
         soundMoved = 1;
         tipLines = 0;
         holdsBall = 0;
@@ -1734,6 +1772,12 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
                     offset[p][k] = 0;
             }
         }
+    }
+    /* The other gloves' places as they're drawn, for the name tags over the picture. Reading them changes nothing. */
+    {
+        int p;
+        for (p = 0; p < G64_SESSION_MAX_PLAYERS; p++)
+            tagHave[p] = p < players && p != me && G64PlayerPosition(p, &tagPos[p][0], &tagPos[p][1], &tagPos[p][2]);
     }
     {
         /* A portal to another world was shut for this player: they are told why, at most every five seconds. */
