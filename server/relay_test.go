@@ -123,6 +123,41 @@ func TestRelayLimitsRoomsPerAddress(t *testing.T) {
 	_ = out
 }
 
+// A host that gives up closes its room at once: its place counts no more against the address's limit, its peers
+// are out, and its code is gone. A stranger can't close it.
+func TestRelayClose(t *testing.T) {
+	r, out, _ := testRelay()
+	host, a, stranger := addr("4.4.4.4:5000"), addr("2.2.2.2:6000"), addr("9.9.9.9:9000")
+	code := openRoom(t, r, out, host)
+	joinRoom(t, r, out, code, a)
+	r.handle(msg(msgClose), stranger)
+	r.handle(msg(msgClose), a)
+	if rooms, players := r.counts(); rooms != 1 || players != 2 {
+		t.Fatalf("a close from someone else: %d rooms, %d players", rooms, players)
+	}
+	r.handle(msg(msgClose), host)
+	if rooms, players := r.counts(); rooms != 0 || players != 0 {
+		t.Fatalf("after the close: %d rooms, %d players", rooms, players)
+	}
+	r.handle(msg(msgToHost, 'x'), a)
+	if len(*out) != 0 {
+		t.Fatalf("a peer of a closed room still reaches its host")
+	}
+	r.handle(msg(msgJoin, []byte(code)...), stranger)
+	if s := last(t, out); !bytes.Equal(s.b, msg(msgRefused, refuseNoRoom)) {
+		t.Fatalf("a closed room's code: got %v", s.b)
+	}
+	// The address may open its rooms again.
+	for port := 1; port <= relayRoomsPerIP; port++ {
+		h := netip.AddrPortFrom(netip.MustParseAddr("4.4.4.4"), uint16(port))
+		openRoom(t, r, out, h)
+		r.handle(msg(msgClose), h)
+	}
+	for port := 1; port <= relayRoomsPerIP; port++ {
+		openRoom(t, r, out, netip.AddrPortFrom(netip.MustParseAddr("4.4.4.4"), uint16(100+port)))
+	}
+}
+
 func TestRelayExpires(t *testing.T) {
 	r, out, now := testRelay()
 	host, a, b := addr("1.1.1.1:5000"), addr("2.2.2.2:6000"), addr("3.3.3.3:7000")

@@ -11,7 +11,9 @@
    other message travels sealed (seal.h), inside a datagram that starts with G64_SEAL_TYPE. */
 enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME, MSG_CHAT, MSG_KICK };
 /* The level pack's messages (session.h). 0x48 is the sealed datagram's own type. */
-enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY };
+enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY, MSG_BYE };
+/* A bye goes out this many times at once: it's the last message, and nothing repeats it later. */
+#define BYE_SENDS 3
 /* The offer: the type, the id, the four sizes (u16, u32, u32, u32), then the name. */
 #define OFFER_SIZE (1 + G64_PACK_ID_SIZE + 14)
 /* A piece has up to PACK_PIECE bytes. The host answers one request with up to PACK_BURST pieces, serves a player
@@ -542,6 +544,14 @@ static void host_pack(g64_session *g, int p, const uint8_t *d, int n, uint32_t n
 static void host_inner(g64_session *g, int p, const uint8_t *d, int n, uint32_t now, g64_game_fn on_game, void *user) {
     if (n < 1)
         return;
+    if (d[0] == MSG_BYE && n == 1) {
+        /* The player left: as if they had stopped answering, but at once. */
+        if (g->state == G64_SESSION_STARTED)
+            g->peers[p].gone = 1;
+        else
+            g->peers[p].used = 0;
+        return;
+    }
     if (d[0] == MSG_PACK_WANT || d[0] == MSG_PACK_READY) {
         host_pack(g, p, d, n, now);
         return;
@@ -632,6 +642,11 @@ static void join_inner(g64_session *g, const uint8_t *d, int n, g64_game_fn on_g
     case MSG_KICK:
         if (n == 1)
             fail(g, "the host removed you from the game");
+        break;
+    case MSG_BYE:
+        /* The host left: the same end as a host that stopped answering, without the wait. */
+        if (n == 1)
+            fail(g, g->state == G64_SESSION_STARTED ? "the host stopped answering" : "no answer from the host");
         break;
     case MSG_PACK_OFFER:
         /* The host plays with another pack than this machine's, or with none. Only the first offer counts: a host
@@ -1066,6 +1081,20 @@ void g64_session_chat(g64_session *g, const char *text) {
     g->chatId++;
     g->chatSends = CHAT_SENDS;
     g->chatLast = 0;
+}
+
+void g64_session_bye(g64_session *g) {
+    uint8_t m = MSG_BYE;
+    int p, k;
+    if (g->state == G64_SESSION_FAILED)
+        return;
+    for (k = 0; k < BYE_SENDS; k++) {
+        if (!g->host)
+            send_sealed(g, &g->peers[0], &m, 1);
+        for (p = 1; g->host && p < g->players; p++)
+            if (g->peers[p].used && !g->peers[p].gone && !g->peers[p].kicked)
+                send_sealed(g, &g->peers[p], &m, 1);
+    }
 }
 
 int g64_session_kick(g64_session *g, int p) {

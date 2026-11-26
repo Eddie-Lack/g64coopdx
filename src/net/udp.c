@@ -27,7 +27,7 @@ typedef int sock_t;
 /* The relay's datagrams (server/relay.go): "G64R", a type, then the body. */
 #define RELAY_HEAD 5
 enum { R_OPEN = 0x01, R_JOIN = 0x02, R_TO_HOST = 0x03, R_TO_PEER = 0x04, R_ANNOUNCE = 0x05, R_LIST = 0x06,
-       R_BAN = 0x07, R_ROOM = 0x81, R_JOINED = 0x82, R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85,
+       R_BAN = 0x07, R_CLOSE = 0x08, R_ROOM = 0x81, R_JOINED = 0x82, R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85,
        R_ROOMS = 0x86 };
 /* The length of a list request: the relay's longest answer (relay.go, relayListMin). */
 #define RELAY_LIST_ROOMS 12
@@ -432,6 +432,15 @@ void net_relay_ban(net_socket *s, int peer) {
     if (!s || s->relay != NET_RELAY_HOST || s->state != 1 || peer < 1 || peer > 255)
         return;
     relay_send(s, R_BAN, &m, 1);
+}
+
+void net_relay_close(net_socket *s) {
+    int i;
+    if (!s || s->relay != NET_RELAY_HOST || s->state != 1)
+        return;
+    /* Twice: one lost datagram doesn't keep the room. If both are lost, the room closes after the relay's timeout. */
+    for (i = 0; i < 2; i++)
+        relay_send(s, R_CLOSE, NULL, 0);
 }
 
 void net_rooms_ask(net_socket *s, const net_addr *relays, int count, uint32_t build) {

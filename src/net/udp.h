@@ -94,6 +94,8 @@ void net_relay_announce(net_socket *s, uint32_t build, int wanted, int joined, i
                         const char *title);
 /* On a host's socket: puts joiner peer (1 to 15) out of the room. The relay refuses their address from then on. */
 void net_relay_ban(net_socket *s, int peer);
+/* On a host's socket whose room is open: closes the room at the relay, at once. Its players are out of it too. */
+void net_relay_close(net_socket *s);
 /* Asks the relay at relays (count addresses) for the listed rooms of a build, on a socket that isn't in relay mode.
  * The answer is a datagram for net_rooms_parse. */
 void net_rooms_ask(net_socket *s, const net_addr *relays, int count, uint32_t build);

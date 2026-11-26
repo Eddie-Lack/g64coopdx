@@ -186,6 +186,64 @@ static void test_welcomes(uint32_t *clock) {
     }
 }
 
+/* A bye: a player who leaves is gone at once on the host, and a host that leaves ends the game at once for its
+   joiners, before the start and after it. The clock moves far less than the timeout. */
+static void test_bye(uint32_t *clock) {
+    char err[128];
+    int round;
+    for (round = 0; round < 2; round++) {
+        net_socket *hs = net_open(0, err, sizeof err), *js[2];
+        g64_session *h, *j[2];
+        net_addr to;
+        int i, k, p;
+        memset(&to, 0, sizeof to);
+        to.family = 4, to.ip[0] = 127, to.ip[3] = 1, to.port = net_port(hs);
+        /* Round 0 waits for a third player that never comes; round 1 starts. */
+        h = g64_session_host(hs, round == 0 ? 4 : 3, ROM, 0, 3);
+        g64_session_set_build(h, BUILD);
+        for (i = 0; i < 2; i++) {
+            js[i] = net_open(0, err, sizeof err);
+            j[i] = g64_session_join(js[i], &to, ROM, "j");
+            g64_session_set_build(j[i], BUILD);
+        }
+        for (k = 0; k < 100; k++) {
+            *clock += 10;
+            g64_session_poll(h, *clock, NULL, NULL);
+            for (i = 0; i < 2; i++)
+                g64_session_poll(j[i], *clock, NULL, NULL);
+        }
+        check(g64_session_joined(h) == 3, round == 0 ? "bye before the start: two joiners are in"
+                                                     : "bye after the start: two joiners are in");
+        p = g64_session_me(j[0]);
+        g64_session_bye(j[0]);
+        for (k = 0; k < 5; k++) {
+            *clock += 10;
+            g64_session_poll(h, *clock, NULL, NULL);
+            g64_session_poll(j[1], *clock, NULL, NULL);
+        }
+        if (round == 0)
+            check(g64_session_joined(h) == 2, "a joiner's bye before the start frees its place at once");
+        else
+            check(g64_session_gone(h, p) && g64_session_poll(h, *clock, NULL, NULL) == G64_SESSION_STARTED,
+                  "a joiner's bye after the start: the player is gone at once, and the game goes on");
+        g64_session_bye(h);
+        for (k = 0; k < 5; k++) {
+            *clock += 10;
+            g64_session_poll(j[1], *clock, NULL, NULL);
+        }
+        check(g64_session_poll(j[1], *clock, NULL, NULL) == G64_SESSION_FAILED &&
+                  strstr(g64_session_error(j[1]), round == 0 ? "no answer" : "stopped answering") != NULL,
+              round == 0 ? "the host's bye before the start ends the wait at once"
+                         : "the host's bye after the start ends the game at once");
+        g64_session_free(h);
+        net_close(hs);
+        for (i = 0; i < 2; i++) {
+            g64_session_free(j[i]);
+            net_close(js[i]);
+        }
+    }
+}
+
 /* A game that players join after its start: a host for three starts alone. It has a clock of its own: it runs
    for longer than the main test's players may stay silent. */
 static void test_join_later(uint32_t start) {
@@ -842,6 +900,7 @@ int main(void) {
     }
     test_refusals(hostAddr, &clock);
     test_welcomes(&clock);
+    test_bye(&clock);
     test_join_later(clock);
     /* A joiner who stops answering: the host's game goes on without it. */
     {
