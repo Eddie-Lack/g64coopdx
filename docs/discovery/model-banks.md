@@ -249,9 +249,8 @@ game starts. A pack's maker finds it with `g64pack check DIR --rom ROM`.
 - A joiner runs the same rule on its own ROM after a download, before it keeps the pack and says ready. A pack that
   fails ends the session.
 - The online program runs the rule again in `netplay_begin`, with the game's own tables and with the rules of
-  models.bin that need the ROM, also for a pack without models.bin. It skips a pack from a folder whose level file
-  fails the structure check. Such a pack is never sent, and the game still marks its level as unplayable when an
-  object is missing.
+  models.bin that need the ROM, also for a pack without models.bin. Every pack there has a level file that passes
+  the structure check: the program doesn't start with a folder's pack that fails it.
 
 `make levcheck` (tests/rom/levcheck.c) proves the rule against the game:
 
