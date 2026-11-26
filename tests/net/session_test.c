@@ -465,8 +465,8 @@ static void test_pack(uint32_t *clock) {
     info.levSize = 20000;
     info.scriptSize = 660;
     info.modelsSize = 3000;
-    check(G64_PROTOCOL == 12 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(11, clock),
-          "the protocol is 12, and a hello of protocol 11 is refused");
+    check(G64_PROTOCOL == 13 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(12, clock),
+          "the protocol is 13, and a hello of protocol 12 is refused");
     {
         /* A joiner without the pack, and one with another pack, before the start. */
         net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err), *s2 = net_open(0, err, sizeof err);
@@ -547,7 +547,7 @@ static void test_pack(uint32_t *clock) {
            loses the place. A start that comes while the offer is open doesn't count. */
         net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err);
         g64_session *host = g64_session_host(hs, 2, ROM, 0, 3), *a;
-        uint8_t want[21] = {0x4A, 7, 7, 7, 1}, start[9 + 24 * 2] = {0x43, 2, 0, 3, 0, 3, 0, 3, 0};
+        uint8_t want[21] = {0x4A, 7, 7, 7, 1}, start[9 + 25 * 2] = {0x43, 2, 0, 3, 0, 3, 0, 3, 0};
         int k;
         net_resolve("127.0.0.1", net_port(hs), &hostAddr, err, sizeof err);
         g64_session_set_build(host, BUILD);
@@ -897,6 +897,23 @@ int main(void) {
         }
         check(chatCount[0] == before0 + 1 && chatCount[2] == before2 + 1,
               "ten lines at once from one joiner: the host passes on one");
+    }
+    /* The list of players carries each player's level: the host sets it, and every joiner gets it. A level
+       that isn't set is unknown. */
+    {
+        int k, p1 = g64_session_me(m[1].session);
+        g64_session_set_level(m[0].session, 0, 10);
+        g64_session_set_level(m[0].session, p1, 42);
+        g64_session_set_level(m[0].session, g64_session_me(m[2].session), 99);
+        for (k = 0; k < 40; k++) {
+            clock += 50;
+            for (i = 0; i < PLAYERS; i++)
+                g64_session_poll(m[i].session, clock, on_game, &m[i]);
+        }
+        check(g64_session_player_level(m[2].session, 0) == 10 && g64_session_player_level(m[2].session, p1) == 42 &&
+                  g64_session_player_level(m[1].session, g64_session_me(m[2].session)) == -1 &&
+                  g64_session_player_level(m[2].session, 99) == -1,
+              "every joiner has each player's level, and a level out of range is unknown");
     }
     test_refusals(hostAddr, &clock);
     test_welcomes(&clock);
