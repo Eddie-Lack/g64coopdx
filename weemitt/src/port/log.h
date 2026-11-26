@@ -17,6 +17,10 @@ extern "C" {
 /* Writes one message (a printf format, no end of line needed). Safe to call from any thread. */
 void plog_vprintf(const char *fmt, va_list ap);
 void plog_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+/* The game's own messages (debugPrintf). With plog_set_game_quiet(1) and verbose off, they go only to the log file:
+   g64coopdx's player program keeps its console and its log window for the program's own lines. */
+void plog_game_vprintf(const char *fmt, va_list ap);
+void plog_set_game_quiet(int on);
 
 /* Names the file that --log gave. It is used in place of weemitt.log in the save folder. */
 void plog_set_override(const char *path);

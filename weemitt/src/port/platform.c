@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+#include <signal.h>
+#endif
 #include "frame.h"
 #include "ptr32.h"
 #include "log.h"
@@ -143,13 +146,45 @@ unsigned long long port_time_us(void) {
     return (SDL_GetPerformanceCounter() - timeBase) * 1000000ULL / SDL_GetPerformanceFrequency();
 }
 
+/* The message box doesn't wrap its text: a line longer than the screen is cut at both ends. A long line breaks after
+   a space or a path's slash, at most every BOX_WIDTH characters. */
+#define BOX_WIDTH 70
+static void wrap_box(char *out, size_t size, const char *in) {
+    size_t n = 0, col = 0;
+
+    for (; *in != 0 && n + 2 < size; in++) {
+        out[n++] = *in;
+        col = *in == '\n' ? 0 : col + 1;
+        if (col >= BOX_WIDTH / 2 && (*in == ' ' || *in == '/' || *in == '\\')) {
+            /* Break here when the next word or folder would pass the width. */
+            size_t next = strcspn(in + 1, " /\\\n");
+
+            if (col + next >= BOX_WIDTH || col >= BOX_WIDTH) {
+                out[n++] = '\n';
+                col = 0;
+            }
+        } else if (col >= BOX_WIDTH + 20) {
+            out[n++] = '\n';
+            col = 0;
+        }
+    }
+    out[n] = 0;
+}
+
 static void die(const char *fmt, const char *arg) {
-    char msg[512];
+    char msg[1600];
+    char box[1800];
 
     snprintf(msg, sizeof(msg), fmt, arg);
     plog_printf("weemitt: %s", msg);
     if (opt.headlessFrames == 0) {
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Glover", msg, NULL);
+#ifndef _WIN32
+        /* SDL turns these signals into a quit event, which nothing reads while the box is open. */
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
+#endif
+        wrap_box(box, sizeof(box), msg);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Glover", box, NULL);
     }
     exit(1);
 }
@@ -285,6 +320,10 @@ static void load_save(void) {
     read_save();
 }
 
+/* g64coopdx: 1 until the first write of solo's save file in this run. That write first keeps the file as it was, as
+   eeprom-solo.bin.bak: the game empties a file whose checksum is wrong, and the old bytes would be gone. */
+static int soloBackup;
+
 #ifdef PORT_STUDIO
 /* g64coopdx: playing alone from the start screen. Solo has a save file of its own in the program's folder,
    eeprom-solo.bin, or the file that --save names. Its second file is CHOSIS (g64solo.c), and the game writes all
@@ -304,6 +343,7 @@ static void load_solo_save(void) {
     memset(port_eeprom, 0, sizeof(port_eeprom));
     read_save();
     port_eeprom_dirty = 0;
+    soloBackup = 1;
 }
 #endif
 
@@ -337,6 +377,27 @@ static void write_save(void) {
         plog_printf("weemitt: cannot write the save file %s", tmp);
         remove(tmp);
         return;
+    }
+    if (soloBackup) {
+        /* The file as it was before this run's first write, when the write changes it (soloBackup). */
+        unsigned char old[sizeof(port_eeprom)];
+        size_t n = 0;
+        char bak[1100];
+
+        soloBackup = 0;
+        f = fopen(savePath, "rb");
+        if (f != NULL) {
+            n = fread(old, 1, sizeof(old), f);
+            fclose(f);
+        }
+        if (n > 0 && (n != sizeof(old) || memcmp(old, port_eeprom, sizeof(old)) != 0)) {
+            snprintf(bak, sizeof(bak), "%s.bak", savePath);
+            f = fopen(bak, "wb");
+            if (f != NULL) {
+                fwrite(old, 1, n, f);
+                fclose(f);
+            }
+        }
     }
 #ifdef _WIN32
     /* Windows's rename does not replace a file. MoveFileEx does, in one step. */
@@ -784,6 +845,18 @@ void g64_title_begin(const Settings *st) {
 
 /* Runs the title screen's game frames for the time that has passed, at the game's own rate, without the player's
    controller: the start screen reads the keys and the pad itself. Then draws the newest frame into the window. */
+/* g64coopdx: while a game from the command line waits for its players (netplay_connect). The window's close button
+   and Ctrl+C (both an SDL_QUIT) give up the wait. */
+static int connect_wait(void) {
+    SDL_Event e;
+    int quit = 0;
+
+    while (SDL_PollEvent(&e)) {
+        quit |= e.type == SDL_QUIT;
+    }
+    return quit;
+}
+
 void g64_title_frame(SDL_Window *window) {
     Uint64 now = SDL_GetPerformanceCounter();
     int w, h;
@@ -1888,7 +1961,11 @@ static void parse_args(int argc, char **argv) {
         /* g64coopdx: the start screen opens unless an option asks for something else (online settings and the ROM
            do not). */
         if (strcmp(a, "--rom") && strcmp(a, "--input-delay") && strcmp(a, "--deadline") && strcmp(a, "--relay") &&
-            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--any-world") && strcmp(a, "--pack") && strcmp(a, "--accept-pack") && strcmp(a, "--name") && strcmp(a, "--public") && strcmp(a, "--start-alone") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input")) {
+            strcmp(a, "--normal-ball") && strcmp(a, "--any-ball") && strcmp(a, "--any-world") && strcmp(a, "--pack") && strcmp(a, "--accept-pack") && strcmp(a, "--name") && strcmp(a, "--public") && strcmp(a, "--start-alone") && strcmp(a, "--launcher") && strcmp(a, "--players") && strcmp(a, "--input") &&
+            /* The picture and comfort options don't change what the program does. */
+            strcmp(a, "--fullscreen") && strcmp(a, "--no-vsync") && strcmp(a, "--max-fps") &&
+            strcmp(a, "--render-scale") && strcmp(a, "--msaa") && strcmp(a, "--texture-filter") &&
+            strcmp(a, "--widescreen") && strcmp(a, "--skip-intro") && strcmp(a, "--log")) {
             opt.netOtherArgs = 1;
         }
         if (!strcmp(a, "--rom") && next) {
@@ -2401,6 +2478,9 @@ int main(int argc, char **argv) {
     }
     SDL_GL_SetSwapInterval(settings.vsync ? 1 : 0);
     menu_init(window, gl, &settings);
+    /* g64coopdx: the game's own debug lines (a texture not found, the heap's blocks) go only to the log file. The
+       console and the log window keep the program's own lines. */
+    plog_set_game_quiet(TOOLS_HIDDEN());
     mouseSettings = &settings;
     mouseSettingsPath = settingsFile;
     load_pad_mappings();
@@ -2425,15 +2505,25 @@ int main(int argc, char **argv) {
         int online = 0, level = 0, players = 0;
 
         const char *relay = opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT;
+        int direct = opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom;
+        int launcher = !direct && (!opt.netOtherArgs || opt.netLauncher);
 
-        netplay_set_normal_ball(opt.netNormalBall);
+        /* The player's choices from last time: the input delay, and on the start screen the host's choices too.
+           The options below win over them. */
+        g64_load_options(launcher);
+        if (opt.netNormalBall) {
+            netplay_set_normal_ball(1);
+        }
         if (opt.netAnyWorld) {
             netplay_set_any_world(1);
         }
         if (opt.netPack) {
             char why[200];
             if (netplay_set_pack(opt.netPack, why, sizeof why) != 0) {
-                die("%s", why);
+                char msg[1300];
+
+                snprintf(msg, sizeof(msg), "%s: %s", opt.netPack, why);
+                die("%s", msg);
             }
         }
         if (opt.netAnyBall) {
@@ -2461,6 +2551,8 @@ int main(int argc, char **argv) {
         netplay_set_start_alone(opt.netStartAlone);
         if (opt.netName) {
             netplay_set_name(opt.netName);
+            /* The name is kept for the next time, as a name typed on the start screen is. */
+            g64_save_name();
         } else {
             /* The name the player typed on the start screen last time, also when this run skips that screen. */
             g64_load_name();
@@ -2468,20 +2560,32 @@ int main(int argc, char **argv) {
         if (opt.netInputDelay >= 0) {
             netplay_set_input_delay(opt.netInputDelay);
         }
-        if (opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom) {
+        if (direct) {
             char err[320];
+            int r;
 
-            if (netplay_connect(opt.netJoin, opt.netHost, opt.netOnlineHost || opt.netRoom ? relay : NULL, opt.netRoom,
+            /* The window stays open while the program waits: its close button and Ctrl+C give up the wait. */
+            netplay_set_wait_hook(connect_wait);
+            r = netplay_connect(opt.netJoin, opt.netHost, opt.netOnlineHost || opt.netRoom ? relay : NULL, opt.netRoom,
                                 g64Players > 1 ? g64Players : 2, opt.netDeadline, port_rom, port_rom_size, &level,
-                                &players, err, sizeof err) != 0) {
+                                &players, err, sizeof err);
+            netplay_set_wait_hook(NULL);
+            if (r == NETPLAY_GAVE_UP) {
+                netplay_cancel();
+                return 0;
+            }
+            if (r != 0) {
                 fprintf(stderr, "g64coopdx: %s\n", err);
+                /* The socket closes first: the error box mustn't hold the port. */
+                netplay_cancel();
                 die("%s", err);
             }
             online = 1;
-        } else if (!opt.netOtherArgs || opt.netLauncher) {
+        } else if (launcher) {
             int r;
 
             netplay_set_pack_policy(1, opt.netAcceptPack);
+            players = g64Players > 1 ? g64Players : 0;
             g64_title_begin(&settings);
             r = g64_launcher(window, port_rom, port_rom_size, relay, &level, &players);
             g64_title_end();
@@ -2741,6 +2845,12 @@ int main(int argc, char **argv) {
             }
             goto netplay_done;
         }
+        if (TOOLS_HIDDEN() && menu_is_open()) {
+            /* g64coopdx: playing alone, the menu holds the game: nothing moves while the player changes a setting. */
+            acc = 0.0;
+            gfx_interp_set(-1.0f);
+            goto netplay_done;
+        }
         if (studio_paused()) {
             long n = studio_apply_seek(tasks, 16);
 
@@ -2936,6 +3046,12 @@ int main(int argc, char **argv) {
             }
         }
     }
+#ifdef PORT_STUDIO
+    /* g64coopdx: a player who leaves the online game tells the others. */
+    if (netplay_active()) {
+        netplay_cancel();
+    }
+#endif
     finish_recording();
     menu_shutdown();
     gfx_shutdown();

@@ -196,7 +196,7 @@ void debugPrintf(s32 len) {
         len--;
     }
     if (len > 0) {
-        port_log("%.*s", (int)len, outputMessageBuffer);
+        port_log_game("%.*s", (int)len, outputMessageBuffer);
     }
 }
 

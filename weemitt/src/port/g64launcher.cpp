@@ -10,6 +10,7 @@
 #include "../game/g64models.h"
 #include "g64launcher.h"
 #include "prefpath.h"
+#include "menu.h"
 #include "../../../src/client/netplay.h"
 #include "../../../src/session/session.h"
 
@@ -153,14 +154,69 @@ void g64_load_name(void) {
         load_name();
 }
 
-static void save_name(void) {
+void g64_save_name(void) {
     char path[1024];
     FILE *f;
-    netplay_set_name(nameText);
     name_path(path, sizeof path);
     f = fopen(path, "w");
     if (f) {
         fprintf(f, "%s\n", netplay_name());
+        fclose(f);
+    }
+}
+
+static void save_name(void) {
+    netplay_set_name(nameText);
+    g64_save_name();
+}
+
+/* The player's other choices, kept in options.txt in the program's own folder: the input delay, and the host's
+   choices on HOST GAME (the players, the ball controls, the balls, the worlds, the list and its title). The first
+   line holds the numbers, the second the title. */
+static int optionsLoaded;
+static int savedWanted;
+
+static void options_path(char *out, size_t size) {
+    char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
+    snprintf(out, size, "%soptions.txt", pref ? pref : "");
+    if (pref)
+        SDL_free(pref);
+}
+
+void g64_load_options(int host) {
+    char path[1024], title[64] = "";
+    FILE *f;
+    int delay, wanted, normal, anyBall, anyWorld, listed;
+    if (optionsLoaded)
+        return;
+    optionsLoaded = 1;
+    options_path(path, sizeof path);
+    f = fopen(path, "r");
+    if (!f)
+        return;
+    if (fscanf(f, "%d %d %d %d %d %d", &delay, &wanted, &normal, &anyBall, &anyWorld, &listed) == 6) {
+        netplay_set_input_delay(delay);
+        if (host) {
+            savedWanted = wanted >= 2 && wanted <= 16 ? wanted : 0;
+            netplay_set_normal_ball(normal != 0);
+            netplay_set_any_ball(anyBall != 0);
+            netplay_set_any_world(anyWorld != 0);
+            if (fgetc(f) == '\n' && fgets(title, sizeof title, f))
+                title[strcspn(title, "\r\n")] = 0;
+            netplay_set_public(listed != 0, title);
+        }
+    }
+    fclose(f);
+}
+
+static void save_options(int wanted) {
+    char path[1024];
+    FILE *f;
+    options_path(path, sizeof path);
+    f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%d %d %d %d %d %d\n%s\n", netplay_input_delay(), wanted, netplay_host_normal_ball(),
+                netplay_host_any_ball(), netplay_host_any_world(), netplay_public(), netplay_public_title());
         fclose(f);
     }
 }
@@ -223,10 +279,28 @@ static void add_row(int what, const char *label, const char *value, int flags, i
     G64TitleRow(label, value, flags);
 }
 
+/* A test: G64_LAUNCHER_LOG=1 prints each note of the page on the standard output when it's new. */
+static void log_note(const char *text) {
+    static char last[16][64];
+    static int lastCount;
+    int i;
+    if (!getenv("G64_LAUNCHER_LOG"))
+        return;
+    for (i = 0; i < lastCount; i++)
+        if (!strcmp(last[i], text))
+            return;
+    printf("start screen note: %s\n", text);
+    fflush(stdout);
+    snprintf(last[lastCount % 16], sizeof last[0], "%s", text);
+    if (lastCount < 16)
+        lastCount++;
+}
+
 /* Small text below the rows, broken into lines of at most 40 characters: the game draws no more of a text. */
 static void note(const char *text, unsigned rgb) {
     char line[64];
     const char *s = text;
+    log_note(text);
     while (*s) {
         int n = (int)strlen(s), cut = n;
         if (n > 40) {
@@ -249,8 +323,11 @@ static void note(const char *text, unsigned rgb) {
 
 /* The open games that the join page shows at once, below the code and Join. */
 #define ROOMS_SHOWN (G64_TITLE_ROWS - 2)
-/* The options page has more rows than the game draws: it shows G64_TITLE_ROWS of them, from optTop on. */
-#define OPTION_ROWS 8
+/* The options page can have more rows than the game draws: it shows G64_TITLE_ROWS of them, from optTop on. The
+   rows of the custom colors are there only while COLORS is CUSTOM. */
+static int option_rows(void) {
+    return choice == CUSTOM ? 8 : 6;
+}
 
 /* The start screen's state. */
 typedef struct {
@@ -259,6 +336,8 @@ typedef struct {
     int wanted;
     int roomTop; /* the first open game that the join page shows */
     int optTop;  /* the first row that the options page shows */
+    int selectWhat; /* when not -1: the row that is chosen when the page is next built (a row's what) */
+    int roomsSeen;  /* the number of open games when the join page was last built */
     char code[NETPLAY_ROOM_CODE + 1];
     char title[33];
     char error[320];
@@ -266,8 +345,8 @@ typedef struct {
 } launcher;
 
 /* Builds the page's rows and text for the game to draw. The rows' words are in capitals, as the game writes its own
-   menu items. The page has no help or status lines: only the rows, their values, the room code while hosting, an
-   error, and the facts about a level pack that the player is asked to take. */
+   menu items. The page has no help lines: only the rows, their values, the room code while hosting, how the wait
+   goes, an error, and the facts about a level pack that the player is asked to take. */
 static void build_page(launcher *L) {
     const char *room = netplay_room_code();
     int i;
@@ -324,6 +403,8 @@ static void build_page(launcher *L) {
             snprintf(d, sizeof d, "%d", netplay_input_delay());
             snprintf(m, sizeof m, "%d", port_mouse_sensitivity());
             G64TitlePage("OPTIONS");
+            if (L->optTop > option_rows() - G64_TITLE_ROWS)
+                L->optTop = option_rows() > G64_TITLE_ROWS ? option_rows() - G64_TITLE_ROWS : 0;
             /* The rows before optTop aren't shown. */
 #define OPTION(...)                \
     do {                           \
@@ -335,10 +416,10 @@ static void build_page(launcher *L) {
                    fixed ? G64_TITLE_OFF : G64_TITLE_ARROWS);
             OPTION(R_BALL_MODEL, "BALL", G64ModelLabel(G64_MODEL_BALL, model_of(G64_MODEL_BALL)), G64_TITLE_ARROWS);
             OPTION(R_COLORS, "COLORS", own ? "CUSTOM" : palettes[choice].name, G64_TITLE_ARROWS);
-            OPTION(R_GLOVE, "GLOVE COLOR", own ? (g >= 0 ? shades[g].name : "SAVED") : "-",
-                   own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
-            OPTION(R_BALL, "BALL COLOR", own ? (b >= 0 ? shades[b].name : "SAVED") : "-",
-                   own ? G64_TITLE_ARROWS : G64_TITLE_OFF);
+            if (own) {
+                OPTION(R_GLOVE, "GLOVE COLOR", g >= 0 ? shades[g].name : "SAVED", G64_TITLE_ARROWS);
+                OPTION(R_BALL, "BALL COLOR", b >= 0 ? shades[b].name : "SAVED", G64_TITLE_ARROWS);
+            }
             OPTION(R_DELAY, "INPUT DELAY", d, G64_TITLE_ARROWS);
             OPTION(R_SENSITIVITY, "SENSITIVITY", m, G64_TITLE_ARROWS);
 #undef OPTION
@@ -359,6 +440,12 @@ static void build_page(launcher *L) {
             break;
     }
 
+    if (L->selectWhat >= 0) {
+        for (i = 0; i < rowCount; i++)
+            if (rows[i].what == L->selectWhat)
+                L->selected = i;
+        L->selectWhat = -1;
+    }
     /* The chosen row is one that isn't grayed out. */
     if (L->selected >= rowCount)
         L->selected = rowCount - 1;
@@ -378,6 +465,9 @@ static void build_page(launcher *L) {
     if (L->page == PAGE_WAIT) {
         if (L->hosting && room[0])
             G64TitleBig(room);
+        /* How the wait goes: the relay, the players who are in, the download of a pack. */
+        if (!netplay_pack_asking() && netplay_wait_status()[0])
+            note(netplay_wait_status(), 0xFFFFFF);
         if (netplay_pack_asking()) {
             char line[200], models[48] = "";
             /* A pack's models are most of its size: up to 4 MB, about 16 seconds of download. */
@@ -395,6 +485,7 @@ static void build_page(launcher *L) {
     }
     if (L->error[0])
         note(L->error, RED);
+    G64TitleBack(L->page != PAGE_MAIN && !netplay_pack_asking());
     G64TitleColors(color_word(G64_MODEL_GLOVE), color_word(G64_MODEL_BALL));
 }
 
@@ -413,6 +504,9 @@ static int start(launcher *L, const unsigned char *rom, unsigned long romSize, c
     }
     L->connecting = 1;
     L->hosting = joinCode == NULL;
+    /* A join from the list keeps its code: the JOIN page shows it after a failure. */
+    if (joinCode && joinCode != L->code)
+        snprintf(L->code, sizeof L->code, "%s", joinCode);
     L->copied = 0;
     L->back = back;
     L->selected = 0;
@@ -427,6 +521,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
        start presses Start now. G64_LAUNCHER_PACK=yes or no answers the host's level pack. */
     const char *autoPress = getenv("G64_LAUNCHER_AUTO");
     const char *accept = getenv("G64_LAUNCHER_PACK");
+    /* A test: G64_LAUNCHER_START=N presses START NOW once N players are in a hosted game. */
+    int startAt = getenv("G64_LAUNCHER_START") ? atoi(getenv("G64_LAUNCHER_START")) : 0;
     /* A test: G64_LAUNCHER_KEYS lists keys that the start screen gets one after another, four a second: up,
        down, left, right, a, b, back (backspace) or a word to type (t:WORD). */
     const char *keys = getenv("G64_LAUNCHER_KEYS");
@@ -439,9 +535,11 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
     if (!nameLoaded)
         load_name();
     if (L.wanted == 0) {
-        L.wanted = 2;
+        L.wanted = *players >= 2 && *players <= 16 ? *players : savedWanted ? savedWanted : 2;
         snprintf(L.title, sizeof L.title, "%s", netplay_public_title());
     }
+    L.selectWhat = -1;
+    L.roomsSeen = -1;
     L.relay = relay;
     L.page = PAGE_MAIN;
     L.connecting = 0;
@@ -464,6 +562,22 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 G64TitleOn(0);
                 SDL_StopTextInput();
                 return -1;
+            }
+            /* F11 and Alt+Enter switch full screen, as in the game (platform.c). Alt+Enter presses no row. */
+            if (e.type == SDL_KEYDOWN && !e.key.repeat &&
+                (e.key.keysym.sym == SDLK_F11 ||
+                 ((e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) &&
+                  (e.key.keysym.mod & KMOD_ALT)))) {
+                Uint32 full = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
+                SDL_SetWindowFullscreen(window, full ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+                continue;
+            }
+            /* Escape on the first page opens the menu with the player's settings (the picture, the sound, the
+               controls), as it does in the game. While it's open, the start screen takes no input. */
+            if (menu_is_open() || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE && L.page == PAGE_MAIN &&
+                                   !L.connecting)) {
+                if (menu_handle_event(&e) || e.type == SDL_KEYDOWN || e.type == SDL_KEYUP || e.type == SDL_TEXTINPUT)
+                    continue;
             }
             if (e.type == SDL_KEYDOWN) {
                 SDL_Keycode k = e.key.keysym.sym;
@@ -517,7 +631,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         /* The controller, as the game reads it. A move repeats every quarter second while it's held; A and B act
            once for each press. */
         {
-            int held = g64_title_pad(), dir = held & (G64_PAD_UP | G64_PAD_DOWN | G64_PAD_LEFT | G64_PAD_RIGHT);
+            int held = menu_is_open() ? 0 : g64_title_pad();
+            int dir = held & (G64_PAD_UP | G64_PAD_DOWN | G64_PAD_LEFT | G64_PAD_RIGHT);
             int now = held & ~padHeld;
             if (dir != 0 && ((now & dir) || SDL_GetTicks() - padAt > 250)) {
                 if (dir & G64_PAD_UP)
@@ -546,10 +661,11 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             }
             if (r < 0) {
                 snprintf(L.error, sizeof L.error, "%s", netplay_error());
+                L.roomsSeen = -1;
                 netplay_cancel();
                 L.connecting = 0;
                 L.page = L.back;
-                L.selected = 0;
+                L.selectWhat = L.back == PAGE_HOST ? R_HOST : R_JOIN;
             }
         }
         room = netplay_room_code();
@@ -561,6 +677,14 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         /* The open games that hosts have listed, for this build. The titles are other players' text. */
         if (!L.connecting && (L.page == PAGE_JOIN || (autoPress && !strcmp(autoPress, "list"))))
             netplay_rooms_refresh(relay);
+
+        /* An error from before goes when the list of open games changes. The first list after the error only
+           counts the games. */
+        if (!L.connecting && L.page == PAGE_JOIN && netplay_rooms_count() >= 0) {
+            if (L.roomsSeen >= 0 && netplay_rooms_count() != L.roomsSeen)
+                L.error[0] = 0;
+            L.roomsSeen = netplay_rooms_count();
+        }
 
         build_page(&L);
 
@@ -584,6 +708,10 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         } else if (autoPress && L.connecting && L.hosting && !strcmp(autoPress, "start")) {
             netplay_start_now();
             autoPress = NULL;
+        }
+        if (startAt > 0 && L.connecting && L.hosting && netplay_joined() >= startAt) {
+            netplay_start_now();
+            startAt = 0;
         }
         if (accept && netplay_pack_asking()) {
             netplay_pack_answer(!strcmp(accept, "yes"));
@@ -611,7 +739,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     break;
                 }
             if (!more) {
-                if (move > 0 && L.optTop < OPTION_ROWS - G64_TITLE_ROWS) {
+                if (move > 0 && L.optTop < option_rows() - G64_TITLE_ROWS) {
                     L.optTop++;
                     L.selected = rowCount - 1;
                 } else if (move < 0 && L.optTop > 0) {
@@ -621,7 +749,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     L.optTop = 0;
                     L.selected = 0;
                 } else {
-                    L.optTop = OPTION_ROWS - G64_TITLE_ROWS;
+                    L.optTop = option_rows() > G64_TITLE_ROWS ? option_rows() - G64_TITLE_ROWS : 0;
                     L.selected = rowCount - 1;
                 }
                 move = 0;
@@ -653,7 +781,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 changed = 1;
             }
             for (t = typed; *t; t++) {
-                char c = what == R_CODE ? code_char(*t) : (*t >= 32 && *t < 127) ? *t : 0;
+                /* A name or a title takes only what the game's fonts draw: other players see it in them. */
+                char c = what == R_CODE ? code_char(*t) : G64TitleDrawable(*t) ? *t : 0;
                 if (c && n + 1 < size) {
                     buf[n++] = c;
                     buf[n] = 0;
@@ -662,11 +791,20 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             }
             if (changed && what == R_NAME)
                 save_name();
-            if (changed && what == R_TITLE)
+            if (changed && what == R_TITLE) {
                 netplay_set_public(netplay_public(), L.title);
-        } else if (erase) {
+                save_options(L.wanted);
+            }
+        } else if (erase && !L.connecting) {
+            /* Backspace doesn't cancel a wait: on that page only B, Escape and CANCEL do. */
             pressB = 1;
         }
+        /* A NAME left empty is the name that the program uses: it shows once the row isn't chosen. */
+        if (what != R_NAME && !nameText[0])
+            snprintf(nameText, sizeof nameText, "%s", netplay_name());
+        /* A move to another row takes an old error away. */
+        if ((move != 0 || change != 0) && !L.connecting)
+            L.error[0] = 0;
 
         /* Left and right change a value. */
         if (change != 0) {
@@ -674,18 +812,23 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 case R_PLAYERS:
                     L.wanted += change;
                     L.wanted = L.wanted < 2 ? 16 : L.wanted > 16 ? 2 : L.wanted;
+                    save_options(L.wanted);
                     break;
                 case R_BALL_CONTROLS:
                     netplay_set_normal_ball(!netplay_host_normal_ball());
+                    save_options(L.wanted);
                     break;
                 case R_ANY_BALL:
                     netplay_set_any_ball(!netplay_host_any_ball());
+                    save_options(L.wanted);
                     break;
                 case R_ANY_WORLD:
                     netplay_set_any_world(!netplay_host_any_world());
+                    save_options(L.wanted);
                     break;
                 case R_LISTED:
                     netplay_set_public(!netplay_public(), L.title);
+                    save_options(L.wanted);
                     break;
                 case R_COLORS:
                     choice = (choice + change + CUSTOM + 1) % (CUSTOM + 1);
@@ -709,6 +852,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 case R_DELAY: {
                     int d = netplay_input_delay() + change;
                     netplay_set_input_delay(d < 0 ? 0 : d > 8 ? 8 : d);
+                    save_options(L.wanted);
                     break;
                 }
                 case R_SENSITIVITY:
@@ -777,6 +921,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 netplay_cancel();
                 L.connecting = 0;
                 L.page = L.back;
+                L.selectWhat = L.back == PAGE_HOST ? R_HOST : R_JOIN;
             } else if (L.page != PAGE_MAIN) {
                 L.selected = L.page == PAGE_HOST ? 0 : L.page == PAGE_JOIN ? 1 : 2;
                 L.page = PAGE_MAIN;
@@ -787,6 +932,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         /* The page with this frame's changes, then the game's frame. */
         build_page(&L);
         g64_title_frame(window);
+        menu_draw(window);
         SDL_GL_SwapWindow(window);
         SDL_Delay(10);
     }

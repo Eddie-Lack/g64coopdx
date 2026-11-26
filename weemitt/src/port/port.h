@@ -56,6 +56,8 @@ extern const PortRomSym port_romsyms[];
 extern const u32 port_main_rom, port_main_vram, port_main_size;
 
 void port_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+/* The game's own messages (PRINTF): as port_log, but the player's program may keep them to the log file (log.h). */
+void port_log_game(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void port_fatal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 /* Called by port_fatal after the message, in place of exit(1), when set. It must not return. */
 extern void (*port_fatal_hook)(void);

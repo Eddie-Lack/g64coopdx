@@ -2967,15 +2967,48 @@ void SetFont(u8 type);
 void AddOverlay(Overlay *overlay);
 s16 GetStringPixelLength(char *str, f32 sx, f32 sy);
 
+/* 1 when the game's font draws c (g64title.c). */
+int G64FontDraws(char c, s32 font);
+
 /* A line of the client's text for the game's text list, which holds 63 characters and takes its text as a format:
-   the plain printable characters, without the percent sign. */
+   the characters that the game's small font draws, in capitals as the font has them, without the percent sign. Any
+   other character becomes a space: the font would draw it with an old picture. */
 static char *view_string(char *out, const char *text) {
     s32 n = 0;
-    for (; *text != 0 && n < 62; text++)
-        if (*text >= 32 && *text < 127 && *text != '%')
-            out[n++] = *text;
+    for (; *text != 0 && n < 62; text++) {
+        char c = *text >= 'a' && *text <= 'z' ? *text - 'a' + 'A' : *text;
+        out[n++] = G64FontDraws(c, 1) ? c : ' ';
+    }
     out[n] = 0;
     return out;
+}
+
+/* The game draws at most VIEW_WIDTH characters of a text (font.c, font_win_w): a longer one is cut. wrap_text breaks
+   a text into pieces of at most that many, at a space where it can, and returns how many it made (at most max). */
+#define VIEW_WIDTH 40
+static s32 wrap_text(const char *text, char out[][VIEW_WIDTH + 1], s32 max) {
+    char line[64];
+    const char *t = view_string(line, text);
+    s32 rows = 0;
+    while (*t == ' ')
+        t++;
+    while (*t != 0 && rows < max) {
+        s32 n = (s32)strlen(t), cut = n;
+        if (n > VIEW_WIDTH) {
+            cut = VIEW_WIDTH;
+            while (cut > VIEW_WIDTH / 2 && t[cut] != ' ')
+                cut--;
+            if (t[cut] != ' ')
+                cut = VIEW_WIDTH;
+        }
+        memcpy(out[rows], t, cut);
+        out[rows][cut] = 0;
+        rows++;
+        t += cut;
+        while (*t == ' ')
+            t++;
+    }
+    return rows;
 }
 
 /* The pause menu: the game's green pane, its "PAUSED" in the game's language, and the choices in the game's menu
@@ -3009,41 +3042,62 @@ void G64MenuView(const char *const *items, s32 count, s32 selected) {
 }
 
 /* A line of text in the upper middle of the picture, on a pane of the game's as wide as the text: what a level
-   pack's script shows to the player. */
-void G64LineView(const char *text) {
-    char line[64];
-    s32 width;
-    view_string(line, text);
-    if (line[0] == 0)
+   pack's script shows to the player, or why the online game ended. A text too long for one line of the game's
+   takes two. top is the middle of the first line's pane: 50 in the upper middle, less while a tip's box is open. */
+void G64LineView(const char *text, s32 top) {
+    char rows[2][VIEW_WIDTH + 1];
+    s32 n = wrap_text(text, rows, 2), i, width = 0;
+    if (n == 0)
         return;
     SetFont(1);
     /* A pane's scale is 32 for each point of the picture. The text's middle is 4 above the place it's given. */
-    width = GetStringPixelLength(line, 0.6f, 0.6f);
+    for (i = 0; i < n; i++) {
+        s32 w = GetStringPixelLength(rows[i], 0.6f, 0.6f);
+        if (w > width)
+            width = w;
+    }
     tipOverlay2.x = 160.0f;
-    tipOverlay2.y = 50.0f;
+    tipOverlay2.y = (f32)(top + 5 * (n - 1));
     tipOverlay2.scaleX = (width + 28) * 32;
-    tipOverlay2.scaleY = 16 * 32;
+    tipOverlay2.scaleY = (6 + 10 * n) * 32;
     tipOverlay2.alpha = 200;
     tipOverlay2.r = 255;
     tipOverlay2.g = 200;
     tipOverlay2.b = 255;
     AddOverlay(&tipOverlay2);
-    NEW_TEXT(160, 54, 255, 255, 255, 252, 0.6f, 0.6f, 1, line, 1);
+    for (i = 0; i < n; i++)
+        NEW_TEXT(160, top + 4 + 10 * i, 255, 255, 255, 252, 0.6f, 0.6f, 1, rows[i], 1);
     SetFont(0);
 }
 
 /* The newest chat lines at the lower left of the picture, in the game's menu font. A line that starts with a star
-   is the program's own note, in the color of the game's tips. */
+   is the program's own note, in the color of the game's tips. A line too long for the game's text goes on over the
+   next rows. The picture shows the newest 6 rows. */
+#define CHAT_ROWS 6
 void G64ChatView(const char *const *lines, s32 count) {
-    char line[64];
-    s32 i;
-    if (count > 6)
-        count = 6;
+    char rows[CHAT_ROWS][VIEW_WIDTH + 1];
+    s32 noteRow[CHAT_ROWS];
+    s32 i, n = 0;
+    if (count > CHAT_ROWS)
+        count = CHAT_ROWS;
+    /* From the newest line back, as many rows as fit. */
+    for (i = count - 1; i >= 0 && n < CHAT_ROWS; i--) {
+        char piece[CHAT_ROWS][VIEW_WIDTH + 1];
+        s32 k, m = wrap_text(lines[i], piece, CHAT_ROWS);
+        if (m > CHAT_ROWS - n)
+            m = CHAT_ROWS - n;
+        memmove(&rows[m], &rows[0], sizeof rows[0] * n);
+        memmove(&noteRow[m], &noteRow[0], sizeof noteRow[0] * n);
+        for (k = 0; k < m; k++) {
+            memcpy(rows[k], piece[k], sizeof rows[k]);
+            noteRow[k] = lines[i][0] == '*';
+        }
+        n += m;
+    }
     SetFont(1);
-    for (i = 0; i < count; i++) {
-        s32 note = lines[i][0] == '*';
-        NEW_TEXT(14, 178 - (count - 1 - i) * 11, note ? 170 : 255, note ? 170 : 255, 255, 252, 0.55f, 0.55f, 1,
-                 view_string(line, lines[i]), 0);
+    for (i = 0; i < n; i++) {
+        s32 note = noteRow[i];
+        NEW_TEXT(14, 178 - (n - 1 - i) * 11, note ? 170 : 255, note ? 170 : 255, 255, 252, 0.55f, 0.55f, 1, rows[i], 0);
     }
     SetFont(0);
 }

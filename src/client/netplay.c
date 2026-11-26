@@ -46,11 +46,13 @@ int G64PlayerPosition(int p, float *x, float *y, float *z);
 void G64SwapPlayer(int p);
 void G64TipView(int p);
 const char *G64LuaShown(int player);
+unsigned G64LuaStops(void);
+const char *G64LuaStopLine(void);
 int G64LevelUnplayable(void);
 /* The pause menu, a script's line and the chat's newest lines, drawn by the game in its own style (weemitt's
    g64players.c). */
 void G64MenuView(const char *const *items, int count, int selected);
-void G64LineView(const char *text);
+void G64LineView(const char *text, int top);
 void G64ChatView(const char *const *lines, int count);
 void G64CannonView(int p);
 int G64PortalShut(int player);
@@ -65,13 +67,14 @@ typedef struct {
 #define TEST_EXITS 8 /* weemitt's G64_TEST_EXITS */
 extern G64TestExit g64TestExits[TEST_EXITS];
 
-/* The game starts at the first hub level. */
+/* The game starts at the first hub level. Levels 0 to HUB_LAST are the hub's stages. */
 #define START_LEVEL 0
+#define HUB_LAST 7
 /* The host confirms a frame this many frames after its own clock: 5 frames are 250 ms. */
 #define DEADLINE 5
 /* A client keeps 32 savestates and predicts at most that far. */
 #define WINDOW 32
-/* How long the host waits for players, and a joiner for the start. */
+/* How long a joiner waits for the start. A host waits for its players as long as it's on the page. */
 #define CONNECT_TIMEOUT_MS (10 * 60 * 1000)
 
 static net_socket *sock;
@@ -92,6 +95,8 @@ static int dropped[G64_SESSION_MAX_PLAYERS];
 
 int netplay_active(void) { return active; }
 int netplay_failed(void) { return failed; }
+/* The status after a failure starts with the program's name and a colon (netplay_frame). */
+const char *netplay_failure(void) { return failed && !strncmp(status, "g64coopdx: ", 11) ? status + 11 : status; }
 
 /* Connecting, step by step (netplay_start, then netplay_poll until it isn't 0). */
 enum { C_IDLE, C_RELAY, C_SESSION, C_STARTED, C_FAILED };
@@ -162,6 +167,22 @@ typedef char models_limit_matches[G64_PACK_MODELS_LIMIT == G64_PACK_MODELS_MAX ?
 static char ownPackDir[1024];
 static int packTaken;
 
+/* Loads the player's own pack from ownPackDir. Its level file must pass the check of its structure, as a download
+ * must: the game's parser trusts the file, and a file that fails the check can crash the game. A folder may come
+ * from another player too. */
+static int load_own_pack(char *err, size_t errSize) {
+    const char *why;
+    if (g64_pack_load(ownPackDir, &gameBanks, &pack, err, errSize) != 0)
+        return -1;
+    why = g64_pack_check_strict(&pack, NULL);
+    if (why) {
+        snprintf(err, errSize, "the pack's level file doesn't pass the check (%s)", why);
+        g64_pack_free(&pack);
+        return -1;
+    }
+    return 0;
+}
+
 int netplay_set_pack(const char *dir, char *err, size_t errSize) {
     g64_pack_free(&pack);
     packTaken = 0;
@@ -173,7 +194,7 @@ int netplay_set_pack(const char *dir, char *err, size_t errSize) {
         return -1;
     }
     snprintf(ownPackDir, sizeof ownPackDir, "%s", dir);
-    return g64_pack_load(dir, &gameBanks, &pack, err, errSize);
+    return load_own_pack(err, errSize);
 }
 
 const char *netplay_pack_name(void) { return pack.lev ? pack.name : ""; }
@@ -697,9 +718,8 @@ static int check_pack_ids_and_models(char *err, size_t errSize) {
     size_t at = 0;
     g64_level_banks banks;
     int n;
-    /* The rule for the level file's object ids needs a level file whose structure passes the check. A pack from a
-       folder need not pass it. Such a pack is never sent to another player, and the game marks its level as
-       unplayable when an object is missing. */
+    /* The rule for the level file's object ids needs a level file whose structure passes the check. Every pack
+       does: a folder's pack is refused at its load otherwise (load_own_pack), and so is a download. */
     int ids = g64_pack_check_strict(&pack, NULL) == NULL;
     if (!pack.models && !ids)
         return 0;
@@ -793,12 +813,13 @@ int netplay_start(const char *join, int hostPort, const char *relay, const char 
         char why[200];
         g64_pack_free(&pack);
         packTaken = 0;
-        if (ownPackDir[0] && g64_pack_load(ownPackDir, &gameBanks, &pack, why, sizeof why) != 0) {
+        if (ownPackDir[0] && load_own_pack(why, sizeof why) != 0) {
             snprintf(err, errSize, "%s", why);
             return fail_connect(err);
         }
     }
     cjoined = 0;
+    cstatus[0] = 0;
     chatCount = 0;
     memset(kickNoted, 0, sizeof kickNoted);
     announced = 0;
@@ -897,7 +918,7 @@ int netplay_poll(void) {
             return 1;
         }
         /* The session can be made in this same call, a moment after t was read: the difference is signed. */
-        if ((int32_t)(t - cstart) > CONNECT_TIMEOUT_MS)
+        if (!chost && (int32_t)(t - cstart) > CONNECT_TIMEOUT_MS)
             return fail_connect("nobody came");
         cjoined = g64_session_joined(session);
         if (!chost && joiner_pack() != 0)
@@ -922,6 +943,11 @@ void netplay_cancel(void) {
     netplay_rooms_close();
     packAsking = packKept = 0;
     g64_pack_free(&keptPack);
+    /* The others learn at once that this player has gone, and a host's room closes at the relay at once. */
+    if (session && !failed)
+        g64_session_bye(session);
+    if (sock && chost && crelay[0])
+        net_relay_close(sock);
     if (session) {
         g64_session_free(session);
         session = NULL;
@@ -941,6 +967,9 @@ int netplay_joined(void) { return cjoined; }
 int netplay_level(void) { return clevel; }
 int netplay_players(void) { return players; }
 int netplay_is_host(void) { return chost; }
+
+static int (*waitHook)(void);
+void netplay_set_wait_hook(int (*hook)(void)) { waitHook = hook; }
 
 int netplay_connect(const char *join, int hostPort, const char *relay, const char *room, int wanted, int deadline,
                     const uint8_t *rom, size_t romSize, int *level, int *outPlayers, char *err, size_t errSize) {
@@ -965,6 +994,11 @@ int netplay_connect(const char *join, int hostPort, const char *relay, const cha
             lastJoined = netplay_joined();
             printf("g64coopdx: %d of %d players\n", lastJoined, wanted);
             fflush(stdout);
+        }
+        if (waitHook && waitHook()) {
+            netplay_cancel();
+            err[0] = 0;
+            return NETPLAY_GAVE_UP;
         }
         sleep_ms(10);
     }
@@ -1401,13 +1435,20 @@ void netplay_pause_pick(int item) {
     }
 }
 
-/* The menu, driven by the local controller: Start opens it; up and down choose; A picks; B or Start closes it. */
+/* The menu, driven by the local controller: Start opens it; up and down choose; A picks; B or Start closes it. One
+ * press moves one row: after a move, the next one waits until the d-pad's up and down and the stick are at rest. A
+ * key that drives both, or a press that two frames see, then can't move two rows. */
+static int moveHeld;
 static void pause_menu(uint16_t buttons, int8_t stickY) {
     uint16_t pressed = (uint16_t)(buttons & ~lastButtons);
     int up = (pressed & 0x0800) || (stickY > 40 && lastStickY <= 40);
     int down = (pressed & 0x0400) || (stickY < -40 && lastStickY >= -40);
+    int rest = !(buttons & 0x0C00) && stickY >= -40 && stickY <= 40;
     lastButtons = buttons;
     lastStickY = stickY;
+    if (moveHeld && !rest)
+        up = down = 0;
+    moveHeld = (moveHeld || up || down) && !rest;
     if (!pauseOpen) {
         if (pressed & 0x1000)
             netplay_pause_toggle();
@@ -1483,12 +1524,37 @@ int netplay_holds_ball(void) { return holdsBall; }
 const char *netplay_tip_line(int i) { return i >= 0 && i < tipLines ? tipText[i] : ""; }
 int netplay_tip_more(void) { return tipMore; }
 
+/* The game has ended for this player: the reason goes to the log and into the picture. */
+static void fail_game(const char *why) {
+    failed = 1;
+    tipLines = 0;
+    pauseOpen = 0;
+    snprintf(status, sizeof status, "g64coopdx: %s", why);
+    plog_printf("%s", status);
+}
+
+/* After a failure: the last frame of the local game, drawn again with the reason over it. Returns the count of
+ * tasks, or -1 when there's no game to draw. */
+static int draw_failed(void *tasks, int max) {
+    rb_engine_game *game = g64_iclient_game(iclient);
+    if (!game)
+        return -1;
+    rb_engine_game_enter(game);
+    engine_save(engine, viewState);
+    viewPending = 1;
+    G64LineView(netplay_failure(), 50);
+    G64SwapPlayer(me);
+    return port_game_draw_view(tasks, max);
+}
+
 int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, int max) {
     rb_input in;
     rb_engine_game *game;
     if (!active)
         return -1;
     restore_view();
+    if (failed)
+        return draw_failed(tasks, max);
     if (g64_iclient_game(iclient) && g64_iclient_game(iclient) == smoothGame)
         read_positions(smoothGame, before, haveBefore);
     else
@@ -1496,18 +1562,14 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     net_relay_tick(sock, now_ms());
     send_ban();
     if (g64_session_poll(session, now_ms(), on_game, NULL) == G64_SESSION_FAILED) {
-        failed = 1;
-        tipLines = 0;
-        snprintf(status, sizeof status, "g64coopdx: %s", g64_session_error(session));
-        return -1;
+        fail_game(g64_session_error(session));
+        return draw_failed(tasks, max);
     }
     /* The relay's word of a ban, for a joiner whose kick message was lost. The relay's word isn't sealed, so it
        counts only once the host has also been silent for three seconds. */
     if (!chost && crelay[0] && net_relay_state(sock) < 0 && g64_session_host_silent(session, now_ms()) > 3000) {
-        failed = 1;
-        tipLines = 0;
-        snprintf(status, sizeof status, "g64coopdx: the host removed you from the game");
-        return -1;
+        fail_game("the host removed you from the game");
+        return draw_failed(tasks, max);
     }
     if (ihost) {
         int p;
@@ -1570,6 +1632,15 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
                 chat_add(-1, note);
             }
         seenPresent = now;
+    }
+    {
+        /* For tests: G64_TEST_KICK=FRAME makes the host remove player 2 at that frame. */
+        static int kicked;
+        const char *kick = kicked ? NULL : getenv("G64_TEST_KICK");
+        if (kick && ihost && g64_iclient_frame(iclient) >= (uint32_t)atoi(kick)) {
+            kicked = 1;
+            netplay_kick(1);
+        }
     }
     {
         /* For tests: G64_TEST_CHAT is a line that this player says at frame 300. */
@@ -1682,9 +1753,29 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         /* The level this player is in can't be played (a level pack's level names something the game doesn't
            have): they are told once, and the game sends them back to the hub. */
         static uint32_t told;
+        /* Back to the hub can't help when the hub itself is the level that can't be loaded: the game ends here. */
+        if (G64LevelUnplayable() && g64_iclient_level(iclient) <= HUB_LAST) {
+            fail_game("This level couldn't be loaded.");
+            return draw_failed(tasks, max);
+        }
         if (G64LevelUnplayable() && (told == 0 || now_ms() - told > 5000)) {
             told = now_ms() ? now_ms() : 1;
             chat_add(-1, "This level couldn't be loaded. You go back to the hub.");
+        }
+    }
+    {
+        /* A level pack's script stopped in this game: the log's line goes to the chat too, once. Each game counts
+           its own stops from 0. */
+        static unsigned stopsSeen;
+        static int stopsInstance = -1;
+        unsigned stops = G64LuaStops();
+        if (g64_iclient_instance(iclient) != stopsInstance) {
+            stopsInstance = g64_iclient_instance(iclient);
+            stopsSeen = 0;
+        }
+        if (stops > stopsSeen) {
+            stopsSeen = stops;
+            chat_add(-1, G64LuaStopLine());
         }
     }
     /* The line of text that a level pack's script shows to this player, if any (weemitt's g64lua.c). It is read from
@@ -1705,7 +1796,7 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         if (pauseOpen)
             G64MenuView(pauseItems, PAUSE_ITEMS, pauseSelection);
         else if (scriptLine[0] != 0)
-            G64LineView(scriptLine);
+            G64LineView(scriptLine, tipLines > 0 ? 22 : 50); /* above an open tip's box */
     }
     /* The tip that this player reads, in the game's own box. */
     G64TipView(me);

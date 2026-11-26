@@ -1232,6 +1232,12 @@ static void players_window() {
         return;
     }
     int n = netplay_players(), me = netplay_me();
+    if (netplay_failed()) {
+        /* The game has ended for this player: the window says why, in place of a list that is no longer true. */
+        ImGui::TextUnformatted(netplay_failure());
+        ImGui::End();
+        return;
+    }
     if (me == 0 && netplay_room_code()[0]) {
         /* The host can still hand the code out: players join a running game while it has places. */
         ImGui::Text("Room code: %s", netplay_room_code());
@@ -1275,6 +1281,10 @@ static void players_window() {
 /* g64coopdx: the chat. The lines come from other players: they're shown as text, never as a format. */
 static char chatInput[81];
 
+/* A test: G64_TEST_CHAT_FOCUS=FRAME opens the Chat window at that drawn frame of an online game and gives its line
+   the keyboard. The test then types into it as a player would (tests/rom/startscreen.py). */
+static bool chatFocus;
+
 static void chat_window() {
     ImGui::SetNextWindowSize(ImVec2(440, 260), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("Chat", &win.chat)) {
@@ -1290,6 +1300,11 @@ static void chat_window() {
     }
     ImGui::EndChild();
     ImGui::SetNextItemWidth(-60.0f);
+    if (chatFocus) {
+        ImGui::SetKeyboardFocusHere();
+        chatFocus = false;
+        plog_printf("menu test: the chat's line has the keyboard");
+    }
     bool send = ImGui::InputText("##say", chatInput, sizeof(chatInput), ImGuiInputTextFlags_EnterReturnsTrue);
     ImGui::SameLine();
     send |= ImGui::Button("Send");
@@ -1326,11 +1341,15 @@ void menu_bar() {
 #ifdef PORT_STUDIO
     if (menu_online()) {
         if (ImGui::BeginMenu("Online game")) {
-            /* The same choices as the controller's pause menu (netplay.c), for the mouse. Item 0 is Resume. */
-            ImGui::MenuItem("Players", NULL, &win.players);
-            ImGui::MenuItem("Chat", NULL, &win.chat);
-            ImGui::Separator();
-            for (int i = 1; i < netplay_pause_items(); i++) {
+            /* The same choices as the controller's pause menu (netplay.c), for the mouse. Item 0 is Resume. After
+               the game has ended for this player, only leaving is left. */
+            bool over = netplay_failed() != 0;
+            if (!over) {
+                ImGui::MenuItem("Players", NULL, &win.players);
+                ImGui::MenuItem("Chat", NULL, &win.chat);
+                ImGui::Separator();
+            }
+            for (int i = over ? netplay_pause_items() - 1 : 1; i < netplay_pause_items(); i++) {
                 if (ImGui::MenuItem(netplay_pause_item(i))) {
                     netplay_pause_pick(i);
                     set_open(false);
@@ -1342,7 +1361,11 @@ void menu_bar() {
             ImGui::MenuItem("Log window", NULL, &win.log);
             ImGui::EndMenu();
         }
-        ImGui::TextDisabled("   Esc: close the menu. The game goes on for everyone.");
+        if (netplay_failed()) {
+            ImGui::TextDisabled("   %s", netplay_failure());
+        } else {
+            ImGui::TextDisabled("   Esc: close the menu. The game goes on for everyone.");
+        }
         ImGui::EndMainMenuBar();
         return;
     }
@@ -1600,6 +1623,20 @@ int menu_is_open(void) {
 
 void menu_draw(SDL_Window *window) {
     frameCount++;
+#ifdef PORT_STUDIO
+    {
+        static long chatAt = -2;
+        static long onlineFrames;
+        if (chatAt == -2) {
+            chatAt = getenv("G64_TEST_CHAT_FOCUS") ? atol(getenv("G64_TEST_CHAT_FOCUS")) : -1;
+        }
+        if (menu_online() && ++onlineFrames == chatAt) {
+            set_open(true);
+            win.chat = true;
+            chatFocus = true;
+        }
+    }
+#endif
     if (menu_tools_hidden()) {
         cfg->showCollision = cfg->collisionDepth = cfg->showNames = cfg->pauseLogic = 0;
         cfg->debugPad = DEBUGPAD_OFF;
@@ -1644,6 +1681,11 @@ void menu_draw(SDL_Window *window) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+    /* A text field (the chat's line, a number typed in a window) needs SDL's text input, which the backend no longer
+       turns on. The start screen turns it off when it ends (g64launcher.cpp). It stays on after this. */
+    if (ImGui::GetIO().WantTextInput && !SDL_IsTextInputActive()) {
+        SDL_StartTextInput();
+    }
     if (menuOpen) {
         menu_bar();
         /* Fresh windows start in a tidy cascade below the bar. */
@@ -1668,7 +1710,10 @@ void menu_draw(SDL_Window *window) {
         if (menu_online()) {
             ImGui::SetNextWindowPos(ImVec2(250, 300), ImGuiCond_FirstUseEver);
             if (win.players) players_window();
-            ImGui::SetNextWindowPos(ImVec2(20, 420), ImGuiCond_FirstUseEver);
+            /* The chat's line stays inside a small window: the window starts 280 points above its bottom. */
+            float chatY = ImGui::GetIO().DisplaySize.y - 280.0f;
+            ImGui::SetNextWindowPos(ImVec2(20, chatY < 40.0f ? 40.0f : chatY > 420.0f ? 420.0f : chatY),
+                                    ImGuiCond_FirstUseEver);
             if (win.chat) chat_window();
         }
 #endif

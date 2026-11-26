@@ -26,6 +26,8 @@ static const char *overridePath;   /* the --log argument; it stays in argv */
 static char *ring;                  /* LOG_RING_LINES lines of LOG_LINE_SIZE bytes, allocated by plog_ring_enable */
 static unsigned ringTotal;
 static int verbose;
+static int gameQuiet;               /* plog_set_game_quiet */
+static char filePath[512];          /* the log file that plog_set_file opened */
 static int crashing;                /* set in the crash handler: take no lock, the crashed thread may hold it */
 static Uint64 startCount;
 static Uint32 tickLast;             /* plog_tick: the time of the last line and the frames since */
@@ -99,6 +101,46 @@ void plog_vprintf(const char *fmt, va_list ap) {
     lock_off();
 }
 
+void plog_set_game_quiet(int on) {
+    gameQuiet = on;
+}
+
+void plog_game_vprintf(const char *fmt, va_list ap) {
+    char buf[1024];
+    char *p;
+    double t;
+
+    if (!gameQuiet || verbose) {
+        plog_vprintf(fmt, ap);
+        return;
+    }
+    /* Only the log file: neither the console nor the menu's log window. */
+    if (file == NULL) {
+        return;
+    }
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    t = elapsed();
+    lock_on();
+    for (p = buf; *p != 0;) {
+        char *end = p;
+
+        while (*end != 0 && *end != '\n') {
+            end++;
+        }
+        if (*end == '\n') {
+            *end++ = 0;
+        }
+        if (p[0] != 0 && p[0] != '\r' && file != NULL) {
+            fprintf(file, "[%9.3f] %s\n", t, p);
+        }
+        p = end;
+    }
+    if (file != NULL) {
+        fflush(file);
+    }
+    lock_off();
+}
+
 void plog_printf(const char *fmt, ...) {
     va_list ap;
 
@@ -153,6 +195,7 @@ int plog_set_file(const char *path) {
     lock_on();
     old = file;
     file = f;
+    snprintf(filePath, sizeof(filePath), "%s", f != NULL ? path : "");
     if (f != NULL) {
         store_line("---- log started ----", elapsed());
     }
@@ -258,8 +301,13 @@ static void log_game_state(void) {
     plog_printf("game: mode %d, level %d, %s", port_game_mode(), port_game_level(), trace);
 }
 
-/* Opens the log file if it is off, so that a crash is always written. */
+/* Opens the log file if it is off, so that a crash is always written. The path is the file that's open: the online
+   program writes its own log (g64coopdx-host.log or g64coopdx-join.log), not weemitt.log. */
 static void crash_open(char *path, int size) {
+    if (file != NULL && filePath[0] != 0) {
+        snprintf(path, size, "%s", filePath);
+        return;
+    }
     plog_path(path, size);
     if (file == NULL) {
         plog_set_file(path);

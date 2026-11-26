@@ -15,6 +15,7 @@ PORT_C_BEGIN
 #include "text.h"
 #include "jalloc.h"
 #include "g64title.h"
+#include "game.h"
 
 struct Text *NEW_TEXT(s16 x, s16 y, u8 r, u8 g, u8 b, u8 a, f32 sx, f32 sy, u8 oneShot, char *str, u8 centre);
 void SetFont(u8 type);
@@ -38,6 +39,7 @@ extern s32 cameFromTitle;
 extern s32 frameCount2;
 extern s32 aimBallX;
 extern s32 aimBallY;
+extern PTR32(char) startMenuStrings[][3];
 
 /* The page: what the program asks for. */
 typedef struct {
@@ -58,6 +60,7 @@ static struct {
     u32 noteColor[NOTES];
     s32 noteCount;
     char big[16];
+    s32 back; /* the page goes back with B: the game's own "B BACK" mark shows, as on its file select */
     u32 glove;
     u32 ball;
 } page;
@@ -122,23 +125,57 @@ static const char logoName[] = "G64COOPDX";
 #define TILE_WIDTH 126.0f
 #define TILE_MARGIN 8.0f
 #define ARROW_ROOM 14.0f
+/* The tint of a row's value. The large font's own letters are yellow with a red edge: the tint makes them green. */
+#define VALUE_TINT 0x60FF60
 static Actor *bar(s32 i) {
     return foregroundObjects[i < 4 ? i : i + 1];
 }
 
-/* Copies the program's text into the page. The game's fonts have capitals, digits and a few marks only. A
-   character they lack is drawn as a space; the percent sign would be read as a format. The small font draws the
-   controller's buttons for the bytes from 0xA3 up, which a name or a title that another player typed must not have. */
-static void copy_text(char *out, s32 size, const char *text) {
+/* The characters of the game's two fonts (text.c): the large font (0) of the rows and the small font (1) of the
+   notes. The game reads them from the ROM at power-on. */
+extern char letters_index[];
+extern char help_letters_index[];
+char *my_strchr(char *s, char c);
+
+/* 1 when the font draws c, a printable ASCII character that isn't the percent sign. The game draws a character
+   that its font lacks with whatever picture was in that place before (text_sprite), so such a character must not
+   reach the game. */
+static s32 drawable(char c, s32 font) {
+    char *index = font ? help_letters_index : letters_index;
+    if (c < 32 || c >= 127 || c == '%')
+        return 0;
+    if (index[0] == 0)
+        return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ';
+    return my_strchr(index, c) != NULL;
+}
+
+int G64FontDraws(char c, s32 font) {
+    return drawable(c, font);
+}
+
+int G64TitleDrawable(char c) {
+    if (c >= 'a' && c <= 'z')
+        c = c - 'a' + 'A';
+    return drawable(c, 0) && drawable(c, 1);
+}
+
+/* Copies the program's text into the page, for the font that draws it. The game's fonts have capitals, digits and a
+   few marks only. A character the font lacks becomes a space; the percent sign would be read as a format. The small
+   font draws the controller's buttons for the bytes from 0xA3 up, which a name or a title that another player typed
+   must not have. */
+static void copy_text_in(char *out, s32 size, const char *text, s32 font) {
     s32 n = 0;
     for (; text != NULL && *text != 0 && n < size - 1; text++) {
         char c = *text;
         if (c >= 'a' && c <= 'z')
             c = c - 'a' + 'A';
-        if (c >= 32 && c < 127 && c != '%')
-            out[n++] = c;
+        out[n++] = drawable(c, font) ? c : ' ';
     }
     out[n] = 0;
+}
+
+static void copy_text(char *out, s32 size, const char *text) {
+    copy_text_in(out, size, text, 0);
 }
 
 void G64TitleOn(int on) {
@@ -151,6 +188,11 @@ void G64TitlePage(const char *heading) {
     page.selected = 0;
     page.noteCount = 0;
     page.big[0] = 0;
+    page.back = 0;
+}
+
+void G64TitleBack(int on) {
+    page.back = on;
 }
 
 void G64TitleRow(const char *label, const char *value, int flags) {
@@ -170,7 +212,7 @@ void G64TitleSelect(int row) {
 void G64TitleNote(const char *text, unsigned rgb) {
     if (page.noteCount >= NOTES)
         return;
-    copy_text(page.notes[page.noteCount], sizeof page.notes[0], text);
+    copy_text_in(page.notes[page.noteCount], sizeof page.notes[0], text, 1);
     page.noteColor[page.noteCount++] = rgb;
 }
 
@@ -315,6 +357,12 @@ s32 G64TitleMenu(void) {
         text(40, 34 + i * 22, 0xFFFFFF, 255, 1.3f, 0, letter, 1);
     }
     row_layout(page.count, &top, &step, &size);
+    if (page.back) {
+        /* Where the game's file select draws it (frontend.c). */
+        SetFont(1);
+        NEW_TEXT(260, 227, 255, 255, 255, 255, 1.0f, 1.0f, 1, startMenuStrings[10][gameInfo.language], 1);
+        SetFont(0);
+    }
     if (page.heading[0]) {
         text(MID, 24, 0xFFFFFF, 255, 0.8f, 0, page.heading, 1);
     }
@@ -376,9 +424,21 @@ s32 G64TitleMenu(void) {
                     scale = scale * room / drawn_width(line, scale);
                 width = drawn_width(line, scale);
                 /* The game centers a text by a width that is wrong for a scale below 1 (drawn_width), so the row is
-                   placed by its left end. The game moves a centered text up by 12 points at its scale. */
-                text(MID - (s32)(width / 2.0f), (s32)(y - scale * 12.0f), off ? 0xA0A0A0 : 0xFFFFFF, alpha, scale,
-                     0, line, 0);
+                   placed by its left end. The game moves a centered text up by 12 points at its scale. A row's value
+                   has another color than its label: the two stay apart. */
+                {
+                    s32 x0 = MID - (s32)(width / 2.0f), k = (s32)strlen(page.rows[i].label) + 1;
+                    if (page.rows[i].value[0] && page.rows[i].label[0] && !off && k < (s32)strlen(line)) {
+                        char head[80];
+                        memcpy(head, line, k);
+                        head[k] = 0;
+                        text(x0, (s32)(y - scale * 12.0f), 0xFFFFFF, alpha, scale, 0, head, 0);
+                        text(x0 + (s32)drawn_width(head, scale), (s32)(y - scale * 12.0f), VALUE_TINT, alpha, scale, 0,
+                             line + k, 0);
+                    } else {
+                        text(x0, (s32)(y - scale * 12.0f), off ? 0xA0A0A0 : 0xFFFFFF, alpha, scale, 0, line, 0);
+                    }
+                }
                 /* A value that left and right change has a minus and a plus at its ends (the large font has no
                    plus). */
                 if (sel && (page.rows[i].flags & G64_TITLE_ARROWS)) {
@@ -403,15 +463,24 @@ s32 G64TitleMenu(void) {
     /* The notes stand below the rows, across the picture: the game draws no text right of x 288. */
     {
         f32 y = page.count > 0 ? top + page.count * step - step / 2.0f + 8.0f : 60.0f;
+        f32 gap = 9.0f;
         if (page.big[0]) {
             text(MID, (s32)y + 12, 0xFFFF60, 255, 1.3f, 0, page.big, 1);
             y += 30.0f;
         }
-        if (y > 226.0f - page.noteCount * 9.0f) {
-            y = 226.0f - page.noteCount * 9.0f;
+        /* The lines close up when they don't fit below the rows (the small font at this size is 7 points high).
+           Only when they still don't fit do they move up. */
+        if (page.noteCount > 0 && page.noteCount * gap > 226.0f - y) {
+            gap = (226.0f - y) / page.noteCount;
+            if (gap < 7.0f) {
+                gap = 7.0f;
+            }
+        }
+        if (y > 226.0f - page.noteCount * gap) {
+            y = 226.0f - page.noteCount * gap;
         }
         for (i = 0; i < page.noteCount; i++) {
-            text(160, (s32)y + i * 9, page.noteColor[i], 255, 0.45f, 1, page.notes[i], 1);
+            text(160, (s32)(y + i * gap), page.noteColor[i], 255, 0.45f, 1, page.notes[i], 1);
         }
     }
     /* The player's glove and ball turn slowly at the right, in the player's colors: the glove's middle at y 80 and the

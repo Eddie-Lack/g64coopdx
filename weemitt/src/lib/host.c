@@ -28,6 +28,11 @@ void plog_vprintf(const char *fmt, va_list ap) {
     }
 }
 
+/* The game's own messages (weemitt's log.h): here the same as the others. */
+void plog_game_vprintf(const char *fmt, va_list ap) {
+    plog_vprintf(fmt, ap);
+}
+
 void plog_printf(const char *fmt, ...) {
     va_list ap;
 
