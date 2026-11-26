@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """The online program from its start screen, in windows under Xvfb, through a lobby server on this machine.
 
-Two rounds, each with a host and a joiner that meet on the start screen (G64_LAUNCHER_AUTO):
+Three rounds. In the first two a host and a joiner meet on the start screen:
 
 1. The host wants 3 players and starts when 2 are in (G64_LAUNCHER_START). The wait pages must show how the wait
    goes: the host's page the players who are in, the joiner's page that it waits for the host (G64_LAUNCHER_LOG
    prints the notes). In the game, the joiner's Chat window gets the keyboard (G64_TEST_CHAT_FOCUS), the test types
    a line with xdotool, as a player would, and the host's log must have it: the start screen turned SDL's text input
-   off, and the chat must turn it on again. Then the host removes the joiner (G64_TEST_KICK): the joiner's log must
-   say why, and its program must stay open with the reason in its picture.
-2. The host leaves (WEEMITT_QUIT_FRAMES). The joiner must learn it at once, from the host's goodbye, not after the
-   10 seconds in which a silent host counts as gone.
+   off, and the chat must turn it on again. The chat key (Y) must open a line that sends too. Then the host removes
+   the joiner (G64_TEST_KICK): the joiner's log must say why, and its program must stay open with the reason in its
+   picture.
+2. The joiner types its name with the controller's steps and the room code with stray letters (G64_LAUNCHER_KEYS),
+   and joins. The host leaves (WEEMITT_QUIT_FRAMES). The joiner must learn it at once, from the host's goodbye, not
+   after the 10 seconds in which a silent host counts as gone.
+3. A pack alone, from HOST GAME and with --try-pack: the game starts in the pack's level. QUIT ends the program.
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -93,7 +96,12 @@ def window_of(pid, display):
     return out[-1] if out else None
 
 
-def meet(args, work, display, host_env, join_env, round_name):
+def junk_code(code):
+    """The room code with letters that no code has (I, O, 0, 1) between its own: the CODE bar must drop them."""
+    return "".join(c + "I0O1"[i % 4] for i, c in enumerate(code))
+
+
+def meet(args, work, display, host_env, join_env, round_name, by_keys=False):
     host = Program(args, work, round_name + "-host", display, dict({"G64_LAUNCHER_AUTO": "host"}, **host_env),
                    ["--name", "HOSTY"] + (["--players", "3"] if "G64_LAUNCHER_START" in host_env else []))
     m = host.wait_for(r"Room code: ([A-Z0-9]{6})", 60)
@@ -101,8 +109,16 @@ def meet(args, work, display, host_env, join_env, round_name):
         print(host.text()[-2000:])
         host.stop()
         return None, None
-    joiner = Program(args, work, round_name + "-join", display,
-                     dict({"G64_LAUNCHER_AUTO": "join:" + m.group(1)}, **join_env), ["--name", "BUDDY"])
+    if by_keys:
+        # A player with a controller: on OPTIONS, NAME, the old name goes, and the controller makes "BB" (A adds an
+        # A, right makes it a B). Then JOIN GAME, and the code typed with stray letters.
+        keys = ["down", "down", "a"] + ["back"] * 6 + ["pa", "pr", "pa", "pr", "b", "up", "a",
+                                                      "t:" + junk_code(m.group(1)), "a"]
+        joiner = Program(args, work, round_name + "-join", display, dict({"G64_LAUNCHER_KEYS": ",".join(keys)},
+                                                                         **join_env), [])
+    else:
+        joiner = Program(args, work, round_name + "-join", display,
+                         dict({"G64_LAUNCHER_AUTO": "join:" + m.group(1)}, **join_env), ["--name", "BUDDY"])
     return host, joiner
 
 
@@ -133,6 +149,15 @@ def round_one(args, work, display):
 
             ok &= check(host.wait_for(r"chat: BUDDY: typed after the start screen", 20, "log") is not None,
                         "a chat line typed in a game started from the start screen reaches the host")
+            # The chat key: Escape closes the menu, Y opens the chat's line, Enter sends it.
+            subprocess.run(["xdotool", "key", "Escape"], env=env)
+            time.sleep(1.0)
+            subprocess.run(["xdotool", "key", "y"], env=env)
+            time.sleep(1.5)
+            subprocess.run(["xdotool", "type", "--delay", "60", "said with the chat key"], env=env)
+            subprocess.run(["xdotool", "key", "Return"], env=env)
+            ok &= check(host.wait_for(r"chat: BUDDY: said with the chat key", 20, "log") is not None,
+                        "the chat key opens a line that sends, without the key's own letter")
         ok &= check(joiner.wait_for(r"g64coopdx: the host removed you from the game", 120, "log") is not None,
                     "a removed joiner's log says why")
         time.sleep(2)
@@ -145,11 +170,15 @@ def round_one(args, work, display):
 
 def round_two(args, work, display):
     ok = True
-    host, joiner = meet(args, work, display, {"WEEMITT_QUIT_FRAMES": "300"}, {}, "two")
+    host, joiner = meet(args, work, display, {"WEEMITT_QUIT_FRAMES": "600"}, {}, "two", by_keys=True)
     if not host:
         return check(False, "the host gets a room code")
     try:
-        ok &= check(joiner.wait_for(r"player 2 of", 90, "log") is not None, "the second game starts")
+        ok &= check(joiner.wait_for(r"player 2 of", 90, "log") is not None,
+                    "a code typed with letters that no code has joins (the bar drops them)")
+        name = os.path.join(joiner.home, "g64coopdx", "Glover", "name.txt")
+        ok &= check(os.path.exists(name) and open(name).read().strip() == "BB",
+                    "the controller types a name on the NAME bar")
         try:
             host.proc.wait(120)
         except subprocess.TimeoutExpired:
@@ -162,6 +191,32 @@ def round_two(args, work, display):
     finally:
         host.stop()
         joiner.stop()
+    return ok
+
+
+def round_three(args, work, display):
+    """A pack alone: from HOST GAME (PACK, then SOLO under START), and with --try-pack. The game starts at once in the
+    pack's level. Then QUIT on the first page ends the program."""
+    ok = True
+    keys = ["a"] + ["down"] * 5 + ["right", "down", "down", "a"]
+    one = Program(args, work, "three-screen", display, {"G64_LAUNCHER_KEYS": ",".join(keys)}, [])
+    two = Program(args, work, "three-try", display, {}, ["--try-pack", "packs/garib-island"])
+    try:
+        ok &= check(one.wait_for(r"player 1 of 2, level 10,", 90, "log") is not None,
+                    "HOST GAME's PACK and SOLO start the pack's level alone")
+        ok &= check(two.wait_for(r"player 1 of 2, level 10,", 90, "log") is not None,
+                    "--try-pack starts the pack's level alone")
+    finally:
+        one.stop()
+        two.stop()
+    quit_keys = ["down"] * 5 + ["a"]
+    three = Program(args, work, "three-quit", display, {"G64_LAUNCHER_KEYS": ",".join(quit_keys)}, [])
+    try:
+        code = three.proc.wait(60)
+    except subprocess.TimeoutExpired:
+        code = None
+    three.stop()
+    ok &= check(code == 0, "QUIT on the first page ends the program")
     return ok
 
 
@@ -194,6 +249,7 @@ def main():
         time.sleep(1)
         ok &= round_one(args, work, display)
         ok &= round_two(args, work, display)
+        ok &= round_three(args, work, display)
     finally:
         lobby.terminate()
         lobby.wait()
