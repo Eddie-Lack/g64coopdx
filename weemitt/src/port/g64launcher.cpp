@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 #include "../game/g64title.h"
 #include "../game/g64models.h"
 #include "g64launcher.h"
@@ -14,12 +15,18 @@
 #include "../../../src/client/netplay.h"
 #include "../../../src/session/session.h"
 
+/* The characters of a room code (the relay's relayCodeChars): no I, O, 0 or 1, which are easy to mix up. */
+static const char codeChars[] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
 /* A room code's character in capitals, or 0 when a room code can't hold it. */
 static char code_char(char c) {
     if (c >= 'a' && c <= 'z')
         c = (char)(c - 'a' + 'A');
-    return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ? c : 0;
+    return c && strchr(codeChars, c) ? c : 0;
 }
+
+/* The characters a controller steps through on a name or a title: those that the game's fonts draw. */
+static const char textChars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!'*,-./:? ";
 
 /* The player's colors: a palette, or custom. Each color is chosen (G64_COLOR_SET plus 0xRRGGBB) or automatic (0, the
    color of the player's number). The colors multiply the glove's and the ball's own: white keeps them. The menu's
@@ -175,6 +182,7 @@ static void save_name(void) {
    line holds the numbers, the second the title. */
 static int optionsLoaded;
 static int savedWanted;
+static char savedPack[1024]; /* the folder of the pack chosen on HOST GAME, or "" */
 
 static void options_path(char *out, size_t size) {
     char *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
@@ -186,7 +194,7 @@ static void options_path(char *out, size_t size) {
 void g64_load_options(int host) {
     char path[1024], title[64] = "";
     FILE *f;
-    int delay, wanted, normal, anyBall, anyWorld, listed;
+    int delay, wanted, normal, anyBall, anyWorld, listed, tags = 1;
     if (optionsLoaded)
         return;
     optionsLoaded = 1;
@@ -194,8 +202,12 @@ void g64_load_options(int host) {
     f = fopen(path, "r");
     if (!f)
         return;
+    /* A file from before the name tags has six numbers. */
     if (fscanf(f, "%d %d %d %d %d %d", &delay, &wanted, &normal, &anyBall, &anyWorld, &listed) == 6) {
+        if (fscanf(f, " %d", &tags) != 1)
+            tags = 1;
         netplay_set_input_delay(delay);
+        netplay_set_name_tags(tags);
         if (host) {
             savedWanted = wanted >= 2 && wanted <= 16 ? wanted : 0;
             netplay_set_normal_ball(normal != 0);
@@ -204,6 +216,8 @@ void g64_load_options(int host) {
             if (fgetc(f) == '\n' && fgets(title, sizeof title, f))
                 title[strcspn(title, "\r\n")] = 0;
             netplay_set_public(listed != 0, title);
+            if (fgets(savedPack, sizeof savedPack, f))
+                savedPack[strcspn(savedPack, "\r\n")] = 0;
         }
     }
     fclose(f);
@@ -215,9 +229,91 @@ static void save_options(int wanted) {
     options_path(path, sizeof path);
     f = fopen(path, "w");
     if (f) {
-        fprintf(f, "%d %d %d %d %d %d\n%s\n", netplay_input_delay(), wanted, netplay_host_normal_ball(),
-                netplay_host_any_ball(), netplay_host_any_world(), netplay_public(), netplay_public_title());
+        fprintf(f, "%d %d %d %d %d %d %d\n%s\n%s\n", netplay_input_delay(), wanted, netplay_host_normal_ball(),
+                netplay_host_any_ball(), netplay_host_any_world(), netplay_public(), netplay_name_tags(),
+                netplay_public_title(), savedPack);
         fclose(f);
+    }
+}
+
+/* The level packs that HOST GAME offers: each folder with a pack.txt in "packs" next to the program, in "packs" in
+   the folder the program was started in, and the packs kept from hosts (in "packs" in the program's own folder). The
+   name is the one in pack.txt. The pack itself is read only when it's chosen (netplay_set_pack). */
+#define PACKS_MAX 32
+typedef struct {
+    char dir[1024];
+    char name[33];
+} pack_entry;
+static pack_entry packList[PACKS_MAX];
+static int packCount;
+static int packChoice = -1; /* the chosen pack in packList, or -1 for none */
+
+static void add_pack(const char *dir, const char *name) {
+    int i;
+    if (packCount >= PACKS_MAX)
+        return;
+    for (i = 0; i < packCount; i++)
+        if (!strcmp(packList[i].dir, dir))
+            return;
+    snprintf(packList[packCount].dir, sizeof packList[0].dir, "%s", dir);
+    snprintf(packList[packCount].name, sizeof packList[0].name, "%s", name);
+    packCount++;
+}
+
+static void scan_packs(const char *base) {
+    DIR *d = opendir(base);
+    struct dirent *e;
+    if (!d)
+        return;
+    while ((e = readdir(d)) != NULL) {
+        char dir[1024], path[1100], line[128], name[33] = "";
+        FILE *f;
+        if (e->d_name[0] == '.')
+            continue;
+        snprintf(dir, sizeof dir, "%s/%s", base, e->d_name);
+        snprintf(path, sizeof path, "%s/pack.txt", dir);
+        f = fopen(path, "r");
+        if (!f)
+            continue;
+        while (fgets(line, sizeof line, f))
+            if (!strncmp(line, "name=", 5)) {
+                line[strcspn(line, "\r\n")] = 0;
+                snprintf(name, sizeof name, "%.32s", line + 5);
+            }
+        fclose(f);
+        if (name[0])
+            add_pack(dir, name);
+    }
+    closedir(d);
+}
+
+static void find_packs(void) {
+    char *base = SDL_GetBasePath(), *pref = SDL_GetPrefPath(PORT_PREF_ORG, PORT_PREF_APP);
+    char dir[1100];
+    int i;
+    packCount = 0;
+    packChoice = -1;
+    /* A pack from the command line (--pack) comes first, and is the choice. */
+    if (netplay_pack_dir()[0]) {
+        add_pack(netplay_pack_dir(), netplay_pack_name());
+        packChoice = 0;
+    }
+    if (base) {
+        snprintf(dir, sizeof dir, "%spacks", base);
+        scan_packs(dir);
+        SDL_free(base);
+    }
+    scan_packs("packs");
+    if (pref) {
+        snprintf(dir, sizeof dir, "%spacks", pref);
+        scan_packs(dir);
+        SDL_free(pref);
+    }
+    /* Else the pack chosen last time, when it's still there and still loads. */
+    for (i = 0; packChoice < 0 && savedPack[0] && i < packCount; i++) {
+        char err[200];
+        if (!strcmp(packList[i].dir, savedPack) && netplay_set_pack(packList[i].dir, err, sizeof err) == 0)
+            packChoice = i;
     }
 }
 
@@ -253,10 +349,10 @@ static void step_shade(unsigned *c, int d) {
 enum { PAGE_MAIN, PAGE_HOST, PAGE_JOIN, PAGE_OPTIONS, PAGE_WAIT };
 /* What a row does. */
 enum {
-    R_HOST_PAGE, R_JOIN_PAGE, R_OPTIONS_PAGE, R_ALONE,
-    R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_HOST,
+    R_HOST_PAGE, R_JOIN_PAGE, R_OPTIONS_PAGE, R_ALONE, R_SETTINGS, R_QUIT,
+    R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_PACK, R_HOST, R_TRY,
     R_CODE, R_JOIN, R_ROOM,
-    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY,
+    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY, R_TAGS,
     R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO,
 };
 
@@ -323,10 +419,21 @@ static void note(const char *text, unsigned rgb) {
 
 /* The open games that the join page shows at once, below the code and Join. */
 #define ROOMS_SHOWN (G64_TITLE_ROWS - 2)
-/* The options page can have more rows than the game draws: it shows G64_TITLE_ROWS of them, from optTop on. The
-   rows of the custom colors are there only while COLORS is CUSTOM. */
-static int option_rows(void) {
-    return choice == CUSTOM ? 8 : 6;
+/* The options page and HOST GAME can have more rows than the game draws: they show G64_TITLE_ROWS of them, from
+   optTop on. The rows of the custom colors are there only while COLORS is CUSTOM; TITLE only while LISTED is YES,
+   and the pack's SOLO only with a pack. */
+static int page_rows(int page) {
+    if (page == PAGE_HOST)
+        return 7 + (netplay_public() ? 1 : 0) + (packChoice >= 0 ? 1 : 0);
+    return choice == CUSTOM ? 9 : 7;
+}
+
+static int scrolls(int page) {
+    return page == PAGE_OPTIONS || page == PAGE_HOST;
+}
+
+static int top_max(int page) {
+    return page_rows(page) > G64_TITLE_ROWS ? page_rows(page) - G64_TITLE_ROWS : 0;
 }
 
 /* The start screen's state. */
@@ -338,6 +445,7 @@ typedef struct {
     int optTop;  /* the first row that the options page shows */
     int selectWhat; /* when not -1: the row that is chosen when the page is next built (a row's what) */
     int roomsSeen;  /* the number of open games when the join page was last built */
+    int trying;     /* the wait is for a pack's test alone (R_TRY) */
     char code[NETPLAY_ROOM_CODE + 1];
     char title[33];
     char error[320];
@@ -361,18 +469,36 @@ static void build_page(launcher *L) {
             add_row(R_JOIN_PAGE, "JOIN GAME", "", 0);
             add_row(R_OPTIONS_PAGE, "OPTIONS", "", 0);
             add_row(R_ALONE, "SOLO", "", 0);
+            add_row(R_SETTINGS, "SETTINGS", "", 0);
+            add_row(R_QUIT, "QUIT", "", 0);
             break;
         case PAGE_HOST: {
             char n[8];
+            int v = 0;
             snprintf(n, sizeof n, "%d", L->wanted);
             G64TitlePage("HOST GAME");
-            add_row(R_PLAYERS, "PLAYERS", n, G64_TITLE_ARROWS);
-            add_row(R_BALL_CONTROLS, "BALL", netplay_host_normal_ball() ? "NORMAL" : "EASY", G64_TITLE_ARROWS);
-            add_row(R_ANY_BALL, "BALLS", netplay_host_any_ball() ? "SHARED" : "OWN", G64_TITLE_ARROWS);
-            add_row(R_ANY_WORLD, "WORLDS", netplay_host_any_world() ? "ANY" : "TOGETHER", G64_TITLE_ARROWS);
-            add_row(R_LISTED, "LISTED", netplay_public() ? "YES" : "NO", G64_TITLE_ARROWS);
-            add_row(R_TITLE, "TITLE", L->title, netplay_public() ? G64_TITLE_TEXT : G64_TITLE_OFF);
-            add_row(R_HOST, "START", "", 0);
+            if (L->optTop > top_max(PAGE_HOST))
+                L->optTop = top_max(PAGE_HOST);
+            /* The rows before optTop aren't shown. */
+#define ROW(...)                   \
+    do {                           \
+        if (v++ >= L->optTop)      \
+            add_row(__VA_ARGS__);  \
+    } while (0)
+            ROW(R_PLAYERS, "PLAYERS", n, G64_TITLE_ARROWS);
+            ROW(R_BALL_CONTROLS, "BALL", netplay_host_normal_ball() ? "NORMAL" : "EASY", G64_TITLE_ARROWS);
+            ROW(R_ANY_BALL, "BALLS", netplay_host_any_ball() ? "SHARED" : "OWN", G64_TITLE_ARROWS);
+            ROW(R_ANY_WORLD, "WORLDS", netplay_host_any_world() ? "ANY" : "TOGETHER", G64_TITLE_ARROWS);
+            ROW(R_LISTED, "LISTED", netplay_public() ? "YES" : "NO", G64_TITLE_ARROWS);
+            if (netplay_public())
+                ROW(R_TITLE, "TITLE", L->title, G64_TITLE_TEXT);
+            ROW(R_PACK, "PACK", packChoice >= 0 ? packList[packChoice].name : "-",
+                packCount > 0 ? G64_TITLE_ARROWS : G64_TITLE_OFF);
+            ROW(R_HOST, "START", "", 0);
+            /* With a pack: the pack's level alone, at once (--try-pack). */
+            if (packChoice >= 0)
+                ROW(R_TRY, "SOLO", "", 0);
+#undef ROW
             break;
         }
         case PAGE_JOIN: {
@@ -403,8 +529,8 @@ static void build_page(launcher *L) {
             snprintf(d, sizeof d, "%d", netplay_input_delay());
             snprintf(m, sizeof m, "%d", port_mouse_sensitivity());
             G64TitlePage("OPTIONS");
-            if (L->optTop > option_rows() - G64_TITLE_ROWS)
-                L->optTop = option_rows() > G64_TITLE_ROWS ? option_rows() - G64_TITLE_ROWS : 0;
+            if (L->optTop > top_max(PAGE_OPTIONS))
+                L->optTop = top_max(PAGE_OPTIONS);
             /* The rows before optTop aren't shown. */
 #define OPTION(...)                \
     do {                           \
@@ -422,6 +548,7 @@ static void build_page(launcher *L) {
             }
             OPTION(R_DELAY, "INPUT DELAY", d, G64_TITLE_ARROWS);
             OPTION(R_SENSITIVITY, "SENSITIVITY", m, G64_TITLE_ARROWS);
+            OPTION(R_TAGS, "NAME TAGS", netplay_name_tags() ? "YES" : "NO", G64_TITLE_ARROWS);
 #undef OPTION
             break;
         }
@@ -524,7 +651,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
     /* A test: G64_LAUNCHER_START=N presses START NOW once N players are in a hosted game. */
     int startAt = getenv("G64_LAUNCHER_START") ? atoi(getenv("G64_LAUNCHER_START")) : 0;
     /* A test: G64_LAUNCHER_KEYS lists keys that the start screen gets one after another, four a second: up,
-       down, left, right, a, b, back (backspace) or a word to type (t:WORD). */
+       down, left, right, a, b, back (backspace), a word to type (t:WORD), or the controller's A, left and right
+       (pa, pl, pr). */
     const char *keys = getenv("G64_LAUNCHER_KEYS");
     int keyFrame = 0;
     Uint32 padAt = 0;
@@ -534,6 +662,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         load_colors();
     if (!nameLoaded)
         load_name();
+    g64_load_options(1);
+    find_packs();
     if (L.wanted == 0) {
         L.wanted = *players >= 2 && *players <= 16 ? *players : savedWanted ? savedWanted : 2;
         snprintf(L.title, sizeof L.title, "%s", netplay_public_title());
@@ -553,6 +683,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         SDL_Event e;
         /* The player's input in this frame: a move up or down, left or right, a press of A or B, typed text. */
         int move = 0, change = 0, pressA = 0, pressB = 0, erase = 0, what;
+        /* The controller's own left, right and A: on a text row they step through letters and add one. */
+        int padChange = 0, padA = 0;
         char typed[64] = "";
         const char *room;
 
@@ -624,6 +756,12 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 pressB = 1;
             else if (n == 4 && !strncmp(keys, "back", 4))
                 erase = 1;
+            else if (n == 2 && !strncmp(keys, "pa", 2))
+                pressA = padA = 1;
+            else if (n == 2 && !strncmp(keys, "pl", 2))
+                change = padChange = -1;
+            else if (n == 2 && !strncmp(keys, "pr", 2))
+                change = padChange = 1;
             else if (n > 2 && !strncmp(keys, "t:", 2))
                 snprintf(typed, sizeof typed, "%.*s", (int)(n - 2), keys + 2);
             keys = end ? end + 1 : keys + n;
@@ -640,11 +778,11 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 else if (dir & G64_PAD_DOWN)
                     move = 1;
                 else
-                    change = (dir & G64_PAD_LEFT) ? -1 : 1;
+                    change = padChange = (dir & G64_PAD_LEFT) ? -1 : 1;
                 padAt = SDL_GetTicks();
             }
             if (now & G64_PAD_A)
-                pressA = 1;
+                pressA = padA = 1;
             if (now & G64_PAD_B)
                 pressB = 1;
             padHeld = held;
@@ -666,6 +804,12 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 L.connecting = 0;
                 L.page = L.back;
                 L.selectWhat = L.back == PAGE_HOST ? R_HOST : R_JOIN;
+                L.optTop = top_max(L.page);
+                if (L.trying) {
+                    netplay_set_start_alone(0);
+                    netplay_set_start_level(-1);
+                    L.trying = 0;
+                }
             }
         }
         room = netplay_room_code();
@@ -729,9 +873,10 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 move = 0;
             }
         }
-        /* On the options page, moving past its first or last shown row shows the one before or after. Past the very
+        /* On the options page and HOST GAME, moving past the first or last shown row shows the one before or after.
+           Past the very
            first or last row, the choice goes round to the other end. */
-        if (move != 0 && L.page == PAGE_OPTIONS && rowCount > 0) {
+        if (move != 0 && scrolls(L.page) && rowCount > 0) {
             int i, more = 0;
             for (i = L.selected + move; i >= 0 && i < rowCount; i += move)
                 if (!(rows[i].flags & G64_TITLE_OFF)) {
@@ -739,7 +884,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     break;
                 }
             if (!more) {
-                if (move > 0 && L.optTop < option_rows() - G64_TITLE_ROWS) {
+                if (move > 0 && L.optTop < top_max(L.page)) {
                     L.optTop++;
                     L.selected = rowCount - 1;
                 } else if (move < 0 && L.optTop > 0) {
@@ -749,7 +894,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     L.optTop = 0;
                     L.selected = 0;
                 } else {
-                    L.optTop = option_rows() > G64_TITLE_ROWS ? option_rows() - G64_TITLE_ROWS : 0;
+                    L.optTop = top_max(L.page);
                     L.selected = rowCount - 1;
                 }
                 move = 0;
@@ -788,6 +933,33 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     buf[n] = 0;
                     changed = 1;
                 }
+            }
+            /* The controller: left and right step the last letter through the letters a row takes, and past the
+               first one take it away; A adds a letter. A complete room code joins on A instead. */
+            if (padChange || (padA && !(what == R_CODE && n == NETPLAY_ROOM_CODE))) {
+                const char *set = what == R_CODE ? codeChars : textChars;
+                int count = (int)strlen(set);
+                if (padA && n + 1 < size) {
+                    buf[n++] = set[0];
+                    buf[n] = 0;
+                    changed = 1;
+                } else if (padChange && n > 0) {
+                    const char *at = strchr(set, buf[n - 1] >= 'a' && buf[n - 1] <= 'z' ? buf[n - 1] - 'a' + 'A'
+                                                                                        : buf[n - 1]);
+                    int i = at ? (int)(at - set) + padChange : 0;
+                    if (i < 0) {
+                        buf[--n] = 0;
+                    } else {
+                        buf[n - 1] = set[i % count];
+                    }
+                    changed = 1;
+                } else if (padChange > 0 && n + 1 < size) {
+                    buf[n++] = set[0];
+                    buf[n] = 0;
+                    changed = 1;
+                }
+                if (padA)
+                    pressA = 0;
             }
             if (changed && what == R_NAME)
                 save_name();
@@ -858,6 +1030,29 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 case R_SENSITIVITY:
                     port_set_mouse_sensitivity(port_mouse_sensitivity() + change);
                     break;
+                case R_TAGS:
+                    netplay_set_name_tags(!netplay_name_tags());
+                    save_options(L.wanted);
+                    break;
+                case R_PACK: {
+                    /* The packs and none, one after another. The chosen pack is read at once: a pack that doesn't
+                       load says why, and isn't chosen. */
+                    char err[300];
+                    int next = packChoice + change;
+                    next = next < -1 ? packCount - 1 : next >= packCount ? -1 : next;
+                    if (next >= 0 && netplay_set_pack(packList[next].dir, err, sizeof err) != 0) {
+                        snprintf(L.error, sizeof L.error, "%s", err);
+                        netplay_set_pack(NULL, err, sizeof err);
+                        next = -1;
+                    } else if (next < 0) {
+                        netplay_set_pack(NULL, err, sizeof err);
+                    }
+                    packChoice = next;
+                    snprintf(savedPack, sizeof savedPack, "%s", next >= 0 ? packList[next].dir : "");
+                    save_options(L.wanted);
+                    change = 0;
+                    break;
+                }
                 default:
                     break;
             }
@@ -879,6 +1074,35 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                     G64TitleOn(0);
                     SDL_StopTextInput();
                     return 0;
+                case R_SETTINGS:
+                    menu_open();
+                    break;
+                case R_QUIT:
+                    netplay_cancel();
+                    G64TitleOn(0);
+                    SDL_StopTextInput();
+                    return -1;
+                case R_TRY: {
+                    /* The pack's level alone: a game hosted on this machine, with no relay, that starts at once in
+                       the pack's level. Nobody else can join it. */
+                    char err[160];
+                    netplay_set_start_alone(1);
+                    netplay_set_start_level(netplay_pack_level());
+                    L.error[0] = 0;
+                    if (netplay_start(NULL, 0, NULL, NULL, 2, 0, rom, romSize, err, sizeof err) != 0) {
+                        snprintf(L.error, sizeof L.error, "%s", err);
+                        netplay_set_start_alone(0);
+                        netplay_set_start_level(-1);
+                    } else {
+                        L.connecting = 1;
+                        L.hosting = 1;
+                        L.trying = 1;
+                        L.copied = 0;
+                        L.back = PAGE_HOST;
+                        L.selected = 0;
+                    }
+                    break;
+                }
                 case R_HOST:
                     if (start(&L, rom, romSize, NULL, PAGE_HOST))
                         printed = 0;
@@ -922,6 +1146,12 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 L.connecting = 0;
                 L.page = L.back;
                 L.selectWhat = L.back == PAGE_HOST ? R_HOST : R_JOIN;
+                L.optTop = top_max(L.page);
+                if (L.trying) {
+                    netplay_set_start_alone(0);
+                    netplay_set_start_level(-1);
+                    L.trying = 0;
+                }
             } else if (L.page != PAGE_MAIN) {
                 L.selected = L.page == PAGE_HOST ? 0 : L.page == PAGE_JOIN ? 1 : 2;
                 L.page = PAGE_MAIN;

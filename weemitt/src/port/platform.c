@@ -60,6 +60,7 @@ typedef struct Options {
     const char *netName;     /* g64coopdx: --name NAME (this player's name in the online game) */
     const char *netPublic;   /* g64coopdx: --public TITLE (the host lists its room on the relay, with this title) */
     int netStartAlone;       /* g64coopdx: --start-alone (the host starts at once; the others join the running game) */
+    int netTryPack;          /* g64coopdx: --try-pack DIR (the pack's level alone, at once, without the relay) */
     int netOtherArgs;        /* g64coopdx: an option other than the online settings and --rom was given */
     int netOnlineHost;       /* g64coopdx: --online-host (through the relay) */
     const char *netRoom;     /* g64coopdx: --online-join CODE */
@@ -2004,6 +2005,9 @@ static void parse_args(int argc, char **argv) {
             opt.netAcceptPack = 1;
         } else if (!strcmp(a, "--pack") && next) {
             opt.netPack = argv[++i];
+        } else if (!strcmp(a, "--try-pack") && next) {
+            opt.netPack = argv[++i];
+            opt.netTryPack = 1;
         } else if (!strcmp(a, "--name") && next) {
             opt.netName = argv[++i];
         } else if (!strcmp(a, "--start-alone")) {
@@ -2505,7 +2509,7 @@ int main(int argc, char **argv) {
         int online = 0, level = 0, players = 0;
 
         const char *relay = opt.netRelay ? opt.netRelay : NET_RELAY_DEFAULT;
-        int direct = opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom;
+        int direct = opt.netHost > 0 || opt.netJoin || opt.netOnlineHost || opt.netRoom || opt.netTryPack;
         int launcher = !direct && (!opt.netOtherArgs || opt.netLauncher);
 
         /* The player's choices from last time: the input delay, and on the start screen the host's choices too.
@@ -2548,7 +2552,11 @@ int main(int argc, char **argv) {
         if (opt.netPublic) {
             netplay_set_public(1, opt.netPublic);
         }
-        netplay_set_start_alone(opt.netStartAlone);
+        netplay_set_start_alone(opt.netStartAlone || opt.netTryPack);
+        if (opt.netTryPack) {
+            /* A pack's test: a game hosted here, with no relay, that starts at once in the pack's level. */
+            netplay_set_start_level(netplay_pack_level());
+        }
         if (opt.netName) {
             netplay_set_name(opt.netName);
             /* The name is kept for the next time, as a name typed on the start screen is. */
