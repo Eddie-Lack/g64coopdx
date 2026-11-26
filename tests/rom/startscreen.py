@@ -284,8 +284,8 @@ def hosting_leave(args, work, display):
                                                           "G64_LAUNCHER_KEYS": ",".join(keys)}, [])
     try:
         ok &= check(host.wait_for(r"Room code: ", 60) is not None, "the host gets a room")
-        ok &= check(host.wait_for(r"start screen note: Leave\? The game ends for everyone\.", 60) is not None,
-                    "Esc on HOSTING asks: Leave? The game ends for everyone.")
+        ok &= check(host.wait_for(r"start screen note: Leave\?\n", 60) is not None,
+                    "Esc on HOSTING asks: Leave?")
         time.sleep(25)
         kept = rooms()
         end = time.time() + 120

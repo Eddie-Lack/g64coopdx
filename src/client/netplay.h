@@ -141,7 +141,7 @@ int netplay_pause_selection(void);
 int netplay_pause_items(void);
 const char *netplay_pause_item(int i);
 int netplay_quit_requested(void);
-/* The question before leaving: for the host it says that the game ends for everyone. */
+/* The question before leaving, the same for the host and the joiners. */
 const char *netplay_leave_question(void);
 /* The tip that the local player reads, as of the last netplay_frame: the number of lines on its page (0 when the
  * player reads none), each line, and 1 when another page follows. The game holds the reader and takes their A. */

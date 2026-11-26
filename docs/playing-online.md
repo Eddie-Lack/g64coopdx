@@ -41,7 +41,7 @@ On the start screen:
 | Up, Down | D-pad or stick | Chooses a bar |
 | Left, Right | D-pad or stick | Changes the value on the bar (the bar shows - and +) |
 | Enter | A or Start | Presses the bar |
-| Esc | B | Goes back, or cancels while the program connects. A host on the **HOSTING** page is asked first: "Leave? The game ends for everyone." with **YES** and **NO**. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
+| Esc | B | Goes back, or cancels while the program connects. A host on the **HOSTING** page is asked first: "Leave?" with **YES** and **NO**. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
 | Letters | Left, Right and A | Type on a bar with a blinking mark: a name, a title or a room code. With the controller, Left and Right change the last letter (Left past A takes it away), and A adds a letter |
 | Backspace | | Takes back a letter; on other bars it goes back. It doesn't cancel while the program connects |
 | F11 or Alt+Enter | | Switches between a window and full screen, as in the game. The program keeps the choice |
@@ -157,7 +157,7 @@ step is 50 ms, and the default is 5 (250 ms). A higher value means fewer jumps o
 game ([How it works](#how-it-works)) lags further behind.
 
 An address holds at most 4 rooms at the relay at once. A fifth host from the same address gets "your address has 4
-open games, the relay's limit". A room that the host cancels or leaves closes at once.
+open games". A room that the host cancels or leaves closes at once.
 
 If the program says "no answer from the relay", open https://g64coopdx-lobby.fly.dev/v1/info in a browser. A line
 such as `"relay":{"port":27065,"rooms":1,"players":2}` shows that the relay runs and how many rooms and players it
@@ -397,7 +397,7 @@ letters and panes.
 | Resume | Closes the menu |
 | Back to checkpoint | Puts your glove and ball at your last checkpoint, or at the level's start |
 | Back to the hub | Takes you out of the level, the same way the hub exit does |
-| Leave the online game | Asks "Leave?" with Yes and No, and then closes the program; the others play on. For the host the question also says "The game ends for everyone." |
+| Leave the online game | Asks "Leave?" with Yes and No, and then closes the program; the others play on |
 
 Up and down choose, A picks, and B or Start closes it. The choices act for you alone. The Esc menu has the same
 choices under **Online game**.
