@@ -11,6 +11,16 @@ values from level to level, and work with the level's puzzles. More comes later.
   [playing-online.md](playing-online.md#how-it-works)). Each game has its own
   copy of the script's variables. A script in one level doesn't see another level's. What must last from level to
   level goes into the session's values (below).
+- That includes the hub and every other level, not only the pack's own. A script for one level checks the level
+  first:
+
+      function on_frame()
+        if game.level() ~= 10 then
+          return
+        end
+        -- ...
+      end
+
 - The script's text runs once when a game starts, before its first frame.
 - If the script has a function `on_frame`, the game calls it once a frame, before the game's own step. The game
   runs 20 frames a second.
@@ -144,7 +154,8 @@ From Lua's own libraries a script has `table`, `string` and `math`, and the basi
   which also reads its text, may do 50 million.
 - **Memory:** a game's script has 2 MB. A request that doesn't fit is an error ("not enough memory").
 - **A stopped script** stays stopped for that game: the game goes on without it, the same on every machine. The log
-  says why (`script: ...`). A script stops when an error reaches the game, or when a call uses up its work. `pcall`
+  says why (`script: ...`), and the online program shows that line with the chat's notices. A script stops when an
+  error reaches the game, or when a call uses up its work. `pcall`
   can catch an error, a memory error too. It can't keep a script going that has used up its work.
 - A script with an error in its text doesn't start.
 - Do not let the game's course depend on a number turned into text. Such text gave the same result on Linux and
