@@ -162,15 +162,19 @@ def main():
         check(is_empty(slot(d4, 3)), "damaged file 4 (no checksum): it read as empty")
         check(bytes(d4[CRC_BASE + 8:CRC_BASE + 12]) == crc2, "damaged file 3: the new checksum is the copy's")
 
-        # 5. Garbage: the cartridge id is wrong, so the game makes a new save at once.
+        # 5. Garbage: the cartridge id is wrong, so the game makes a new save at once. The first write of the run
+        #    keeps the file as it was, as eeprom-solo.bin.bak.
         rnd = random.Random(64)
-        r.write(bytes(rnd.randrange(256) for _ in range(512)))
+        garbage = bytes(rnd.randrange(256) for _ in range(512))
+        r.write(garbage)
         r.run([])
         d5 = r.read()
         check(d5[0:4] == d4[0:4], "garbage: the game wrote a new save with its id")
         check(all(is_empty(slot(d5, i)) for i in range(6)), "garbage: every file is empty on disk")
+        with open(r.save + ".bak", "rb") as f:
+            check(f.read() == garbage, "garbage: the file as it was is kept as eeprom-solo.bin.bak")
         others = [os.path.join(dp, f) for dp, _, fs in os.walk(work) for f in fs
-                  if f.startswith("eeprom") and os.path.join(dp, f) != r.save]
+                  if f.startswith("eeprom") and os.path.join(dp, f) not in (r.save, r.save + ".bak")]
         check(not others, "no other save file was written")
         print("solosave: all checks passed")
     finally:
