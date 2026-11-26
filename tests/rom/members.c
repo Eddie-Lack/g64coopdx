@@ -51,6 +51,17 @@ static int same_place(int p, const float *before) {
     return G64PlayerPosition(p, &x, &y, &z) && x == before[0] && y == before[1] && z == before[2];
 }
 
+/* 1 when player p stands a glove's width (30 units) from the spot along x or z, at its height: a player who comes into
+   a running level starts there when the floor is there (beside_start in g64players.c). */
+static int beside(int p, const float *spot) {
+    float x, y, z, dx, dz;
+    if (!G64PlayerPosition(p, &x, &y, &z) || y != spot[1])
+        return 0;
+    dx = x - spot[0];
+    dz = z - spot[2];
+    return (dx == 0.0f && (dz == 30.0f || dz == -30.0f)) || (dz == 0.0f && (dx == 30.0f || dx == -30.0f));
+}
+
 int main(int argc, char **argv) {
     EngineOptions opt;
     Engine *e;
@@ -91,7 +102,7 @@ int main(int argc, char **argv) {
                 G64SetPresent(present);
                 check(G64HasPlayer(3) && g64Players == 3, "player 3 joins");
                 check(same_place(2, one), "a glove stays where it was when a player joins");
-                check(same_place(3, handStart), "the new player starts at the level's start");
+                check(beside(3, handStart), "the new player starts a glove's width from the level's start");
             } else {
                 G64SetPresent(present);
                 check(!G64HasPlayer(2) && g64Players == 2 && g64Member[0] == 1 && g64Member[1] == 3,

@@ -26,7 +26,7 @@ void G64ApplyProgress(const G64Save *save);
 void port_game_start_level(int level);
 
 /* enum ExitType and enum Level (weemitt/include/enums.h): the exits that lead to the hub, and its last level. */
-enum { WORLD_EXIT = 3, ATLANTIS_EXIT = 6, SPACE_EXIT = 11, HUB_EXIT = 13, HUB8 = 7 };
+enum { WORLD_EXIT = 3, ATLANTIS_EXIT = 6, SPACE_EXIT = 11, HUB_EXIT = 13, HUB8 = 7, CAVE = 8 };
 /* weemitt's G64_RAISED_CAVE (g64players.h). */
 #define RAISED_CAVE 0xFF
 
@@ -259,6 +259,8 @@ struct g64_ihost {
         int id; /* the instance they wait for, or -1 for any */
         uint32_t frame;
     } back[RB_MAX_PLAYERS];
+    /* The hub stage each player went into the crystal cave from, or -1: the cave's exit leads back there. */
+    int caveFrom[RB_MAX_PLAYERS];
     pending_exit exits[MAX_PENDING];
     int exit_count;
     uint32_t clock;
@@ -549,6 +551,14 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
     if ((e->r.type == WORLD_EXIT || e->r.type == HUB_EXIT) && level <= HUB8)
         level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
     from = h->inst[s].start.level;
+    /* The way out of the crystal cave leads back to the hub stage the player came from, where the friends they left
+       still are. The game's own exit would take the newest stage: the first visit to the cave counts as a crystal. */
+    if (level == CAVE && from <= HUB8)
+        h->caveFrom[p] = from;
+    if (from == CAVE && level <= HUB8 && e->r.world == 0 && h->caveFrom[p] >= 0) {
+        level = h->caveFrom[p];
+        h->caveFrom[p] = -1;
+    }
     leave_instance(h, p);
     {
         /* One world at a time: the game shuts the hub's portals to other worlds, but two players may walk into
@@ -630,7 +640,7 @@ g64_ihost *g64_ihost_new_with(Engine *e, const void *boot, int players, unsigned
         h->colors[p][1] = colors ? colors[p][1] : g64PlayerColor[p][1];
     }
     for (p = 0; p < RB_MAX_PLAYERS; p++)
-        h->where[p] = -1;
+        h->where[p] = h->caveFrom[p] = -1;
     s = new_instance(h, level, 0, members);
     if (s < 0) {
         free(h);
@@ -669,8 +679,8 @@ void g64_ihost_tick(g64_ihost *h) {
         int t;
         if (!h->back[p].wait)
             continue;
-        /* The hub's newest stage, as it is now. */
-        if (h->back[p].world == 0 && h->back[p].level <= HUB8)
+        /* The hub's newest stage, as it is now. The way out of the cave keeps its stage. */
+        if (h->back[p].world == 0 && h->back[p].level <= HUB8 && h->back[p].from != CAVE)
             h->back[p].level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
         t = find_instance(h, h->back[p].level, h->back[p].world);
         /* They wait only for the instance they left. If it has ended, another one of the level is new to them. */
@@ -800,6 +810,7 @@ void g64_ihost_drop(g64_ihost *h, int p) {
     if (p >= 0 && p < h->players) {
         h->back[p].wait = 0;
         h->move[p].active = 0;
+        h->caveFrom[p] = -1;
         leave_instance(h, p);
     }
 }

@@ -13,6 +13,8 @@ extern "C" {
 #define G64_TITLE_OFF 1
 #define G64_TITLE_ARROWS 2
 #define G64_TITLE_TEXT 4
+/* A value that doesn't fit is cut at a word, with "..." after it, and the row keeps its letters' size. */
+#define G64_TITLE_CUT 8
 /* A color that the player chose: this bit plus 0xRRGGBB (the session's G64_COLOR_SET). */
 #define G64_TITLE_COLOR_SET 0x1000000u
 

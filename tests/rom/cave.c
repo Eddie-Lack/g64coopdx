@@ -129,9 +129,13 @@ static void case_a(void) {
              "from the other player", sqrtf((mine[0] - first[0]) * (mine[0] - first[0]) +
                                             (mine[2] - first[2]) * (mine[2] - first[2])),
              dist(mine, other));
-    check(G64PlayerPosition(1, &later[0], &later[1], &later[2]) && fabsf(mine[0] - first[0]) < 1.0f &&
-              fabsf(mine[2] - first[2]) < 1.0f && dist(mine, other) > 100.0f,
-          what);
+    /* The player who comes later starts a glove's width (30) from the start spot when the floor is there, or at it. */
+    {
+        float across = sqrtf((mine[0] - first[0]) * (mine[0] - first[0]) + (mine[2] - first[2]) * (mine[2] - first[2]));
+        check(G64PlayerPosition(1, &later[0], &later[1], &later[2]) && (across < 1.0f || fabsf(across - 30.0f) < 1.0f) &&
+                  dist(mine, other) > 100.0f,
+              what);
+    }
     for (; f < 900; f++)
         frame(f, 0x3, 0x3);
     where(1, later);

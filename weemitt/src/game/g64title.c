@@ -420,6 +420,24 @@ s32 G64TitleMenu(void) {
                 f32 width;
                 if (sel && (page.rows[i].flags & G64_TITLE_ARROWS))
                     room -= 2.0f * ARROW_ROOM;
+                /* A row that cuts its value: whole words go from the end until the rest and "..." fit. */
+                if ((page.rows[i].flags & G64_TITLE_CUT) && drawn_width(line, scale) > room) {
+                    s32 n = (s32)strlen(line), head = (s32)strlen(page.rows[i].label) + 1;
+                    while (n > head) {
+                        s32 k = n - 1;
+                        while (k > head && line[k] != ' ')
+                            k--;
+                        n = k > head ? k : n - 1;
+                        line[n] = 0;
+                        if (n + 3 < 78) {
+                            line[n] = line[n + 1] = line[n + 2] = '.';
+                            line[n + 3] = 0;
+                        }
+                        if (drawn_width(line, scale) <= room)
+                            break;
+                        line[n] = 0;
+                    }
+                }
                 if (drawn_width(line, scale) > room)
                     scale = scale * room / drawn_width(line, scale);
                 width = drawn_width(line, scale);
