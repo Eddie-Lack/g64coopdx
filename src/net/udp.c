@@ -27,11 +27,13 @@ typedef int sock_t;
 /* The relay's datagrams (server/relay.go): "G64R", a type, then the body. */
 #define RELAY_HEAD 5
 enum { R_OPEN = 0x01, R_JOIN = 0x02, R_TO_HOST = 0x03, R_TO_PEER = 0x04, R_ANNOUNCE = 0x05, R_LIST = 0x06,
-       R_BAN = 0x07, R_CLOSE = 0x08, R_ROOM = 0x81, R_JOINED = 0x82, R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85,
-       R_ROOMS = 0x86 };
+       R_BAN = 0x07, R_CLOSE = 0x08, R_PONG = 0x09, R_ROOM = 0x81, R_JOINED = 0x82, R_REFUSED = 0x83, R_FROM_PEER = 0x84, R_FROM_HOST = 0x85,
+       R_ROOMS = 0x86, R_PING = 0x87 };
 /* The length of a list request: the relay's longest answer (relay.go, relayListMin). */
 #define RELAY_LIST_ROOMS 12
-#define RELAY_LIST_MIN (RELAY_HEAD + 1 + RELAY_LIST_ROOMS * (NET_ROOM_CODE + 4 + NET_ROOM_TITLE))
+/* A room in the list: its code, wanted, joined, flags, ping (u16), the title's length and the title. */
+#define RELAY_ROOM_HEAD (NET_ROOM_CODE + 6)
+#define RELAY_LIST_MIN (RELAY_HEAD + 1 + RELAY_LIST_ROOMS * (RELAY_ROOM_HEAD + NET_ROOM_TITLE))
 /* How often a host asks the relay to keep its room, and a joiner to keep its place, in milliseconds. */
 #define RELAY_KEEP 2000
 
@@ -464,10 +466,10 @@ int net_rooms_parse(const uint8_t *d, int n, net_room *out, int max) {
     count = d[RELAY_HEAD];
     for (i = 0; i < count; i++) {
         int k, len;
-        if (at + NET_ROOM_CODE + 4 > n)
+        if (at + RELAY_ROOM_HEAD > n)
             return -1;
-        len = d[at + NET_ROOM_CODE + 3];
-        if (len > NET_ROOM_TITLE || at + NET_ROOM_CODE + 4 + len > n)
+        len = d[at + NET_ROOM_CODE + 5];
+        if (len > NET_ROOM_TITLE || at + RELAY_ROOM_HEAD + len > n)
             return -1;
         if (got < max && out) {
             net_room *r = &out[got];
@@ -482,14 +484,15 @@ int net_rooms_parse(const uint8_t *d, int n, net_room *out, int max) {
             r->wanted = d[at + NET_ROOM_CODE];
             r->joined = d[at + NET_ROOM_CODE + 1];
             r->flags = d[at + NET_ROOM_CODE + 2];
+            r->ping = (uint16_t)(d[at + NET_ROOM_CODE + 3] | d[at + NET_ROOM_CODE + 4] << 8);
             for (k = 0; k < len; k++) {
-                uint8_t c = d[at + NET_ROOM_CODE + 4 + k];
+                uint8_t c = d[at + RELAY_ROOM_HEAD + k];
                 r->title[k] = c >= 32 && c < 127 ? (char)c : '?';
             }
             r->title[len] = 0;
             got++;
         }
-        at += NET_ROOM_CODE + 4 + len;
+        at += RELAY_ROOM_HEAD + len;
     }
     return got;
 }
@@ -552,12 +555,22 @@ int net_relay_parse(net_socket *s, const net_addr *src, const uint8_t *d, int n,
         }
         return -1;
     case R_REFUSED:
-        /* A ban (reason 3) can also come to a joiner who is in the room. */
+        /* A ban (reason 3) can also come to a joiner who is in the room. A host is refused a room only before it has
+           one: its address holds as many rooms as the relay allows (reason 4). */
         if (s->relay == NET_RELAY_JOIN && n == RELAY_HEAD + 1 && (s->state == 0 || d[RELAY_HEAD] == 3)) {
             settle(s, i);
             s->state = -1;
             s->refusal = d[RELAY_HEAD];
+        } else if (s->relay == NET_RELAY_HOST && n == RELAY_HEAD + 1 && s->state == 0 && d[RELAY_HEAD] == 4) {
+            settle(s, i);
+            s->state = -1;
+            s->refusal = 4;
         }
+        return -1;
+    case R_PING:
+        /* The relay measures the host's round trip for the list of rooms: the answer goes back at once. */
+        if (s->relay == NET_RELAY_HOST && s->state == 1 && n == RELAY_HEAD + 4)
+            relay_send(s, R_PONG, d + RELAY_HEAD, 4);
         return -1;
     case R_FROM_PEER:
         if (s->relay == NET_RELAY_HOST && n >= RELAY_HEAD + 1 && d[RELAY_HEAD] >= 1 &&

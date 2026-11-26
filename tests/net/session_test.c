@@ -465,8 +465,8 @@ static void test_pack(uint32_t *clock) {
     info.levSize = 20000;
     info.scriptSize = 660;
     info.modelsSize = 3000;
-    check(G64_PROTOCOL == 13 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(12, clock),
-          "the protocol is 13, and a hello of protocol 12 is refused");
+    check(G64_PROTOCOL == 14 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(13, clock),
+          "the protocol is 14, and a hello of protocol 13 is refused");
     {
         /* A joiner without the pack, and one with another pack, before the start. */
         net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err), *s2 = net_open(0, err, sizeof err);

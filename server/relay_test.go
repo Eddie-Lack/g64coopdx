@@ -158,6 +158,54 @@ func TestRelayClose(t *testing.T) {
 	}
 }
 
+// The relay measures a host's round trip with a ping on its announce, and lists it with the room. A pong with
+// another token, or from someone else, changes nothing; a second ping waits relayPingEvery.
+func TestRelayPing(t *testing.T) {
+	r, out, now := testRelay()
+	host, stranger := addr("10.0.0.1:1000"), addr("10.0.0.7:7")
+	code := openRoom(t, r, out, host)
+	r.handle(announce(7, 2, 1, 0, 1, "t"), host)
+	p := last(t, out)
+	if p.to != host || p.b[4] != msgPing || len(p.b) != relayHeader+4 {
+		t.Fatalf("no ping to the host: %v", p.b)
+	}
+	token := p.b[relayHeader:]
+	*now = now.Add(37 * time.Millisecond)
+	r.handle(msg(msgPong, 9, 9, 9, 9), host)
+	r.handle(msg(msgPong, token...), stranger)
+	r.handle(msg(msgPong, token...), host)
+	*now = now.Add(500 * time.Millisecond)
+	r.handle(msg(msgPong, token...), host)
+	r.handle(announce(7, 2, 1, 0, 1, "t"), host)
+	if len(*out) != 0 {
+		t.Fatalf("a second ping before relayPingEvery: %v", *out)
+	}
+	r.handle(listRequest(7), stranger)
+	s := last(t, out)
+	want := append(append(msg(msgRooms, 1), code...), 2, 1, 0, 37, 0, 1, 't')
+	if !bytes.Equal(s.b, want) {
+		t.Fatalf("the list with the ping: got %v, want %v", s.b, want)
+	}
+	*now = now.Add(relayPingEvery)
+	r.handle(announce(7, 2, 1, 0, 1, "t"), host)
+	if s := last(t, out); s.b[4] != msgPing {
+		t.Fatalf("no ping after relayPingEvery: %v", s.b)
+	}
+}
+
+// A host whose address holds relayRoomsPerIP rooms is told so.
+func TestRelayLimitRefuses(t *testing.T) {
+	r, out, _ := testRelay()
+	for port := 1; port <= relayRoomsPerIP; port++ {
+		openRoom(t, r, out, netip.AddrPortFrom(netip.MustParseAddr("4.4.4.4"), uint16(port)))
+	}
+	extra := netip.AddrPortFrom(netip.MustParseAddr("4.4.4.4"), 99)
+	r.handle(msg(msgOpen), extra)
+	if s := last(t, out); s.to != extra || !bytes.Equal(s.b, msg(msgRefused, refuseLimit)) {
+		t.Fatalf("the fifth room: got %v", s.b)
+	}
+}
+
 func TestRelayExpires(t *testing.T) {
 	r, out, now := testRelay()
 	host, a, b := addr("1.1.1.1:5000"), addr("2.2.2.2:6000"), addr("3.3.3.3:7000")
@@ -314,13 +362,16 @@ func TestRelayList(t *testing.T) {
 	}
 	r.handle(announce(7, 4, 1, 2, 1, "Fraser's \x01game"), host)
 	r.handle(announce(8, 2, 1, 0, 1, "another build"), other)
-	if len(*out) != 0 {
-		t.Fatalf("an announce is not answered: %v", *out)
+	// An announce gets only the relay's ping, to the host that sent it.
+	if len(*out) != 2 || (*out)[0].to != host || (*out)[1].to != other || (*out)[0].b[4] != msgPing ||
+		len((*out)[0].b) != relayHeader+4 {
+		t.Fatalf("an announce is answered only by a ping: %v", *out)
 	}
+	*out = nil
 	r.handle(listRequest(7), asker)
 	s := last(t, out)
 	title := "Fraser's ?game"
-	want := append(append(msg(msgRooms, 1), code...), 4, 1, 2, byte(len(title)))
+	want := append(append(msg(msgRooms, 1), code...), 4, 1, 2, 0, 0, byte(len(title)))
 	want = append(want, title...)
 	if !bytes.Equal(s.b, want) {
 		t.Fatalf("the list for build 7: got %q, want %q", s.b, want)

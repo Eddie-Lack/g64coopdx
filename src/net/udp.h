@@ -66,11 +66,12 @@ int net_relay_host(net_socket *s, const net_addr *relays, int count);
 int net_relay_join(net_socket *s, const net_addr *relays, int count, const char *code);
 /* Sends what keeps the room or the place in it; call it often (it sends every 250 ms until ready, then every 2 s). */
 void net_relay_tick(net_socket *s, uint32_t now);
-/* 0 while waiting, 1 when the room is open or joined, -1 when the relay refused the join. */
+/* 0 while waiting, 1 when the room is open or joined, -1 when the relay refused the join or the room. */
 int net_relay_state(const net_socket *s);
 /* The room's code (NET_ROOM_CODE letters and digits). */
 const char *net_relay_code(const net_socket *s);
-/* Why the relay refused: 1 no such room, 2 the room is full, 3 the host has banned this address. */
+/* Why the relay refused: 1 no such room, 2 the room is full, 3 the host has banned this address, 4 (to a host) this
+ * address holds as many rooms as the relay allows. */
 int net_relay_refusal(const net_socket *s);
 /* Handles one datagram src sent to a socket in relay mode (net_recv calls it; the fuzz target calls it directly).
  * Returns the game payload's length, with its sender's virtual address in from, or -1 when it held none. */
@@ -86,7 +87,10 @@ typedef struct {
     char code[NET_ROOM_CODE + 1];
     char title[NET_ROOM_TITLE + 1];
     uint8_t wanted, joined, flags; /* the players the host wants, the players in the room, the host's options */
+    uint16_t ping;                 /* the host's round trip to the relay in ms, as the relay measured it (0: not yet) */
 } net_room;
+/* The flag of a listed room whose game has started (the host's announce). */
+#define NET_ROOM_STARTED 0x80
 
 /* On a host's socket whose room is open: lists the room (open 1) with its title, or takes it off the list (open 0).
  * The relay drops a room from the list 10 seconds after the last call, so call it every few seconds. */
