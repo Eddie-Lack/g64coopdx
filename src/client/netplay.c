@@ -922,7 +922,7 @@ int netplay_poll(void) {
         if (net_relay_state(sock) < 0)
             return fail_connect(net_relay_refusal(sock) == 2   ? "that room is full"
                                 : net_relay_refusal(sock) == 3 ? "the host has removed you from that room"
-                                : net_relay_refusal(sock) == 4 ? "your address has 4 open games, the relay's limit"
+                                : net_relay_refusal(sock) == 4 ? "your address has 4 open games"
                                                                : "there's no room with that code");
         if (net_relay_state(sock) == 0) {
             if ((int32_t)(t - cstart) > 15000) {
@@ -1445,7 +1445,7 @@ static const char *const leaveItems[LEAVE_ITEMS] = {"Yes", "No"};
 static int leaveAsk, leaveSelection;
 
 const char *netplay_leave_question(void) {
-    return chost ? "Leave? The game ends for everyone." : "Leave?";
+    return "Leave?";
 }
 /* The game the choice was made in: it isn't repeated in the next one. */
 static int actionInstance;

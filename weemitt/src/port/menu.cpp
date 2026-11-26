@@ -217,9 +217,6 @@ void graphics_window() {
     if (ImGui::Checkbox("Full screen", &full)) {
         port_set_fullscreen(full);
     }
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("F11 and Alt+Enter do the same.");
-    }
     bool vsync = cfg->vsync != 0;
     if (ImGui::Checkbox("VSync", &vsync)) {
         cfg->vsync = vsync;
