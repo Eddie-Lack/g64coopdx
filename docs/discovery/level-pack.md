@@ -159,8 +159,9 @@ only. A pack whose level file is a vanilla level with small changes does travel.
 
 - `g64_pack_from_bytes` reads a pack from its files' bytes. Its strict form also holds the level file to the
   check of its structure ([level-file-safety.md](level-file-safety.md), "What is checked today"). A pack from
-  another player is read this way. A pack from a folder the player chose isn't held to the check of its level
-  file's structure.
+  another player is read this way. A pack from a folder the player chose is read with the plain form, and the online
+  program then holds its level file to the same check: it doesn't start with a pack that fails it
+  (`netplay_set_pack`). `g64pack check` ends with an error for such a pack.
 - A downloaded pack is kept in `packs/ID` in the program's folder for its own files, where `ID` is the pack's id as
   32 hexadecimal digits. No text from the network is part of a path. A kept pack is read with the strict form
   and the bank check again, and its files must give the id its folder names. Keeping a pack removes a `script.lua`

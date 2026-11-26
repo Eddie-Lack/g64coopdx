@@ -250,6 +250,27 @@ int main(int argc, char **argv) {
         check(net_relay_state(again) < 0 && net_relay_refusal(again) == 3, "a banned address cannot join the room again");
         net_close(again);
     }
+    {
+        /* The host closes its room: the room's code is gone at once. */
+        net_socket *late = net_open(0, err, sizeof err);
+        char code[NET_ROOM_CODE + 1];
+        snprintf(code, sizeof code, "%s", net_relay_code(m[0].sock));
+        net_relay_close(m[0].sock);
+        for (f = 0; f < 20; f++)
+            nap();
+        net_relay_join(late, relay, 2, code);
+        for (f = 0; f < 2000 && net_relay_state(late) == 0; f++) {
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            clock += 5;
+            net_relay_tick(late, clock);
+            while (net_recv(late, &from, d, sizeof d) >= 0) {
+            }
+            nap();
+        }
+        check(net_relay_state(late) < 0 && net_relay_refusal(late) == 1, "a closed room's code finds no room");
+        net_close(late);
+    }
     printf("%s: %d failures\n", failures ? "FAIL" : "ok", failures);
     return failures ? 1 : 0;
 }

@@ -715,6 +715,45 @@ static void ride_raft(Engine *e, void *boot) {
    the pack's slot and the bell in the retail table, the raft platform moves and carries a glove, two players play
    the level over the slow, lossy network, its first garib is where the XML puts it, the script runs, and no machine
    disagrees. */
+/* The sample pack's script runs in the hub too, as every game of the session runs it. It's for the island only: in
+   the hub's first stage it shows nothing. The hub's start is inside its exit circle, so a script without the check
+   says at once that player 1 reached the exit. */
+const char *G64LuaShown(int player);
+static void hub_script(Engine *e, void *boot) {
+    uint32_t none[16][2];
+    rb_engine_game *g;
+    int shown = 0, ran = 0;
+    memset(none, 0, sizeof none);
+    count = 0;
+    for (int p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, 2, 1u, none, HUB1, DEADLINE, host_send, NULL);
+    player[0] = g64_iclient_new_with(e, boot, 2, 1u, none, 0, HUB1, WINDOW, DEADLINE, player_send, &ids[0]);
+    if (!host || !player[0]) {
+        check(0, "the hub starts with the sample pack");
+        return;
+    }
+    for (now = 0; now < 200; now++) {
+        rb_input in;
+        memset(&in, 0, sizeof in);
+        in.present = 1;
+        deliver();
+        g64_ihost_tick(host);
+        g64_iclient_step(player[0], in);
+        g = g64_iclient_game(player[0]);
+        if (g) {
+            rb_engine_game_enter(g);
+            ran |= G64LuaActive();
+            shown |= G64LuaShown(0)[0] != 0;
+        }
+    }
+    check(ran && !shown, "the sample pack's script runs in the hub and shows nothing there");
+    g64_iclient_free(player[0]);
+    g64_ihost_free(host);
+    player[0] = NULL;
+    host = NULL;
+}
+
 static void sample_pack(Engine *e, void *boot) {
     unsigned long romSize = 0;
     const uint8_t *rom = engine_rom(e, &romSize);
@@ -748,6 +787,7 @@ static void sample_pack(Engine *e, void *boot) {
         return;
     }
     ride_raft(e, boot);
+    hub_script(e, boot);
     two_players(e, boot, at, counts, &active);
     /* two_players leaves player 0's game in the globals. */
     check(!G64LevelUnplayable(), "the sample pack's level plays");

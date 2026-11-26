@@ -60,11 +60,18 @@ cp "$here/tests/fixtures/cube.models.bin" cube.bin
 : > empty.bin
 cp -r "$here/packs/garib-island" garib
 
-echo "a pack from a level file: its id starts with de99044ca5595dc7, as the reader's test prints"
-run 0 make a --name "A test level" --level 10 --lev test.lev
+echo "a pack from a level file"
+run 0 make a --name "A test level" --level 10 --lev whole.lev
 run 0 check a
-echo "the same with a script: its id starts with another value"
-run 0 make b --name "A test level" --level 10 --lev test.lev --script script.lua
+echo "the same with a script: its id is another"
+run 0 make b --name "A test level" --level 10 --lev whole.lev --script script.lua
+echo "a level file whose structure has a warning: the tool writes the pack and says it fails (the program refuses it)"
+run 1 make w --name "A test level" --level 10 --lev test.lev
+run 1 check w
+echo "check takes --rom before the folder too, and --help is an answer"
+run 1 check --rom missing.z64 a
+run 1 check a --rom
+run 0 --help
 echo "what the tool refuses"
 run 1 make c --name "A test level" --level 48 --lev test.lev
 run 1 make c --name "" --level 1 --lev test.lev
@@ -75,14 +82,14 @@ run 1 make c --name "ok" --level 1 --lev test.lev --script compiled.lua
 run 1 make c --name "ok" --level 1 --lev test.lev --rom test.lev
 run 1 make c --name "ok" --level 1 --rom test.lev
 run 1 make c --name "ok" --level 1
-run 1 make b --name "No script named" --level 10 --lev test.lev
-echo "a pack with models: its id starts with dfffdef0a1eb5c74, as the reader's test prints"
-run 0 make m --name "A test level" --level 10 --lev test.lev --models cube.bin
+run 1 make b --name "No script named" --level 10 --lev whole.lev
+echo "a pack with models"
+run 0 make m --name "A test level" --level 10 --lev whole.lev --models cube.bin
 echo "without a ROM, the tool says that a pack with models is sent only if it passes the ROM's rules"
 $tool make ms --name "A test level" --level 10 --lev whole.lev --models cube.bin > /dev/null 2>&1
 has_line "from the host: players can download this pack when they join, if it also passes the ROM's rules (check ms --rom ROM)" check ms
 echo "a folder that holds a models.bin isn't made again without --models"
-run 1 make m --name "No models named" --level 10 --lev test.lev
+run 1 make m --name "No models named" --level 10 --lev whole.lev
 run 1 make c2 --name "ok" --level 1 --lev test.lev --models badflag.bin
 run 1 make c2 --name "ok" --level 1 --lev test.lev --models empty.bin
 run 1 make c2 --name "ok" --level 1 --lev test.lev --models missing.bin
@@ -95,7 +102,7 @@ run 1 check a --rom missing.z64
 echo "the sample pack keeps its id"
 id=$($tool check garib 2>&1 | tr -d '\r' | grep '^id:')
 echo "$id"
-if [ "$id" != "id: 291749c3f24587a81b2317b67ea4c6ab" ]; then
+if [ "$id" != "id: f98693a92e74c8a301d8b0a269f0febb" ]; then
     echo "FAIL: the sample pack's id changed"
     failed=$((failed + 1))
 fi
@@ -103,22 +110,27 @@ run 1 check missing
 run 0 levels
 
 if [ -n "$GLOVER_ROM" ] && [ -f "$GLOVER_ROM" ]; then
-    echo "every level of the ROM makes a pack"
+    echo "the retail ROM's levels are game data: make refuses them"
+    run 1 make retail --name "Level 10" --level 10 --rom "$GLOVER_ROM"
+    echo "every level of a ROM that Glovebox built makes a pack (here the ROM with other checksums in its header)"
+    { head -c 16 "$GLOVER_ROM"; printf 'G64PACKT'; tail -c +25 "$GLOVER_ROM"; } > built.z64
     n=0
     while [ $n -lt 48 ]; do
-        out=$($tool make "rom$n" --name "Level $n" --level $n --rom "$GLOVER_ROM" 2>&1) || {
+        out=$($tool make "rom$n" --name "Level $n" --level $n --rom built.z64 2>&1) || {
             echo "FAIL: level $n of the ROM"
             failed=$((failed + 1))
         }
         printf '%s\n' "$out" | tr -d '\r' | grep '^id:'
         n=$((n + 1))
     done
-    run 1 make romx --name "ok" --level 48 --rom "$GLOVER_ROM"
+    run 1 make romx --name "ok" --level 48 --rom built.z64
+    rm -f built.z64
     echo "the ROM's rules: a pack with the cube passes, and a pack with one of the ROM's levels doesn't"
-    $tool make mr --name "A test level" --level 10 --lev test.lev --models cube.bin > /dev/null 2>&1
+    $tool make mr --name "A test level" --level 10 --lev whole.lev --models cube.bin > /dev/null 2>&1
     run 0 check mr --rom "$GLOVER_ROM"
     has_line "from the host: players can download this pack when they join" check ms --rom "$GLOVER_ROM"
     run 0 check garib --rom "$GLOVER_ROM"
+    run 0 check --rom "$GLOVER_ROM" garib
     run 1 check rom5 --rom "$GLOVER_ROM"
     echo "a ROM cut to 4 MiB: banks of both kinds, but some skipped; the tool refuses it, as the online program does"
     head -c 4194304 "$GLOVER_ROM" > short.z64

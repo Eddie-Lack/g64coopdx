@@ -655,6 +655,19 @@ static void spend(lua_State *L, unsigned long long cost) {
     luaBudget -= (long long)cost;
 }
 
+/* How many times a script of this game has stopped, and the log's line of the last stop. The online program shows
+   that line to the player (G64LuaStops). A new game starts with none. Nothing in the game reads them. */
+static unsigned int luaStops;
+static char luaStopLine[200];
+
+unsigned int G64LuaStops(void) {
+    return luaStops;
+}
+
+const char *G64LuaStopLine(void) {
+    return luaStopLine;
+}
+
 /* A text for the log from a script: its printable characters, cut to one line. */
 static void log_text(const char *what, const char *s, size_t n) {
     char line[200];
@@ -664,6 +677,7 @@ static void log_text(const char *what, const char *s, size_t n) {
     }
     line[i] = 0;
     port_log("script: %s%s", what, line);
+    snprintf(luaStopLine, sizeof luaStopLine, "script: %s%s", what, line);
 }
 
 /* A line for the program's log. It's for the eyes only: nothing in the game reads it. */
@@ -789,6 +803,7 @@ static int call_script(lua_State *L, const char *what, long long budget) {
     failed = lua_pcall(L, 0, 0, 0) != LUA_OK;
     if (luaBudget <= 0) {
         port_log("script: %s failed: the script ran too long", luaWhat);
+        snprintf(luaStopLine, sizeof luaStopLine, "script: %s failed: the script ran too long", luaWhat);
     } else if (failed) {
         size_t n = 0;
         const char *why = lua_tolstring(L, -1, &n);
@@ -802,6 +817,7 @@ static int call_script(lua_State *L, const char *what, long long budget) {
     } else {
         return 0;
     }
+    luaStops++;
     G64LuaReset();
     return -1;
 }

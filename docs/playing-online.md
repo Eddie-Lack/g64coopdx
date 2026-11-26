@@ -28,7 +28,8 @@ camera. It's a test build: see "Limits" below.
    **OPTIONS** and **SOLO**.
 3. To host: open **HOST GAME**, set **PLAYERS** and press **START**. The screen shows a room code such as
    `F3J7WZ`; press **COPY CODE** and send it to the other players. The game starts when everyone is in, or when you
-   press **START NOW**.
+   press **START NOW**. Below the code, the screen shows how many players are in. A joiner's screen says what it
+   waits for.
 4. To join: open **JOIN GAME**, type the code on the **CODE** bar (Ctrl+V pastes it) and press **JOIN**.
 
 On the start screen:
@@ -38,12 +39,15 @@ On the start screen:
 | Up, Down | D-pad or stick | Chooses a bar |
 | Left, Right | D-pad or stick | Changes the value on the bar (the bar shows - and +) |
 | Enter | A or Start | Presses the bar |
-| Esc | B | Goes back, or cancels while the program connects |
+| Esc | B | Goes back, or cancels while the program connects. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
 | Letters | | Type on a bar with a blinking mark: a name, a title or a room code |
-| Backspace | | Takes back a letter; on other bars it goes back |
+| Backspace | | Takes back a letter; on other bars it goes back. It doesn't cancel while the program connects |
+| F11 or Alt+Enter | | Switches between a window and full screen, as in the game |
 
 The controller's buttons are the ones you set under Esc, **Settings**, **Controls** ([Controls](#controls)). The
-game's letters have capitals only, so names and titles show in capitals. They keep the letters you typed.
+game's letters have capitals only, so names and titles show in capitals. They keep the letters you typed. A name or
+a title takes only the letters, digits and marks that the game's letters have: `!`, `'`, `*`, `,`, `-`, `.`, `/`,
+`:` and `?`. A **NAME** left empty shows the name the program uses, `PLAYER`.
 
 The number of players is the most the game takes. Players can join a game that has started, while it has a free
 place: they come into the game's first level, or the hub's newest stage if it started in the hub. A player who
@@ -56,8 +60,12 @@ players in it. Pressing it joins. No code is needed. The game
 stays on the list while it has a free place, also after it has started. Without the list, only players with the code
 can join. `--public TITLE` does the same from a command prompt.
 
+The start screen keeps the choices on **HOST GAME** for next time, in `options.txt` in g64coopdx's folder
+([below](#how-it-works)). `--players N` on the command line sets **PLAYERS** for that run.
+
 **SOLO** starts the vanilla game at its file select. There, the second file is **CHOSIS**, a complete game: every
-level done, every garib, every crystal in the cave. It's the only file with a name of more than 3 letters.
+level done, every garib, every crystal in the cave. It's the only file with a name of more than 3 letters. Your
+glove's and ball's models and colors from **OPTIONS** show in SOLO too.
 
 Solo play keeps its progress. The game saves at the usual times, for example when you leave a level or copy a file.
 The save goes to its own file, `eeprom-solo.bin`, in g64coopdx's folder ([below](#how-it-works)). It isn't weemitt's
@@ -68,6 +76,8 @@ save, and online games don't touch it. `--save FILE --launcher` uses another fil
   game that starts from 100%.
 - A damaged save file is read as weemitt reads one: a file whose checksum is wrong comes up empty. A short save
   file is read as far as it goes, and the rest is zeros.
+- The first time the game saves in a SOLO session, the program keeps the file as it was before, as
+  `eeprom-solo.bin.bak`. Put that file back in place of `eeprom-solo.bin` to go back to it.
 
 An online game doesn't read or write this file. It starts from an empty save, which lasts as long as the game.
 
@@ -85,7 +95,10 @@ On Linux, write `./g64coopdx` in place of `g64coopdx.exe`.
 The host's program prints the room code (`Room code: F3J7WZ`). The game starts when every player is in. With
 `--start-alone` the host starts at once and the others join the running game. The start screen opens unless an
 option asks for something else: it opens when the options are only `--rom` and online settings such as `--players`,
-`--pack` or `--name`. `--launcher` opens it in any case.
+`--pack` or `--name`. `--launcher` opens it in any case. The picture options (`--fullscreen`, `--no-vsync`,
+`--max-fps`, `--render-scale`, `--msaa`, `--texture-filter`, `--widescreen`), `--skip-intro` and `--log` count as
+such settings too. Any other option, such as a cheat, starts weemitt's own game without the start screen. That game
+uses weemitt's save file, `eeprom.bin`, not SOLO's.
 
 Nobody forwards a port: every player connects out to the relay, which passes the game's packets on inside the room.
 The relay runs on the lobby server, the project's own server on the internet. Windows may ask whether to allow the
@@ -95,7 +108,7 @@ Each program applies your input 1 frame (50 ms) after you press it, and sends it
 before they need it, and the other gloves move without corrections. The start screen's **INPUT DELAY** (or
 `--input-delay N`) changes it, from 0 to 8 frames. A higher value helps when the other gloves still jump to a
 corrected place; a lower one makes your own glove answer sooner. Each player chooses their own. It's under
-**OPTIONS**.
+**OPTIONS**, and the program keeps it for next time.
 
 Your glove's and ball's colors are under **OPTIONS**, **COLORS**: **AUTOMATIC** (the color of your player number),
 **CLASSIC** (the game's own), **CROSS-STITCH**, a few plain colors, or **CUSTOM**. CROSS-STITCH makes your glove
@@ -140,7 +153,12 @@ game ([How it works](#how-it-works)) lags further behind.
 
 If the program says "no answer from the relay", open https://g64coopdx-lobby.fly.dev/v1/info in a browser. A line
 such as `"relay":{"port":27065,"rooms":1,"players":2}` shows that the relay runs and how many rooms and players it
-holds.
+holds. The program talks to the relay over UDP, on port 27065. The page opens over the web (TCP), so it can open
+while a firewall or a network blocks UDP. Then the game can't reach the relay: allow the program through the
+firewall, or try another network.
+
+The window stays open while a game from a command prompt waits for its players. Closing it, or Ctrl+C in the
+command prompt, stops the wait.
 
 ### Without the relay
 
@@ -168,8 +186,8 @@ second raft sits in the sea, and a bell from Carnival stands beside the row. The
 bell comes from your own ROM. The game reads its models from banks, which are blocks of the ROM, and the pack names
 the bell's banks, not the model. Its script counts each player's garibs on the screen, gives a life to a player who
 finds all 11, and says who reaches the exit first. To play it, host with `--pack packs/garib-island`; the game starts
-in the hub, and the level is behind Atlantis 1's door. Its source for Glovebox, the level editor, is `level.xml` in
-the same folder.
+in the hub, and the level is behind Atlantis 1's door: go through the hub's portal to Atlantis, and in its way room
+take the door to Atlantis 1. Its source for Glovebox, the level editor, is `level.xml` in the same folder.
 
 A player who joins without the pack can download it from the host:
 
@@ -186,14 +204,17 @@ A player who joins without the pack can download it from the host:
 - The program checks a downloaded pack before use. The check doesn't catch everything a bad level file can do
   ([discovery/level-file-safety.md](discovery/level-file-safety.md)). Take a pack only from a host you trust.
 - The program keeps a downloaded pack in the folder `packs` next to its settings (`%APPDATA%\g64coopdx\Glover\packs`
-  on Windows). The next time, it asks and then uses the kept copy.
+  on Windows, `~/.local/share/g64coopdx/Glover/packs` on Linux). The next time, it asks and then uses the kept copy.
+  Each kept pack has a folder named by its id, such as `packs/f98693a92e74c8a301d8b0a269f0febb`. `g64pack check` on
+  that folder prints the pack's name. To host a pack you received, use that folder with `--pack`.
 - A player who has the folder can still start with `--pack FOLDER`, and nothing is downloaded.
 - A player who starts with a pack and joins a host without one plays without it.
 
-The host doesn't send a pack in three cases, and a player then needs the folder. The first: the pack's level file
-is an unchanged level of the game. That is game data (data from the ROM), which never travels. The second: the level
-file doesn't pass the check. The third: the pack's models don't pass the check on the host's ROM. The host's log
-says which case it was. A pack whose level names an object that is in none of the level's banks is never sent: the
+The host doesn't send a pack in two cases, and a player then needs the folder. The first: the pack's level file
+is an unchanged level of the game. That is game data (data from the ROM), which never travels. The second: the
+pack's models don't pass the check on the host's ROM. The host's log says which case it was. A pack whose level file
+doesn't pass the check of its structure isn't played at all: the program doesn't start with it, from a folder or
+from a download. A pack whose level names an object that is in none of the level's banks is never sent: the
 host's session stops before it starts. `g64pack check FOLDER --rom ROM` says whether a pack can be downloaded
 (`g64pack` is the pack tool, [below](#making-a-pack)). Without `--rom` it can't check the first and the third case,
 and it says so.
@@ -202,6 +223,8 @@ and it says so.
 
 The program `g64pack` comes with the game. In the repository, `make packtool` builds it as `build/g64pack`. It makes a
 pack from a level you edited in Glovebox. Run it from a command prompt in the game's folder.
+
+On Linux, write `./g64pack` in place of `g64pack` in the commands below.
 
 1. In Glovebox, open the level and edit it.
 2. Get the level out of Glovebox, one of two ways:
@@ -213,13 +236,20 @@ pack from a level you edited in Glovebox. Run it from a command prompt in the ga
        g64pack make MyLevel --name "My level" --level 10 --lev mylevel.lev
        g64pack make MyLevel --name "My level" --level 10 --rom built.z64
 
-   Add `--script script.lua` for a pack with a script.
+   Add `--script script.lua` for a pack with a script. `--rom` takes a ROM that Glovebox built: `g64pack` refuses
+   the retail ROM, whose levels are game data.
 5. Host with `--pack MyLevel`. The other players download the pack when they join, or start with the same folder.
 
 `g64pack check MyLevel` reads a pack as the game does and prints its id. Two players have the same pack when their
 ids are the same. `g64pack check MyLevel --rom ROM` also checks it against your ROM, as the host does before it sends
 a pack. `g64pack check` also prints a line on the level file's structure. A warning there names a part of the file
-that the game may read wrongly.
+that the game may read wrongly. The program doesn't start with such a pack, and `g64pack` ends with an error.
+
+To share a pack yourself, send the whole folder: `pack.txt`, `level.lev`, and `script.lua` and `models.bin` when it
+has them. `g64pack make` writes `pack.txt`. Don't edit it by hand: the pack's id comes from the files' exact bytes,
+and the reader takes only the lines that `g64pack` writes (an editor's Windows line ends, for example, make it fail).
+Change a name with `g64pack make`. A folder from someone else is checked as a download is, but the check doesn't
+catch everything: take a folder only from someone you trust.
 
 The game also checks a level as it reads it. If a pack's level names something the game doesn't have, the level
 can't be played: the game tells you, and sends everyone in it back to the hub.
@@ -236,12 +266,14 @@ pick-ups and water, and the extra level slots. Glovebox says when a level needs 
 ## Names, the player list and chat
 
 Type your name under **OPTIONS**, **NAME** (or add `--name NAME`). It can have 16 letters, and the program keeps it for
-next time.
+next time, also a name given with `--name`.
 
 In a game, press Esc and open **Online game**:
 
 - **Players** lists everyone by player number and name. The host has a **Remove** button beside each other player.
   It asks once more before it removes them. A removed player's program says so, and the game goes on for the rest.
+  The reason shows in the removed player's picture, which stops there, and in their log. Leave the online game
+  (Esc, **Online game**) to close the program.
 - **Chat** has the lines everyone wrote and a line to type in. Press Enter or **Send**.
 
 A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
@@ -273,8 +305,16 @@ A gamepad works as an N64 controller. On the mouse and keyboard:
 | C | A | For menus and tips |
 | X | B | For menus and tips |
 | I, K, J, L | C buttons | |
+| T, G, F, H | D-pad up, down, left and right | |
 | Enter | Start | |
 | Esc | | The menu |
+| F11 or Alt+Enter | | Switches between a window and full screen |
+
+Under Esc, **Settings**, **Controls** you can change every key. A key belongs to one input at a time: when you give
+it to another input, the first one loses it, and shows `(none)` if it had no other key.
+
+The master volume (Esc, **Settings**, **Audio**) starts at 20%. That's a part of the game's own level. Raise it if
+the game is too quiet.
 
 The window holds the mouse while you play: the pointer's hidden and only its motion counts. It lets go while the
 Esc menu or your pause menu is open, and when you switch to another window. When you play alone, it also lets go on
@@ -306,7 +346,7 @@ Esc opens the menu at the top of the window, as in weemitt, the PC port of Glove
 **Settings** has **Graphics**, **Audio** and **Controls**: in Controls you set your keys and your controller's
 buttons, also in the middle of an online game. **Online game** has the pause menu's choices
 ([below](#your-pause-menu)) for the mouse. The game goes on for everyone while the menu is open,
-and your keyboard goes to the menu.
+and your keyboard goes to the menu. When you play alone, the game waits while the menu is open.
 
 The menu has no cheats, enhancements, developer tools or studio tools, online or alone. When you play alone, it has
 **Settings** and **Log** only. In an online game it also has **Online game**. The keys that pause or step the game do
@@ -315,7 +355,7 @@ nothing.
 ## Your pause menu
 
 Start (Enter on the keyboard) opens your own pause menu. It doesn't stop the game: the others play on, and your
-glove waits. The menu, the chat's lines over the picture and a script's text are drawn by the game, in its own
+glove waits. An enemy can still hurt your glove while it waits, and so can anything else in the level. The menu, the chat's lines over the picture and a script's text are drawn by the game, in its own
 letters and panes.
 
 | Choice | What it does |
@@ -358,7 +398,8 @@ players are. Another player's own clicks (their camera, their pause) are theirs 
 volumes in Settings work as in weemitt. When the network corrects a wrong guess about another player, a sound it had
 started stops, and a sound it had missed plays, up to half a second late.
 
-g64coopdx keeps its own folder for your settings, saves and logs: `%APPDATA%\g64coopdx\Glover` on Windows. On its
+g64coopdx keeps its own folder for your settings, saves and logs: `%APPDATA%\g64coopdx\Glover` on Windows,
+`~/.local/share/g64coopdx/Glover` on Linux. On its
 first start it copies weemitt's settings, if there are any, so your keys and picture settings carry over. In an
 online game, your own settings that change the game don't apply: the cheats are off, the camera follows at the
 original game's speed, and the ball controls are the host's choice ([above](#from-a-command-prompt)). Every machine
@@ -388,11 +429,15 @@ game data, only addresses and counts.
   again. A way room door opens at once. The pedestals in a way room move only at its next start.
 - When someone puts a crystal in the hub's fountain, you stay in your hub stage. Your next exit to the hub takes you
   to the newest stage.
+- As in the game, the first visit to the crystal cave counts as a crystal: the way back from the cave leads to the
+  hub's second stage. Friends who start together in the first stage are then in two stages, and don't see each
+  other. The one in the first stage meets the other after their own next exit to the hub, for example through the
+  cave.
 - In the crystal cave, each player who comes with a crystal due has their own flight to the fountain: only their
   glove waits. A player who came with nothing due has no flight, even if a crystal becomes due while they're there.
   If another player puts the last crystal due in first, there's no flight left for you.
 - A player who comes into a running level starts where the level put the first player.
 - A joiner who leaves vanishes; the game goes on for the others, and someone else can take the place. If the host
-  leaves, the game ends.
+  leaves, the game ends: each player's picture stops, with the reason in it, until they leave the online game.
 - A player who joins a running game waits while their program runs the level's inputs so far. That takes longer
   the longer the level has run.

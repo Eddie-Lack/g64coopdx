@@ -23,3 +23,7 @@ build/
 
 # A "go build" in server/ leaves its program here
 /server/server
+
+# Python caches
+__pycache__/
+*.pyc

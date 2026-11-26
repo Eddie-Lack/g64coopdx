@@ -26,6 +26,7 @@ package main
 //	                                       (u8), title        relay -> the asker: up to relayListMax rooms
 //	ban       0x07, peer (u8)              host -> relay: put the peer out of the room and refuse their address
 //	                                       when it joins this room again
+//	close     0x08                         host -> relay: close the room now; its peers are out of it
 //
 // A refused join has the reason 3 when the room's host has banned the joiner's address. The relay is the only
 // place that sees a joiner's address, so it's the only place that can keep a ban.
@@ -74,6 +75,7 @@ const (
 	msgAnnounce = 0x05
 	msgList     = 0x06
 	msgBan      = 0x07
+	msgClose    = 0x08
 	msgRooms    = 0x86
 	msgRoom     = 0x81
 	msgJoined   = 0x82
@@ -316,6 +318,10 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 			reply = append(reply, room.title...)
 		}
 		r.send(reply, from)
+	case msgClose:
+		if room := r.byHost[from]; room != nil {
+			r.closeRoom(room)
+		}
 	case msgBan:
 		room := r.byHost[from]
 		if room == nil || len(body) != 1 {
@@ -363,20 +369,25 @@ func (r *relay) roomsOf(a netip.Addr) int {
 	return n
 }
 
+// closeRoom takes a room and its peers out of the relay. The caller holds the lock.
+func (r *relay) closeRoom(room *relayRoom) {
+	for _, p := range room.peers {
+		if p != nil {
+			delete(r.byPeer, p.addr)
+		}
+	}
+	delete(r.byHost, room.host)
+	delete(r.rooms, room.code)
+}
+
 // expire closes quiet rooms and drops quiet peers.
 func (r *relay) expire() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := r.now()
-	for code, room := range r.rooms {
+	for _, room := range r.rooms {
 		if now.Sub(room.heard) > relayTimeout {
-			for _, p := range room.peers {
-				if p != nil {
-					delete(r.byPeer, p.addr)
-				}
-			}
-			delete(r.byHost, room.host)
-			delete(r.rooms, code)
+			r.closeRoom(room)
 			continue
 		}
 		for i, p := range room.peers {

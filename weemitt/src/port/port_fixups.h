@@ -36,6 +36,8 @@ short port_read_token(unsigned char *data);
 
 /* The game's messages (PRINTF) and fatal errors. */
 void port_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+/* The game's own messages (PRINTF): as port_log, but the player's program may keep them to the log file (log.h). */
+void port_log_game(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void port_fatal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* The heap. On the N64 it ends at 0x80400000, the end of the 4 MB of RDRAM. The port's runs 16 MB past the end

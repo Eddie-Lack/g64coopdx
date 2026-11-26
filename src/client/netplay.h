@@ -31,7 +31,10 @@ typedef struct Engine Engine;
  *   relay set, room set: join the room with that code through the relay
  *   relay NULL, join NULL: host directly on UDP port hostPort (the host forwards that port)
  *   relay NULL, join set: join the host at join (HOST[:PORT]) directly
- * A host confirms each frame deadline frames after its own clock (0: 5 frames, 250 ms). */
+ * A host confirms each frame deadline frames after its own clock (0: 5 frames, 250 ms). While it waits it calls the
+ * hook of netplay_set_wait_hook, if there is one: when that returns nonzero, it stops and returns NETPLAY_GAVE_UP. */
+#define NETPLAY_GAVE_UP (-2)
+void netplay_set_wait_hook(int (*hook)(void));
 int netplay_connect(const char *join, int hostPort, const char *relay, const char *room, int players, int deadline,
                     const uint8_t *rom, size_t romSize, int *level, int *outPlayers, char *err, size_t errSize);
 /* The same, one step at a time, for a window that keeps drawing while it waits: netplay_start, then netplay_poll
@@ -40,6 +43,7 @@ int netplay_connect(const char *join, int hostPort, const char *relay, const cha
 int netplay_start(const char *join, int hostPort, const char *relay, const char *room, int players, int deadline,
                   const uint8_t *rom, size_t romSize, char *err, size_t errSize);
 int netplay_poll(void);
+/* Stops connecting, or leaves the game. The other players are told at once (session.h, "bye"). */
 void netplay_cancel(void);
 /* While connecting: a line for the player, the room's code once the relay has given one ("" before), and how many
  * players are in (on the host). */
@@ -53,6 +57,8 @@ int netplay_players(void);
 /* 1 once the game has started: netplay_poll has returned 1, also inside netplay_connect. netplay_cancel sets it back
  * to 0. */
 int netplay_active(void);
+/* The reason after a failure without the program's name, for the picture and the menu. */
+const char *netplay_failure(void);
 /* The host's option: the game's normal ball controls (1) or the easy ones (0, the default). Call it before
  * netplay_start. Every machine plays with the host's choice: netplay_normal_ball gives it after the start. */
 void netplay_set_normal_ball(int on);
@@ -179,7 +185,8 @@ unsigned netplay_chat_age(int i);
 const char *netplay_build(void);
 /* A line for the window's title: the player number, the level, the frames ahead of the confirmed ones, desyncs. */
 const char *netplay_status(void);
-/* 1 when the session has failed; netplay_status says why. */
+/* 1 when the session has failed (the player was removed, or the host is gone); netplay_status says why. The
+ * picture then stays on the last frame, with the reason in it. */
 int netplay_failed(void);
 
 #ifdef __cplusplus

@@ -6,6 +6,10 @@ local shown = {}  -- the count each player last saw
 local winner = nil
 
 function on_frame()
+  -- Every game of the session runs the script, the hub's too. This one is for the island only.
+  if game.level() ~= 10 then
+    return
+  end
   local f = game.frame()
   for p = 0, 15 do
     if game.has_player(p) then

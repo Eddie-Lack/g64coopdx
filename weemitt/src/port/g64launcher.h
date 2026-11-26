@@ -9,7 +9,9 @@ extern "C" {
 #endif
 
 /* Shows the start screen until the player chooses. Returns 1 when an online game starts (level and players say how),
-   0 to play alone, -1 when the window is closed. relay is the relay's address. The menu must be set up (menu_init). */
+   0 to play alone, -1 when the window is closed. relay is the relay's address. *players on the way in is the number of
+   players that HOST GAME starts with (--players), or 0 for the one chosen last time. The menu must be set up
+   (menu_init): Escape on the first page opens it, with the player's settings. */
 int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long romSize, const char *relay, int *level,
                  int *players);
 /* Draws the player's own pause menu in the online game, when it's open (netplay_pause_open). Call it after the game's
@@ -36,6 +38,11 @@ int port_mouse_sensitivity(void);
 void port_set_mouse_sensitivity(int s);
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);
+/* Saves a name that was given on the command line (--name) as the player's name for the next time. */
+void g64_save_name(void);
+/* Reads the player's saved choices (options.txt in the program's folder): the input delay, and with host 1 also the
+   host's choices on HOST GAME. Options on the command line come after it and win. */
+void g64_load_options(int host);
 
 #ifdef __cplusplus
 }

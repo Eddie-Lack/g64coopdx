@@ -242,14 +242,14 @@ static int check(const char *dir, const char *romPath) {
             objects = check_objects(&p, rom, romSize);
             r |= objects;
         }
-        /* A host sends a pack to players who lack it only when it passes the check for packs from other players
+        /* A pack whose level file fails the check for its structure isn't played at all (below). A host sends a
+           pack to players who lack it only when it passes the check for packs from other players
            and the ROM's rules (g64_pack_may_send). Without a ROM the tool can't say the second: a host does not
            send a level file that is a copy of one of the ROM's levels, or models that fail the ROM's rules. With a
            ROM, a pack whose models fail those rules didn't load. A host whose pack fails the rule for the level's
            object ids, or the rule for the retail object banks' sprites, stops its session before the offer. */
         if (g64_pack_check_strict(&p, NULL) != NULL) {
-            printf("from the host: not sent, the level file's structure has a warning; every player needs the "
-                   "folder\n");
+            printf("from the host: not sent, the level file's structure has a warning\n");
         } else if (level >= 0) {
             printf("from the host: not sent, the level file is one of the ROM's; every player needs the folder\n");
         } else if (objects != 0) {
@@ -264,6 +264,10 @@ static int check(const char *dir, const char *romPath) {
         }
         if (level >= 0) {
             r = fail("the pack holds game data: its level file is one of the ROM's", NULL);
+        }
+        /* The online program doesn't start with such a pack (netplay_set_pack). */
+        if (g64_pack_check_strict(&p, NULL) != NULL) {
+            r = fail("the pack's level file doesn't pass the check", g64_pack_check_strict(&p, NULL));
         }
         g64_pack_free(&p);
     }
@@ -332,9 +336,16 @@ static int make(int argc, char **argv) {
             return fail("can't read the level file, or it is empty or larger than 1 MB", levPath);
         }
     } else {
+        /* The header's checksums of the retail Glover (USA). A ROM that Glovebox built has others: its checksums
+           are made again. The retail ROM's levels are game data, which a pack must not hold. */
+        static const unsigned char retailCrc[8] = {0x8e, 0x6e, 0x01, 0xff, 0xcc, 0xb4, 0xf9, 0x48};
         rom = read_file(romPath, ROM_MAX, &romSize);
         if (rom == NULL) {
             return fail("can't read the ROM", romPath);
+        }
+        if (romSize >= 0x18 && memcmp(rom + 0x10, retailCrc, sizeof retailCrc) == 0) {
+            free(rom);
+            return fail("the pack holds game data: its level file is one of the ROM's", romPath);
         }
         why = g64_pack_level_from_rom(rom, romSize, level, &at, &levSize);
         if (why == NULL) {
@@ -414,11 +425,23 @@ int main(int argc, char **argv) {
     if (argc >= 3 && strcmp(argv[1], "make") == 0) {
         return make(argc - 2, argv + 2);
     }
-    if (argc == 3 && strcmp(argv[1], "check") == 0) {
-        return check(argv[2], NULL);
-    }
-    if (argc == 5 && strcmp(argv[1], "check") == 0 && strcmp(argv[3], "--rom") == 0) {
-        return check(argv[2], argv[4]);
+    if (argc >= 3 && strcmp(argv[1], "check") == 0) {
+        /* The folder and --rom ROM, in either order. */
+        const char *dir = NULL, *romPath = NULL;
+        int bad = 0;
+        for (i = 2; i < argc; i++) {
+            if (strcmp(argv[i], "--rom") == 0 && i + 1 < argc && romPath == NULL)
+                romPath = argv[++i];
+            else if (strcmp(argv[i], "--rom") == 0)
+                return fail("this option needs a value", argv[i]);
+            else if (argv[i][0] != '-' && dir == NULL)
+                dir = argv[i];
+            else
+                bad = 1;
+        }
+        if (dir != NULL && !bad) {
+            return check(dir, romPath);
+        }
     }
     if (argc == 2 && strcmp(argv[1], "levels") == 0) {
         for (i = 0; i < G64_PACK_LEVELS; i++) {
@@ -426,7 +449,10 @@ int main(int argc, char **argv) {
         }
         return 0;
     }
-    fprintf(stderr, "g64pack makes and checks level packs for g64coopdx.\n\n"
+    /* Asked for, the usage is an answer: it goes to the standard output, and the tool ends with 0. */
+    int asked = argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0 ||
+                              strcmp(argv[1], "help") == 0);
+    fprintf(asked ? stdout : stderr, "g64pack makes and checks level packs for g64coopdx.\n\n"
                     "  g64pack make DIR --name NAME --level N (--lev FILE | --rom ROM) [--script FILE] [--models FILE]\n"
                     "      writes a pack into the folder DIR. The level comes from a .lev file that Glovebox saved,\n"
                     "      or from level N of a ROM that Glovebox built. The models come from a models.bin that\n"
@@ -436,5 +462,5 @@ int main(int argc, char **argv) {
                     "      it also checks that the pack holds none of the ROM's levels, models or pictures.\n"
                     "  g64pack levels\n"
                     "      lists the game's levels and their numbers.\n");
-    return 2;
+    return asked ? 0 : 2;
 }

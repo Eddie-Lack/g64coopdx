@@ -61,8 +61,8 @@ lengths come from the code alone. The check's fuzz target shows that it never re
 
 What it doesn't check: the other parts of "The most dangerous" below, and the rest of the table of value ranges.
 The numbered list below still holds for a file that passes. `g64pack` prints the check's result for a pack's maker.
-The online program refuses a pack from another player that fails it: a host doesn't offer such a pack, and a
-joiner refuses such a download. A pack from the player's own folder need not pass it.
+The online program refuses a pack that fails it: a joiner refuses such a download, and the program doesn't start
+with such a pack from a folder (`--pack`).
 
 ## The level's object ids
 

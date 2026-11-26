@@ -127,6 +127,14 @@ void port_log(const char *fmt, ...) {
     va_end(ap);
 }
 
+void port_log_game(const char *fmt, ...) {
+    va_list ap;
+
+    va_start(ap, fmt);
+    plog_game_vprintf(fmt, ap);
+    va_end(ap);
+}
+
 /* Set by a host that must not end the process (the library, src/lib/host.c). It does not return. */
 void (*port_fatal_hook)(void);
 

@@ -30,6 +30,7 @@
  *            text (up to G64_CHAT_MAX bytes). A joiner sends its lines to the host, which passes them on. A sender
  *            repeats a line a few times; a receiver drops a line whose number is that player's last one.
  *   kick     0x47 (host to a player it removed)
+ *   bye      0x4D (either way: this end leaves the session; its user is told at once, as after a timeout)
  * The level pack (src/client/pack.h). A joiner whose hello names another pack than the host's, or none, is
  * welcomed all the same when the host may send its pack, and isn't in the game until it has the pack:
  *   offer    0x49, the pack's id (16 bytes), the sizes of its manifest (u16), level file (u32), script (u32, 0
@@ -186,6 +187,9 @@ const net_addr *g64_session_peer_addr(const g64_session *g, int p);
  * (g64_session_gone). Their program is told, and told again if it goes on sending. */
 /* It gives 1 when it removed the player, 0 when there was no one to remove (an empty place, or one already removed). */
 int g64_session_kick(g64_session *g, int p);
+/* This end leaves the session: the host tells every player, a joiner tells the host (the bye message). Call it
+ * before g64_session_free. The other end then acts as on a timeout, at once. */
+void g64_session_bye(g64_session *g);
 /* On the host: starts the game now, with the players who are in. Others may still join, while there are places.
  * Without it the game starts when every place is taken. */
 void g64_session_begin(g64_session *g);
