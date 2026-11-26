@@ -25,12 +25,14 @@ camera. It's a test build: see "Limits" below.
 1. Put your ROM next to the program (`g64coopdx.exe` on Windows, `g64coopdx` on Linux) and name it `glover.z64`.
 2. Start the program: double-click `g64coopdx.exe` on Windows, or run `./g64coopdx` on Linux. The start screen opens.
    It's the game's own title menu, with the online choices on its bars (its rows): **HOST GAME**, **JOIN GAME**,
-   **OPTIONS** and **SOLO**.
+   **OPTIONS** and **SOLO**. **SETTINGS** opens the menu with your settings ([Controls](#controls)), and **QUIT**
+   closes the program.
 3. To host: open **HOST GAME**, set **PLAYERS** and press **START**. The screen shows a room code such as
    `F3J7WZ`; press **COPY CODE** and send it to the other players. The game starts when everyone is in, or when you
    press **START NOW**. Below the code, the screen shows how many players are in. A joiner's screen says what it
    waits for.
-4. To join: open **JOIN GAME**, type the code on the **CODE** bar (Ctrl+V pastes it) and press **JOIN**.
+4. To join: open **JOIN GAME**, type the code on the **CODE** bar (Ctrl+V pastes it) and press **JOIN**. A room code
+   has no I, O, 0 or 1: the **CODE** bar skips them.
 
 On the start screen:
 
@@ -40,7 +42,7 @@ On the start screen:
 | Left, Right | D-pad or stick | Changes the value on the bar (the bar shows - and +) |
 | Enter | A or Start | Presses the bar |
 | Esc | B | Goes back, or cancels while the program connects. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
-| Letters | | Type on a bar with a blinking mark: a name, a title or a room code |
+| Letters | Left, Right and A | Type on a bar with a blinking mark: a name, a title or a room code. With the controller, Left and Right change the last letter (Left past A takes it away), and A adds a letter |
 | Backspace | | Takes back a letter; on other bars it goes back. It doesn't cancel while the program connects |
 | F11 or Alt+Enter | | Switches between a window and full screen, as in the game |
 
@@ -54,7 +56,7 @@ place: they come into the game's first level, or the hub's newest stage if it st
 leaves frees their place for the next one. The host finds the room code again under Esc, **Online game**,
 **Players**.
 
-A host can set **LISTED** to **YES** and type a **TITLE**. Every player with the same version
+A host can set **LISTED** to **YES** and type a **TITLE** (the **TITLE** bar shows while **LISTED** is **YES**). Every player with the same version
 ([below](#everyone-needs-the-same-version)) then sees the game on **JOIN GAME**, below the code, with the number of
 players in it. Pressing it joins. No code is needed. The game
 stays on the list while it has a free place, also after it has started. Without the list, only players with the code
@@ -179,6 +181,16 @@ A level pack is a folder with a custom level that takes the place of one of the 
 bonus level or a scene too. The host starts the program with `--pack FOLDER`. The level shows when you enter the
 level it replaces. A pack may also hold a script ([scripts.md](scripts.md)).
 
+On the start screen, **HOST GAME** has a **PACK** bar: Left and Right step through the packs the program finds and
+none (`-`). It finds each folder with a `pack.txt` in `packs` next to the program, in `packs` in the folder you
+started it in, and the packs it kept from hosts. A pack that doesn't load says why and isn't chosen. The start
+screen keeps the choice for next time. HOST GAME has more bars than the screen shows at once: Up and Down move past
+the first or the last to show the others.
+
+To try a pack alone, choose it on **PACK** and press **SOLO** below **START**, or start the program with
+`--try-pack FOLDER`. The game starts at once in the pack's level, hosted on your own computer without the relay.
+Nobody else can join it.
+
 The game comes with one pack to try: the folder `packs/garib-island`, in the download and in the repository. It's a
 small level of its own in the place of Atlantis 1: a sand island with a row of 11 garibs, three boxes, two checkpoints
 and the exit. You land on a wooden raft that hovers over the sand and moves to and fro at the start of the row. A
@@ -240,6 +252,9 @@ On Linux, write `./g64pack` in place of `g64pack` in the commands below.
    the retail ROM, whose levels are game data.
 5. Host with `--pack MyLevel`. The other players download the pack when they join, or start with the same folder.
 
+`g64pack make` and `g64pack check` compile the pack's script as the game does, and end with Lua's message when it
+doesn't compile.
+
 `g64pack check MyLevel` reads a pack as the game does and prints its id. Two players have the same pack when their
 ids are the same. `g64pack check MyLevel --rom ROM` also checks it against your ROM, as the host does before it sends
 a pack. `g64pack check` also prints a line on the level file's structure. A warning there names a part of the file
@@ -268,13 +283,22 @@ pick-ups and water, and the extra level slots. Glovebox says when a level needs 
 Type your name under **OPTIONS**, **NAME** (or add `--name NAME`). It can have 16 letters, and the program keeps it for
 next time, also a name given with `--name`.
 
+Each other player's name shows over their glove. **NAME TAGS** under **OPTIONS** turns it off (**NO**) or on
+(**YES**). The tags only change your own picture.
+
 In a game, press Esc and open **Online game**:
 
-- **Players** lists everyone by player number and name. The host has a **Remove** button beside each other player.
+- **Players** lists everyone by player number and name, with the level each player is in, by the names that
+  `g64pack levels` prints. It shows the room code to every player, with **Copy**: anyone can invite a friend. The
+  host has a **Remove** button beside each other player.
   It asks once more before it removes them. A removed player's program says so, and the game goes on for the rest.
   The reason shows in the removed player's picture, which stops there, and in their log. Leave the online game
   (Esc, **Online game**) to close the program.
-- **Chat** has the lines everyone wrote and a line to type in. Press Enter or **Send**.
+- **Chat** has the lines everyone wrote and a line to type in, which has the keyboard when the window opens. Press
+  Enter or **Send**.
+
+The chat key, Y, opens a line to type in over the picture, without the menu. Enter sends it and closes it; Esc
+closes it. If you give Y to an input under **Controls**, the key is that input's.
 
 A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
 show there too.
@@ -308,6 +332,7 @@ A gamepad works as an N64 controller. On the mouse and keyboard:
 | T, G, F, H | D-pad up, down, left and right | |
 | Enter | Start | |
 | Esc | | The menu |
+| Y | | The chat's line, in an online game |
 | F11 or Alt+Enter | | Switches between a window and full screen |
 
 Under Esc, **Settings**, **Controls** you can change every key. A key belongs to one input at a time: when you give
