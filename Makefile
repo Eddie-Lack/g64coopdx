@@ -695,13 +695,18 @@ build/tests/fla2_fuzz: tests/fuzz/fla2_fuzz.c $(FLA2_SRC) $(FLA2_DEPS)
 	@mkdir -p build/tests
 	clang -std=gnu99 -O1 -g -fsanitize=fuzzer,address,undefined -o $@ tests/fuzz/fla2_fuzz.c $(FLA2_SRC)
 
-build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
+# g64pack compiles a pack's script with Lua's parser, built as the game builds it (tools/g64pack_lua.c).
+PACK_LUA_DEPS := tools/g64pack_lua.c $(LUA_TEST_DEPS) $(wildcard $(LUA_DIR)/*.c)
+build/g64pack: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h $(PACK_LUA_DEPS)
 	@mkdir -p build
-	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC) -lm
+	$(CC) $(LUA_TEST_FLAGS) -c tools/g64pack_lua.c -o build/g64pack_lua.o
+	$(CC) -std=gnu99 -O2 -Wall -Wextra -Werror -o $@ tools/g64pack.c $(PACK_SRC) build/g64pack_lua.o -lm
 
-build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h
+build/g64pack.exe: tools/g64pack.c $(PACK_SRC) $(PACK_DEPS) src/client/levcheck.c src/client/levcheck.h $(PACK_LUA_DEPS)
 	@mkdir -p build
-	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC) -lm
+	$(MINGW64) $(LUA_TEST_FLAGS) -c tools/g64pack_lua.c -o build/g64pack_lua-windows.o
+	$(MINGW64) -std=gnu99 -O2 -Wall -Wextra -Werror -static -o $@ tools/g64pack.c $(PACK_SRC) build/g64pack_lua-windows.o \
+	    -lm
 
 build/tests/pack_fuzz: tests/fuzz/pack_fuzz.c $(PACK_SRC) $(PACK_DEPS)
 	@mkdir -p build/tests

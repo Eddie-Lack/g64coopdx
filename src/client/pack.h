@@ -182,5 +182,8 @@ int g64_pack_cache_save(const char *base, const g64_pack *p, char *err, size_t e
 int g64_pack_cache_load(const char *base, const uint8_t id[G64_PACK_ID], const g64_pack_banks *banks, g64_pack *out,
                         char *err, size_t errSize);
 void g64_pack_free(g64_pack *p);
+/* The name of one of the game's levels (0 to G64_PACK_LEVELS - 1), as g64pack levels lists it; "" for another
+ * number. */
+const char *g64_level_name(int level);
 
 #endif
