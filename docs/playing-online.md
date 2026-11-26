@@ -41,10 +41,10 @@ On the start screen:
 | Up, Down | D-pad or stick | Chooses a bar |
 | Left, Right | D-pad or stick | Changes the value on the bar (the bar shows - and +) |
 | Enter | A or Start | Presses the bar |
-| Esc | B | Goes back, or cancels while the program connects. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
+| Esc | B | Goes back, or cancels while the program connects. A host on the **HOSTING** page is asked first: "Leave? The game ends for everyone." with **YES** and **NO**. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
 | Letters | Left, Right and A | Type on a bar with a blinking mark: a name, a title or a room code. With the controller, Left and Right change the last letter (Left past A takes it away), and A adds a letter |
 | Backspace | | Takes back a letter; on other bars it goes back. It doesn't cancel while the program connects |
-| F11 or Alt+Enter | | Switches between a window and full screen, as in the game |
+| F11 or Alt+Enter | | Switches between a window and full screen, as in the game. The program keeps the choice |
 
 The controller's buttons are the ones you set under Esc, **Settings**, **Controls** ([Controls](#controls)). The
 game's letters have capitals only, so names and titles show in capitals. They keep the letters you typed. A name or
@@ -59,7 +59,10 @@ leaves frees their place for the next one. The host finds the room code again un
 A host can set **LISTED** to **YES** and type a **TITLE** (the **TITLE** bar shows while **LISTED** is **YES**). Every player with the same version
 ([below](#everyone-needs-the-same-version)) then sees the game on **JOIN GAME**, below the code, with the number of
 players in it. Pressing it joins. No code is needed. The game
-stays on the list while it has a free place, also after it has started. Without the list, only players with the code
+stays on the list while it has a free place, also after it has started. A star after the number of players marks a
+game that has started. The list also shows each game's ping, in milliseconds: the time a message takes to the host
+and back, through the relay. The relay measures the host's part. A **TITLE** takes up to 32 letters; the list cuts a
+long one at a word, with `...`. Without the list, only players with the code
 can join. `--public TITLE` does the same from a command prompt.
 
 The start screen keeps the choices on **HOST GAME** for next time, in `options.txt` in g64coopdx's folder
@@ -117,12 +120,12 @@ Your glove's and ball's colors are under **OPTIONS**, **COLORS**: **AUTOMATIC** 
 Cross-Stitch, the evil glove, in his own colors. With CUSTOM, **GLOVE COLOR** and **BALL COLOR** each step through a
 list of colors. A color tints the glove's and the ball's own, so white keeps them as they are.
 
-**GLOVE** and **BALL** choose the models of your glove and your ball, each on its own:
+**GLOVE MODEL** and **BALL MODEL** choose the models of your glove and your ball, each on its own:
 
 | Bar | Models |
 | --- | --- |
-| GLOVE | GLOVER (the game's own), CROSS-STITCH, WEEVIL, FISH, BUTTERFLY |
-| BALL | BALL (the game's own), WEEVIL, FISH, BUTTERFLY |
+| GLOVE MODEL | GLOVER (the game's own), CROSS-STITCH, WEEVIL, FISH, BUTTERFLY |
+| BALL MODEL | BALL (the game's own), WEEVIL, FISH, BUTTERFLY |
 
 They come from the game's GENERIC bank, which every level has. Nothing more is loaded. A model only changes the
 picture: the game itself still has Glover and his ball. The glove's model takes your moves as well as it can: it
@@ -137,7 +140,7 @@ The host is player 1. With **Automatic** colors, player 1's glove keeps the game
 player 3's green and player 4's yellow. Player 5's is red, player 6's purple, player 7's orange and player 8's cyan.
 Players 9 and 10 are blue, and players 11 to 16 have the colors of players 3 to 8.
 
-Everyone plays with the easy ball controls. The host can set **BALL** to **NORMAL** on **HOST GAME** (or add
+Everyone plays with the easy ball controls. The host can set **BALL CONTROLS** to **NORMAL** on **HOST GAME** (or add
 `--normal-ball`) for the game's own controls; every player then has them.
 
 The session is in one world at a time. When a player goes through a portal to a world, the hub's portals to the
@@ -152,6 +155,9 @@ lost kills the player it first belonged to, whoever has it.
 For players far apart, the host can add `--deadline 8` (or more). It gives inputs more time to reach the host: each
 step is 50 ms, and the default is 5 (250 ms). A higher value means fewer jumps of the other gloves, but the confirmed
 game ([How it works](#how-it-works)) lags further behind.
+
+An address holds at most 4 rooms at the relay at once. A fifth host from the same address gets "your address has 4
+open games, the relay's limit". A room that the host cancels or leaves closes at once.
 
 If the program says "no answer from the relay", open https://g64coopdx-lobby.fly.dev/v1/info in a browser. A line
 such as `"relay":{"port":27065,"rooms":1,"players":2}` shows that the relay runs and how many rooms and players it
@@ -301,7 +307,10 @@ The chat key, Y, opens a line to type in over the picture, without the menu. Ent
 closes it. If you give Y to an input under **Controls**, the key is that input's.
 
 A new chat line also shows at the bottom left of the picture for a few seconds. Notices, such as a player who left,
-show there too.
+show there too. When another player goes to another level, a notice says where, such as "ALICE went to Atlantis 1",
+by the names that `g64pack levels` prints.
+
+A player who typed no name is "Player" and their number, such as "Player 2", in the list, the chat and the name tags.
 
 A removed player can't come back: their address is refused for that game. Another player at the same address,
 such as someone in the same household, is refused too.
@@ -333,7 +342,7 @@ A gamepad works as an N64 controller. On the mouse and keyboard:
 | Enter | Start | |
 | Esc | | The menu |
 | Y | | The chat's line, in an online game |
-| F11 or Alt+Enter | | Switches between a window and full screen |
+| F11 or Alt+Enter | | Switches between a window and full screen, as **Full screen** in Esc, **Settings**, **Graphics** does. The program keeps the choice |
 
 Under Esc, **Settings**, **Controls** you can change every key. A key belongs to one input at a time: when you give
 it to another input, the first one loses it, and shows `(none)` if it had no other key.
@@ -388,7 +397,7 @@ letters and panes.
 | Resume | Closes the menu |
 | Back to checkpoint | Puts your glove and ball at your last checkpoint, or at the level's start |
 | Back to the hub | Takes you out of the level, the same way the hub exit does |
-| Leave the online game | Closes the program; the others play on |
+| Leave the online game | Asks "Leave?" with Yes and No, and then closes the program; the others play on. For the host the question also says "The game ends for everyone." |
 
 Up and down choose, A picks, and B or Start closes it. The choices act for you alone. The Esc menu has the same
 choices under **Online game**.
@@ -406,7 +415,7 @@ predicts the frames it has no confirmed input for yet, and goes back and runs th
 differs ([discovery/netcode.md](discovery/netcode.md)). Only inputs cross the network; no game data does. Each machine
 checks the hash of its game against the host's every 10 frames. A hash that differs from the host's is a desync.
 
-The window's title shows your player number, how many frames your game runs ahead of the confirmed ones, and any
+The window's title starts with g64coopdx, as the program's error boxes do. In a game it shows your player number, how many frames your game runs ahead of the confirmed ones, and any
 desyncs. The program also prints a status line every 100 frames.
 
 The messages between you and the host are encrypted: chat, names and inputs can't be read on the way, also not by
@@ -454,14 +463,16 @@ game data, only addresses and counts.
   again. A way room door opens at once. The pedestals in a way room move only at its next start.
 - When someone puts a crystal in the hub's fountain, you stay in your hub stage. Your next exit to the hub takes you
   to the newest stage.
-- As in the game, the first visit to the crystal cave counts as a crystal: the way back from the cave leads to the
-  hub's second stage. Friends who start together in the first stage are then in two stages, and don't see each
-  other. The one in the first stage meets the other after their own next exit to the hub, for example through the
-  cave.
+- The way back from the crystal cave leads to the hub stage you came from, where the friends you left still are. As
+  in the game, the first visit to the cave counts as a crystal, so the hub moves on to its next stage. Your next exit
+  to the hub from a world or a level takes you to the newest stage.
 - In the crystal cave, each player who comes with a crystal due has their own flight to the fountain: only their
   glove waits. A player who came with nothing due has no flight, even if a crystal becomes due while they're there.
   If another player puts the last crystal due in first, there's no flight left for you.
-- A player who comes into a running level starts where the level put the first player.
+- A player who comes into a running level starts a glove's width from where the level put the first player, when
+  there's floor there at the same height. Otherwise they start at the same spot.
+- Online, the counter where the game shows your lives shows your deaths in this level instead: a death takes no
+  life.
 - A joiner who leaves vanishes; the game goes on for the others, and someone else can take the place. If the host
   leaves, the game ends: each player's picture stops, with the reason in it, until they leave the online game.
 - A player who joins a running game waits while their program runs the level's inputs so far. That takes longer
