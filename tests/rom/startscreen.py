@@ -28,6 +28,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import json
+import urllib.request
 
 LOBBY_PORT = 18397
 RELAY_PORT = 27397
@@ -101,7 +103,7 @@ def junk_code(code):
     return "".join(c + "I0O1"[i % 4] for i, c in enumerate(code))
 
 
-def meet(args, work, display, host_env, join_env, round_name, by_keys=False):
+def meet(args, work, display, host_env, join_env, round_name, by_keys=False, join_name="BUDDY"):
     host = Program(args, work, round_name + "-host", display, dict({"G64_LAUNCHER_AUTO": "host"}, **host_env),
                    ["--name", "HOSTY"] + (["--players", "3"] if "G64_LAUNCHER_START" in host_env else []))
     m = host.wait_for(r"Room code: ([A-Z0-9]{6})", 60)
@@ -118,14 +120,18 @@ def meet(args, work, display, host_env, join_env, round_name, by_keys=False):
                                                                          **join_env), [])
     else:
         joiner = Program(args, work, round_name + "-join", display,
-                         dict({"G64_LAUNCHER_AUTO": "join:" + m.group(1)}, **join_env), ["--name", "BUDDY"])
+                         dict({"G64_LAUNCHER_AUTO": "join:" + m.group(1)}, **join_env),
+                         ["--name", join_name] if join_name else [])
     return host, joiner
 
 
 def round_one(args, work, display):
     ok = True
-    host, joiner = meet(args, work, display, {"G64_LAUNCHER_START": "2", "G64_TEST_KICK": "1200"},
-                        {"G64_TEST_CHAT_FOCUS": "30"}, "one")
+    # The joiner has no name: it's "Player 2". At frame 300 of the hub it takes the Atlantis door (G64_TEST_EXITS, the
+    # same on both machines): the host's chat notes where it went.
+    exits = {"G64_TEST_EXITS": "0:300:1:6"}
+    host, joiner = meet(args, work, display, dict({"G64_LAUNCHER_START": "2", "G64_TEST_KICK": "1200"}, **exits),
+                        dict({"G64_TEST_CHAT_FOCUS": "30"}, **exits), "one", join_name=None)
     if not host:
         return check(False, "the host gets a room code")
     try:
@@ -147,7 +153,7 @@ def round_one(args, work, display):
             subprocess.run(["xdotool", "type", "--delay", "60", "typed after the start screen"], env=env)
             subprocess.run(["xdotool", "key", "Return"], env=env)
 
-            ok &= check(host.wait_for(r"chat: BUDDY: typed after the start screen", 20, "log") is not None,
+            ok &= check(host.wait_for(r"chat: Player 2: typed after the start screen", 20, "log") is not None,
                         "a chat line typed in a game started from the start screen reaches the host")
             # The chat key: Escape closes the menu, Y opens the chat's line, Enter sends it.
             subprocess.run(["xdotool", "key", "Escape"], env=env)
@@ -156,8 +162,10 @@ def round_one(args, work, display):
             time.sleep(1.5)
             subprocess.run(["xdotool", "type", "--delay", "60", "said with the chat key"], env=env)
             subprocess.run(["xdotool", "key", "Return"], env=env)
-            ok &= check(host.wait_for(r"chat: BUDDY: said with the chat key", 20, "log") is not None,
+            ok &= check(host.wait_for(r"chat: Player 2: said with the chat key", 20, "log") is not None,
                         "the chat key opens a line that sends, without the key's own letter")
+        ok &= check(host.wait_for(r"chat: \* Player 2 went to Wayroom", 60, "log") is not None,
+                    "a player with no name is Player 2, and the chat notes their move to another level")
         ok &= check(joiner.wait_for(r"g64coopdx: the host removed you from the game", 120, "log") is not None,
                     "a removed joiner's log says why")
         time.sleep(2)
@@ -209,6 +217,9 @@ def round_three(args, work, display):
     finally:
         one.stop()
         two.stop()
+    ok &= pause_leave(args, work, display)
+    ok &= hosting_leave(args, work, display)
+    ok &= full_screen(args, work, display)
     quit_keys = ["down"] * 5 + ["a"]
     three = Program(args, work, "three-quit", display, {"G64_LAUNCHER_KEYS": ",".join(quit_keys)}, [])
     try:
@@ -217,6 +228,91 @@ def round_three(args, work, display):
         code = None
     three.stop()
     ok &= check(code == 0, "QUIT on the first page ends the program")
+    return ok
+
+
+def hold(env, key, seconds=0.2):
+    """A key held long enough for the game's frames to see it (20 a second in a level)."""
+    subprocess.run(["xdotool", "keydown", key], env=env)
+    time.sleep(seconds)
+    subprocess.run(["xdotool", "keyup", key], env=env)
+    time.sleep(0.4)
+
+
+def pause_leave(args, work, display):
+    """The pause menu's Leave asks once more: No keeps the game, Yes closes the program."""
+    ok = True
+    one = Program(args, work, "three-leave", display, {}, ["--try-pack", "packs/garib-island"])
+    env = dict(os.environ, DISPLAY=display)
+    try:
+        if not check(one.wait_for(r"player 1 of 2, level 10,", 90, "log") is not None, "the pack's level starts"):
+            return False
+        time.sleep(3)
+        subprocess.run(["xdotool", "windowfocus", "--sync", window_of(one.proc.pid, display)], env=env)
+        time.sleep(0.5)
+        # Start opens the menu; Down three times reaches Leave; A asks; A again answers No (chosen at first).
+        for key in ["Return", "Down", "Down", "Down", "c", "c"]:
+            hold(env, key)
+        time.sleep(2)
+        ok &= check(one.proc.poll() is None, "Leave asks first, and No keeps the game")
+        # No leaves the menu open at Leave: A asks again, Up chooses Yes, A answers.
+        for key in ["c", "Up", "c"]:
+            hold(env, key)
+        try:
+            code = one.proc.wait(30)
+        except subprocess.TimeoutExpired:
+            code = None
+        ok &= check(code == 0, "Leave, then Yes, closes the program")
+    finally:
+        one.stop()
+    return ok
+
+
+def rooms():
+    with urllib.request.urlopen("http://127.0.0.1:%d/v1/info" % LOBBY_PORT, timeout=5) as r:
+        return json.loads(r.read().decode())["relay"]["rooms"]
+
+
+def hosting_leave(args, work, display):
+    """Esc on the HOSTING page asks once more: NO keeps the room, YES closes it at the relay."""
+    ok = True
+    # Each key waits 15 of the start screen's frames: "w" is a key that does nothing. NO comes soon after the
+    # question, YES much later.
+    wait = ["w"] * 20
+    keys = wait + ["b"] + wait + ["a"] + wait * 6 + ["b", "up", "a"] + wait
+    host = Program(args, work, "three-hosting", display, {"G64_LAUNCHER_AUTO": "host",
+                                                          "G64_LAUNCHER_KEYS": ",".join(keys)}, [])
+    try:
+        ok &= check(host.wait_for(r"Room code: ", 60) is not None, "the host gets a room")
+        ok &= check(host.wait_for(r"start screen note: Leave\? The game ends for everyone\.", 60) is not None,
+                    "Esc on HOSTING asks: Leave? The game ends for everyone.")
+        time.sleep(25)
+        kept = rooms()
+        end = time.time() + 120
+        while time.time() < end and rooms() != 0:
+            time.sleep(0.5)
+        ok &= check(kept == 1 and rooms() == 0, "NO keeps the room, and YES closes it at the relay")
+    finally:
+        host.stop()
+    return ok
+
+
+def full_screen(args, work, display):
+    """F11 switches full screen, also on the start screen, and the settings keep the choice."""
+    one = Program(args, work, "three-full", display, {}, ["--launcher"])
+    env = dict(os.environ, DISPLAY=display)
+    ok = True
+    try:
+        time.sleep(8)
+        subprocess.run(["xdotool", "windowfocus", "--sync", window_of(one.proc.pid, display)], env=env)
+        time.sleep(0.5)
+        subprocess.run(["xdotool", "key", "F11"], env=env)
+        time.sleep(2)
+        path = os.path.join(one.home, "g64coopdx", "Glover", "settings.ini")
+        text = open(path).read() if os.path.exists(path) else ""
+        ok &= check("fullscreen=1" in text, "F11 is kept in the settings")
+    finally:
+        one.stop()
     return ok
 
 

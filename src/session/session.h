@@ -57,7 +57,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 13
+#define G64_PROTOCOL 14
 /* The game's levels (0 to 47), for the list of players. */
 #define G64_SESSION_LEVELS 48
 #define G64_DEFAULT_PORT 27064

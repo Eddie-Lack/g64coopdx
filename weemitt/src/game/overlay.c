@@ -2,6 +2,7 @@ PORT_C_BEGIN
 #include "common.h"
 #include "ident.h"
 #include "overlay.h"
+#include "g64players.h"
 #include "texture.h"
 #include "jalloc.h"
 #include "actor.h"
@@ -999,7 +1000,8 @@ void PrintStats(void) {
     for (x = 0; x < 4; x++) {
         stats[LIVES_STATS].text->str[x] = 0;
     }
-    sprintf(stats[LIVES_STATS].text->str, "%2d", MAX(player.lives, 0));
+    /* g64coopdx: online the counter shows the player's deaths (G64HudLives). */
+    sprintf(stats[LIVES_STATS].text->str, "%2d", MAX(G64HudLives(), 0));
     stats[LIVES_STATS].text->str[strlen(stats[LIVES_STATS].text->str)] = '*';
     stats[LIVES_STATS].text->str[strlen(stats[LIVES_STATS].text->str) + 1] = 0;
     if (gameInfo.level == ATLANTISBOSS || gameInfo.level == CARNIVALBOSS || gameInfo.level == PIRATESBOSS || gameInfo.level == SPACEBOSS3

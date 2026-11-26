@@ -3826,7 +3826,10 @@ void LoseLife(void) {
         }
         return;
     }
-    /* g64coopdx: in co-op a death takes no life (the owner's rules, g64players.c). */
+    /* g64coopdx: in co-op a death takes no life (the owner's rules, g64players.c): it's counted instead. */
+    if (G64PerPlayerRestart()) {
+        G64NoteDeath();
+    }
     if (!(cheatActivated & 8) && !G64PerPlayerRestart()) {
         AddScreenDebris(numLivesOL.x, numLivesOL.y, -4.0f, 12.0f, SDT_LIFE, 1);
         player.lives--;

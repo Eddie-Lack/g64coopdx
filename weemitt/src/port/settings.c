@@ -370,6 +370,8 @@ void settings_load(Settings *st, const char *path) {
             st->physicsMode = atoi(val) == PHYSICS_SMOOTH ? PHYSICS_SMOOTH : PHYSICS_ORIGINAL;
         } else if (!strcmp(key, "vsync")) {
             st->vsync = atoi(val) != 0;
+        } else if (!strcmp(key, "fullscreen")) {
+            st->fullscreen = atoi(val) != 0;
         } else if (!strcmp(key, "max_fps")) {
             int v = atoi(val);
 
@@ -508,8 +510,8 @@ int settings_save(const Settings *st, const char *path) {
     if (path == NULL || path[0] == 0 || (f = fopen(path, "w")) == NULL) {
         return -1;
     }
-    fprintf(f, "# weemitt settings. The menu (Escape) writes this file.\n# Keys are SDL scancode numbers (4 is A, 44 is Space); 0 means no key.\n[graphics]\nphysics_mode=%d\nvsync=%d\nmax_fps=%d\n[enhancements]\neasy_ball=%d\nballworld=%d\ncamera_follow=%.2f\n[audio]\nmaster_volume=%d\n[developer]\nlog_file=%d\nlog_verbose=%d\nrecord_input=%d\n[controller]\nstick_dead=%d\nstick_range=%d\nmouse_sensitivity=%d\n[keys]\n",
-            st->physicsMode, st->vsync, st->maxFps, st->easyBall, st->ballworld, (double)st->cameraFollow, st->volume, st->logFile, st->logVerbose, st->recordInput, st->stickDead, st->stickRange, st->mouseSensitivity);
+    fprintf(f, "# weemitt settings. The menu (Escape) writes this file.\n# Keys are SDL scancode numbers (4 is A, 44 is Space); 0 means no key.\n[graphics]\nphysics_mode=%d\nvsync=%d\nfullscreen=%d\nmax_fps=%d\n[enhancements]\neasy_ball=%d\nballworld=%d\ncamera_follow=%.2f\n[audio]\nmaster_volume=%d\n[developer]\nlog_file=%d\nlog_verbose=%d\nrecord_input=%d\n[controller]\nstick_dead=%d\nstick_range=%d\nmouse_sensitivity=%d\n[keys]\n",
+            st->physicsMode, st->vsync, st->fullscreen, st->maxFps, st->easyBall, st->ballworld, (double)st->cameraFollow, st->volume, st->logFile, st->logVerbose, st->recordInput, st->stickDead, st->stickRange, st->mouseSensitivity);
     fprintf(f, "[play]\nmusic_volume=%d\neffects_volume=%d\nmute_unfocused=%d\nskip_intro=%d\ninfinite_lives=%d\ninfinite_health=%d\nunlock_all=%d\nlevel_select=%d\npause_cheats=%d\n",
             st->musicVolume, st->effectsVolume, st->muteUnfocused, st->skipIntro, st->infiniteLives, st->infiniteHealth,
             st->unlockAll, st->levelSelect, st->pauseCheats);

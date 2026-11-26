@@ -364,9 +364,9 @@ static LONG WINAPI crash_filter(EXCEPTION_POINTERS *ep) {
     if (file != NULL) {
         fflush(file);
     }
-    snprintf(msg, sizeof(msg), "Glover has crashed (exception %08lX).\n\nThe details are in the log file:\n%s",
-             er->ExceptionCode, path);
-    MessageBoxA(NULL, msg, "Glover", MB_OK | MB_ICONERROR);
+    snprintf(msg, sizeof(msg), "%s has crashed (exception %08lX).\n\nThe details are in the log file:\n%s",
+             PORT_PRODUCT, er->ExceptionCode, path);
+    MessageBoxA(NULL, msg, PORT_PRODUCT, MB_OK | MB_ICONERROR);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 

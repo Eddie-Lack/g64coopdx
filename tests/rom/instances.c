@@ -13,11 +13,11 @@
  *   - meanwhile the way room, where player 2 still is, gets the progress as an event: its first door opens at once;
  *   - player 2 chooses "Back to the hub" in their pause menu: the choice goes in their input. They join HUB1, after
  *     its log, which holds the progress event;
- *   - player 1 chooses "Back to the hub" in the cave: they go to HUB2, a new instance. The hub players get the new
- *     stage as an event;
+ *   - player 1 chooses "Back to the hub" in the cave: the way out of the cave leads back to the hub stage they came
+ *     from, so they join HUB1 again. The hub players get the new stage as an event;
  *   - player 3 chooses "Back to the hub" in HUB1 on the same frame. Their game still says HUB1, but the host sends
- *     them to the newest stage: they join player 1 in HUB2.
- * The test: players 1 and 3 end up in HUB2 and the others in HUB1, every player's game has the new progress, the way
+ *     them to the newest stage: HUB2, a new instance.
+ * The test: player 3 ends up in HUB2 and the others in HUB1, every player's game has the new progress, the way
  * room's door opened, every message fits in a datagram, every instance's hash checks pass, and no player is told of a
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
@@ -1397,10 +1397,10 @@ int main(int argc, char **argv) {
             printf("; %u hash checks, %u mismatches\n", g64_ihost_hash_matches(host), g64_ihost_hash_mismatches(host));
         }
     }
-    check(g64_iclient_level(player[0]) == HUB1 && g64_iclient_level(player[1]) == HUB2 &&
+    check(g64_iclient_level(player[0]) == HUB1 && g64_iclient_level(player[1]) == HUB1 &&
               g64_iclient_level(player[2]) == HUB1 && g64_iclient_level(player[3]) == HUB2,
-          "players 1 and 3 are in HUB2, the others in HUB1");
-    check(g64_ihost_level_of(host, 1) == HUB2 && g64_ihost_level_of(host, 3) == HUB2 && g64_ihost_instances(host) == 2,
+          "player 1 is back in the hub stage they went into the cave from, player 3 in HUB2, the others in HUB1");
+    check(g64_ihost_level_of(host, 1) == HUB1 && g64_ihost_level_of(host, 3) == HUB2 && g64_ihost_instances(host) == 2,
           "the host agrees: two instances");
     {
         char what[160];
@@ -1410,8 +1410,8 @@ int main(int argc, char **argv) {
         check(oversize == 0, what);
     }
     for (p = 0; p < PLAYERS; p++) {
-        /* The progress in the player's own game: player 0 got it as events while they played in HUB1, player 2 from
-           HUB1's log and as an event, and players 1 and 3 in HUB2's start. */
+        /* The progress in the player's own game: player 0 got it as events while they played in HUB1, players 1 and
+           2 from HUB1's log and as an event, and player 3 in HUB2's start. */
         char what[160];
         G64Save s;
         rb_engine_game *g = g64_iclient_game(player[p]);

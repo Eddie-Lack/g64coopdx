@@ -149,6 +149,9 @@ static void load_name(void) {
             if (fgets(nameText, sizeof nameText, f))
                 nameText[strcspn(nameText, "\r\n")] = 0;
             fclose(f);
+            /* "Player" was the name of everyone who typed none: now such a player is "Player N". */
+            if (!strcmp(nameText, "Player"))
+                nameText[0] = 0;
         }
         if (nameText[0])
             netplay_set_name(nameText);
@@ -353,7 +356,7 @@ enum {
     R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_PACK, R_HOST, R_TRY,
     R_CODE, R_JOIN, R_ROOM,
     R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY, R_TAGS,
-    R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO,
+    R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO, R_LEAVE_YES, R_LEAVE_NO,
 };
 
 typedef struct {
@@ -446,6 +449,7 @@ typedef struct {
     int selectWhat; /* when not -1: the row that is chosen when the page is next built (a row's what) */
     int roomsSeen;  /* the number of open games when the join page was last built */
     int trying;     /* the wait is for a pack's test alone (R_TRY) */
+    int leaveAsk;   /* the host asked to leave the HOSTING page: it asks once more */
     char code[NETPLAY_ROOM_CODE + 1];
     char title[33];
     char error[320];
@@ -486,7 +490,7 @@ static void build_page(launcher *L) {
             add_row(__VA_ARGS__);  \
     } while (0)
             ROW(R_PLAYERS, "PLAYERS", n, G64_TITLE_ARROWS);
-            ROW(R_BALL_CONTROLS, "BALL", netplay_host_normal_ball() ? "NORMAL" : "EASY", G64_TITLE_ARROWS);
+            ROW(R_BALL_CONTROLS, "BALL CONTROLS", netplay_host_normal_ball() ? "NORMAL" : "EASY", G64_TITLE_ARROWS);
             ROW(R_ANY_BALL, "BALLS", netplay_host_any_ball() ? "SHARED" : "OWN", G64_TITLE_ARROWS);
             ROW(R_ANY_WORLD, "WORLDS", netplay_host_any_world() ? "ANY" : "TOGETHER", G64_TITLE_ARROWS);
             ROW(R_LISTED, "LISTED", netplay_public() ? "YES" : "NO", G64_TITLE_ARROWS);
@@ -513,10 +517,16 @@ static void build_page(launcher *L) {
             add_row(R_CODE, "CODE", L->code, G64_TITLE_TEXT);
             add_row(R_JOIN, "JOIN", "", strlen(L->code) == NETPLAY_ROOM_CODE ? 0 : G64_TITLE_OFF);
             for (i = L->roomTop; i < n && rowCount < G64_TITLE_ROWS; i++) {
+                /* The players in it and wanted, a star when its game has started, and its ping. A long title is
+                   cut at a word. */
                 const net_room *r = netplay_room(i);
-                char who[16];
-                snprintf(who, sizeof who, "%d/%d", r->joined, r->wanted);
-                add_row(R_ROOM, who, r->title, 0, i);
+                char who[24];
+                int n = snprintf(who, sizeof who, "%d/%d%s", r->joined, r->wanted,
+                                 (r->flags & NET_ROOM_STARTED) ? "*" : "");
+                if (netplay_room_ping(i) > 0 && n > 0 && (size_t)n < sizeof who)
+                    snprintf(who + n, sizeof who - (size_t)n, " %dMS", netplay_room_ping(i) > 999 ? 999
+                                                                                            : netplay_room_ping(i));
+                add_row(R_ROOM, who, r->title, G64_TITLE_CUT, i);
             }
             break;
         }
@@ -538,9 +548,9 @@ static void build_page(launcher *L) {
             add_row(__VA_ARGS__);  \
     } while (0)
             OPTION(R_NAME, "NAME", nameText, G64_TITLE_TEXT);
-            OPTION(R_GLOVE_MODEL, "GLOVE", G64ModelLabel(G64_MODEL_GLOVE, model_of(G64_MODEL_GLOVE)),
+            OPTION(R_GLOVE_MODEL, "GLOVE MODEL", G64ModelLabel(G64_MODEL_GLOVE, model_of(G64_MODEL_GLOVE)),
                    fixed ? G64_TITLE_OFF : G64_TITLE_ARROWS);
-            OPTION(R_BALL_MODEL, "BALL", G64ModelLabel(G64_MODEL_BALL, model_of(G64_MODEL_BALL)), G64_TITLE_ARROWS);
+            OPTION(R_BALL_MODEL, "BALL MODEL", G64ModelLabel(G64_MODEL_BALL, model_of(G64_MODEL_BALL)), G64_TITLE_ARROWS);
             OPTION(R_COLORS, "COLORS", own ? "CUSTOM" : palettes[choice].name, G64_TITLE_ARROWS);
             if (own) {
                 OPTION(R_GLOVE, "GLOVE COLOR", g >= 0 ? shades[g].name : "SAVED", G64_TITLE_ARROWS);
@@ -554,7 +564,11 @@ static void build_page(launcher *L) {
         }
         case PAGE_WAIT:
             G64TitlePage(L->hosting ? "HOSTING" : "JOINING");
-            if (netplay_pack_asking()) {
+            if (L->leaveAsk) {
+                /* Before the room goes: the same question as the pause menu's Leave. */
+                add_row(R_LEAVE_YES, "YES", "", 0);
+                add_row(R_LEAVE_NO, "NO", "", 0);
+            } else if (netplay_pack_asking()) {
                 add_row(R_PACK_YES, netplay_pack_kept() ? "PLAY WITH THE PACK" : "DOWNLOAD AND PLAY", "", 0);
                 add_row(R_PACK_NO, "LEAVE", "", 0);
             } else {
@@ -592,8 +606,10 @@ static void build_page(launcher *L) {
     if (L->page == PAGE_WAIT) {
         if (L->hosting && room[0])
             G64TitleBig(room);
+        if (L->leaveAsk)
+            note(netplay_leave_question(), YELLOW);
         /* How the wait goes: the relay, the players who are in, the download of a pack. */
-        if (!netplay_pack_asking() && netplay_wait_status()[0])
+        else if (!netplay_pack_asking() && netplay_wait_status()[0])
             note(netplay_wait_status(), 0xFFFFFF);
         if (netplay_pack_asking()) {
             char line[200], models[48] = "";
@@ -700,8 +716,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 (e.key.keysym.sym == SDLK_F11 ||
                  ((e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) &&
                   (e.key.keysym.mod & KMOD_ALT)))) {
-                Uint32 full = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP;
-                SDL_SetWindowFullscreen(window, full ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+                port_set_fullscreen(!port_fullscreen());
                 continue;
             }
             /* Escape on the first page opens the menu with the player's settings (the picture, the sound, the
@@ -800,6 +815,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             if (r < 0) {
                 snprintf(L.error, sizeof L.error, "%s", netplay_error());
                 L.roomsSeen = -1;
+                L.leaveAsk = 0;
                 netplay_cancel();
                 L.connecting = 0;
                 L.page = L.back;
@@ -1135,11 +1151,25 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 case R_PACK_NO:
                     netplay_pack_answer(what == R_PACK_YES);
                     break;
+                case R_LEAVE_YES:
+                    L.leaveAsk = 0;
+                    pressB = 2; /* the answer: leave */
+                    break;
+                case R_LEAVE_NO:
+                    L.leaveAsk = 0;
+                    L.selected = 0;
+                    break;
                 default:
                     break;
             }
         }
         /* B goes back to the first page. On a waiting page it cancels. */
+        /* A host leaving the HOSTING page is asked once more: the room goes for everyone in it. B again keeps it. */
+        if (pressB == 1 && L.connecting && L.hosting && !L.trying) {
+            L.leaveAsk = !L.leaveAsk;
+            L.selected = 1;
+            pressB = 0;
+        }
         if (pressB) {
             if (L.connecting) {
                 netplay_cancel();

@@ -10,7 +10,8 @@ package main
 //	room      0x81, code (6 ASCII bytes)   relay -> host: the room's code
 //	join      0x02, code                   joiner -> relay: join a room, or stay in it
 //	joined    0x82, peer (u8)              relay -> joiner: the joiner's number in the room (1 to 15)
-//	refused   0x83, reason (u8)            relay -> joiner: no such room (1), or the room is full (2)
+//	refused   0x83, reason (u8)            relay -> joiner: no such room (1), or the room is full (2); relay -> host:
+//	                                       its address holds relayRoomsPerIP rooms already (4)
 //	to host   0x03, payload                joiner -> relay
 //	from peer 0x84, peer (u8), payload     relay -> host
 //	to peer   0x04, peer (u8), payload     host -> relay
@@ -22,11 +23,15 @@ package main
 //	list      0x06, build (u32), padding   anyone -> relay: which listed rooms does this build have? The datagram
 //	                                       must be relayListMin bytes long: the answer is never longer than the
 //	                                       question. The relay then cannot be used to flood a forged address.
-//	rooms     0x86, count (u8), then for each room: code (6), wanted (u8), joined (u8), flags (u8), title length
-//	                                       (u8), title        relay -> the asker: up to relayListMax rooms
+//	rooms     0x86, count (u8), then for each room: code (6), wanted (u8), joined (u8), flags (u8), ping (u16:
+//	                                       the host's round trip in ms, 0 before the first), title length (u8),
+//	                                       title        relay -> the asker: up to relayListMax rooms
 //	ban       0x07, peer (u8)              host -> relay: put the peer out of the room and refuse their address
 //	                                       when it joins this room again
 //	close     0x08                         host -> relay: close the room now; its peers are out of it
+//	ping      0x87, token (u32)            relay -> host, at most every relayPingEvery while the host announces
+//	pong      0x09, token (u32)            host -> relay: the ping's answer. The relay keeps the round trip for the
+//	                                       list of rooms.
 //
 // A refused join has the reason 3 when the room's host has banned the joiner's address. The relay is the only
 // place that sees a joiner's address, so it's the only place that can keep a ban.
@@ -59,12 +64,14 @@ const (
 	// of a list request, and relayBansMax the addresses one room may ban.
 	relayTitleMax = 32
 	relayListMax  = 12
-	relayListMin  = relayHeader + 1 + relayListMax*(relayCodeLen+4+relayTitleMax)
+	relayListMin  = relayHeader + 1 + relayListMax*(relayCodeLen+6+relayTitleMax)
 	relayBansMax  = 32
 	// relayListedFor is how long a room stays on the list after its host last announced it.
 	relayListedFor = 10 * time.Second
 	// A banned peer's place in the room stays taken this long.
 	relayBanHold = 10 * time.Second
+	// relayPingEvery is the shortest time between two pings to a room's host.
+	relayPingEvery = 2 * time.Second
 )
 
 const (
@@ -76,6 +83,8 @@ const (
 	msgList     = 0x06
 	msgBan      = 0x07
 	msgClose    = 0x08
+	msgPong     = 0x09
+	msgPing     = 0x87
 	msgRooms    = 0x86
 	msgRoom     = 0x81
 	msgJoined   = 0x82
@@ -88,6 +97,7 @@ const (
 	refuseNoRoom = 1
 	refuseFull   = 2
 	refuseBanned = 3
+	refuseLimit  = 4
 )
 
 type relayPeer struct {
@@ -123,6 +133,10 @@ type relayRoom struct {
 	title                 string
 	// The addresses the host has banned from the room.
 	banned []netip.Addr
+	// The host's round trip: the last ping's time and token, and the last round trip in ms (0 before the first).
+	pingSent  time.Time
+	pingToken uint32
+	ping      uint16
 }
 
 // listedRoom is one room on the list, for the web route.
@@ -131,6 +145,7 @@ type listedRoom struct {
 	Title  string `json:"title"`
 	Wanted int    `json:"wanted"`
 	Joined int    `json:"joined"`
+	Ping   int    `json:"ping"`
 }
 
 // cleanTitle keeps the printable ASCII of a title, up to relayTitleMax bytes.
@@ -207,7 +222,11 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 	case msgOpen:
 		room := r.byHost[from]
 		if room == nil {
-			if len(r.rooms) >= relayMaxRooms || r.roomsOf(from.Addr()) >= relayRoomsPerIP || r.byPeer[from] != nil {
+			if r.byPeer[from] != nil || len(r.rooms) >= relayMaxRooms {
+				return
+			}
+			if r.roomsOf(from.Addr()) >= relayRoomsPerIP {
+				r.send(append(header(msgRefused), refuseLimit), from)
 				return
 			}
 			code := newCode()
@@ -295,6 +314,30 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		} else {
 			room.listedUntil = time.Time{}
 		}
+		if room.pingSent.IsZero() || now.Sub(room.pingSent) >= relayPingEvery {
+			room.pingSent = now
+			room.pingToken++
+			t := room.pingToken
+			r.send(append(header(msgPing), byte(t), byte(t>>8), byte(t>>16), byte(t>>24)), room.host)
+		}
+	case msgPong:
+		room := r.byHost[from]
+		if room == nil || len(body) != 4 || room.pingSent.IsZero() {
+			return
+		}
+		t := uint32(body[0]) | uint32(body[1])<<8 | uint32(body[2])<<16 | uint32(body[3])<<24
+		if t != room.pingToken {
+			return
+		}
+		ms := now.Sub(room.pingSent).Milliseconds()
+		if ms < 1 {
+			ms = 1
+		}
+		if ms > 65535 {
+			ms = 65535
+		}
+		room.ping = uint16(ms)
+		room.pingToken++
 	case msgList:
 		if len(d) < relayListMin || len(body) < 4 {
 			return
@@ -314,7 +357,8 @@ func (r *relay) handle(d []byte, from netip.AddrPort) {
 		reply := append(header(msgRooms), byte(len(open)))
 		for _, room := range open {
 			reply = append(reply, room.code...)
-			reply = append(reply, room.wanted, room.joined, room.flags, byte(len(room.title)))
+			reply = append(reply, room.wanted, room.joined, room.flags, byte(room.ping), byte(room.ping>>8),
+				byte(len(room.title)))
 			reply = append(reply, room.title...)
 		}
 		r.send(reply, from)
@@ -353,7 +397,8 @@ func (r *relay) listed() []listedRoom {
 	out := []listedRoom{}
 	for _, room := range r.rooms {
 		if now.Before(room.listedUntil) && len(out) < 200 {
-			out = append(out, listedRoom{Code: room.code, Title: room.title, Wanted: int(room.wanted), Joined: int(room.joined)})
+			out = append(out, listedRoom{Code: room.code, Title: room.title, Wanted: int(room.wanted), Joined: int(room.joined),
+				Ping: int(room.ping)})
 		}
 	}
 	return out

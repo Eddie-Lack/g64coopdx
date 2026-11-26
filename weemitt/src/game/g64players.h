@@ -238,6 +238,10 @@ s32 IsCameraZoneAction(s16 type);
    checkpoint gate; offline with one player, the gate's own fields and `own`. G64CheckRestartGate: the gate's touch test
    for every player's ball. */
 s32 G64PerPlayerRestart(void);
+/* g64coopdx: a death of the player in the globals, counted per player; and the number the HUD shows where the game
+   shows the lives: online the player's deaths, else the lives. */
+void G64NoteDeath(void);
+s32 G64HudLives(void);
 s16 *G64RestartTimer(struct Platform *gate);
 Vec3 *G64RestartCamera(struct Platform *gate);
 u32 *G64RestartStamp(s32 k, u32 *own);

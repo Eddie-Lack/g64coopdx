@@ -271,6 +271,64 @@ int main(int argc, char **argv) {
         check(net_relay_state(late) < 0 && net_relay_refusal(late) == 1, "a closed room's code finds no room");
         net_close(late);
     }
+    {
+        /* An address may hold 4 rooms. A host listed by the relay gets its ping, and the list carries the round trip.
+           A fifth host at the same address is told that the limit is reached. */
+        net_socket *hosts[5], *asker = net_open(0, err, sizeof err);
+        net_room rooms[12];
+        int k, got = -1, pinged = 0;
+        for (k = 0; k < 5; k++) {
+            hosts[k] = net_open(0, err, sizeof err);
+            net_relay_host(hosts[k], relay, 2);
+        }
+        for (f = 0; f < 2000; f++) {
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            int ready = 0;
+            clock += 5;
+            for (k = 0; k < 5; k++) {
+                net_relay_tick(hosts[k], clock);
+                while (net_recv(hosts[k], &from, d, sizeof d) >= 0) {
+                }
+                ready += net_relay_state(hosts[k]) != 0;
+            }
+            if (ready == 5)
+                break;
+            nap();
+        }
+        for (k = 0; k < 4; k++)
+            check(net_relay_state(hosts[k]) == 1, "an address opens up to 4 rooms");
+        check(net_relay_state(hosts[4]) < 0 && net_relay_refusal(hosts[4]) == 4,
+              "a fifth room from one address is refused with the reason for the limit");
+        /* The first host lists its room; the relay pings it with the announce, and the host answers. */
+        net_relay_announce(hosts[0], 0x5eed, 2, 1, 0, 1, "ping test");
+        for (f = 0; f < 400 && got < 1; f++) {
+            uint8_t d[NET_MAX_DATAGRAM];
+            net_addr from;
+            int n;
+            clock += 5;
+            net_relay_tick(hosts[0], clock);
+            while (net_recv(hosts[0], &from, d, sizeof d) >= 0) {
+            }
+            if (f == 100)
+                net_relay_announce(hosts[0], 0x5eed, 2, 1, 0, 1, "ping test");
+            if (f % 20 == 10)
+                net_rooms_ask(asker, relay, 2, 0x5eed);
+            while ((n = net_recv(asker, &from, d, sizeof d)) >= 0) {
+                int r = net_rooms_parse(d, n, rooms, 12);
+                if (r == 1 && rooms[0].ping > 0)
+                    got = r;
+            }
+            nap();
+        }
+        pinged = got == 1 && rooms[0].ping > 0 && rooms[0].ping < 5000;
+        check(pinged, "the relay measures the host's round trip and lists it");
+        for (k = 0; k < 5; k++) {
+            net_relay_close(hosts[k]);
+            net_close(hosts[k]);
+        }
+        net_close(asker);
+    }
     printf("%s: %d failures\n", failures ? "FAIL" : "ok", failures);
     return failures ? 1 : 0;
 }

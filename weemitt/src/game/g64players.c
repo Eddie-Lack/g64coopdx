@@ -609,20 +609,45 @@ static void new_slot(s32 i) {
 static void arrive(s32 i, const Vec3 *to);
 extern Vec3 handStart;
 
+/* g64coopdx: a player who comes into a running level starts a glove's width from the level's start spot. At the
+   spot itself, the gloves would stand inside each other. Slot i's side is one of four, by its number. The spot moves only when the
+   floor is there, at about the same height as at the start spot (Altitude, the game's own look for the floor below a
+   point); otherwise the player starts at the start spot, as before. Every machine runs the same, at the same frame. */
+#define GLOVE_WIDTH 30.0f
+#define SAME_FLOOR 10.0f
+static void beside_start(s32 i, Vec3 *at) {
+    static const s8 side[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    Vec3 spot = *at;
+    Vec3 *floor;
+    Platform *plat;
+    f32 here, there;
+    spot.x += side[i & 3][0] * GLOVE_WIDTH;
+    spot.z += side[i & 3][1] * GLOVE_WIDTH;
+    here = Altitude(at, &floor, &plat, NULL);
+    there = Altitude(&spot, &floor, &plat, NULL);
+    if (here >= 0.0f && there >= 0.0f && there - here < SAME_FLOOR && here - there < SAME_FLOOR)
+        *at = spot;
+}
+
 /* Makes slot i for a player who came after the level started: from the start copy online, as the level set the first
    player up, moved to the level's first glove position; or else from the player in the globals, moved to handStart.
-   Then afresh (arrive). */
+   Then afresh (arrive), a glove's width from that spot (beside_start). */
 static void new_late_slot(s32 i) {
+    Vec3 to;
     if (startSlot) {
         add_slot(i, copy_slot(startSlot));
         copy_restart(i, -1);
-        arrive(i, startPosSet ? &startPos : NULL);
+        to = startPosSet ? startPos : slots[i]->hand.pos;
+        beside_start(i, &to);
+        arrive(i, &to);
         /* The count of garibs is the team's (G64GaribGained). */
         slot_player(i)->garibs = player.garibs;
     } else {
         add_slot(i, copy_globals());
         copy_restart(i, 0);
-        arrive(i, &handStart);
+        to = handStart;
+        beside_start(i, &to);
+        arrive(i, &to);
     }
 }
 
@@ -2422,6 +2447,23 @@ s32 G64PerPlayerRestart(void) {
 /* The slot of the player in the globals: one swapped in for the logic or for a view, or 0. */
 static s32 globals_slot(void) {
     return logicSlot ? logicSlot : swapped;
+}
+
+/* Each player's deaths in this game (the owner's rules: online a death takes no life). Part of the game's state: every
+   machine counts the same. Online, the counter where the game shows the lives shows them instead (G64HudLives). */
+static s32 deaths[G64_MAX_PLAYERS];
+
+void G64NoteDeath(void) {
+    s32 p = g64Member[globals_slot()];
+    if (p >= 0 && p < G64_MAX_PLAYERS)
+        deaths[p]++;
+}
+
+s32 G64HudLives(void) {
+    s32 p = g64Member[globals_slot()];
+    if (g64Online && p >= 0 && p < G64_MAX_PLAYERS)
+        return deaths[p];
+    return player.lives;
 }
 
 static G64Restart *restart_of(s32 slot) {

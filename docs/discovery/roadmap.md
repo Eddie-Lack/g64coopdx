@@ -153,7 +153,8 @@ harness at N players and by the determinism tests:
    enemies; the ball's real owner, the host's pickup rule, a lost ball killing its owner.
    Done in part: online, each player's checkpoint is the gate their own ball crossed, and each respawns there with
    their own countdown; a respawn after a death restarts no enemies; a death takes no life
-   (weemitt/src/game/g64players.c, "Respawns"; tests/rom/respawn.c). Each player's shadow altitude is measured where
+   (weemitt/src/game/g64players.c, "Respawns"; tests/rom/respawn.c). Online the counter of lives shows the player's
+   deaths in the level instead (G64HudLives). Each player's shadow altitude is measured where
    they are, so any player who falls into nothing dies. The pickup rule "own ball only" holds as the game is built:
    a glove touches only its own ball, so a lost ball kills its owner. The host's other choice, "any ball", is done as an exchange: when a free glove touches another
    player's free ball, the two players' balls change places in their slots, and each ball keeps its real owner. A
@@ -163,7 +164,10 @@ harness at N players and by the determinism tests:
    levels and in the last space boss's levels (g64players.c, "Any ball"; ball.c; src/session/session.h,
    G64_FLAG_ANY_BALL; tests/rom/anyball.c). Left: a look at it in the window program with two people playing.
 5. Exits and the hub: each player exits alone, the ball left behind, world doors. Done in part: each player exits
-   alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c).
+   alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c). The
+   way out of the cave leads back to the hub stage the player came from (the host's routing, `take_exit` in
+   src/client/instances.c; tests/rom/instances.c). A player who comes into a running level starts a glove's width
+   from the start spot when the floor is there (`beside_start` in g64players.c; tests/rom/members.c).
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
    Done in part: the count-in of a timed level holds every player. The Pirates boss's wall holds every glove and
    ball. In the Prehistoric boss's level each player has the camera's stand, the entry area's camera and the strip
@@ -271,7 +275,11 @@ wide because each boss and each bonus level has its own code.
   can list its room with a title, and the start screen shows the open games of the same build (`server/relay.go`,
   `net_rooms_ask` in src/net/udp.h). The list travels over the relay's UDP protocol, so the game needs no HTTPS
   client for it. The ban: through the relay the host doesn't see a joiner's address, so the host's kick tells the
-  relay, and the relay refuses that address for the room. Left: moderators.
+  relay, and the relay refuses that address for the room. The list marks a game that has started and shows each
+  room's ping, which the relay measures with a ping to the host on its announce. A fifth room from one address gets a
+  refusal of its own. The list's new field came with protocol 14 (`server/relay.go`; tests/net/relay_test.c and the
+  server's tests). Each player's level reaches the Players window with the list of players (protocol 13), and the
+  chat notes a player's move to another level. Left: moderators.
 - Fuzz targets for every parser.
 
 - Joining a game that has started (not in the first list; done). The host starts with the players who are in
