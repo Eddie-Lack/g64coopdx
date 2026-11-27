@@ -5,11 +5,15 @@
  *
  * The notes, the instruments and the drums all come from the player's own ROM as the song plays. The remix only
  * changes how they're played, by these rules:
- *   - The tempo is 9/8 of the song's own (MusHandleSetTempo).
+ *   - The tempo is 9/16 of the song's own, about 68 beats a minute (MusHandleSetTempo). The added drums keep the
+ *     song's beat, so they slow with it.
  *   - The two lead instruments trade parts: each of their notes plays with the other one's wave, moved by the
  *     difference between the transposes the song uses with the two waves (both waves then sound the written pitch).
- *   - Every pitched part goes up a whole step. A note that the player would push past an octave above its sample
- *     (where libmus falls silent) goes down an octave instead.
+ *   - Every pitched part goes down a fourth (5 semitones), the bass too: an octave lower, the bass rumbled. A note
+ *     that the player would push past an octave above its sample (where libmus falls silent) goes down an octave
+ *     instead, and a note that would sink below LOWEST, where a sample slowed that far only rumbles, goes up an
+ *     octave.
+ *   - The song's hats play at a little over half their velocity: the remix has less of the highest sounds.
  *   - A rhythm layer joins the song's own drums: the kick on every beat, the snare on beats 2 and 4, and a hat on the
  *     offbeat eighths. Each hit plays on a free channel, as a copy of the song's own channel that last played that
  *     drum, with a one-note stream.
@@ -31,8 +35,12 @@ PORT_C_BEGIN
 #define LEAD_B_TRANSPOSE 12
 /* The highest note + transpose that a sample takes: above it the pitch ratio passes 2 (musVoiceUpdatePitch). */
 #define HIGHEST 60
-#define KEY_SHIFT 2
-#define TEMPO 144 /* MusHandleSetTempo: 128 is the song's own */
+#define LOWEST 26
+#define KEY_SHIFT (-5)
+#define TEMPO 72 /* MusHandleSetTempo: 128 is the song's own */
+/* The song's own hats, and the share of their velocity they keep, in 128ths. */
+#define HAT_B 77
+#define HAT_SHARE 72
 #define REVERB 40
 #define HIT_LENGTH 24 /* ticks */
 
@@ -40,7 +48,7 @@ static int remixOn;
 /* The song's channel that last played each drum, as it was then: the added hits copy it. */
 #define DRUMS 3
 static const int drumWave[DRUMS] = {KICK, SNARE, HAT};
-static const int drumVelocity[DRUMS] = {90, 70, 45};
+static const int drumVelocity[DRUMS] = {90, 70, 30};
 static MusChannel drumTemplate[DRUMS];
 static int drumHave[DRUMS];
 /* The one-note streams of the added hits, in the game's memory (a stream is a word in port_ram). */
@@ -61,6 +69,9 @@ static void remix_note(MusChannel *ch, s32 index, s32 *note) {
         }
     }
     if (is_drum(ch->wave)) {
+        if (ch->wave == HAT || ch->wave == HAT_B) {
+            ch->velocity = (u8)(ch->velocity * HAT_SHARE / 128);
+        }
         return;
     }
     if (ch->wave == LEAD_A) {
@@ -74,7 +85,7 @@ static void remix_note(MusChannel *ch, s32 index, s32 *note) {
     while (n + transpose > HIGHEST && n >= 12) {
         n -= 12;
     }
-    while (n + transpose < 24) {
+    while (n + transpose < LOWEST) {
         n += 12;
     }
     *note = n;
