@@ -279,7 +279,11 @@ wide because each boss and each bonus level has its own code.
   room's ping, which the relay measures with a ping to the host on its announce. A fifth room from one address gets a
   refusal of its own. The list's new field came with protocol 14 (`server/relay.go`; tests/net/relay_test.c and the
   server's tests). Each player's level reaches the Players window with the list of players (protocol 13), and the
-  chat notes a player's move to another level. Left: moderators.
+  chat notes a player's move to another level. A player's new colors, models and name during a game reach the host
+  in the profile message (protocol 15), and every game gets the colors through a colors event at a frame
+  (tests/net/session_test.c; tests/fuzz/session_fuzz.c; `model_change` in tests/rom/startscreen.py).
+  Each machine has its own free camera, which draws only that player's view and turns their stick
+  (src/client/freecam.h; tests/net/freecam_test.c; `free_camera` in tests/rom/instances.c). Left: moderators.
 - Fuzz targets for every parser.
 
 - Joining a game that has started (not in the first list; done). The host starts with the players who are in

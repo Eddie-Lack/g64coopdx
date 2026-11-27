@@ -89,7 +89,7 @@ static void apply_colors(void) {
     netplay_set_colors(color_word(G64_MODEL_GLOVE), color_word(G64_MODEL_BALL));
 }
 
-static void load_colors(void) {
+static void read_colors(void) {
     char path[1024];
     FILE *f;
     int c;
@@ -112,6 +112,11 @@ static void load_colors(void) {
         }
         fclose(f);
     }
+}
+
+/* The saved colors and models, for this machine's player. */
+static void load_colors(void) {
+    read_colors();
     apply_colors();
 }
 
@@ -239,6 +244,83 @@ static void save_options(int wanted) {
     }
 }
 
+/* The OPTIONS for the Esc menu (g64launcher.h). */
+int g64_palette_count(void) { return PALETTES; }
+const char *g64_palette_name(int i) { return i >= 0 && i < PALETTES ? palettes[i].name : "CUSTOM"; }
+int g64_palette(void) {
+    /* Read, not applied: a game started with colors from elsewhere keeps them until the player changes one. */
+    if (!colorsLoaded)
+        read_colors();
+    return choice;
+}
+void g64_set_palette(int i) {
+    if (!colorsLoaded)
+        read_colors();
+    choice = i >= 0 && i <= CUSTOM ? i : 0;
+    save_colors();
+    apply_colors();
+}
+int g64_model(int kind) {
+    if (!colorsLoaded)
+        read_colors();
+    return kind == G64_MODEL_GLOVE || kind == G64_MODEL_BALL ? models[kind] : 0;
+}
+void g64_set_model(int kind, int i) {
+    if (!colorsLoaded)
+        read_colors();
+    if ((kind != G64_MODEL_GLOVE && kind != G64_MODEL_BALL) || i < 0 || i >= G64ModelCount(kind))
+        return;
+    models[kind] = i;
+    save_colors();
+    apply_colors();
+}
+unsigned g64_custom_color(int kind) {
+    if (!colorsLoaded)
+        read_colors();
+    return kind == G64_MODEL_GLOVE || kind == G64_MODEL_BALL ? custom[kind] & 0xFFFFFF : 0;
+}
+void g64_set_custom_color(int kind, unsigned rgb) {
+    if (!colorsLoaded)
+        read_colors();
+    if (kind != G64_MODEL_GLOVE && kind != G64_MODEL_BALL)
+        return;
+    custom[kind] = G64_COLOR_SET | (rgb & 0xFFFFFF);
+    save_colors();
+    apply_colors();
+}
+void g64_set_name_tags(int on) {
+    char path[1024], rest[2048] = "";
+    int v[7] = {netplay_input_delay(), 0, 0, 0, 0, 0, 1};
+    FILE *f;
+    netplay_set_name_tags(on);
+    /* Only the name tags change in options.txt: during a game the host's choices in this program may not be the ones
+       saved. A file from before the name tags has six numbers. */
+    options_path(path, sizeof path);
+    f = fopen(path, "r");
+    if (f) {
+        size_t n;
+        if (fscanf(f, "%d %d %d %d %d %d", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]) == 6 && fscanf(f, " %d", &v[6]) != 1)
+            v[6] = 1;
+        while (fgetc(f) != '\n' && !feof(f)) {
+        }
+        n = fread(rest, 1, sizeof rest - 1, f);
+        rest[n] = 0;
+        fclose(f);
+    } else {
+        snprintf(rest, sizeof rest, "\n\n");
+    }
+    v[6] = netplay_name_tags();
+    f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%d %d %d %d %d %d %d\n%s", v[0], v[1], v[2], v[3], v[4], v[5], v[6], rest);
+        fclose(f);
+    }
+}
+void g64_set_player_name(const char *name) {
+    netplay_set_name(name);
+    g64_save_name();
+}
+
 /* The level packs that HOST GAME offers: each folder with a pack.txt in "packs" next to the program, in "packs" in
    the folder the program was started in, and the packs kept from hosts (in "packs" in the program's own folder). The
    name is the one in pack.txt. The pack itself is read only when it's chosen (netplay_set_pack). */
@@ -342,6 +424,11 @@ static int shade_of(unsigned c) {
     return -1;
 }
 
+int g64_shade_count(void) { return SHADES; }
+const char *g64_shade_name(int i) { return i >= 0 && i < SHADES ? shades[i].name : "SAVED"; }
+unsigned g64_shade_rgb(int i) { return i >= 0 && i < SHADES ? shades[i].rgb : 0xFFFFFF; }
+int g64_shade_of(unsigned rgb) { return shade_of(rgb); }
+
 static void step_shade(unsigned *c, int d) {
     int i = shade_of(*c);
     i = i < 0 ? 0 : (i + d + SHADES) % SHADES;
@@ -355,7 +442,7 @@ enum {
     R_HOST_PAGE, R_JOIN_PAGE, R_OPTIONS_PAGE, R_ALONE, R_SETTINGS, R_QUIT,
     R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_PACK, R_HOST, R_TRY,
     R_CODE, R_JOIN, R_ROOM,
-    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY, R_TAGS,
+    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY, R_FREE_CAMERA, R_INVERT_Y, R_TAGS,
     R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO, R_LEAVE_YES, R_LEAVE_NO,
 };
 
@@ -428,7 +515,7 @@ static void note(const char *text, unsigned rgb) {
 static int page_rows(int page) {
     if (page == PAGE_HOST)
         return 7 + (netplay_public() ? 1 : 0) + (packChoice >= 0 ? 1 : 0);
-    return choice == CUSTOM ? 9 : 7;
+    return choice == CUSTOM ? 11 : 9;
 }
 
 static int scrolls(int page) {
@@ -558,6 +645,8 @@ static void build_page(launcher *L) {
             }
             OPTION(R_DELAY, "INPUT DELAY", d, G64_TITLE_ARROWS);
             OPTION(R_SENSITIVITY, "SENSITIVITY", m, G64_TITLE_ARROWS);
+            OPTION(R_FREE_CAMERA, "FREE CAMERA", port_free_camera() ? "YES" : "NO", G64_TITLE_ARROWS);
+            OPTION(R_INVERT_Y, "INVERT Y", port_invert_y() ? "YES" : "NO", G64_TITLE_ARROWS);
             OPTION(R_TAGS, "NAME TAGS", netplay_name_tags() ? "YES" : "NO", G64_TITLE_ARROWS);
 #undef OPTION
             break;
@@ -1052,6 +1141,12 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 }
                 case R_SENSITIVITY:
                     port_set_mouse_sensitivity(port_mouse_sensitivity() + change);
+                    break;
+                case R_FREE_CAMERA:
+                    port_set_free_camera(!port_free_camera());
+                    break;
+                case R_INVERT_Y:
+                    port_set_invert_y(!port_invert_y());
                     break;
                 case R_TAGS:
                     netplay_set_name_tags(!netplay_name_tags());
