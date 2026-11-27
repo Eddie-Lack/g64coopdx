@@ -296,7 +296,14 @@ static int banPeer, banSends;
 static uint32_t banTime, listTried;
 static void send_ban(void);
 #define CHAT_LINES 32
-#define CHAT_TEXT (G64_NAME_MAX + G64_CHAT_MAX + 4)
+/* A line: a player's name, ": " and their words (at most G64_CHAT_MAX), or "* " and the program's own note. The longest
+   note is a script's stop line (G64LuaStopLine, up to 199 characters). */
+#define CHAT_NOTE_MAX 199
+#define CHAT_TEXT (CHAT_NOTE_MAX + 3)
+typedef char chat_text_holds_a_line[CHAT_TEXT >= G64_NAME_MAX + G64_CHAT_MAX + 4 ? 1 : -1];
+/* The longest note with a world's name, which a test reads whole from the picture (tests/rom/instances.c). */
+typedef char chat_text_holds_the_shut_note[CHAT_TEXT >= sizeof("* That way is shut: players are in Out of This World. "
+                                                                  "It opens when everyone is in the hub.") ? 1 : -1];
 static char chatLines[CHAT_LINES][CHAT_TEXT];
 static uint32_t chatTimes[CHAT_LINES];
 static int chatCount;

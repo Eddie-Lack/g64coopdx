@@ -24,7 +24,8 @@
  *
  * A second run tests a game that players join after its start (join_later). In the next one a player alone takes the
  * first ball into the cave and comes out in the hub's second stage (first_ball). In another, two players draw their
- * views with free cameras that turn different ways (free_camera). Then come the rule of one world at
+ * views with free cameras that turn different ways (free_camera), and long notes in the chat are drawn whole
+ * (chat_notes). Then come the rule of one world at
  * a time (one_world), a level pack (pack_level) and a pack's script (script_run). The sample pack
  * plays with its raft and a retail bell, and the client refuses it with other retail banks (sample_pack,
  * sample_pack_retail). The last two runs test the session's values, which scripts keep from level to level
@@ -325,6 +326,37 @@ static void free_camera(Engine *e, void *boot) {
     g64_ihost_free(host);
     free(view);
     printf("%s two free cameras keep the game the same on every machine\n", failed != before ? "FAIL" : "ok  ");
+}
+
+/* Long notes in the chat: the picture's rows (G64ChatView) hold the whole note, with the longest world names. The
+   game's small font, read from the ROM, has no lowercase letters: every letter and digit of the note must be there,
+   in order, in capitals. */
+int G64ChatText(const char *const *lines, int count, char *out, int size);
+
+static void chat_notes(Engine *e, void *boot) {
+    static const char *const worlds[2] = {"Out of This World", "Fortress of Fear"};
+    int w, before = failed;
+    engine_load(e, boot);
+    for (w = 0; w < 2; w++) {
+        char note[200], rows[400], want[200], got[400], what[300];
+        const char *lines[2] = {"Player 2: hi", note};
+        int i, k = 0, n;
+        snprintf(note, sizeof note, "* That way is shut: players are in %s. It opens when everyone is in the hub.",
+                 worlds[w]);
+        n = G64ChatText(lines, 2, rows, sizeof rows);
+        for (i = 0; note[i]; i++)
+            if ((note[i] >= 'A' && note[i] <= 'Z') || (note[i] >= 'a' && note[i] <= 'z') || (note[i] >= '0' && note[i] <= '9'))
+                want[k++] = (char)(note[i] >= 'a' && note[i] <= 'z' ? note[i] - 'a' + 'A' : note[i]);
+        want[k] = 0;
+        /* The note's rows are the last ones: the line before it comes first. */
+        for (i = 0, k = 0; rows[i]; i++)
+            if ((rows[i] >= 'A' && rows[i] <= 'Z') || (rows[i] >= '0' && rows[i] <= '9'))
+                got[k++] = rows[i];
+        got[k] = 0;
+        snprintf(what, sizeof what, "the note with %s fills %d rows of the picture, all of it", worlds[w], n);
+        check(n >= 3 && strlen(got) >= strlen(want) && !strcmp(got + strlen(got) - strlen(want), want), what);
+    }
+    printf("%s a long note in the chat is drawn whole\n", failed != before ? "FAIL" : "ok  ");
 }
 
 static void join_later(Engine *e, const void *boot) {
@@ -1603,6 +1635,7 @@ int main(int argc, char **argv) {
     g64_ihost_free(host);
     join_later(e, boot);
     first_ball(e, boot);
+    chat_notes(e, boot);
     free_camera(e, boot);
     one_world(e, boot);
     pack_level(e, boot);

@@ -3015,9 +3015,9 @@ int G64FontDraws(char c, s32 font);
 /* A line of the client's text for the game's text list, which holds 63 characters and takes its text as a format:
    the characters that the game's small font draws, in capitals as the font has them, without the percent sign. Any
    other character becomes a space: the font would draw it with an old picture. */
-static char *view_string(char *out, const char *text) {
+static char *view_text(char *out, s32 size, const char *text) {
     s32 n = 0;
-    for (; *text != 0 && n < 62; text++) {
+    for (; *text != 0 && n < size - 1; text++) {
         char c = *text >= 'a' && *text <= 'z' ? *text - 'a' + 'A' : *text;
         out[n++] = G64FontDraws(c, 1) ? c : ' ';
     }
@@ -3025,12 +3025,17 @@ static char *view_string(char *out, const char *text) {
     return out;
 }
 
+static char *view_string(char *out, const char *text) {
+    return view_text(out, 63, text);
+}
+
 /* The game draws at most VIEW_WIDTH characters of a text (font.c, font_win_w): a longer one is cut. wrap_text breaks
    a text into pieces of at most that many, at a space where it can, and returns how many it made (at most max). */
 #define VIEW_WIDTH 40
 static s32 wrap_text(const char *text, char out[][VIEW_WIDTH + 1], s32 max) {
-    char line[64];
-    const char *t = view_string(line, text);
+    /* The whole text: each piece is short enough for the game's text list, but the text may be longer than 63. */
+    char line[256];
+    const char *t = view_text(line, (s32)sizeof line, text);
     s32 rows = 0;
     while (*t == ' ')
         t++;
@@ -3116,9 +3121,8 @@ void G64LineView(const char *text, s32 top) {
    is the program's own note, in the color of the game's tips. A line too long for the game's text goes on over the
    next rows. The picture shows the newest 6 rows. */
 #define CHAT_ROWS 6
-void G64ChatView(const char *const *lines, s32 count) {
-    char rows[CHAT_ROWS][VIEW_WIDTH + 1];
-    s32 noteRow[CHAT_ROWS];
+/* The rows of the chat's lines as G64ChatView draws them, with noteRow 1 for a program's note. Returns how many. */
+static s32 chat_rows(const char *const *lines, s32 count, char rows[CHAT_ROWS][VIEW_WIDTH + 1], s32 noteRow[CHAT_ROWS]) {
     s32 i, n = 0;
     if (count > CHAT_ROWS)
         count = CHAT_ROWS;
@@ -3136,6 +3140,25 @@ void G64ChatView(const char *const *lines, s32 count) {
         }
         n += m;
     }
+    return n;
+}
+
+/* For tests: the rows that G64ChatView draws for lines (at most CHAT_ROWS of VIEW_WIDTH characters), one after
+   another in out, each ended by a new line. Returns how many. */
+s32 G64ChatText(const char *const *lines, s32 count, char *out, s32 size) {
+    char rows[CHAT_ROWS][VIEW_WIDTH + 1];
+    s32 noteRow[CHAT_ROWS], n = chat_rows(lines, count, rows, noteRow), i, at = 0;
+    if (size > 0)
+        out[0] = 0;
+    for (i = 0; i < n && at < size; i++)
+        at += snprintf(out + at, (size_t)(size - at), "%s\n", rows[i]);
+    return n;
+}
+
+void G64ChatView(const char *const *lines, s32 count) {
+    char rows[CHAT_ROWS][VIEW_WIDTH + 1];
+    s32 noteRow[CHAT_ROWS];
+    s32 i, n = chat_rows(lines, count, rows, noteRow);
     SetFont(1);
     for (i = 0; i < n; i++) {
         s32 note = noteRow[i];
