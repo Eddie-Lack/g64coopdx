@@ -23,7 +23,8 @@
  * compares the outputs.
  *
  * A second run tests a game that players join after its start (join_later). In the next one a player alone takes the
- * first ball into the cave and comes out in the hub's second stage (first_ball). Then come the rule of one world at
+ * first ball into the cave and comes out in the hub's second stage (first_ball). In another, two players draw their
+ * views with free cameras that turn different ways (free_camera). Then come the rule of one world at
  * a time (one_world), a level pack (pack_level) and a pack's script (script_run). The sample pack
  * plays with its raft and a retail bell, and the client refuses it with other retail banks (sample_pack,
  * sample_pack_retail). The last two runs test the session's values, which scripts keep from level to level
@@ -39,6 +40,7 @@
 #include <sys/stat.h>
 #endif
 
+#include "../../src/client/freecam.h"
 #include "../../src/client/instances.h"
 #include "../../src/client/levcheck.h"
 #include "../../src/client/pack.h"
@@ -231,6 +233,98 @@ static void first_ball(Engine *e, void *boot) {
     player[0] = NULL;
     g64_ihost_free(host);
     printf("%s the first ball moves the hub on\n", failed != before ? "FAIL" : "ok  ");
+}
+
+/* Two players with free cameras that turn different ways (src/client/freecam.h). Each draws their own view every
+   frame as netplay.c does: from a copy of the game's state, with the free camera in place of the game's, and the
+   state loaded again after it. Both hold the stick up, turned by their camera. The games must stay equal to the
+   host's: the drawing changes nothing, and the turned stick is a normal input. */
+int G64ViewCamera(float pos[3], float target[3]);
+void G64SetViewCamera(const float pos[3]);
+void G64SwapPlayer(int player);
+int port_game_draw_view(void *tasks, int max);
+
+static void free_camera(Engine *e, void *boot) {
+    enum { RUN = 900, TWO = 2 };
+    uint32_t none[16][2];
+    g64_freecam fc[TWO];
+    static uint64_t tasks[16 * 4];
+    void *view = malloc(engine_state_size(e));
+    int p, before = failed, used[TWO] = {0, 0}, turned[TWO] = {0, 0};
+    memset(none, 0, sizeof none);
+    memset(fc, 0, sizeof fc);
+    engine_load(e, boot);
+    for (p = 0; p < 8; p++)
+        g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
+    engine_save(e, boot);
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, TWO, 3u, none, HUB1, DEADLINE, host_send, NULL);
+    for (p = 0; p < TWO; p++) {
+        player[p] = g64_iclient_new_with(e, boot, TWO, 3u, none, p, HUB1, WINDOW, DEADLINE, player_send, &ids[p]);
+        fc[p].on = 1;
+        fc[p].invertY = p;
+    }
+    check(view && host && player[0] && player[1], "two players with free cameras start in the hub");
+    if (!view || !host || !player[0] || !player[1]) {
+        free(view);
+        return;
+    }
+    for (now = 0; now < RUN; now++) {
+        deliver();
+        g64_ihost_tick(host);
+        for (p = 0; p < TWO; p++) {
+            rb_input in;
+            rb_engine_game *g;
+            int8_t x0;
+            memset(&in, 0, sizeof in);
+            in.present = 1;
+            /* Up on the stick from frame 300, and a C button now and then; the mouse turns each camera its own way. */
+            if (now >= 300) {
+                in.y = 80;
+                if (now % 50 < 5)
+                    in.buttons = p ? 0x0001 : 0x0002;
+            }
+            g64_freecam_motion(&fc[p], p ? -40 : 25, p ? 3 : -2, 10);
+            x0 = in.x;
+            g64_freecam_input(&fc[p], &in.buttons, &in.x, &in.y);
+            turned[p] |= in.x != x0;
+            g64_iclient_step(player[p], in);
+            g = g64_iclient_game(player[p]);
+            if (g) {
+                float game[3], target[3], at[3];
+                rb_engine_game_enter(g);
+                engine_save(e, view);
+                G64SwapPlayer(p);
+                if (g64_freecam_view(&fc[p], game, target, G64ViewCamera(game, target), g64_iclient_instance(player[p]),
+                                     at)) {
+                    G64SetViewCamera(at);
+                    used[p] = 1;
+                }
+                port_game_draw_view(tasks, 16);
+                engine_load(e, view);
+            }
+        }
+    }
+    {
+        char what[200];
+        for (p = 0; p < TWO; p++) {
+            snprintf(what, sizeof what, "player %d: the free camera drew the view and turned the stick, %s", p,
+                     g64_iclient_desyncs(player[p]) == 0 ? "no desyncs" : "desyncs");
+            check(used[p] && turned[p] && g64_iclient_desyncs(player[p]) == 0 && g64_iclient_confirmed(player[p]) > 500,
+                  what);
+        }
+        check(g64_ihost_hash_matches(host) > 50 && g64_ihost_hash_mismatches(host) == 0,
+              "the host's hash checks of the two free cameras' game all match");
+    }
+    for (p = 0; p < TWO; p++) {
+        g64_iclient_free(player[p]);
+        player[p] = NULL;
+    }
+    g64_ihost_free(host);
+    free(view);
+    printf("%s two free cameras keep the game the same on every machine\n", failed != before ? "FAIL" : "ok  ");
 }
 
 static void join_later(Engine *e, const void *boot) {
@@ -1509,6 +1603,7 @@ int main(int argc, char **argv) {
     g64_ihost_free(host);
     join_later(e, boot);
     first_ball(e, boot);
+    free_camera(e, boot);
     one_world(e, boot);
     pack_level(e, boot);
     script_run(e, boot);

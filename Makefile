@@ -517,7 +517,7 @@ bots: bots-build
 
 # Players moving between instances of the real game (tests/rom/instances.c), on Linux and under Wine; the outputs must
 # be equal (needs the ROM in GLOVER_ROM).
-INSTANCES_SRC := tests/rom/instances.c src/client/instances.c src/client/imsg.c src/rollback/engine_game.c \
+INSTANCES_SRC := tests/rom/instances.c src/client/instances.c src/client/imsg.c src/client/freecam.c src/rollback/engine_game.c \
                  src/rollback/rollback.c src/client/levcheck.c src/client/pack.c src/client/packrom.c $(MODELS_SRC) \
                  $(BANKRANGES_SRC) src/client/rombanks_game.c third_party/monocypher/monocypher.c \
                  weemitt/src/port/statehash.c
@@ -593,6 +593,15 @@ build/tests/mouselook_test: tests/net/mouselook_test.c $(MOUSELOOK_SRC) weemitt/
 build/tests/mouselook_test.exe: tests/net/mouselook_test.c $(MOUSELOOK_SRC) weemitt/src/port/mouselook.h
 	@mkdir -p build/tests
 	$(MINGW64) $(CFLAGS_TEST) -static -o $@ tests/net/mouselook_test.c $(MOUSELOOK_SRC)
+
+# The free camera, without the game (tests/net/freecam_test.c).
+build/tests/freecam_test: tests/net/freecam_test.c src/client/freecam.c src/client/freecam.h
+	@mkdir -p build/tests
+	$(CC) $(CFLAGS_TEST) $(SANITIZE) -o $@ tests/net/freecam_test.c src/client/freecam.c -lm
+
+build/tests/freecam_test.exe: tests/net/freecam_test.c src/client/freecam.c src/client/freecam.h
+	@mkdir -p build/tests
+	$(MINGW64) $(CFLAGS_TEST) -static -o $@ tests/net/freecam_test.c src/client/freecam.c -lm
 
 # The sound reader against the sound table, without the game (tests/net/sound_test.c).
 build/tests/sound_test: tests/net/sound_test.c src/client/sound.c src/client/sound.h weemitt/src/port/soundtable.c \
@@ -769,7 +778,7 @@ build/tests/rollback_fuzz: tests/fuzz/rollback_fuzz.c $(ROLLBACK_DEPS)
 # host to a joiner, the level file check, the bank check and the scripts' sandbox.
 test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build/tests/sound_test build/tests/seal_test \
         build/tests/pack_test build/tests/lua_test build/g64pack build/tests/levcheck_test build/tests/bankcheck_test \
-        build/tests/packsend_test build/tests/mouselook_test
+        build/tests/packsend_test build/tests/mouselook_test build/tests/freecam_test
 	@mkdir -p build/tests/pack-linux
 	build/tests/pack_test build/tests/pack-linux tests/fixtures/cube.models.bin > build/tests/pack_test.out || { cat build/tests/pack_test.out; exit 1; }
 	tail -1 build/tests/pack_test.out
@@ -798,18 +807,24 @@ test-c: build/tests/loopback build/tests/udp_test build/tests/session_test build
 	tail -1 build/tests/packsend_test.out
 	build/tests/mouselook_test > build/tests/mouselook_test.out || { cat build/tests/mouselook_test.out; exit 1; }
 	tail -1 build/tests/mouselook_test.out
+	build/tests/freecam_test > build/tests/freecam_test.out || { cat build/tests/freecam_test.out; exit 1; }
+	tail -1 build/tests/freecam_test.out
 
 # The same tests, except the sound reader's, as a Windows program under Wine. Its offline hash must equal the Linux
 # program's.
 test-windows: build/tests/loopback.exe build/tests/udp_test.exe build/tests/session_test.exe \
               build/tests/seal_test.exe build/tests/pack_test.exe build/tests/lua_test.exe build/g64pack.exe \
               build/tests/levcheck_test.exe build/tests/bankcheck_test.exe build/tests/packsend_test.exe \
-              build/tests/mouselook_test.exe test-c
+              build/tests/mouselook_test.exe build/tests/freecam_test.exe test-c
 	@mkdir -p build/tests/pack-windows
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/mouselook_test.exe | tr -d '\r' \
 	    > build/tests/mouselook_test-windows.out
 	tail -1 build/tests/mouselook_test-windows.out
 	cmp build/tests/mouselook_test.out build/tests/mouselook_test-windows.out
+	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/freecam_test.exe | tr -d '\r' \
+	    > build/tests/freecam_test-windows.out
+	tail -1 build/tests/freecam_test-windows.out
+	cmp build/tests/freecam_test.out build/tests/freecam_test-windows.out
 	WINEDEBUG=-all WINEPREFIX=$(WINEPREFIX64) $(WINE64) build/tests/packsend_test.exe tests/fixtures/cube.models.bin \
 	    | tr -d '\r' > build/tests/packsend_test-windows.out
 	tail -1 build/tests/packsend_test-windows.out
