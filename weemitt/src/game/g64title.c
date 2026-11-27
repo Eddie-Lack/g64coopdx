@@ -85,6 +85,9 @@ static f32 jog[G64_TITLE_ROWS]; /* from 6.28 down to 0 after the row is chosen *
 static s32 lastSelected = -1;
 static s32 lastCount = -1;
 static f32 gloveTurn;
+/* A test: the glove and ball stand still at a set turn (G64TitleTurn). */
+static s32 turnFixed;
+static f32 turnAt;
 
 /* The glove stands, then shows one of these moves, then stands again, a few seconds each, as a character does on a
    fighting game's character screen. Each move plays at its own speed. A move that loops plays for SHOW_TIME; a move
@@ -212,6 +215,11 @@ void G64TitleBig(const char *text) {
     copy_text(page.big, sizeof page.big, text);
 }
 
+void G64TitleTurn(int on, float angle) {
+    turnFixed = on;
+    turnAt = angle;
+}
+
 void G64TitleColors(unsigned glove, unsigned ball) {
     page.glove = glove;
     page.ball = ball;
@@ -242,6 +250,12 @@ u32 G64TitleTint(Actor *a) {
         return 0;
     c &= 0xFFFFFF;
     return c ? c : 0x010101;
+}
+
+/* 1 for the first of the start screen's glove and ball: from it on, the foreground objects are drawn with the depth
+   buffer (object.c). The glove's parts overlap, and without it each part covers the ones drawn before it. */
+s32 G64TitleDepth(Actor *a) {
+    return page.on && barsMade && a != NULL && a == foregroundObjects[PLAYER_GLOVE];
 }
 
 /* The player's chosen model for the glove or the ball on the start screen: their color word, which holds the
@@ -492,12 +506,12 @@ s32 G64TitleMenu(void) {
     {
         Actor *g = foregroundObjects[PLAYER_GLOVE];
         Actor *b = foregroundObjects[PLAYER_BALL];
-        gloveTurn += 0.02f * deltaTime;
+        gloveTurn = turnFixed ? turnAt : gloveTurn + 0.02f * deltaTime;
         /* The next move, or standing again, starts at the end of the current one's cycle (the queue). The time
            counts from when the queue is empty: the move before has started. */
         if (g->anim != NULL && g->anim->queue[0] != -1) {
             showTime = 0;
-        } else if (deltaTick && ++showTime >= SHOW_TIME && g->anim != NULL) {
+        } else if (!turnFixed && deltaTick && ++showTime >= SHOW_TIME && g->anim != NULL) {
             showTime = 0;
             g->anim->loop = 0;
             if (!showing) {

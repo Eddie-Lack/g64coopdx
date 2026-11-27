@@ -42,7 +42,7 @@ On the start screen:
 | Left, Right | D-pad or stick | Changes the value on the bar (the bar shows - and +) |
 | Enter | A or Start | Presses the bar |
 | Esc | B | Goes back, or cancels while the program connects. A host on the **HOSTING** page is asked first: "Leave?" with **YES** and **NO**. On the first page, Esc opens the menu with **Settings** ([Controls](#controls)) |
-| Letters | Left, Right and A | Type on a bar with a blinking mark: a name, a title or a room code. With the controller, Left and Right change the last letter (Left past A takes it away), and A adds a letter |
+| Letters | Left, Right, A and Z | Type on a bar with a blinking mark: a name, a title or a room code. With the controller, Left and Right change the last letter (Left past A takes it away), A adds a letter, and Z takes the last letter away |
 | Backspace | | Takes back a letter; on other bars it goes back. It doesn't cancel while the program connects |
 | F11 or Alt+Enter | | Switches between a window and full screen, as in the game. The program keeps the choice |
 
@@ -379,8 +379,9 @@ If you played before this version, your settings file keeps your old keys: Space
 Esc opens the menu at the top of the window, as in weemitt, the PC port of Glover that g64coopdx builds on.
 **Settings** has **Graphics**, **Audio** and **Controls**: in Controls you set your keys and your controller's
 buttons, also in the middle of an online game. **Online game** has the pause menu's choices
-([below](#your-pause-menu)) for the mouse. The game goes on for everyone while the menu is open,
-and your keyboard goes to the menu. When you play alone, the game waits while the menu is open.
+([below](#your-pause-menu)) for the mouse. The game goes on while the menu is open, also when you play alone. Your
+keys and your controller still play it. While you type in a box of the menu, such as the chat's line, your keys go to
+the box.
 
 The menu has no cheats, enhancements, developer tools or studio tools, online or alone. When you play alone, it has
 **Settings** and **Log** only. In an online game it also has **Online game**. The keys that pause or step the game do
@@ -464,8 +465,9 @@ game data, only addresses and counts.
 - When someone puts a crystal in the hub's fountain, you stay in your hub stage. Your next exit to the hub takes you
   to the newest stage.
 - The way back from the crystal cave leads to the hub stage you came from, where the friends you left still are. As
-  in the game, the first visit to the cave counts as a crystal, so the hub moves on to its next stage. Your next exit
-  to the hub from a world or a level takes you to the newest stage.
+  in the game, the first visit to the cave counts as a crystal, so the hub moves on to its next stage. When nobody's
+  left in the stage you came from, the way back leads to the newest stage. Your next exit to the hub from a world or a
+  level takes you to the newest stage.
 - In the crystal cave, each player who comes with a crystal due has their own flight to the fountain: only their
   glove waits. A player who came with nothing due has no flight, even if a crystal becomes due while they're there.
   If another player puts the last crystal due in first, there's no flight left for you.

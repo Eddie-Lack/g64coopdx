@@ -573,6 +573,14 @@ void ClearZBuffer(void) {
     gDPPipeSync(glistp++);
 }
 
+/* g64coopdx: clears the depth buffer in the middle of a frame, and goes back to drawing into the frame buffer. The
+   start screen's glove and ball need it (g64title.c, G64TitleDepth). */
+void G64ClearDepth(void) {
+    ClearZBuffer();
+    gDPSetColorImage(glistp++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 320, (u32) cfb_ptrs[draw_buffer] + 0x80000000);
+    gDPSetCycleType(glistp++, UseTextureMode == 2 ? G_CYC_2CYCLE : G_CYC_1CYCLE);
+}
+
 /* g64coopdx: for tests, the most commands a frame's graphics list held. */
 s32 g64GfxPeak;
 

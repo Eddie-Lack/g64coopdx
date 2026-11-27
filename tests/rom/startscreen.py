@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The online program from its start screen, in windows under Xvfb, through a lobby server on this machine.
 
-Three rounds. In the first two a host and a joiner meet on the start screen:
+Four rounds. In the first two a host and a joiner meet on the start screen:
 
 1. The host wants 3 players and starts when 2 are in (G64_LAUNCHER_START). The wait pages must show how the wait
    goes: the host's page the players who are in, the joiner's page that it waits for the host (G64_LAUNCHER_LOG
@@ -14,6 +14,13 @@ Three rounds. In the first two a host and a joiner meet on the start screen:
    and joins. The host leaves (WEEMITT_QUIT_FRAMES). The joiner must learn it at once, from the host's goodbye, not
    after the 10 seconds in which a silent host counts as gone.
 3. A pack alone, from HOST GAME and with --try-pack: the game starts in the pack's level. QUIT ends the program.
+4. One program at a time, without a lobby:
+   - The glove on the start screen must be drawn with the depth buffer. Held still facing front (G64_LAUNCHER_TURN),
+     its eyes must show inside its outline. Turned away, the star on its back must show. Without the depth buffer the
+     body's parts drawn later cover both. This check needs ImageMagick's import, and skips without it.
+   - A virtual controller's Z (WEEMITT_VIRTUAL_AXIS, the left trigger) takes letters away on the NAME bar.
+   - In a game alone, with the Escape menu open, the game goes on and a game key moves the glove (--trace-updates
+     prints its place).
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -231,6 +238,139 @@ def round_three(args, work, display):
     return ok
 
 
+def screenshot(pid, display):
+    """The program's window as (width, height, RGB bytes), or None."""
+    wid = window_of(pid, display)
+    if not wid:
+        return None
+    out = subprocess.run(["import", "-window", wid, "-depth", "8", "ppm:-"], env=dict(os.environ, DISPLAY=display),
+                         capture_output=True).stdout
+    parts = out.split(b"\n", 3)
+    if len(parts) < 4 or parts[0] != b"P6":
+        return None
+    w, h = map(int, parts[1].split())
+    return w, h, parts[3]
+
+
+# The glove's box in a 960x720 window, with the glove at its place right of the bars (g64title.c).
+GLOVE_BOX = (780, 140, 920, 270)
+
+
+def glove_marks(shot):
+    """Counts two marks of the glove in its box: the dark pixels with the glove's pale body close to the left and the
+    right (its eyes), and the red pixels (the star on its back)."""
+    w, h, px = shot
+
+    def at(x, y):
+        i = (y * w + x) * 3
+        return px[i], px[i + 1], px[i + 2]
+
+    def body(x, y):
+        r, g, b = at(x, y)
+        return r > 150 and g > 110 and b > 120
+
+    x0, y0, x1, y1 = GLOVE_BOX
+    eyes = red = 0
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            r, g, b = at(x, y)
+            if r > 150 and g < 90 and b < 90:
+                red += 1
+            if r < 90 and g < 90 and b < 90 and any(body(x - d, y) for d in range(1, 7)) and \
+                    any(body(x + d, y) for d in range(1, 7)):
+                eyes += 1
+    return eyes, red
+
+
+def glove_depth(args, work, display):
+    """The glove on the start screen, held still at a turn, must show the mark of that side. Drawn without the depth
+    buffer, the front showed 13 pixels of its eyes (with it 194), and the back 85 pixels of its star (with it 187)."""
+    if shutil.which("import") is None:
+        print("startscreen: the glove's check skipped, no import (ImageMagick)")
+        return True
+    ok = True
+    for turn, what, want in (("3.14", "eyes", 100), ("0", "star", 140)):
+        one = Program(args, work, "four-glove-" + turn, display,
+                      {"G64_LAUNCHER_TURN": turn, "WEEMITT_WINDOW_SIZE": "960x720"}, [])
+        try:
+            got = None
+            for wait in (12, 6, 6):
+                time.sleep(wait)
+                shot = screenshot(one.proc.pid, display)
+                if shot and shot[0] == 960 and shot[1] == 720:
+                    eyes, red = glove_marks(shot)
+                    got = eyes if what == "eyes" else red
+                    if got >= want:
+                        break
+            ok &= check(got is not None and got >= want,
+                        "the start screen's glove shows its %s (%s pixels, at least %d)" % (what, got, want))
+        finally:
+            one.stop()
+    return ok
+
+
+def controller_erase(args, work, display):
+    """A virtual controller's Z takes the last letter away on the NAME bar: two presses make HOSTY into HOS."""
+    # OPTIONS, then NAME is the chosen bar. Z (the left trigger, SDL axis 4) is pushed twice, later.
+    keys = ["down", "down", "a"]
+    one = Program(args, work, "four-erase", display,
+                  {"G64_LAUNCHER_KEYS": ",".join(keys), "WEEMITT_VIRTUAL_PADS": "1",
+                   "WEEMITT_VIRTUAL_AXIS": "0:4:240:250:300:310"}, ["--launcher", "--name", "HOSTY"])
+    name = os.path.join(one.home, "g64coopdx", "Glover", "name.txt")
+    try:
+        end = time.time() + 60
+        got = None
+        while time.time() < end:
+            if os.path.exists(name):
+                got = open(name).read().strip()
+                if got == "HOS":
+                    break
+            time.sleep(0.5)
+        return check(got == "HOS", "the controller's Z takes letters away on the NAME bar (%s)" % got)
+    finally:
+        one.stop()
+
+
+def menu_open_play(args, work, display):
+    """A game alone with the Escape menu open: the game goes on, and the game's keys reach it. C (A) closes Mr Tip's
+    first words, and Up moves the glove."""
+    one = Program(args, work, "four-menu", display, {"G64_TEST_MENU_LOG": "1"}, ["--level", "0", "--trace-updates"])
+    env = dict(os.environ, DISPLAY=display)
+    try:
+        # Mr Tip starts to speak once the level's first camera move has ended, before frame 400.
+        if not check(one.wait_for(r"update fc 400 ", 120) is not None, "the level starts"):
+            return False
+        time.sleep(1)
+        subprocess.run(["xdotool", "windowfocus", "--sync", window_of(one.proc.pid, display)], env=env)
+        time.sleep(0.5)
+        subprocess.run(["xdotool", "key", "Escape"], env=env)
+        time.sleep(1)
+        for _ in range(6):
+            hold(env, "c", 0.3)
+        hold(env, "Up", 3.0)
+        time.sleep(1)
+    finally:
+        one.stop()
+    text = one.text()
+    opened = text.find("menu test: the menu is open")
+    places = re.findall(r"hand vel \S+ \S+ \S+ pos (\S+) \S+ (\S+)", text[opened:] if opened >= 0 else "")
+    moved = 0.0
+    if places:
+        (x0, z0), (x1, z1) = places[0], places[-1]
+        moved = ((float(x1) - float(x0)) ** 2 + (float(z1) - float(z0)) ** 2) ** 0.5
+    ok = check(opened >= 0 and "menu test: the menu is closed" not in text[opened:], "Escape opens the menu")
+    ok &= check(len(places) > 100, "the game goes on while the menu is open (%d updates)" % len(places))
+    ok &= check(moved > 50, "a game key moves the glove while the menu is open (%.0f units)" % moved)
+    return ok
+
+
+def round_four(args, work, display):
+    ok = glove_depth(args, work, display)
+    ok &= controller_erase(args, work, display)
+    ok &= menu_open_play(args, work, display)
+    return ok
+
+
 def hold(env, key, seconds=0.2):
     """A key held long enough for the game's frames to see it (20 a second in a level)."""
     subprocess.run(["xdotool", "keydown", key], env=env)
@@ -346,6 +486,7 @@ def main():
         ok &= round_one(args, work, display)
         ok &= round_two(args, work, display)
         ok &= round_three(args, work, display)
+        ok &= round_four(args, work, display)
     finally:
         lobby.terminate()
         lobby.wait()

@@ -22,8 +22,9 @@
  * desync. It prints the host's hash checks and each player's level; make instances runs it on Linux and under Wine and
  * compares the outputs.
  *
- * A second run tests a game that players join after its start (join_later), and a third the rule of one world at
- * a time (one_world), a fourth a level pack (pack_level), and a fifth a pack's script (script_run). The sample pack
+ * A second run tests a game that players join after its start (join_later). In the next one a player alone takes the
+ * first ball into the cave and comes out in the hub's second stage (first_ball). Then come the rule of one world at
+ * a time (one_world), a level pack (pack_level) and a pack's script (script_run). The sample pack
  * plays with its raft and a retail bell, and the client refuses it with other retail banks (sample_pack,
  * sample_pack_retail). The last two runs test the session's values, which scripts keep from level to level
  * (script_session), and levels that can't be played, which don't stop the session (pack_unplayable).
@@ -168,6 +169,70 @@ extern unsigned g64PlayerColor[16][2];
  * and join the running instance after its log. Player 1 leaves at frame 600, and at frame 700 another player takes
  * the place, with other colors. Place 3 stays empty. The test: everyone ends in the one instance with no desync and
  * no hash mismatch, and every game has the colors of the players who are in it now. */
+/* The first ball: a player alone takes it through the hub's cave door at the start. In the cave the crystal flies to
+   the fountain, and the game takes the player out to the hub. The hub must be at its second stage then (HUB2): the
+   first stage, built again, plays its opening again and has the ball in its place. */
+static void first_ball(Engine *e, void *boot) {
+    enum { RUN = 2000, CAVE = 8 };
+    uint32_t none[16][2];
+    int p, before = failed, sawCave = 0, levelAfter = -1, lastLevel = -1;
+    memset(none, 0, sizeof none);
+    engine_load(e, boot);
+    for (p = 0; p < 8; p++)
+        g64TestExits[p] = (G64TestExit){-1, 0, 0, 0};
+    g64TestExits[0] = (G64TestExit){HUB1, 200, 0, CAVE_EXIT};
+    engine_save(e, boot);
+    count = 0;
+    for (p = 0; p < PLAYERS; p++)
+        player[p] = NULL;
+    host = g64_ihost_new_with(e, boot, 1, 1u, none, HUB1, DEADLINE, host_send, NULL);
+    player[0] = g64_iclient_new_with(e, boot, 1, 1u, none, 0, HUB1, WINDOW, DEADLINE, player_send, &ids[0]);
+    check(host && player[0], "a host alone starts in the hub");
+    if (!host || !player[0])
+        return;
+    for (now = 0; now < RUN; now++) {
+        rb_input in;
+        int level;
+        deliver();
+        g64_ihost_tick(host);
+        memset(&in, 0, sizeof in);
+        in.present = 1;
+        /* "Back to the hub" in the pause menu, as netplay.c sends it, once the crystal's scene in the cave is over:
+           the player goes out of the cave as through its door. */
+        if (now >= 1200 && now < 1212) {
+            in.buttons = 0x0080;
+            in.x = 2;
+        }
+        g64_iclient_step(player[0], in);
+        level = g64_iclient_moving(player[0]) ? -1 : g64_iclient_level(player[0]);
+        if (level == CAVE)
+            sawCave = 1;
+        if (sawCave && level >= 0 && level != CAVE && levelAfter < 0)
+            levelAfter = level;
+        if (level != lastLevel && level >= 0)
+            printf("frame %u: the player is in level %d\n", now, level);
+        if (level >= 0)
+            lastLevel = level;
+    }
+    {
+        char what[200];
+        G64Save sv;
+        rb_engine_game *g = g64_iclient_game(player[0]);
+        memset(&sv, 0, sizeof sv);
+        if (g) {
+            rb_engine_game_enter(g);
+            G64ReadSave(&sv);
+        }
+        snprintf(what, sizeof what, "the first ball: the cave %s, then level %d, at the end level %d; the game's hub "
+                 "level %u", sawCave ? "came" : "never came", levelAfter, lastLevel, sv.hubLevel);
+        check(sawCave && levelAfter == HUB2 && lastLevel == HUB2 && sv.hubLevel == 1, what);
+    }
+    g64_iclient_free(player[0]);
+    player[0] = NULL;
+    g64_ihost_free(host);
+    printf("%s the first ball moves the hub on\n", failed != before ? "FAIL" : "ok  ");
+}
+
 static void join_later(Engine *e, const void *boot) {
     enum { ATLANTIS2 = 11, RUN = 1300 };
     static const uint32_t glove[3] = {0x1ff0000u, 0x100ff00u, 0x10000ffu}, ball[3] = {0x1ffff00u, 0x1ff00ffu, 0x100ffffu};
@@ -1443,6 +1508,7 @@ int main(int argc, char **argv) {
         g64_iclient_free(player[p]);
     g64_ihost_free(host);
     join_later(e, boot);
+    first_ball(e, boot);
     one_world(e, boot);
     pack_level(e, boot);
     script_run(e, boot);

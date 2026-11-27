@@ -87,6 +87,9 @@ extern s32 numForegroundObjects;
 f32 DistanceBetweenPointsSquared(Vec3 *v1, Vec3 *v2);
 void InitDisplayLists(void);
 void SetRenderMode(void);
+/* g64coopdx: the start screen (g64title.c) and the depth clear for it (main.c). */
+s32 G64TitleDepth(Actor *a);
+void G64ClearDepth(void);
 void SetupViewing(void);
 void ApplyGlobalTransformations(void);
 void ProcessBackgroundLights(Actor *actor);
@@ -396,7 +399,17 @@ void CreateObjects(void) {
         if (!(foregroundObjects[i]->inst->obj->flags & 8)) {
             ProcessBackgroundLights(foregroundObjects[i]);
         }
+        /* g64coopdx: the game draws its foreground objects without the depth buffer. The start screen's glove and
+           ball are solid models: they are drawn with it, on a cleared one, as a level draws its actors. */
+        if (G64TitleDepth(foregroundObjects[i])) {
+            G64ClearDepth();
+            UseZMode = 1;
+            SetRenderMode();
+        }
         DrawActor(foregroundObjects[i]);
+    }
+    if (UseZMode) {
+        UseZMode = 0;
     }
     CleanupAndSendDisplayList(0, 0);
     EndTimer(3);

@@ -69,6 +69,10 @@ bool leaveAsked;
 bool chatWasOpen;
 
 void set_open(bool open) {
+    /* A test: G64_TEST_MENU_LOG=1 says in the log when the menu opens and closes (tests/rom/startscreen.py). */
+    if (open != menuOpen && getenv("G64_TEST_MENU_LOG")) {
+        plog_printf("menu test: the menu is %s", open ? "open" : "closed");
+    }
     menuOpen = open;
     if (!open) {
         quickChat = false;
@@ -1620,7 +1624,7 @@ void menu_init(SDL_Window *window, SDL_GLContext gl, Settings *st) {
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = NULL;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    /* No keyboard navigation: the arrow keys and the others go to the game while the menu is open. */
     ImGui::StyleColorsDark();
     ImGui::GetStyle().WindowRounding = 4.0f;
     ImGui_ImplSDL2_InitForOpenGL(window, gl);
@@ -1746,6 +1750,21 @@ int menu_handle_event(const SDL_Event *e) {
 
 int menu_is_open(void) {
     return menuOpen;
+}
+
+int menu_takes_keys(void) {
+    if (!menuOpen) {
+        return 0;
+    }
+    if (rebindInput >= 0 || rebindDev != 0) {
+        return 1;
+    }
+#ifdef PORT_STUDIO
+    if (quickChat) {
+        return 1;
+    }
+#endif
+    return ImGui::GetCurrentContext() != NULL && ImGui::GetIO().WantTextInput;
 }
 
 void menu_open(void) {

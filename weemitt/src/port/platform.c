@@ -582,7 +582,8 @@ static void read_input(const Settings *st) {
     int x = 0;
     int y = 0;
 
-    if (!menu_is_open()) {
+    /* The game's keys work while the menu is open, unless a text field of the menu has the keyboard. */
+    if (!menu_takes_keys()) {
         /* g64coopdx: a diagonal on the keys is as long as a straight move (mouselook.c). */
         ml_keys_stick(settings_input_down(st, k, IN_STICK_UP), settings_input_down(st, k, IN_STICK_DOWN),
                       settings_input_down(st, k, IN_STICK_LEFT), settings_input_down(st, k, IN_STICK_RIGHT), &x, &y);
@@ -915,7 +916,7 @@ void g64_title_frame(SDL_Window *window) {
 }
 
 /* The controller for the start screen, as the game reads it (the player's Controls settings): which of up, down,
-   left, right, A and B are held. The stick counts as the d-pad. Start counts as A. */
+   left, right, A, B and Z are held. The stick counts as the d-pad. Start counts as A. */
 int g64_title_pad(void) {
     unsigned short b = 0;
     int x = 0, y = 0, held = 0;
@@ -933,6 +934,8 @@ int g64_title_pad(void) {
         held |= G64_PAD_A;
     if (b & BTN_B)
         held |= G64_PAD_B;
+    if (b & BTN_Z)
+        held |= G64_PAD_Z;
     return held;
 }
 
@@ -989,17 +992,27 @@ static void load_input_script(const char *path, ScriptedInput **script, int *scr
 
 /* Test options for the debug pad in the window. WEEMITT_DEBUG_PAD=second or keyboard sets the Developer window's
    choice. WEEMITT_VIRTUAL_PADS=N makes N virtual game controllers, and WEEMITT_VIRTUAL_PRESS=PAD:BUTTON:FROM:TO holds
-   an SDL_CONTROLLER_BUTTON of virtual controller PAD (0 or 1) from original frame FROM up to TO. */
+   an SDL_CONTROLLER_BUTTON of virtual controller PAD (0 or 1) from original frame FROM up to TO.
+   WEEMITT_VIRTUAL_AXIS=PAD:AXIS:FROM:TO[:FROM:TO...] pushes an SDL_CONTROLLER_AXIS (a trigger, such as the left one
+   for Z) all the way, in up to four spans of frames. */
 static SDL_Joystick *virtualPads[2];
 static int virtualPress[4] = {-1, 0, 0, 0};
+static int virtualAxis[10] = {-1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 static void make_virtual_pads(void) {
     const char *n = getenv("WEEMITT_VIRTUAL_PADS");
     const char *press = getenv("WEEMITT_VIRTUAL_PRESS");
     int i;
 
+    const char *axis = getenv("WEEMITT_VIRTUAL_AXIS");
+
     if (press != NULL) {
         sscanf(press, "%d:%d:%d:%d", &virtualPress[0], &virtualPress[1], &virtualPress[2], &virtualPress[3]);
+    }
+    if (axis != NULL) {
+        sscanf(axis, "%d:%d:%d:%d:%d:%d:%d:%d:%d:%d", &virtualAxis[0], &virtualAxis[1], &virtualAxis[2],
+               &virtualAxis[3], &virtualAxis[4], &virtualAxis[5], &virtualAxis[6], &virtualAxis[7], &virtualAxis[8],
+               &virtualAxis[9]);
     }
     for (i = 0; n != NULL && i < atoi(n) && i < 2; i++) {
         int index = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER, SDL_CONTROLLER_AXIS_MAX,
@@ -1015,6 +1028,15 @@ static void virtual_press(long frame) {
     if (virtualPress[0] >= 0 && virtualPress[0] < 2 && virtualPads[virtualPress[0]] != NULL) {
         SDL_JoystickSetVirtualButton(virtualPads[virtualPress[0]], virtualPress[1],
                                      frame >= virtualPress[2] && frame < virtualPress[3]);
+    }
+    if (virtualAxis[0] >= 0 && virtualAxis[0] < 2 && virtualPads[virtualAxis[0]] != NULL) {
+        int i, on = 0;
+
+        for (i = 2; i + 1 < 10; i += 2) {
+            on |= virtualAxis[i + 1] > virtualAxis[i] && frame >= virtualAxis[i] && frame < virtualAxis[i + 1];
+        }
+        /* A game controller's trigger reads the raw axis from -32768 (at rest) to 32767 (all the way). */
+        SDL_JoystickSetVirtualAxis(virtualPads[virtualAxis[0]], virtualAxis[1], on ? 32767 : -32768);
     }
 }
 
@@ -2731,7 +2753,7 @@ int main(int argc, char **argv) {
             if (e.type == SDL_JOYDEVICEADDED || e.type == SDL_JOYDEVICEREMOVED || e.type == SDL_CONTROLLERDEVICEADDED) {
                 pad2Dirty = 1;
             }
-            unsigned short pressed = input_event_buttons(&settings, &e, !menu_is_open(), pad != NULL,
+            unsigned short pressed = input_event_buttons(&settings, &e, !menu_takes_keys(), pad != NULL,
                                                          pad == NULL && joy != NULL);
 
             /* g64coopdx: Escape opens the menu in the online game too. There it offers only the player's own
@@ -2881,12 +2903,6 @@ int main(int argc, char **argv) {
             if (titleTick++ % 30 == 0) {
                 SDL_SetWindowTitle(window, netplay_status());
             }
-            goto netplay_done;
-        }
-        if (TOOLS_HIDDEN() && menu_is_open()) {
-            /* g64coopdx: playing alone, the menu holds the game: nothing moves while the player changes a setting. */
-            acc = 0.0;
-            gfx_interp_set(-1.0f);
             goto netplay_done;
         }
         if (studio_paused()) {

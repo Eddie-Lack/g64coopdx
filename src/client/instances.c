@@ -256,6 +256,7 @@ struct g64_ihost {
     /* A player who waits to come back into the instance they left (take_exit). */
     struct {
         int wait, level, world, type, from;
+        int keep; /* 1: the way out of the cave to the stage the player came from, while that stage runs */
         int id; /* the instance they wait for, or -1 for any */
         uint32_t frame;
     } back[RB_MAX_PLAYERS];
@@ -552,11 +553,15 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
         level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
     from = h->inst[s].start.level;
     /* The way out of the crystal cave leads back to the hub stage the player came from, where the friends they left
-       still are. The game's own exit would take the newest stage: the first visit to the cave counts as a crystal. */
+       still are. The game's own exit would take the newest stage: the first visit to the cave counts as a crystal.
+       With nobody left in that stage, its instance has ended. A new one would start the stage from its beginning:
+       the first stage would play its opening again and have the first ball in its place. The player then goes to
+       the newest stage, as in the game. */
     if (level == CAVE && from <= HUB8)
         h->caveFrom[p] = from;
     if (from == CAVE && level <= HUB8 && e->r.world == 0 && h->caveFrom[p] >= 0) {
-        level = h->caveFrom[p];
+        if (find_instance(h, h->caveFrom[p], 0) >= 0)
+            level = h->caveFrom[p];
         h->caveFrom[p] = -1;
     }
     leave_instance(h, p);
@@ -575,6 +580,7 @@ static void take_exit(g64_ihost *h, const pending_exit *e) {
         h->back[p].world = world;
         h->back[p].type = e->r.type;
         h->back[p].from = from;
+        h->back[p].keep = from == CAVE && level != (h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8);
         if (h->inst[s].used && find_instance(h, level, world) == s) {
             h->back[p].wait = 1;
             h->back[p].id = h->inst[s].id;
@@ -679,8 +685,10 @@ void g64_ihost_tick(g64_ihost *h) {
         int t;
         if (!h->back[p].wait)
             continue;
-        /* The hub's newest stage, as it is now. The way out of the cave keeps its stage. */
-        if (h->back[p].world == 0 && h->back[p].level <= HUB8 && h->back[p].from != CAVE)
+        /* The hub's newest stage, as it is now. The way out of the cave keeps its stage while friends are in it. */
+        if (h->back[p].keep && find_instance(h, h->back[p].level, 0) < 0)
+            h->back[p].keep = 0;
+        if (h->back[p].world == 0 && h->back[p].level <= HUB8 && !h->back[p].keep)
             h->back[p].level = h->progress.hub_level <= HUB8 ? h->progress.hub_level : HUB8;
         t = find_instance(h, h->back[p].level, h->back[p].world);
         /* They wait only for the instance they left. If it has ended, another one of the level is new to them. */
