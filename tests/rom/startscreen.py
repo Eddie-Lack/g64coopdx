@@ -23,8 +23,8 @@ Four rounds. In the first two a host and a joiner meet on the start screen:
      prints its place).
    - A joiner chooses another glove model during the game, through the lobby: it reaches the host, and the games
      stay equal.
-   - Menu music, captured with SDL's disk audio driver: the remix and the original play, the remix is faster, Off is
-     silent, and nothing clips.
+   - Menu music, captured with SDL's disk audio driver: the remix and the original play, the remix is about half as
+     fast, Off is silent, and nothing clips.
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -40,6 +40,7 @@ import sys
 import tempfile
 import time
 import json
+import math
 import struct
 import urllib.request
 
@@ -410,7 +411,7 @@ def capture_music(args, work, display, mode):
     for i in range(0, len(samples) - 1024, 1024):
         block = samples[i:i + 1024]
         levels.append(sum(abs(v) for v in block) / len(block))
-    return levels, max((abs(v) for v in samples), default=0)
+    return levels, max((abs(v) for v in samples), default=0), samples
 
 
 def beats_per_minute(levels, rate=22047):
@@ -427,24 +428,58 @@ def beats_per_minute(levels, rate=22047):
     return 60.0 * per_second / best_lag if best_lag else 0
 
 
+def kick_beats_per_minute(samples, rate=22047, block=256):
+    """The tempo of the low drums: the rises of the level at 50 to 95 Hz (Goertzel filters on the left channel, in
+    blocks of 256 samples), at the lag in 50 to 180 beats a minute at which they repeat best. Hats on the eighths
+    don't count here."""
+    coefs = [2 * math.cos(2 * math.pi * f / rate) for f in (50.0, 65.0, 80.0, 95.0)]
+    levels = []
+    for i in range(0, len(samples) - 2 * block, 2 * block):
+        part = samples[i:i + 2 * block:2]
+        power = 0.0
+        for c in coefs:
+            s1 = s2 = 0.0
+            for x in part:
+                s1, s2 = x + c * s1 - s2, s1
+            power += s1 * s1 + s2 * s2 - c * s1 * s2
+        levels.append(math.sqrt(max(power, 0.0)))
+    rises = [max(0.0, b - a) for a, b in zip(levels, levels[1:])]
+    mean = sum(rises) / len(rises) if rises else 0
+    rises = [r - mean for r in rises]
+    per_second = rate / float(block)
+    best, best_lag = None, 0
+    for lag in range(int(per_second * 60 / 180), int(per_second * 60 / 50) + 1):
+        if lag >= len(rises):
+            break
+        c = sum(rises[i] * rises[i + lag] for i in range(len(rises) - lag)) / (len(rises) - lag)
+        if best is None or c > best:
+            best, best_lag = c, lag
+    return 60.0 * per_second / best_lag if best_lag else 0
+
+
 def menu_music(args, work, display):
-    """Menu music: the remix and the original play and aren't silent, the remix is faster than the original, Off
+    """Menu music: the remix and the original play and aren't silent, the remix is about half as fast, Off
     is silent, and nothing clips. The first 5 seconds (the start screen's start) are left out."""
     ok = True
     got = {}
     for mode in (0, 1, 2):
-        levels, peak = capture_music(args, work, display, mode)
+        levels, peak, samples = capture_music(args, work, display, mode)
         levels = levels[int(5 * 22047 / 512):]
+        samples = samples[5 * 22047 * 2:]
         loud = sum(levels) / len(levels) if levels else 0
-        got[mode] = (loud, peak, beats_per_minute(levels) if loud > 10 else 0)
+        tempo = 0
+        if loud > 10:
+            tempo = kick_beats_per_minute(samples) if mode == 0 else beats_per_minute(levels)
+        got[mode] = (loud, peak, tempo)
     remix, original, off = got[0], got[1], got[2]
     ok &= check(remix[0] > 100 and original[0] > 100, "the remix and the original play (levels %.0f and %.0f)" %
                 (remix[0], original[0]))
     ok &= check(off[0] < 1, "Off is silent (level %.1f)" % off[0])
     ok &= check(remix[1] < 32767 and original[1] < 32767, "nothing clips (peaks %d and %d)" % (remix[1], original[1]))
-    # The song's own tempo is about 120 beats a minute, and the remix's 9/8 of it, about 135.
-    ok &= check(110 < original[2] < 128 and 128 < remix[2] < 145,
-                "the remix is faster than the original (%.0f and %.0f beats a minute)" % (remix[2], original[2]))
+    # The song's own tempo is about 120 beats a minute, and the remix's 9/16 of it, about 68. The remix's kick marks
+    # its beat; its hats play on the eighths.
+    ok &= check(110 < original[2] < 128 and 60 < remix[2] < 75,
+                "the remix is about half as fast as the original (%.0f and %.0f beats a minute)" % (remix[2], original[2]))
     return ok
 
 

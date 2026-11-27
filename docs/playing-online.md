@@ -355,7 +355,7 @@ The start screen plays the game's menu theme. **Menu music** (Esc, **Settings**,
 
 | Choice | What plays |
 | --- | --- |
-| Remix (the default) | The menu theme, remixed: a little faster, a whole step higher, the two lead instruments trading their parts, a kick, a snare and a hat added to the drums, and more reverb |
+| Remix (the default) | The menu theme, remixed: at about half its speed, a fourth lower, the two lead instruments trading their parts, a kick, a snare and a hat added to the drums, softer hats, and more reverb |
 | Original | The menu theme as the game plays it |
 | Off | Nothing |
 
