@@ -6,7 +6,7 @@
  *
  * The notes, the instruments, the drums and the effects all come from the player's own ROM as the song plays. The
  * remix only changes how they're played, by these rules:
- *   - The tempo is 107/128 of the song's own, about 100 beats a minute (MusHandleSetTempo).
+ *   - The tempo is the song's own, about 120 beats a minute.
  *   - The two lead instruments trade parts: each of their notes plays with the other one's wave, moved by the
  *     difference between the transposes the song uses with the two waves (both waves then sound the written pitch).
  *   - Every pitched part goes down a fourth (5 semitones). A note that the player would push past an octave above its
@@ -17,10 +17,12 @@
  *     velocity, a snare roll ends every eighth bar, and one bar is in half time and one in double time. The first
  *     bars of the cycle are plainer. Each hit plays on a free channel, as a copy of the song's own channel that last
  *     played that drum, with a one-note stream.
- *   - Cross-Stitch laughs (the game's effect 176, which he plays when he casts a spell, nmeprocess2.c) at the end of
- *     two phrases of the cycle: once as he does, once a fifth lower and slower, with an echo.
- *   - Seagulls (wave 51 of the game's sound bank, which the Pirates 3 song plays) call now and then, panned left and
- *     right, at their own pitch and higher, each with a quieter echo on the other side.
+ *   - Cross-Stitch laughs (the game's effect 28, which he plays as he gestures and laughs, his move 4 in
+ *     nmeprocess2.c) at the end of two phrases of the cycle: once as he does, once a fifth lower and slower, with an
+ *     echo. (Effect 176, which he plays as he casts his spell, is the game's transformation sound: the ball and the
+ *     glove play it too, in ball.c and hand.c.)
+ *   - Seagulls (wave 48 of the game's sound bank, which the Pirates 3 song plays) call now and then, panned left and
+ *     right, at the song's own pitch and higher, each with a quieter echo on the other side.
  *   - The song plays with more reverb than the game gives it.
  */
 PORT_C_BEGIN
@@ -43,15 +45,18 @@ PORT_C_BEGIN
 #define HIGHEST 60
 #define LOWEST 26
 #define KEY_SHIFT (-5)
-#define TEMPO 107 /* MusHandleSetTempo: 128 is the song's own */
+#define TEMPO 128 /* MusHandleSetTempo: 128 is the song's own */
 #define REVERB 40
 #define BASS_LOUDER 160 /* in 128ths of the bass's velocity */
 
-/* The seagull: wave 51, which the Pirates 3 song plays at note + transpose 37 (its written pitch). */
-#define GULL_WAVE 51
-#define GULL_PITCH 37
-/* Cross-Stitch's laugh, a sound effect. */
-#define LAUGH_EFFECT 176
+/* The seagulls: wave 48, which the Pirates 3 song (song 11) plays at note + transpose 36, its written pitch, in
+   notes of 192 ticks. A call here lasts GULL_LENGTH ticks. */
+#define GULL_WAVE 48
+#define GULL_PITCH 36
+#define GULL_LENGTH 96
+/* Cross-Stitch's laugh, a sound effect, and its volume (0 to 255): the sample is loud. */
+#define LAUGH_EFFECT 28
+#define LAUGH_VOLUME 100
 
 /* The added sounds' channels: the last ones, which the song leaves free. */
 enum { HIT_KICK, HIT_SNARE, HIT_HAT, HIT_GULL, HIT_ECHO, HITS };
@@ -229,7 +234,7 @@ static void wait_for(u32 step, s32 what, s32 pan, s32 note, s32 velocity) {
 /* A gull's call: the wave at its own pitch plus up, on side pan, with an echo 3 sixteenths later on the other side. */
 static void gull(s32 handle, u32 step, s32 up, s32 pan) {
     s32 note = GULL_PITCH - (s8)hitTemplate[HIT_GULL].transpose + up;
-    play_hit(HIT_GULL, handle, GULL_WAVE, note, 48, 90, pan);
+    play_hit(HIT_GULL, handle, GULL_WAVE, note, GULL_LENGTH, 90, pan);
     wait_for(step + 3, 2, 127 - pan, note, 45);
 }
 
@@ -268,10 +273,10 @@ static void remix_frame(void) {
     }
     /* Cross-Stitch laughs on the last beat of bar 7, as in the game, and of bar 15, lower and slower with an echo. */
     if (bar == 7 && pos == 12) {
-        laugh(0, 200, 64);
+        laugh(0, LAUGH_VOLUME, 64);
     } else if (bar == 15 && pos == 12) {
-        laugh(-7, 210, 40);
-        wait_for(step + 3, 1, 88, 0, 120);
+        laugh(-7, LAUGH_VOLUME, 40);
+        wait_for(step + 3, 1, 88, 0, LAUGH_VOLUME / 2);
     }
     /* Gulls: in bar 3 on the left at their own pitch, in bar 10 on the right a fourth higher, in bar 13 on both
        sides. */
@@ -289,7 +294,7 @@ static void remix_frame(void) {
             if (later[i].what == 1) {
                 laugh(-7, later[i].velocity, later[i].pan);
             } else {
-                play_hit(HIT_ECHO, ch->handle, GULL_WAVE, later[i].note, 48, later[i].velocity, later[i].pan);
+                play_hit(HIT_ECHO, ch->handle, GULL_WAVE, later[i].note, GULL_LENGTH, later[i].velocity, later[i].pan);
             }
             later[i].what = 0;
         }
