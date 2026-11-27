@@ -628,7 +628,6 @@ static void build_page(launcher *L) {
     }
     if (L->error[0])
         note(L->error, RED);
-    G64TitleBack(L->page != PAGE_MAIN && !netplay_pack_asking());
     G64TitleColors(color_word(G64_MODEL_GLOVE), color_word(G64_MODEL_BALL));
 }
 

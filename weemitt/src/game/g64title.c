@@ -15,7 +15,6 @@ PORT_C_BEGIN
 #include "text.h"
 #include "jalloc.h"
 #include "g64title.h"
-#include "game.h"
 
 struct Text *NEW_TEXT(s16 x, s16 y, u8 r, u8 g, u8 b, u8 a, f32 sx, f32 sy, u8 oneShot, char *str, u8 centre);
 void SetFont(u8 type);
@@ -39,7 +38,6 @@ extern s32 cameFromTitle;
 extern s32 frameCount2;
 extern s32 aimBallX;
 extern s32 aimBallY;
-extern PTR32(char) startMenuStrings[][3];
 
 /* The page: what the program asks for. */
 typedef struct {
@@ -60,7 +58,6 @@ static struct {
     u32 noteColor[NOTES];
     s32 noteCount;
     char big[16];
-    s32 back; /* the page goes back with B: the game's own "B BACK" mark shows, as on its file select */
     u32 glove;
     u32 ball;
 } page;
@@ -188,11 +185,6 @@ void G64TitlePage(const char *heading) {
     page.selected = 0;
     page.noteCount = 0;
     page.big[0] = 0;
-    page.back = 0;
-}
-
-void G64TitleBack(int on) {
-    page.back = on;
 }
 
 void G64TitleRow(const char *label, const char *value, int flags) {
@@ -357,12 +349,6 @@ s32 G64TitleMenu(void) {
         text(40, 34 + i * 22, 0xFFFFFF, 255, 1.3f, 0, letter, 1);
     }
     row_layout(page.count, &top, &step, &size);
-    if (page.back) {
-        /* Where the game's file select draws it (frontend.c). */
-        SetFont(1);
-        NEW_TEXT(260, 227, 255, 255, 255, 255, 1.0f, 1.0f, 1, startMenuStrings[10][gameInfo.language], 1);
-        SetFont(0);
-    }
     if (page.heading[0]) {
         text(MID, 24, 0xFFFFFF, 255, 0.8f, 0, page.heading, 1);
     }
