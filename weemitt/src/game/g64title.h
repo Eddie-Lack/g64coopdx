@@ -30,6 +30,8 @@ void G64TitleSelect(int row);
 void G64TitleNote(const char *text, unsigned rgb);
 /* Large text below the rows, such as a room code. */
 void G64TitleBig(const char *text);
+/* A test: on, the glove and the ball stand still, turned by angle (radians); 0 at the start. */
+void G64TitleTurn(int on, float angle);
 /* The player's glove and ball colors (0, or G64_TITLE_COLOR_SET plus 0xRRGGBB), each with the number of the model
    the player chose for it (g64models.h). */
 void G64TitleColors(unsigned glove, unsigned ball);
