@@ -1,9 +1,10 @@
 # The in-game menu
 
 Press Escape in a window build to open or close the menu. It is made with Dear ImGui (1.90.1, MIT, in
-`third_party/imgui`, see its README). The game keeps running while the menu is open. The menu takes the keyboard
-and the mouse: the game gets no keyboard buttons, but a game controller still works. F11 and Alt+Enter still switch
-full screen.
+`third_party/imgui`, see its README). The game keeps running while the menu is open. The menu takes the mouse. The
+game's keys and a game controller still work. While a text field of the menu has the keyboard, or a key is being set
+under Controls, the keys go to the menu instead. The menu has no keyboard navigation: the arrow keys go to the game.
+Escape closes the menu. F11 and Alt+Enter still switch full screen.
 
 ## Files
 
@@ -282,7 +283,7 @@ The combo box chooses what fills `pad[4]`.
 | --- | --- |
 | Off | `pad[4]` stays zero, as in the retail game. |
 | Second controller | The second SDL game controller or joystick drives it. It uses the same binding tables as controller 1 (the Controls window), including the stick, the dead zone and the range. The window names the device. With no second device it says so. A device that comes or goes is found at once. |
-| Keyboard (debug keys) | The keys below drive it. They work with the menu closed, as the game's own keys do. The keys are fixed. |
+| Keyboard (debug keys) | The keys below drive it. They work only with the menu closed. The keys are fixed. |
 
 The debug keys are 1 (A), 2 (B), 3 (Z), 4 (Start), 5 (L), 6 (R), 7 (C-up), 8 (C-down), 9 (C-left), 0 (C-right),
 `[` (D-pad up), `]` (D-pad down), `-` (D-pad left), `=` (D-pad right), and Home, End, Delete and Page Down for the
@@ -449,7 +450,9 @@ Game debug section and its table of controls open when `WEEMITT_MENU_TEST` is se
 `=keyboard` chooses the debug controller. `WEEMITT_DEBUG_INPUT=FILE` and `WEEMITT_DEBUG_ACTIONS=FRAME:NAME,...` drive it
 as `--debug-input` and `--debug-action` do (see [testing.md](testing.md)). `WEEMITT_VIRTUAL_PADS=N` makes N virtual game
 controllers, and `WEEMITT_VIRTUAL_PRESS=PAD:BUTTON:FROM:TO` holds an SDL controller button of one of them from
-original frame FROM up to TO. Together they test the second controller without hardware. Example, the timing bars on
+original frame FROM up to TO. `WEEMITT_VIRTUAL_AXIS=PAD:AXIS:FROM:TO[:FROM:TO...]` pushes an SDL controller axis
+of one of them all the way, in up to four spans of frames: axis 4, the left trigger, is Z. Together they test the
+second controller without hardware. Example, the timing bars on
 level 15 with a closed menu:
 
 ```sh

@@ -666,8 +666,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
     /* A test: G64_LAUNCHER_START=N presses START NOW once N players are in a hosted game. */
     int startAt = getenv("G64_LAUNCHER_START") ? atoi(getenv("G64_LAUNCHER_START")) : 0;
     /* A test: G64_LAUNCHER_KEYS lists keys that the start screen gets one after another, four a second: up,
-       down, left, right, a, b, back (backspace), a word to type (t:WORD), or the controller's A, left and right
-       (pa, pl, pr). */
+       down, left, right, a, b, back (backspace), a word to type (t:WORD), or the controller's A, left, right and Z
+       (pa, pl, pr, pz). */
     const char *keys = getenv("G64_LAUNCHER_KEYS");
     int keyFrame = 0;
     Uint32 padAt = 0;
@@ -692,6 +692,9 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
     if (autoPress && !strncmp(autoPress, "join:", 5))
         snprintf(L.code, sizeof L.code, "%s", autoPress + 5);
     G64TitleOn(1);
+    /* A test: G64_LAUNCHER_TURN=ANGLE holds the glove and the ball still at that turn, in radians. */
+    if (getenv("G64_LAUNCHER_TURN"))
+        G64TitleTurn(1, (float)atof(getenv("G64_LAUNCHER_TURN")));
     SDL_StartTextInput();
 
     for (;;) {
@@ -699,7 +702,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         /* The player's input in this frame: a move up or down, left or right, a press of A or B, typed text. */
         int move = 0, change = 0, pressA = 0, pressB = 0, erase = 0, what;
         /* The controller's own left, right and A: on a text row they step through letters and add one. */
-        int padChange = 0, padA = 0;
+        int padChange = 0, padA = 0, padErase = 0;
         char typed[64] = "";
         const char *room;
 
@@ -776,11 +779,13 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 change = padChange = -1;
             else if (n == 2 && !strncmp(keys, "pr", 2))
                 change = padChange = 1;
+            else if (n == 2 && !strncmp(keys, "pz", 2))
+                padErase = 1;
             else if (n > 2 && !strncmp(keys, "t:", 2))
                 snprintf(typed, sizeof typed, "%.*s", (int)(n - 2), keys + 2);
             keys = end ? end + 1 : keys + n;
         }
-        /* The controller, as the game reads it. A move repeats every quarter second while it's held; A and B act
+        /* The controller, as the game reads it. A move repeats every quarter second while it's held; A, B and Z act
            once for each press. */
         {
             int held = menu_is_open() ? 0 : g64_title_pad();
@@ -799,6 +804,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 pressA = padA = 1;
             if (now & G64_PAD_B)
                 pressB = 1;
+            if (now & G64_PAD_Z)
+                padErase = 1;
             padHeld = held;
         }
 
@@ -936,7 +943,8 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
             size_t n = strlen(buf);
             int changed = 0;
             const char *t;
-            if (erase && n > 0) {
+            /* The controller's Z takes the last letter away, as Backspace does. */
+            if ((erase || padErase) && n > 0) {
                 buf[--n] = 0;
                 changed = 1;
             }
