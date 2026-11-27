@@ -763,7 +763,8 @@ static void menu_music_tick(void) {
     if (master != menuVolumes[0] || music != menuVolumes[1]) {
         menuVolumes[0] = master;
         menuVolumes[1] = music;
-        soundout_volumes(master, music, 100);
+        /* The remix's own effects (a laugh) follow the music volume too. */
+        soundout_volumes(master, music, music);
     }
     if (port_menu_music() != menuMusicMode) {
         menuMusicMode = port_menu_music();
