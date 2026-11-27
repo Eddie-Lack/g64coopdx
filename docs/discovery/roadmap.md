@@ -165,8 +165,8 @@ harness at N players and by the determinism tests:
    G64_FLAG_ANY_BALL; tests/rom/anyball.c). Left: a look at it in the window program with two people playing.
 5. Exits and the hub: each player exits alone, the ball left behind, world doors. Done in part: each player exits
    alone, and the cave's crystal scene is each player's own (weemitt/src/game/g64players.c, tests/rom/cave.c). The
-   way out of the cave leads back to the hub stage the player came from (the host's routing, `take_exit` in
-   src/client/instances.c; tests/rom/instances.c). A player who comes into a running level starts a glove's width
+   way out of the cave leads back to the hub stage the player came from while others play in it, and to the newest
+   stage otherwise (the host's routing, `take_exit` in src/client/instances.c; tests/rom/instances.c, `first_ball`). A player who comes into a running level starts a glove's width
    from the start spot when the floor is there (`beside_start` in g64players.c; tests/rom/members.c).
 6. Bosses (six; five have their own code in `boss.c`) and bonus levels (six; five have their own code).
    Done in part: the count-in of a timed level holds every player. The Pirates boss's wall holds every glove and
