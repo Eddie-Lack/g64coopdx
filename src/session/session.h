@@ -32,6 +32,10 @@
  *            repeats a line a few times; a receiver drops a line whose number is that player's last one.
  *   kick     0x47 (host to a player it removed)
  *   bye      0x4D (either way: this end leaves the session; its user is told at once, as after a timeout)
+ *   profile  0x4E, number (u8), glove color (u32), ball color (u32), name (up to 16 bytes). A joiner to the host after
+ *            the start: the player changed their colors, models or name. It's sent again until the list of players
+ *            has them. The host drops a message whose number isn't newer than the last one's. The colors reach every
+ *            game through a session event at a frame (src/client/instances.c).
  * The level pack (src/client/pack.h). A joiner whose hello names another pack than the host's, or none, is
  * welcomed all the same when the host may send its pack, and isn't in the game until it has the pack:
  *   offer    0x49, the pack's id (16 bytes), the sizes of its manifest (u16), level file (u32), script (u32, 0
@@ -57,7 +61,7 @@
 
 #include "../net/udp.h"
 
-#define G64_PROTOCOL 14
+#define G64_PROTOCOL 15
 /* The game's levels (0 to 47), for the list of players. */
 #define G64_SESSION_LEVELS 48
 #define G64_DEFAULT_PORT 27064
@@ -173,6 +177,9 @@ void g64_session_set_flags(g64_session *g, int flags);
 /* This machine's player's glove and ball colors, before the start (0, or G64_COLOR_SET plus 0xRRGGBB). After the
  * start, every player's, by player number; the host has them as the joiners sent them. */
 void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball);
+/* This machine's player's colors and name, also after the start: a joiner then sends them to the host (profile). A
+ * color that isn't valid changes nothing. */
+void g64_session_set_profile(g64_session *g, uint32_t glove, uint32_t ball, const char *name);
 void g64_session_colors(const g64_session *g, int p, uint32_t *glove, uint32_t *ball);
 /* This machine's player's name (up to G64_NAME_MAX characters), before the first poll. A joiner's name given to
  * g64_session_join stays unless this is called. After the start g64_session_name gives every player's name, by

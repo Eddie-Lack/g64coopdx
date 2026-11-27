@@ -465,8 +465,8 @@ static void test_pack(uint32_t *clock) {
     info.levSize = 20000;
     info.scriptSize = 660;
     info.modelsSize = 3000;
-    check(G64_PROTOCOL == 14 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(13, clock),
-          "the protocol is 14, and a hello of protocol 13 is refused");
+    check(G64_PROTOCOL == 15 && hello_joins(G64_PROTOCOL, clock) && !hello_joins(14, clock),
+          "the protocol is 15, and a hello of protocol 14 is refused");
     {
         /* A joiner without the pack, and one with another pack, before the start. */
         net_socket *hs = net_open(0, err, sizeof err), *s1 = net_open(0, err, sizeof err), *s2 = net_open(0, err, sizeof err);
@@ -897,6 +897,35 @@ int main(void) {
         }
         check(chatCount[0] == before0 + 1 && chatCount[2] == before2 + 1,
               "ten lines at once from one joiner: the host passes on one");
+    }
+    /* A joiner's new colors, model and name after the start: they reach the host, and through its list of players
+       the other joiner. An older profile message, and one with a color that isn't valid, change nothing. */
+    {
+        int me1 = g64_session_me(m[1].session);
+        uint32_t glove = 0, ball = 0, glove2 = 0, ball2 = 0;
+        uint32_t newGlove = G64_COLOR_SET | 0x112233u | (3u << 25), newBall = G64_COLOR_SET | 0x445566u;
+        g64_session_set_profile(m[1].session, newGlove, newBall, "Renamed");
+        for (f = 0; f < 60; f++) {
+            clock += 50;
+            for (i = 0; i < PLAYERS; i++)
+                g64_session_poll(m[i].session, clock, on_game, &m[i]);
+        }
+        g64_session_colors(m[0].session, me1, &glove, &ball);
+        g64_session_colors(m[2].session, me1, &glove2, &ball2);
+        check(glove == newGlove && ball == newBall && glove2 == newGlove && ball2 == newBall &&
+                  !strcmp(g64_session_name(m[0].session, me1), "Renamed") &&
+                  !strcmp(g64_session_name(m[2].session, me1), "Renamed"),
+              "a joiner's new colors and name after the start reach the host and the other joiner");
+        {
+            /* An old number (the one before the last), then a color with bits that no color has. */
+            uint8_t old[14] = {0x4E, 0, 0, 0, 0, 1, 0, 0, 0, 1, 'o', 'l', 'd', 0};
+            uint8_t bad[12] = {0x4E, 200, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 'x', 'y'};
+            g64_session_test_inner(m[0].session, me1, old, 13, clock, on_game, &m[0]);
+            g64_session_test_inner(m[0].session, me1, bad, sizeof bad, clock, on_game, &m[0]);
+            g64_session_colors(m[0].session, me1, &glove, &ball);
+            check(glove == newGlove && ball == newBall && !strcmp(g64_session_name(m[0].session, me1), "Renamed"),
+                  "an old profile message and one with a bad color change nothing");
+        }
     }
     /* The list of players carries each player's level: the host sets it, and every joiner gets it. A level
        that isn't set is unknown. */

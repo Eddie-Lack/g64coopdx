@@ -11,7 +11,7 @@
    other message travels sealed (seal.h), inside a datagram that starts with G64_SEAL_TYPE. */
 enum { MSG_HELLO = 0x40, MSG_WELCOME, MSG_REFUSE, MSG_START, MSG_PING, MSG_GAME, MSG_CHAT, MSG_KICK };
 /* The level pack's messages (session.h). 0x48 is the sealed datagram's own type. */
-enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY, MSG_BYE };
+enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY, MSG_BYE, MSG_PROFILE };
 /* A bye goes out this many times at once: it's the last message, and nothing repeats it later. */
 #define BYE_SENDS 3
 /* The offer: the type, the id, the four sizes (u16, u32, u32, u32), then the name. */
@@ -49,6 +49,10 @@ enum { MSG_PACK_OFFER = 0x49, MSG_PACK_WANT, MSG_PACK_PIECE, MSG_PACK_READY, MSG
 #define CHAT_EVERY 150
 #define CHAT_GAP 400
 #define KICK_HOLD 3000
+/* A joiner sends its new colors and name every PROFILE_EVERY ms until the host's list of players has them. The
+   message is the type, a number, two colors and up to NAME_MAX bytes of name. */
+#define PROFILE_EVERY 250
+#define PROFILE_HEAD 10
 /* The host sends every player the list of players again this often, in ms. */
 #define ROSTER_EVERY 1000
 /* The addresses the host remembers of players it removed. */
@@ -104,6 +108,9 @@ typedef struct {
     uint8_t chatId;
     int chatHave, chatCopies;
     uint32_t chatTime;
+    /* On the host: the number of the player's last profile message, and 1 once one has come. */
+    uint8_t profileId;
+    int profileHave;
 } peer;
 
 struct g64_session {
@@ -122,6 +129,11 @@ struct g64_session {
     peer peers[G64_SESSION_MAX_PLAYERS];
     char name[NAME_MAX + 1];
     uint32_t glove, ball; /* this machine's player's colors */
+    /* On a joiner after the start: the colors and the name changed (g64_session_set_profile). The profile message
+       goes to the host until its list of players has them. */
+    int profileWait;
+    uint8_t profileId;
+    uint32_t profileLast;
     /* A joiner's secret key, and its hello as first sent: every repeat has the same bytes, which the keys are
        made from. */
     uint8_t secret[G64_SEAL_KEY];
@@ -593,6 +605,20 @@ static void host_inner(g64_session *g, int p, const uint8_t *d, int n, uint32_t 
         chat_arrives(g, p, d[2], d + 3, (size_t)(n - 3));
         return;
     }
+    if (d[0] == MSG_PROFILE && n >= PROFILE_HEAD && n <= PROFILE_HEAD + NAME_MAX && g->state == G64_SESSION_STARTED) {
+        /* The player's new colors and name. A message older than the last one is dropped: they may come out of
+           order. The colors reach the games through the host's colors events (src/client/instances.c). */
+        peer *c = &g->peers[p];
+        uint32_t glove = get32(d + 2), ball = get32(d + 6);
+        if (!valid_color(glove) || !valid_color(ball) || (c->profileHave && (int8_t)(uint8_t)(d[1] - c->profileId) <= 0))
+            return;
+        c->profileHave = 1;
+        c->profileId = d[1];
+        c->glove = glove;
+        c->ball = ball;
+        clean_text(c->name, sizeof c->name, d + PROFILE_HEAD, (size_t)(n - PROFILE_HEAD));
+        return;
+    }
     if (d[0] == MSG_GAME && n > 1) {
         g->peers[p].started = 1;
         if (g->state == G64_SESSION_STARTED && on_game)
@@ -922,6 +948,20 @@ g64_session_state g64_session_poll(g64_session *g, uint32_t now, g64_game_fn on_
             g->lastReady = now ? now : 1;
             send_sealed(g, &g->peers[0], m, sizeof m);
         }
+        if (g->profileWait && g->state == G64_SESSION_STARTED && g->me >= 1) {
+            /* The host's list has the new colors and name: the change has arrived. */
+            if (g->colors[g->me][0] == g->glove && g->colors[g->me][1] == g->ball && !strcmp(g->names[g->me], g->name))
+                g->profileWait = 0;
+            else if (g->profileLast == 0 || now - g->profileLast >= PROFILE_EVERY) {
+                uint8_t m[PROFILE_HEAD + NAME_MAX] = {MSG_PROFILE, g->profileId};
+                size_t len = strlen(g->name);
+                put32(m + 2, g->glove);
+                put32(m + 6, g->ball);
+                memcpy(m + PROFILE_HEAD, g->name, len);
+                g->profileLast = now ? now : 1;
+                send_sealed(g, &g->peers[0], m, PROFILE_HEAD + len);
+            }
+        }
         if (g->chatSends > 0 && g->me >= 1 && (g->chatLast == 0 || now - g->chatLast >= CHAT_EVERY)) {
             g->chatLast = now ? now : 1;
             g->chatSends--;
@@ -1058,6 +1098,25 @@ void g64_session_set_colors(g64_session *g, uint32_t glove, uint32_t ball) {
     if (g->state == G64_SESSION_WAITING && valid_color(glove) && valid_color(ball)) {
         g->glove = glove;
         g->ball = ball;
+    }
+}
+
+void g64_session_set_profile(g64_session *g, uint32_t glove, uint32_t ball, const char *name) {
+    char clean[NAME_MAX + 1];
+    if (g->state == G64_SESSION_FAILED || !valid_color(glove) || !valid_color(ball))
+        return;
+    clean_text(clean, sizeof clean, (const uint8_t *)(name ? name : ""), NAME_MAX);
+    if (g->glove == glove && g->ball == ball && !strcmp(g->name, clean))
+        return;
+    g->glove = glove;
+    g->ball = ball;
+    memcpy(g->name, clean, sizeof clean);
+    /* Before the start, the hello carries them (a joiner's hello is made once, at its first send). After it, a
+       joiner tells the host. The host's own are in its list of players at once. */
+    if (!g->host && g->state == G64_SESSION_STARTED) {
+        g->profileId++;
+        g->profileWait = 1;
+        g->profileLast = 0;
     }
 }
 
