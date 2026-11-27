@@ -13,6 +13,9 @@
 #include "prefpath.h"
 #include "menu.h"
 #include "../../../src/client/netplay.h"
+extern "C" {
+#include "../../../src/client/soundout.h"
+}
 #include "../../../src/session/session.h"
 
 /* The characters of a room code (the relay's relayCodeChars): no I, O, 0 or 1, which are easy to mix up. */
@@ -442,7 +445,7 @@ enum {
     R_HOST_PAGE, R_JOIN_PAGE, R_OPTIONS_PAGE, R_ALONE, R_SETTINGS, R_QUIT,
     R_PLAYERS, R_BALL_CONTROLS, R_ANY_BALL, R_ANY_WORLD, R_LISTED, R_TITLE, R_PACK, R_HOST, R_TRY,
     R_CODE, R_JOIN, R_ROOM,
-    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY, R_FREE_CAMERA, R_INVERT_Y, R_TAGS,
+    R_NAME, R_GLOVE_MODEL, R_BALL_MODEL, R_COLORS, R_GLOVE, R_BALL, R_DELAY, R_SENSITIVITY, R_FREE_CAMERA, R_INVERT_Y, R_MENU_MUSIC, R_TAGS,
     R_COPY, R_START_NOW, R_CANCEL, R_PACK_YES, R_PACK_NO, R_LEAVE_YES, R_LEAVE_NO,
 };
 
@@ -515,7 +518,7 @@ static void note(const char *text, unsigned rgb) {
 static int page_rows(int page) {
     if (page == PAGE_HOST)
         return 7 + (netplay_public() ? 1 : 0) + (packChoice >= 0 ? 1 : 0);
-    return choice == CUSTOM ? 11 : 9;
+    return choice == CUSTOM ? 12 : 10;
 }
 
 static int scrolls(int page) {
@@ -647,6 +650,10 @@ static void build_page(launcher *L) {
             OPTION(R_SENSITIVITY, "SENSITIVITY", m, G64_TITLE_ARROWS);
             OPTION(R_FREE_CAMERA, "FREE CAMERA", port_free_camera() ? "YES" : "NO", G64_TITLE_ARROWS);
             OPTION(R_INVERT_Y, "INVERT Y", port_invert_y() ? "YES" : "NO", G64_TITLE_ARROWS);
+            {
+                static const char *const musicNames[3] = {"REMIX", "ORIGINAL", "OFF"};
+                OPTION(R_MENU_MUSIC, "MENU MUSIC", musicNames[port_menu_music() % 3], G64_TITLE_ARROWS);
+            }
             OPTION(R_TAGS, "NAME TAGS", netplay_name_tags() ? "YES" : "NO", G64_TITLE_ARROWS);
 #undef OPTION
             break;
@@ -744,8 +751,49 @@ static int start(launcher *L, const unsigned char *rom, unsigned long romSize, c
     return 1;
 }
 
+/* The start screen's music (soundout.h): the mode that plays, -1 for none yet, and the volumes it plays at. */
+static int menuMusicOn, menuMusicMode = -1, menuVolumes[2] = {-1, -1};
+
+/* Once a frame: the music follows the player's choice (OPTIONS or the menu's Audio window) and the volumes. */
+static void menu_music_tick(void) {
+    int master, music;
+    if (!menuMusicOn)
+        return;
+    port_menu_sound(&master, &music);
+    if (master != menuVolumes[0] || music != menuVolumes[1]) {
+        menuVolumes[0] = master;
+        menuVolumes[1] = music;
+        soundout_volumes(master, music, 100);
+    }
+    if (port_menu_music() != menuMusicMode) {
+        menuMusicMode = port_menu_music();
+        soundout_menu_music(menuMusicMode);
+    }
+    soundout_tick();
+}
+
+static int launcher_run(SDL_Window *window, const unsigned char *rom, unsigned long romSize, const char *relay,
+                        int *level, int *players);
+
 int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long romSize, const char *relay, int *level,
                  int *players) {
+    int master, music, r;
+    /* The start screen plays the menu theme through the online game's sound player (soundout.h). Nothing of it
+       reaches a game's state. */
+    menuMusicOn = port_menu_sound(&master, &music) && soundout_open(rom, romSize) == 0;
+    menuMusicMode = -1;
+    menuVolumes[0] = menuVolumes[1] = -1;
+    menu_music_tick();
+    r = launcher_run(window, rom, romSize, relay, level, players);
+    /* A game or SOLO comes next: the song stops, and songs from now on play as the game's. */
+    if (menuMusicOn)
+        soundout_menu_music(G64_MENU_OFF);
+    menuMusicOn = 0;
+    return r;
+}
+
+static int launcher_run(SDL_Window *window, const unsigned char *rom, unsigned long romSize, const char *relay,
+                        int *level, int *players) {
     static launcher L;
     int printed = 0;
     /* A test: G64_LAUNCHER_AUTO=host or join:CODE presses Host or Join at once, list joins the first open game and
@@ -1148,6 +1196,9 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
                 case R_INVERT_Y:
                     port_set_invert_y(!port_invert_y());
                     break;
+                case R_MENU_MUSIC:
+                    port_set_menu_music((port_menu_music() + (change > 0 ? 1 : 2)) % 3);
+                    break;
                 case R_TAGS:
                     netplay_set_name_tags(!netplay_name_tags());
                     save_options(L.wanted);
@@ -1294,6 +1345,7 @@ int g64_launcher(SDL_Window *window, const unsigned char *rom, unsigned long rom
         /* The page with this frame's changes, then the game's frame. */
         build_page(&L);
         g64_title_frame(window);
+        menu_music_tick();
         menu_draw(window);
         SDL_GL_SwapWindow(window);
         SDL_Delay(10);

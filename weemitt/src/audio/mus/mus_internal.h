@@ -417,6 +417,12 @@ MUS_CHECK_SIZE(POLEF_STATE, 0x08);
 
 extern MusCommand musCommands[MUS_NUM_COMMANDS]; /* 801F40C0 jumptable */
 
+/* g64coopdx: the start screen's remix of a song (src/lib/remix.c). Both are NULL, and the player plays as the ROM's,
+   except in the sound library while a remix plays. musRemixFrame runs once per player period, before the channels.
+   musRemixNote runs for each note of a song as it starts, after a drum map: it may change the note and ch->wave. */
+extern void (*musRemixFrame)(void);
+extern void (*musRemixNote)(MusChannel *ch, s32 index, s32 *note);
+
 extern s32 musNumChannels;           /* 802AB038 D_802AB038 */
 extern ALVoice *musVoices;           /* 802AB03C D_802AB03C */
 extern MusChannel *musChannels;      /* 802AB040 D_802AB040 */

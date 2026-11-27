@@ -278,6 +278,22 @@ void audio_window() {
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("The sound effects, as a share of Master volume. 100%% is the game's own balance.");
     }
+#ifdef PORT_STUDIO
+    /* g64coopdx: the start screen's music (soundout.h): the remix, the original or none. */
+    {
+        static const char *const choices[3] = {"Remix", "Original", "Off"};
+        int now = port_menu_music();
+        ImGui::SetNextItemWidth(160.0f);
+        if (ImGui::BeginCombo("Menu music", choices[now >= 0 && now <= 2 ? now : 0])) {
+            for (int i = 0; i < 3; i++) {
+                if (ImGui::Selectable(choices[i], i == now)) {
+                    port_set_menu_music(i);
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+#endif
     bool mute = cfg->muteUnfocused != 0;
     if (ImGui::Checkbox("Mute when the window loses focus", &mute)) {
         cfg->muteUnfocused = mute;

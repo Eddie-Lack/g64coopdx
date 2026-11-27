@@ -133,6 +133,9 @@ static void *sym(const char *name) { return SDL_LoadFunction(lib, name); }
 
 int soundout_open(const unsigned char *rom, unsigned long romSize) {
     char path[1024], err[256];
+    /* The start screen opens it first; the online game after it finds it open. */
+    if (game && device)
+        return 0;
     const char *env = SDL_getenv("G64_SOUND_LIB");
     char *base = SDL_GetBasePath();
     GloverConfig c;
@@ -235,6 +238,19 @@ void soundout_tick(void) {
         if (f_advance(game, (float)r) == 0)
             advanced += r;
     }
+}
+
+void soundout_menu_music(int mode) {
+    GloverSoundCmd c[3];
+    memset(c, 0, sizeof c);
+    c[0].op = GLOVER_SOUND_SONG;
+    c[0].a = 0;
+    c[1].op = GLOVER_SOUND_REMIX;
+    c[1].a = mode == G64_MENU_REMIX;
+    c[2].op = GLOVER_SOUND_SONG;
+    c[2].a = mode == G64_MENU_OFF ? 0 : G64_MENU_SONG;
+    if (game)
+        f_sound(game, c, 3, NULL);
 }
 
 void soundout_volumes(int master, int music, int effects) {

@@ -70,6 +70,7 @@ typedef struct Settings {
     int mouseSensitivity;              /* g64coopdx: how fast the mouse turns the camera, ML_SENS_MIN to ML_SENS_MAX (mouselook.h) */
     int freeCamera;                    /* g64coopdx: online, the free camera (src/client/freecam.h), 0 or 1 */
     int invertY;                       /* g64coopdx: the free camera looks down when the mouse goes up, 0 or 1 */
+    int menuMusic;                     /* g64coopdx: the start screen's music: 0 the remix, 1 the original, 2 off */
     int volume;                        /* master volume, percent of the game's own level */
     float cameraFollow;                /* how much faster than the original the camera follows the glove, 1.0 to 3.0 */
     int ballworld;                     /* Ballworld mode, taken up at the next level start (the saves at the next start) */

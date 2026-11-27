@@ -68,6 +68,9 @@ MusCommand musCommands[MUS_NUM_COMMANDS] = {
  * 801C1338: the ALPlayer handler. The synthesizer calls it once per player
  * period. It returns the time to the next call in microseconds.
  */
+void (*musRemixFrame)(void);
+void (*musRemixNote)(MusChannel *ch, s32 index, s32 *note);
+
 ALMicroTime musPlayerHandler(void *player) {
     MusChannel *ch;
     s32 i;
@@ -75,6 +78,9 @@ ALMicroTime musPlayerHandler(void *player) {
 
     (void)player;
     musFifoProcess();
+    if (musRemixFrame != NULL) {
+        musRemixFrame();
+    }
 
     ch = musChannels;
     for (i = 0; i < musNumChannels; i++, ch++) {
@@ -235,6 +241,9 @@ void musChannelNextEvent(MusChannel *ch, s32 index) {
         envelopes = ch->song + musRead32(ch->song + MUS_SONG_ENV_TABLE);
         musCmdSetEnvelope(ch, envelopes + drum[1] * MUS_ENVELOPE_SIZE);
         note = drum[3];
+    }
+    if (musRemixNote != NULL && ch->song != NULL) {
+        musRemixNote(ch, index, &note);
     }
     if (ch->keepEnvelope == 0) {
         musEnvelopeStart(ch);

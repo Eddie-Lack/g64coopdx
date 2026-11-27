@@ -18,5 +18,11 @@ const g64_sound_backend *soundout_backend(void);
 void soundout_tick(void);
 /* The player's own volumes, in percent: the master volume of the device, and the songs and the effects. */
 void soundout_volumes(int master, int music, int effects);
+/* The start screen's music: the game's menu theme (its song G64_MENU_SONG), played as the remix of the sound
+ * library's player (weemitt's src/audio/mus/mus-remix.c), as the game plays it, or not at all. Any other song stops,
+ * and a song started after G64_MENU_OFF plays as the game's. */
+enum { G64_MENU_REMIX, G64_MENU_ORIGINAL, G64_MENU_OFF };
+#define G64_MENU_SONG 60 /* the game's TITLE2_TRACK, which its title menu plays */
+void soundout_menu_music(int mode);
 
 #endif

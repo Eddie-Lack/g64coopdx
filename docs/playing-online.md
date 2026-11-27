@@ -350,6 +350,18 @@ it to another input, the first one loses it, and shows `(none)` if it had no oth
 The master volume (Esc, **Settings**, **Audio**) starts at 20%. That's a part of the game's own level. Raise it if
 the game is too quiet.
 
+The start screen plays the game's menu theme. **Menu music** (Esc, **Settings**, **Audio**, or **MENU MUSIC** under
+**OPTIONS**) chooses how:
+
+| Choice | What plays |
+| --- | --- |
+| Remix (the default) | The menu theme, remixed: a little faster, a whole step higher, the two lead instruments trading their parts, a kick, a snare and a hat added to the drums, and more reverb |
+| Original | The menu theme as the game plays it |
+| Off | Nothing |
+
+The remix is made as it plays, from the music in your own ROM. It follows the master and the music volume. It stops
+when a game or SOLO starts, and there's none with `--no-sound`.
+
 The window holds the mouse while you play: the pointer's hidden and only its motion counts. It lets go while the
 Esc menu or your pause menu is open, and when you switch to another window. When you play alone, it also lets go on
 the game's title screen and its menus.

@@ -143,6 +143,7 @@ void settings_defaults(Settings *st) {
     st->mouseSensitivity = ML_SENS_DEFAULT;
     st->freeCamera = 1;
     st->invertY = 0;
+    st->menuMusic = 0;
     st->volume = VOLUME_DEFAULT;
     st->musicVolume = 100;
     st->effectsVolume = 100;
@@ -416,6 +417,10 @@ void settings_load(Settings *st, const char *path) {
             st->freeCamera = atoi(val) != 0;
         } else if (!strcmp(key, "invert_y")) {
             st->invertY = atoi(val) != 0;
+        } else if (!strcmp(key, "menu_music")) {
+            int v = atoi(val);
+
+            st->menuMusic = v >= 0 && v <= 2 ? v : 0;
         } else if (!strcmp(key, "mouse_sensitivity")) {
             int v = atoi(val);
 
@@ -518,8 +523,8 @@ int settings_save(const Settings *st, const char *path) {
     }
     fprintf(f, "# weemitt settings. The menu (Escape) writes this file.\n# Keys are SDL scancode numbers (4 is A, 44 is Space); 0 means no key.\n[graphics]\nphysics_mode=%d\nvsync=%d\nfullscreen=%d\nmax_fps=%d\n[enhancements]\neasy_ball=%d\nballworld=%d\ncamera_follow=%.2f\n[audio]\nmaster_volume=%d\n[developer]\nlog_file=%d\nlog_verbose=%d\nrecord_input=%d\n[controller]\nstick_dead=%d\nstick_range=%d\nmouse_sensitivity=%d\nfree_camera=%d\ninvert_y=%d\n[keys]\n",
             st->physicsMode, st->vsync, st->fullscreen, st->maxFps, st->easyBall, st->ballworld, (double)st->cameraFollow, st->volume, st->logFile, st->logVerbose, st->recordInput, st->stickDead, st->stickRange, st->mouseSensitivity, st->freeCamera, st->invertY);
-    fprintf(f, "[play]\nmusic_volume=%d\neffects_volume=%d\nmute_unfocused=%d\nskip_intro=%d\ninfinite_lives=%d\ninfinite_health=%d\nunlock_all=%d\nlevel_select=%d\npause_cheats=%d\n",
-            st->musicVolume, st->effectsVolume, st->muteUnfocused, st->skipIntro, st->infiniteLives, st->infiniteHealth,
+    fprintf(f, "[play]\nmusic_volume=%d\neffects_volume=%d\nmenu_music=%d\nmute_unfocused=%d\nskip_intro=%d\ninfinite_lives=%d\ninfinite_health=%d\nunlock_all=%d\nlevel_select=%d\npause_cheats=%d\n",
+            st->musicVolume, st->effectsVolume, st->menuMusic, st->muteUnfocused, st->skipIntro, st->infiniteLives, st->infiniteHealth,
             st->unlockAll, st->levelSelect, st->pauseCheats);
     for (i = 0; i < IN_COUNT; i++) {
         fprintf(f, "key.%s=", inputNames[i]);
