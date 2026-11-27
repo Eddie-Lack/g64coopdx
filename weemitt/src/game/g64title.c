@@ -274,16 +274,21 @@ u32 G64TitleModelWord(Actor *a, s32 *kind) {
     return 0;
 }
 
-/* The layout of the rows: up to four as large as the title's, more as smaller bars. */
-static void row_layout(s32 count, f32 *top, f32 *step, f32 *size) {
+/* The layout of the rows: up to four as large as the title's, more as smaller bars. step is the distance from one
+   row's middle to the next. size is the bars' height: a bar is about 31 points high at size 1, with a tenth less for
+   a row that isn't chosen. text is the letters' size, which leaves room in the bar above and below them. Seven rows
+   (G64_TITLE_ROWS) end above y 226, where the notes end. */
+static void row_layout(s32 count, f32 *top, f32 *step, f32 *size, f32 *textSize) {
     if (count <= 4) {
-        *top = 62.0f;
-        *step = 36.0f;
-        *size = 0.85f;
+        *top = 58.0f;
+        *step = 40.0f;
+        *size = 0.95f;
+        *textSize = 0.85f;
     } else {
-        *step = 136.0f / count;
-        *top = 46.0f + *step / 2.0f;
-        *size = *step / 42.0f;
+        *step = 176.0f / count;
+        *top = 40.0f + *step / 2.0f;
+        *size = *step / 40.0f;
+        *textSize = 136.0f / count / 42.0f;
     }
 }
 
@@ -313,7 +318,7 @@ s32 G64TitleMenu(void);
 /* The title screen's frame while the start screen is on. MainTitleWait calls this instead of its own menu. */
 s32 G64TitleMenu(void) {
     s32 i;
-    f32 top, step, size, spinDecay;
+    f32 top, step, size, textSize, spinDecay;
     f32 pulse = sinf(animFloat * 0.65) * 90.0f + 128.0f + 38.0f;
 
     ready = 1;
@@ -362,7 +367,7 @@ s32 G64TitleMenu(void) {
         char letter[2] = {logoName[i], 0};
         text(40, 34 + i * 22, 0xFFFFFF, 255, 1.3f, 0, letter, 1);
     }
-    row_layout(page.count, &top, &step, &size);
+    row_layout(page.count, &top, &step, &size, &textSize);
     if (page.heading[0]) {
         text(MID, 24, 0xFFFFFF, 255, 0.8f, 0, page.heading, 1);
     }
@@ -377,7 +382,7 @@ s32 G64TitleMenu(void) {
             s32 sel = i == page.selected;
             s32 off = page.rows[i].flags & G64_TITLE_OFF;
             char line[80];
-            f32 scale = (sel ? 0.9f : 0.75f) * (size < 0.85f ? size / 0.85f : 1.0f);
+            f32 scale = (sel ? 0.9f : 0.75f) * (textSize < 0.85f ? textSize / 0.85f : 1.0f);
             s32 alpha = off ? 110 : sel ? (s32)pulse : 255;
             b->pos.x = BAR_X;
             /* A larger y is higher in the picture. The bar's middle stands 11 points above the text's place. */
