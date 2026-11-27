@@ -28,8 +28,6 @@ void G64TitleRow(const char *label, const char *value, int flags);
 void G64TitleSelect(int row);
 /* A line of small text below the rows, in the color 0xRRGGBB. */
 void G64TitleNote(const char *text, unsigned rgb);
-/* 1 when B goes back from the page: the game's own "B BACK" mark shows at the lower right. */
-void G64TitleBack(int on);
 /* Large text below the rows, such as a room code. */
 void G64TitleBig(const char *text);
 /* The player's glove and ball colors (0, or G64_TITLE_COLOR_SET plus 0xRRGGBB), each with the number of the model
