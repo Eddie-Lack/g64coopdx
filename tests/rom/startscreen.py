@@ -23,6 +23,8 @@ Four rounds. In the first two a host and a joiner meet on the start screen:
      prints its place).
    - A joiner chooses another glove model during the game, through the lobby: it reaches the host, and the games
      stay equal.
+   - Menu music, captured with SDL's disk audio driver: the remix and the original play, the remix is faster, Off is
+     silent, and nothing clips.
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -38,6 +40,7 @@ import sys
 import tempfile
 import time
 import json
+import struct
 import urllib.request
 
 LOBBY_PORT = 18397
@@ -387,8 +390,67 @@ def model_change(args, work, display):
     return ok
 
 
+def capture_music(args, work, display, mode):
+    """The start screen's sound for about 35 seconds with Menu music at mode (0 the remix, 1 the original, 2 off),
+    through SDL's disk audio driver, as mono levels: the mean of each 512 samples' absolute value."""
+    name = "four-music-%d" % mode
+    folder = os.path.join(work, name, "g64coopdx", "Glover")
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, "settings.ini"), "w") as f:
+        f.write("[audio]\nmaster_volume=100\n[play]\nmenu_music=%d\n" % mode)
+    raw = os.path.join(work, name + ".raw")
+    one = Program(args, work, name, display, {"SDL_AUDIODRIVER": "disk", "SDL_DISKAUDIOFILE": raw}, [])
+    try:
+        time.sleep(35)
+    finally:
+        one.stop()
+    data = open(raw, "rb").read() if os.path.exists(raw) else b""
+    samples = struct.unpack("<%dh" % (len(data) // 2), data[: len(data) // 2 * 2])
+    levels = []
+    for i in range(0, len(samples) - 1024, 1024):
+        block = samples[i:i + 1024]
+        levels.append(sum(abs(v) for v in block) / len(block))
+    return levels, max((abs(v) for v in samples), default=0)
+
+
+def beats_per_minute(levels, rate=22047):
+    """The tempo from the levels' rises (onsets): the lag in 70 to 200 beats a minute at which they repeat best."""
+    rises = [max(0.0, b - a) for a, b in zip(levels, levels[1:])]
+    mean = sum(rises) / len(rises) if rises else 0
+    rises = [r - mean for r in rises]
+    per_second = rate / 512.0
+    best, best_lag = None, 0
+    for lag in range(int(per_second * 60 / 200), int(per_second * 60 / 70) + 1):
+        c = sum(rises[i] * rises[i + lag] for i in range(len(rises) - lag))
+        if best is None or c > best:
+            best, best_lag = c, lag
+    return 60.0 * per_second / best_lag if best_lag else 0
+
+
+def menu_music(args, work, display):
+    """Menu music: the remix and the original play and aren't silent, the remix is faster than the original, Off
+    is silent, and nothing clips. The first 5 seconds (the start screen's start) are left out."""
+    ok = True
+    got = {}
+    for mode in (0, 1, 2):
+        levels, peak = capture_music(args, work, display, mode)
+        levels = levels[int(5 * 22047 / 512):]
+        loud = sum(levels) / len(levels) if levels else 0
+        got[mode] = (loud, peak, beats_per_minute(levels) if loud > 10 else 0)
+    remix, original, off = got[0], got[1], got[2]
+    ok &= check(remix[0] > 100 and original[0] > 100, "the remix and the original play (levels %.0f and %.0f)" %
+                (remix[0], original[0]))
+    ok &= check(off[0] < 1, "Off is silent (level %.1f)" % off[0])
+    ok &= check(remix[1] < 32767 and original[1] < 32767, "nothing clips (peaks %d and %d)" % (remix[1], original[1]))
+    # The song's own tempo is about 120 beats a minute, and the remix's 9/8 of it, about 135.
+    ok &= check(110 < original[2] < 128 and 128 < remix[2] < 145,
+                "the remix is faster than the original (%.0f and %.0f beats a minute)" % (remix[2], original[2]))
+    return ok
+
+
 def round_four(args, work, display):
     ok = glove_depth(args, work, display)
+    ok &= menu_music(args, work, display)
     ok &= model_change(args, work, display)
     ok &= controller_erase(args, work, display)
     ok &= menu_open_play(args, work, display)

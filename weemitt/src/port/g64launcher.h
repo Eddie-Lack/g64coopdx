@@ -41,6 +41,11 @@ void port_set_mouse_sensitivity(int s);
 int port_free_camera(void);
 void port_set_free_camera(int on);
 int port_invert_y(void);
+/* The start screen's music (src/client/soundout.h: 0 the remix, 1 the original, 2 off), kept in settings.ini. */
+int port_menu_music(void);
+void port_set_menu_music(int mode);
+/* 0 when the start screen has no sound (headless, --no-sound); the master and the music volume in percent. */
+int port_menu_sound(int *master, int *music);
 void port_set_invert_y(int on);
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);

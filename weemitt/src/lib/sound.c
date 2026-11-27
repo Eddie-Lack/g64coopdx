@@ -18,6 +18,8 @@ void MusSetMasterVolume(int flags, int volume);
 void PrepareSong(unsigned char song);
 void musAudioAdvance(float retraces);
 void musSetGroupGain(int song, int effect);
+void g64_remix_mode(int on);
+void g64_remix_song_started(void);
 
 typedef struct {
     const GloverSoundCmd *cmds;
@@ -33,8 +35,12 @@ static void call_sound(void *arg) {
         int32_t handle = 0;
         switch (c->op) {
         case GLOVER_SOUND_SONG:
-            if (c->a >= 0 && c->a < 256)
+            if (c->a >= 0 && c->a < 256) {
                 PrepareSong((unsigned char)c->a);
+#ifdef PORT_AUDIO_MUS
+                g64_remix_song_started();
+#endif
+            }
             break;
         case GLOVER_SOUND_EFFECT:
             handle = MusStartEffect2(c->a, c->b, c->c, 0, -1);
@@ -68,6 +74,11 @@ static void call_sound(void *arg) {
             /* Only the real sound player has the groups' gain; the stand-in plays nothing anyway. */
 #ifdef PORT_AUDIO_MUS
             musSetGroupGain(c->a < 0 ? 0 : c->a > 100 ? 100 : c->a, c->b < 0 ? 0 : c->b > 100 ? 100 : c->b);
+#endif
+            break;
+        case GLOVER_SOUND_REMIX:
+#ifdef PORT_AUDIO_MUS
+            g64_remix_mode(c->a);
 #endif
             break;
         default:

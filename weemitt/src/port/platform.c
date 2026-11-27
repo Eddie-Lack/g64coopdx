@@ -1219,6 +1219,26 @@ void port_set_free_camera(int on) {
     }
 }
 
+int port_menu_music(void) {
+    return mouseSettings ? mouseSettings->menuMusic : 0;
+}
+
+void port_set_menu_music(int mode) {
+    if (mouseSettings) {
+        mouseSettings->menuMusic = mode >= 0 && mode <= 2 ? mode : 0;
+        if (mouseSettingsPath && mouseSettingsPath[0]) {
+            settings_save(mouseSettings, mouseSettingsPath);
+        }
+    }
+}
+
+/* The start screen's sound: none in the headless mode or with --no-sound. The volumes are the menu's. */
+int port_menu_sound(int *master, int *music) {
+    *master = mouseSettings ? mouseSettings->volume : 100;
+    *music = mouseSettings ? mouseSettings->musicVolume : 100;
+    return !opt.headlessFrames && !opt.noSound;
+}
+
 int port_invert_y(void) {
     return mouseSettings ? mouseSettings->invertY : 0;
 }

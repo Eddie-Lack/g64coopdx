@@ -333,6 +333,7 @@ GLOVER_API int32_t glover_audio_read(Glover *g, int16_t *out, int32_t frames);  
 #define GLOVER_SOUND_STOP_ALL 5  /* a: flags (1 effects, 2 songs), b: speed */
 #define GLOVER_SOUND_MASTER 6    /* a: flags, b: volume */
 #define GLOVER_SOUND_GAIN 7      /* a: the songs' volume, b: the effects' volume, both in percent (0 to 100) */
+#define GLOVER_SOUND_REMIX 8     /* a: 1 plays the songs that start from now on as the start screen's remix, 0 as they are */
 typedef struct GloverSoundCmd {
     int32_t op;
     int32_t a, b, c, d, e, f;
