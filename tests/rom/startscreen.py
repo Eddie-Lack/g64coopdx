@@ -23,8 +23,8 @@ Four rounds. In the first two a host and a joiner meet on the start screen:
      prints its place).
    - A joiner chooses another glove model during the game, through the lobby: it reaches the host, and the games
      stay equal.
-   - Menu music, captured with SDL's disk audio driver: the remix and the original play, the remix is slower (about
-     100 beats a minute), Off is silent, and nothing clips.
+   - Menu music, captured with SDL's disk audio driver: the remix and the original play at about 120 beats a minute,
+     the remix is louder, Off is silent, and nothing clips.
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -414,14 +414,15 @@ def capture_music(args, work, display, mode):
 
 
 def beats_per_minute(levels, rate=22047):
-    """The tempo from the levels' rises (onsets): the lag in 70 to 150 beats a minute at which they repeat best. The
-    remix's hats on the eighths and sixteenths repeat faster than that."""
+    """The tempo from the levels' rises (onsets): the lag in 100 to 140 beats a minute at which they repeat best. The
+    remix's hats on the eighths and sixteenths repeat faster than that, and the song's phrases (and the break's kick)
+    also repeat at 2/3 of its beat, slower than that."""
     rises = [max(0.0, b - a) for a, b in zip(levels, levels[1:])]
     mean = sum(rises) / len(rises) if rises else 0
     rises = [r - mean for r in rises]
     per_second = rate / 512.0
     best, best_lag = None, 0
-    for lag in range(int(per_second * 60 / 150), int(per_second * 60 / 70) + 1):
+    for lag in range(int(per_second * 60 / 140), int(per_second * 60 / 100) + 1):
         c = sum(rises[i] * rises[i + lag] for i in range(len(rises) - lag))
         if best is None or c > best:
             best, best_lag = c, lag
@@ -429,8 +430,8 @@ def beats_per_minute(levels, rate=22047):
 
 
 def menu_music(args, work, display):
-    """Menu music: the remix and the original play and aren't silent, the remix is slower, Off
-    is silent, and nothing clips. The first 5 seconds (the start screen's start) are left out."""
+    """Menu music: the remix and the original play and aren't silent, at about 120 beats a minute, the remix is
+    louder, Off is silent, and nothing clips. The first 5 seconds (the start screen's start) are left out."""
     ok = True
     got = {}
     for mode in (0, 1, 2):
@@ -443,9 +444,12 @@ def menu_music(args, work, display):
                 (remix[0], original[0]))
     ok &= check(off[0] < 1, "Off is silent (level %.1f)" % off[0])
     ok &= check(remix[1] < 32767 and original[1] < 32767, "nothing clips (peaks %d and %d)" % (remix[1], original[1]))
-    # The song's own tempo is about 120 beats a minute, and the remix's 107/128 of it, about 100.
-    ok &= check(110 < original[2] < 128 and 90 < remix[2] < 108,
-                "the remix is slower than the original (%.0f and %.0f beats a minute)" % (remix[2], original[2]))
+    # The remix plays at the song's own tempo, about 120 beats a minute. Its breakbeat and louder bass make it louder
+    # than the original.
+    ok &= check(110 < original[2] < 130 and 110 < remix[2] < 130,
+                "the remix and the original play at about 120 beats a minute (%.0f and %.0f)" % (remix[2], original[2]))
+    ok &= check(remix[0] > original[0] * 1.15, "the remix differs from the original: it's louder (%.0f and %.0f)" %
+                (remix[0], original[0]))
     return ok
 
 

@@ -355,7 +355,7 @@ The start screen plays the game's menu theme. **Menu music** (Esc, **Settings**,
 
 | Choice | What plays |
 | --- | --- |
-| Remix (the default) | The menu theme as late-90s game jungle: at about 100 beats a minute, a fourth lower, the two lead instruments trading their parts, a louder bass, a chopped breakbeat in place of the song's drums that changes over 16 bars, Cross-Stitch's laugh now and then, seagulls from the Pirates world, and more reverb |
+| Remix (the default) | The menu theme as late-90s game jungle: at its own tempo, a fourth lower, the two lead instruments trading their parts, a louder bass, a chopped breakbeat in place of the song's drums that changes over 16 bars, Cross-Stitch's laugh now and then, seagulls from the Pirates world, and more reverb |
 | Original | The menu theme as the game plays it |
 | Off | Nothing |
 
