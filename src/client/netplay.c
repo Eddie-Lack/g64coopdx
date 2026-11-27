@@ -30,6 +30,7 @@ static uint32_t now_ms(void) {
 #include "../rollback/rollback.h"
 #include "../session/session.h"
 #include "bankranges.h"
+#include "freecam.h"
 #include "instances.h"
 #include "pack.h"
 #include "packrom.h"
@@ -55,6 +56,8 @@ void G64MenuView(const char *const *items, int count, int selected);
 void G64LineView(const char *text, int top);
 void G64ChatView(const char *const *lines, int count);
 void G64CannonView(int p);
+int G64ViewCamera(float pos[3], float target[3]);
+void G64SetViewCamera(const float pos[3]);
 int G64PortalShut(int player);
 int G64PlayerHoldsBall(int player);
 void G64NudgePlayer(int p, float dx, float dy, float dz);
@@ -207,7 +210,26 @@ int netplay_any_world(void) { return session && (g64_session_flags(session) & G6
 int netplay_any_ball(void) { return session && (g64_session_flags(session) & G64_FLAG_ANY_BALL) != 0; }
 
 /* This player's colors (netplay_set_colors), and weemitt's table of every player's (g64players.c). */
+/* The free camera of this machine (freecam.h). */
+static g64_freecam freecam = {1, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f};
+
+void netplay_set_free_camera(int on, int invertY) {
+    if (freecam.on != (on != 0))
+        g64_freecam_reset(&freecam);
+    freecam.on = on != 0;
+    freecam.invertY = invertY != 0;
+}
+
+int netplay_free_camera_motion(int dx, int dy, int sensitivity) {
+    /* While the game's camera stays (a scene, the look-around mode), the mouse turns it with the C buttons. */
+    if (!freecam.on || !freecam.active)
+        return 0;
+    g64_freecam_motion(&freecam, dx, dy, sensitivity);
+    return 1;
+}
+
 static uint32_t myGlove, myBall;
+static char myName[G64_NAME_MAX + 1]; /* below, with the chat */
 extern unsigned g64PlayerColor[16][2];
 
 void netplay_set_colors(uint32_t glove, uint32_t ball) {
@@ -218,6 +240,9 @@ void netplay_set_colors(uint32_t glove, uint32_t ball) {
         myGlove &= 0x1FFFFFFu;
     if (((myBall >> 25) & 0xFu) >= G64_MODELS)
         myBall &= 0x1FFFFFFu;
+    /* During a game the change goes to the others (session.h, profile). */
+    if (session && active)
+        g64_session_set_profile(session, myGlove, myBall, myName);
 }
 
 void netplay_apply_colors(void) {
@@ -282,6 +307,8 @@ void netplay_set_name(const char *name) {
         myName[i] = name[i] >= 32 && name[i] < 127 ? name[i] : '?';
     myName[i] = 0;
     nameChosen = 1;
+    if (session && active)
+        g64_session_set_profile(session, myGlove, myBall, myName);
 }
 
 int netplay_name_chosen(void) { return nameChosen; }
@@ -1698,6 +1725,20 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
                     chat_add(-1, note);
                 }
             }
+        /* A player's new colors or models during the game (the profile message, or the host's own): every game gets
+           them through a colors event at a frame. Colors that the games have already change nothing. */
+        for (p = 0; p < players; p++)
+            if (inNoted[p] || p == 0) {
+                static uint32_t shown[G64_SESSION_MAX_PLAYERS][2];
+                uint32_t glove, ball;
+                g64_session_colors(session, p, &glove, &ball);
+                g64_ihost_set_colors(ihost, p, glove, ball);
+                if (p < G64_SESSION_MAX_PLAYERS && (shown[p][0] != glove || shown[p][1] != ball)) {
+                    shown[p][0] = glove;
+                    shown[p][1] = ball;
+                    plog_printf("g64coopdx: player %d's colors and models are %08x %08x", p + 1, glove, ball);
+                }
+            }
         flush_local();
         g64_ihost_tick(ihost);
         flush_local();
@@ -1780,6 +1821,8 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
         in.buttons = (uint16_t)(buttons & ~0x1000 & ~heldBack);
         in.x = stickX;
         in.y = stickY;
+        /* The free camera turns the stick by its angle, and takes C-left and C-right (freecam.h). */
+        g64_freecam_input(&freecam, &in.buttons, &in.x, &in.y);
     }
     /* The host decides who is present; the core fills it in. */
     in.present = 1;
@@ -1924,6 +1967,14 @@ int netplay_frame(uint16_t buttons, int8_t stickX, int8_t stickY, void *tasks, i
     /* In the Carnival bonus level the cannon points where this player aims. */
     G64CannonView(me);
     G64SwapPlayer(me);
+    {
+        /* The free camera stands in for this player's camera in the picture only: the state is loaded again after
+           the view. */
+        float game[3], target[3], at[3];
+        int allowed = G64ViewCamera(game, target);
+        if (g64_freecam_view(&freecam, game, target, allowed, g64_iclient_instance(iclient), at))
+            G64SetViewCamera(at);
+    }
     return port_game_draw_view(tasks, max);
 }
 

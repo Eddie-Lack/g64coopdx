@@ -37,6 +37,11 @@ void g64_launcher_solo(void);
    value is kept in range and saved at once. */
 int port_mouse_sensitivity(void);
 void port_set_mouse_sensitivity(int s);
+/* The free camera (src/client/freecam.h) and its Y the other way round, 0 or 1, kept in settings.ini too. */
+int port_free_camera(void);
+void port_set_free_camera(int on);
+int port_invert_y(void);
+void port_set_invert_y(int on);
 /* Reads the player's saved name (name.txt in the program's folder) unless a name was already given. */
 void g64_load_name(void);
 /* Saves a name that was given on the command line (--name) as the player's name for the next time. */
@@ -44,6 +49,25 @@ void g64_save_name(void);
 /* Reads the player's saved choices (options.txt in the program's folder): the input delay, and with host 1 also the
    host's choices on HOST GAME. Options on the command line come after it and win. */
 void g64_load_options(int host);
+/* The start screen's OPTIONS for the Esc menu's Player window, during a game too. Each change is saved at once, as on
+   the start screen (colors.txt, name.txt, options.txt), and an online game sends it to the others (netplay.h). kind is
+   G64_MODEL_GLOVE or G64_MODEL_BALL. A palette past the last one is CUSTOM. */
+int g64_palette_count(void);
+const char *g64_palette_name(int i);
+int g64_palette(void);
+void g64_set_palette(int i);
+int g64_model(int kind);
+void g64_set_model(int kind, int i);
+unsigned g64_custom_color(int kind);
+void g64_set_custom_color(int kind, unsigned rgb);
+/* The custom colors a player steps through (GLOVE COLOR and BALL COLOR), by name. g64_shade_of gives -1 for a color
+   that is none of them, whose name is SAVED. */
+int g64_shade_count(void);
+const char *g64_shade_name(int i);
+unsigned g64_shade_rgb(int i);
+int g64_shade_of(unsigned rgb);
+void g64_set_name_tags(int on);
+void g64_set_player_name(const char *name);
 
 #ifdef __cplusplus
 }

@@ -143,6 +143,11 @@ const char *netplay_pause_item(int i);
 int netplay_quit_requested(void);
 /* The question before leaving, the same for the host and the joiners. */
 const char *netplay_leave_question(void);
+/* The free camera of this machine (freecam.h): on or off, and the mouse's up and down the other way round. */
+void netplay_set_free_camera(int on, int invertY);
+/* Mouse motion for the free camera. Returns 1 when the free camera stood in for the game's in the last view and took
+ * it: the mouse then presses no C button. */
+int netplay_free_camera_motion(int dx, int dy, int sensitivity);
 /* The tip that the local player reads, as of the last netplay_frame: the number of lines on its page (0 when the
  * player reads none), each line, and 1 when another page follows. The game holds the reader and takes their A. */
 int netplay_tip_lines(void);

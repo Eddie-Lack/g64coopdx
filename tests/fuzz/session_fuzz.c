@@ -2,7 +2,8 @@
  * g64_session_test_inner). The first byte of each input picks the receiver (a host or a joiner), one of four
  * senders, and whether the rest is a raw datagram or an opened message. The host has a level pack to send; one of
  * its players lacks it, and a second joiner is in the middle of a download. Both sessions live across
- * inputs and are polled now and then. As a result, messages meet every state.
+ * inputs and are polled now and then. As a result, messages meet every state. A third host, for two players, has
+ * started: the messages that count only in a running game (a joiner's profile) meet it.
  *
  * Build and run: make fuzz (clang with -fsanitize=fuzzer). */
 #include <stddef.h>
@@ -25,7 +26,7 @@ static void chat(void *user, int from, const char *text) {
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    static g64_session *host, *join, *load, *to;
+    static g64_session *host, *join, *load, *to, *run;
     static uint8_t packBytes[3000];
     static const uint8_t packId[G64_PACK_ID_SIZE] = {5, 6, 7};
     static net_socket *sock;
@@ -43,11 +44,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             senders[i].port = (uint16_t)(5000 + i);
         }
     }
-    /* The sessions are made again whenever the joiner has failed or the host has lost a player: the fuzzer can't
+    /* The sessions are made again whenever the joiner has failed or a host has lost a player: the fuzzer can't
        make a datagram that opens, so nothing it sends keeps a player alive, and a kick ends the joiner. */
     if (!host || !g64_session_name(host, 1)[0] || !g64_session_name(host, 2)[0] || g64_session_me(join) != 1 ||
         g64_session_poll(join, now, game, NULL) == G64_SESSION_FAILED ||
-        g64_session_poll(load, now, game, NULL) == G64_SESSION_FAILED) {
+        g64_session_poll(load, now, game, NULL) == G64_SESSION_FAILED || g64_session_gone(run, 1)) {
         /* Two players join the host, and the joiner is welcomed: the messages behind the seal need players
            to come from. The public keys are any bytes that give a secret. */
         uint8_t hello[69 + 4] = {0x40, 'G', '6', '4', G64_PROTOCOL, 0xcd, 0xab, 0x34, 0x12};
@@ -60,7 +61,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         info.manifestSize = 40, info.levSize = 2000, info.modelsSize = 20;
         info.scriptSize = sizeof packBytes - 2060;
         if (host)
-            g64_session_free(host), g64_session_free(join), g64_session_free(load);
+            g64_session_free(host), g64_session_free(join), g64_session_free(load), g64_session_free(run);
         host = g64_session_host(sock, 4, 0x1234abcdu, 0, 3);
         g64_session_set_pack(host, packId);
         g64_session_send_pack(host, &info, packBytes);
@@ -86,7 +87,13 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         offer[17] = 40, offer[19] = 0xD0, offer[20] = 7, offer[23] = 0xAC, offer[24] = 3, offer[27] = 20;
         memcpy(offer + 31, "fuzz", 4);
         g64_session_test_inner(load, 0, offer, sizeof offer, now, game, NULL);
-        if (g64_session_joined(host) != 2 || g64_session_me(join) != 1 || g64_session_pack_accept(load) != 0)
+        /* The running host: one joiner's hello is enough for two players, and the poll starts the game. */
+        run = g64_session_host(sock, 2, 0x1234abcdu, 0, 3);
+        hello[21] = 11;
+        g64_session_receive(run, &senders[3], hello, sizeof hello, now, game, NULL);
+        g64_session_poll(run, now, game, NULL);
+        if (g64_session_joined(host) != 2 || g64_session_me(join) != 1 || g64_session_pack_accept(load) != 0 ||
+            g64_session_poll(run, now, game, NULL) != G64_SESSION_STARTED)
             __builtin_trap();
     }
     if (size < 1)
@@ -95,7 +102,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     /* Half of the inputs are raw datagrams: hellos, welcomes, refusals, and sealed datagrams that don't open.
        The other half are messages as they are after the seal is opened: no fuzzer can make a datagram that opens,
        and the parser behind the seal must still meet every input. */
-    to = !(data[0] & 0x80) ? host : data[0] & 0x20 ? load : join;
+    to = !(data[0] & 0x80) ? (data[0] & 0x10 ? run : host) : data[0] & 0x20 ? load : join;
     if (data[0] & 0x40)
         g64_session_test_inner(to, 1 + (data[0] & 3), data + 1, size - 1, now, game, NULL);
     else
@@ -121,6 +128,18 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             if (*c < 32 || *c > 126)
                 __builtin_trap();
     }
+    /* The running host's player 1 has valid colors and a printable name, whatever came. */
+    {
+        uint32_t glove, ball;
+        const char *c;
+        g64_session_colors(run, 1, &glove, &ball);
+        if ((glove >> 29) != 0 || ((glove >> 25) & 0xFu) >= G64_MODELS || (ball >> 29) != 0 ||
+            ((ball >> 25) & 0xFu) >= G64_MODELS)
+            __builtin_trap();
+        for (c = g64_session_name(run, 1); *c; c++)
+            if (*c < 32 || *c > 126)
+                __builtin_trap();
+    }
     /* Now and then the host removes a player, or someone says something. */
     if (size > 2 && data[1] == 0xEE)
         g64_session_kick(host, 1 + (data[2] & 3));
@@ -130,6 +149,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         g64_session_poll(host, now, game, NULL);
         g64_session_poll(join, now, game, NULL);
         g64_session_poll(load, now, game, NULL);
+        g64_session_poll(run, now, game, NULL);
     }
     return 0;
 }

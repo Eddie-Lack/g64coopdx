@@ -14,13 +14,15 @@ Four rounds. In the first two a host and a joiner meet on the start screen:
    and joins. The host leaves (WEEMITT_QUIT_FRAMES). The joiner must learn it at once, from the host's goodbye, not
    after the 10 seconds in which a silent host counts as gone.
 3. A pack alone, from HOST GAME and with --try-pack: the game starts in the pack's level. QUIT ends the program.
-4. One program at a time, without a lobby:
+4. One program at a time, and a host and a joiner once:
    - The glove on the start screen must be drawn with the depth buffer. Held still facing front (G64_LAUNCHER_TURN),
      its eyes must show inside its outline. Turned away, the star on its back must show. Without the depth buffer the
      body's parts drawn later cover both. This check needs ImageMagick's import, and skips without it.
    - A virtual controller's Z (WEEMITT_VIRTUAL_AXIS, the left trigger) takes letters away on the NAME bar.
    - In a game alone, with the Escape menu open, the game goes on and a game key moves the glove (--trace-updates
      prints its place).
+   - A joiner chooses another glove model during the game, through the lobby: it reaches the host, and the games
+     stay equal.
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -364,8 +366,30 @@ def menu_open_play(args, work, display):
     return ok
 
 
+def model_change(args, work, display):
+    """A joiner chooses another glove model during the game (G64_TEST_MODEL, as the Esc menu's Player window does).
+    The host's game gets it through its colors event, and the games stay equal: the host's hash checks and the
+    joiner's game find no difference."""
+    host, joiner = meet(args, work, display, {"G64_LAUNCHER_START": "2"}, {"G64_TEST_MODEL": "400:2"}, "four-model")
+    if not host:
+        return check(False, "the host gets a room code")
+    try:
+        ok = check(host.wait_for(r"player 2's colors and models are 04", 120, "log") is not None,
+                   "a joiner's new glove model reaches the host during the game")
+        time.sleep(15)
+        lines = re.findall(r"frame \d+, .*", host.log())
+        jlines = re.findall(r"frame \d+, .*", joiner.log())
+        ok &= check(bool(lines) and lines[-1].endswith(" 0 mismatches") and bool(jlines) and " 0 desyncs" in jlines[-1],
+                    "after the change every machine's game is the same")
+    finally:
+        host.stop()
+        joiner.stop()
+    return ok
+
+
 def round_four(args, work, display):
     ok = glove_depth(args, work, display)
+    ok &= model_change(args, work, display)
     ok &= controller_erase(args, work, display)
     ok &= menu_open_play(args, work, display)
     return ok

@@ -21,6 +21,9 @@ extern "C" {
 extern "C" {
 #include "../../../src/client/netplay.h"
 }
+#include "g64launcher.h"
+#include "../game/g64models.h"
+#include "../game/g64title.h"
 #endif
 #endif
 
@@ -34,8 +37,8 @@ char cfgPath[512];
 
 struct Windows {
     bool graphics, audio, controls, enhancements, cheats, developer, log, studioLevel;
-    /* g64coopdx: the online game's player list and chat. */
-    bool players, chat;
+    /* g64coopdx: the online game's player list and chat, and the player's own choices. */
+    bool players, chat, player;
 } win;
 
 /* Rebinding: which input and key slot wait for a key press (-1: none). */
@@ -1403,6 +1406,100 @@ static void draw_name_tags() {
 }
 #endif
 
+#ifdef PORT_STUDIO
+static bool menu_online();
+
+/* g64coopdx: a name takes only what both of the game's fonts draw, as on the start screen. */
+static int name_filter(ImGuiInputTextCallbackData *data) {
+    return data->EventChar < 128 && G64TitleDrawable((char)data->EventChar) ? 0 : 1;
+}
+
+/* g64coopdx: the player's own choices, also during a game: the start screen's OPTIONS (g64launcher.h) and the free
+   camera. Each change is saved at once. Online, a new color or model goes to every machine through the host
+   (session.h, profile), and a new name with the list of players. The free camera is online only. */
+static void player_window() {
+    static char name[17]; /* G64_NAME_MAX (session.h) and its end */
+    static bool nameShown;
+    if (!ImGui::Begin("Player", &win.player, ImGuiWindowFlags_AlwaysAutoResize)) {
+        nameShown = false;
+        ImGui::End();
+        return;
+    }
+    if (menu_online()) {
+        bool on = port_free_camera() != 0, invert = port_invert_y() != 0;
+        if (ImGui::Checkbox("Free camera", &on)) {
+            port_set_free_camera(on);
+        }
+        if (ImGui::Checkbox("Invert Y", &invert)) {
+            port_set_invert_y(invert);
+        }
+    }
+    int sens = port_mouse_sensitivity();
+    ImGui::SetNextItemWidth(160.0f);
+    if (ImGui::SliderInt("Mouse sensitivity", &sens, 1, 40)) {
+        port_set_mouse_sensitivity(sens);
+    }
+    if (menu_online()) {
+        ImGui::Separator();
+        static const char *const kindLabel[2] = {"Glove model", "Ball model"};
+        for (int kind = G64_MODEL_GLOVE; kind <= G64_MODEL_BALL; kind++) {
+            int now = g64_model(kind);
+            ImGui::SetNextItemWidth(160.0f);
+            if (ImGui::BeginCombo(kindLabel[kind], G64ModelLabel(kind, now))) {
+                for (int i = 0; i < G64ModelCount(kind); i++) {
+                    if (ImGui::Selectable(G64ModelLabel(kind, i), i == now)) {
+                        g64_set_model(kind, i);
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+        int pal = g64_palette();
+        ImGui::SetNextItemWidth(160.0f);
+        if (ImGui::BeginCombo("Colors", g64_palette_name(pal))) {
+            for (int i = 0; i <= g64_palette_count(); i++) {
+                if (ImGui::Selectable(g64_palette_name(i), i == pal)) {
+                    g64_set_palette(i);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (g64_palette() == g64_palette_count()) {
+            static const char *const colorLabel[2] = {"Glove color", "Ball color"};
+            /* The colors of the start screen's list, by their names. */
+            for (int kind = G64_MODEL_GLOVE; kind <= G64_MODEL_BALL; kind++) {
+                int now = g64_shade_of(g64_custom_color(kind));
+                ImGui::SetNextItemWidth(160.0f);
+                if (ImGui::BeginCombo(colorLabel[kind], g64_shade_name(now))) {
+                    for (int i = 0; i < g64_shade_count(); i++) {
+                        if (ImGui::Selectable(g64_shade_name(i), i == now)) {
+                            g64_set_custom_color(kind, g64_shade_rgb(i));
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+            }
+        }
+        ImGui::Separator();
+        bool tags = netplay_name_tags() != 0;
+        if (ImGui::Checkbox("Name tags", &tags)) {
+            g64_set_name_tags(tags);
+        }
+        /* The name is taken when its field lets go of the keyboard. */
+        if (!nameShown) {
+            snprintf(name, sizeof(name), "%s", netplay_name());
+            nameShown = true;
+        }
+        ImGui::SetNextItemWidth(160.0f);
+        ImGui::InputText("Name", name, sizeof(name), ImGuiInputTextFlags_CallbackCharFilter, name_filter);
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            g64_set_player_name(name);
+        }
+    }
+    ImGui::End();
+}
+#endif
+
 /* g64coopdx: 1 in an online game. The menu then offers only what is the player's own: the picture, the sound and
    the controls, the log, and the choices of the online pause menu. The studio, the enhancements, the cheats and
    the developer tools would change one machine's game only. */
@@ -1422,6 +1519,9 @@ void menu_bar() {
         ImGui::MenuItem("Graphics", NULL, &win.graphics);
         ImGui::MenuItem("Audio", NULL, &win.audio);
         ImGui::MenuItem("Controls", NULL, &win.controls);
+#ifdef PORT_STUDIO
+        ImGui::MenuItem("Player", NULL, &win.player);
+#endif
         ImGui::EndMenu();
     }
 #ifdef PORT_STUDIO
@@ -1806,7 +1906,7 @@ void menu_draw(SDL_Window *window) {
                 win.developer = true;
             } else {
                 win.graphics = win.audio = win.controls = win.enhancements = win.cheats = win.developer = win.log = true;
-                win.players = win.chat = true;
+                win.players = win.chat = win.player = true;
                 showFps = true;
             }
         }
@@ -1854,6 +1954,10 @@ void menu_draw(SDL_Window *window) {
         if (win.audio) audio_window();
         ImGui::SetNextWindowPos(ImVec2(480, 40), ImGuiCond_FirstUseEver);
         if (win.controls) controls_window();
+#ifdef PORT_STUDIO
+        ImGui::SetNextWindowPos(ImVec2(480, 300), ImGuiCond_FirstUseEver);
+        if (win.player) player_window();
+#endif
         /* g64coopdx: not in an online game (menu_online), and not where the tools are hidden. */
         if (!menu_online() && !menu_tools_hidden()) {
             ImGui::SetNextWindowPos(ImVec2(20, 410), ImGuiCond_FirstUseEver);

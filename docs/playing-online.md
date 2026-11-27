@@ -328,7 +328,7 @@ A gamepad works as an N64 controller. On the mouse and keyboard:
 
 | Mouse or key | N64 | What it does |
 | --- | --- | --- |
-| Mouse left and right | C-left and C-right | Turns the camera |
+| Mouse | | Turns the free camera round your glove; with **FREE CAMERA** off, left and right turn the game's camera with C-left and C-right |
 | Left click | A, or B with the ball | Jumps; with the ball, bounces it |
 | Right click | B, or A with the ball | Points; with the ball, lobs it or slaps it |
 | W A S D or arrow keys | Stick | Moves; a diagonal is as fast as a straight move |
@@ -354,10 +354,24 @@ The window holds the mouse while you play: the pointer's hidden and only its mot
 Esc menu or your pause menu is open, and when you switch to another window. When you play alone, it also lets go on
 the game's title screen and its menus.
 
-The mouse turns the camera with the C buttons, as a controller does. So the camera keeps the game's own rules: walls
-and floors stop it, and it turns no faster than a held C button turns it. Moving the mouse up or down does nothing.
+In an online game the mouse turns a free camera, your own. It goes all the way round your glove, as far from it as
+the game's camera is, and stays where you turn it. Mouse up and down raise and lower it. **INVERT Y** under
+**OPTIONS** swaps up and down. The stick and the d-pad move your glove from the free camera's point of view: up moves
+it away from the camera. C-left and C-right turn the free camera too. The game's own camera shows in C-up's
+look-around mode, in the game's scenes and while a level points the camera at something. Then the mouse turns the
+game's camera, as with **FREE CAMERA** off. The free camera has no walls: it can stand inside one.
+
+The game's own camera goes on underneath, the same on every machine, and the game uses it for everything but your
+picture. Things that the game leaves out of its own view, such as faraway enemies, may stand still in your picture
+when the free camera looks their way.
+
+**FREE CAMERA** under **OPTIONS** turns it off (**NO**) or on (**YES**, the default). Off, the mouse turns the game's
+camera with the C buttons, as a controller does. Then the camera keeps the game's own rules: walls and floors stop
+it, and it turns no faster than a held C button turns it. Moving the mouse up or down does nothing. When you play
+alone (SOLO), the mouse always works this way.
+
 **SENSITIVITY** under **OPTIONS** sets how far the camera turns for the same motion, from 1 to 40 (10 at first).
-The program keeps it with your other settings.
+The program keeps these choices with your other settings.
 
 Each click gives the button the game expects for what your glove does when the click starts:
 
@@ -377,8 +391,13 @@ If you played before this version, your settings file keeps your old keys: Space
 **Settings**, **Controls**, **Keyboard**, **Reset to defaults** gives you the new keys.
 
 Esc opens the menu at the top of the window, as in weemitt, the PC port of Glover that g64coopdx builds on.
-**Settings** has **Graphics**, **Audio** and **Controls**: in Controls you set your keys and your controller's
-buttons, also in the middle of an online game. **Online game** has the pause menu's choices
+**Settings** has **Graphics**, **Audio**, **Controls** and **Player**: in Controls you set your keys and your
+controller's buttons, also in the middle of an online game. **Player** has your choices from **OPTIONS**, also in the
+middle of a game: **Free camera**, **Invert Y**, **Mouse sensitivity**, **Glove model**, **Ball model**, **Colors**
+(with **Glove color** and **Ball color** for CUSTOM), **Name tags** and **Name**. A name changes when you leave its
+box. The program keeps each change, as the start screen does. In an online game your new models, colors and name
+reach everyone: the models and colors in the same game frame on every machine. When you play alone, **Player** has
+**Mouse sensitivity** only. **INPUT DELAY** changes only on the start screen. **Online game** has the pause menu's choices
 ([below](#your-pause-menu)) for the mouse. The game goes on while the menu is open, also when you play alone. Your
 keys and your controller still play it. While you type in a box of the menu, such as the chat's line, your keys go to
 the box.

@@ -68,6 +68,8 @@ typedef struct Settings {
     int stickDead;                     /* dead zone of the controller stick, percent of its travel */
     int stickRange;                    /* travel at which the stick counts as full tilt, percent */
     int mouseSensitivity;              /* g64coopdx: how fast the mouse turns the camera, ML_SENS_MIN to ML_SENS_MAX (mouselook.h) */
+    int freeCamera;                    /* g64coopdx: online, the free camera (src/client/freecam.h), 0 or 1 */
+    int invertY;                       /* g64coopdx: the free camera looks down when the mouse goes up, 0 or 1 */
     int volume;                        /* master volume, percent of the game's own level */
     float cameraFollow;                /* how much faster than the original the camera follows the glove, 1.0 to 3.0 */
     int ballworld;                     /* Ballworld mode, taken up at the next level start (the saves at the next start) */

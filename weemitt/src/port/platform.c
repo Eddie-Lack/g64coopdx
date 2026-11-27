@@ -1206,6 +1206,32 @@ void port_set_mouse_sensitivity(int s) {
     }
 }
 
+int port_free_camera(void) {
+    return mouseSettings ? mouseSettings->freeCamera : 1;
+}
+
+void port_set_free_camera(int on) {
+    if (mouseSettings) {
+        mouseSettings->freeCamera = on != 0;
+        if (mouseSettingsPath && mouseSettingsPath[0]) {
+            settings_save(mouseSettings, mouseSettingsPath);
+        }
+    }
+}
+
+int port_invert_y(void) {
+    return mouseSettings ? mouseSettings->invertY : 0;
+}
+
+void port_set_invert_y(int on) {
+    if (mouseSettings) {
+        mouseSettings->invertY = on != 0;
+        if (mouseSettingsPath && mouseSettingsPath[0]) {
+            settings_save(mouseSettings, mouseSettingsPath);
+        }
+    }
+}
+
 /* Takes or lets go of the mouse. Whatever the mouse held ends either way. */
 static void hold_mouse(int on) {
     if (on == mouseHeld) {
@@ -1230,7 +1256,13 @@ static int mouse_event(const SDL_Event *e, const Settings *st) {
     if (e->type == SDL_MOUSEMOTION) {
         if (mouseSkip) {
             mouseSkip = 0;
-        } else {
+        }
+#ifdef PORT_STUDIO
+        /* g64coopdx: online, the free camera takes the motion when it's on (src/client/freecam.h). */
+        else if (netplay_active() && netplay_free_camera_motion(e->motion.xrel, e->motion.yrel, st->mouseSensitivity)) {
+        }
+#endif
+        else {
             ml_motion(&mouse, e->motion.xrel, e->motion.yrel, st->mouseSensitivity);
         }
         return 1;
@@ -2877,6 +2909,23 @@ int main(int argc, char **argv) {
                 port_set_ballworld(0);
                 port_set_cheat_hold(0);
                 port_set_pause_cheats(0);
+                netplay_set_free_camera(settings.freeCamera, settings.invertY);
+                {
+                    /* A test: G64_TEST_MODEL=FRAME:MODEL chooses the glove's model at that frame of the online game,
+                       as the Player window does (tests/rom/startscreen.py). */
+                    static long modelAt = -2, modelFrames;
+                    static int modelTo;
+                    if (modelAt == -2) {
+                        const char *v = getenv("G64_TEST_MODEL");
+                        modelAt = -1;
+                        if (v != NULL && sscanf(v, "%ld:%d", &modelAt, &modelTo) != 2) {
+                            modelAt = -1;
+                        }
+                    }
+                    if (++modelFrames == modelAt) {
+                        g64_set_model(0, modelTo);
+                    }
+                }
                 netplay_set_volumes(settings.muteUnfocused && !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS)
                                         ? 0 : settings.volume,
                                     settings.musicVolume, settings.effectsVolume);
