@@ -143,7 +143,7 @@ void settings_defaults(Settings *st) {
     st->mouseSensitivity = ML_SENS_DEFAULT;
     st->freeCamera = 1;
     st->invertY = 0;
-    st->menuMusic = 0;
+    st->menuMusic = 1;
     st->volume = VOLUME_DEFAULT;
     st->musicVolume = 100;
     st->effectsVolume = 100;
@@ -420,7 +420,8 @@ void settings_load(Settings *st, const char *path) {
         } else if (!strcmp(key, "menu_music")) {
             int v = atoi(val);
 
-            st->menuMusic = v >= 0 && v <= 2 ? v : 0;
+            /* 0 was the remix, which is gone: it reads as the original. */
+            st->menuMusic = v == 2 ? 2 : 1;
         } else if (!strcmp(key, "mouse_sensitivity")) {
             int v = atoi(val);
 

@@ -23,8 +23,8 @@ Four rounds. In the first two a host and a joiner meet on the start screen:
      prints its place).
    - A joiner chooses another glove model during the game, through the lobby: it reaches the host, and the games
      stay equal.
-   - Menu music, captured with SDL's disk audio driver: the remix and the original play at about 120 beats a minute,
-     the remix is louder, Off is silent, and nothing clips.
+   - Menu music, captured with SDL's disk audio driver: the original plays at about 120 beats a minute, also with the
+     remix's old value in settings.ini, Off is silent, and nothing clips.
 
     tests/rom/startscreen.py --rom ROM --exe weemitt/build/studio64/weemitt-studio --lobby build/lobby
 
@@ -391,8 +391,8 @@ def model_change(args, work, display):
 
 
 def capture_music(args, work, display, mode):
-    """The start screen's sound for about 35 seconds with Menu music at mode (0 the remix, 1 the original, 2 off),
-    through SDL's disk audio driver, as mono levels: the mean of each 512 samples' absolute value."""
+    """The start screen's sound for about 35 seconds with Menu music at mode (1 the original, 2 off, 0 the remix that
+    was), through SDL's disk audio driver, as mono levels: the mean of each 512 samples' absolute value."""
     name = "four-music-%d" % mode
     folder = os.path.join(work, name, "g64coopdx", "Glover")
     os.makedirs(folder, exist_ok=True)
@@ -415,8 +415,7 @@ def capture_music(args, work, display, mode):
 
 def beats_per_minute(levels, rate=22047):
     """The tempo from the levels' rises (onsets): the lag in 100 to 140 beats a minute at which they repeat best. The
-    remix's hats on the eighths and sixteenths repeat faster than that, and the song's phrases (and the break's kick)
-    also repeat at 2/3 of its beat, slower than that."""
+    song's phrases also repeat at 2/3 of its beat, slower than that."""
     rises = [max(0.0, b - a) for a, b in zip(levels, levels[1:])]
     mean = sum(rises) / len(rises) if rises else 0
     rises = [r - mean for r in rises]
@@ -430,8 +429,9 @@ def beats_per_minute(levels, rate=22047):
 
 
 def menu_music(args, work, display):
-    """Menu music: the remix and the original play and aren't silent, at about 120 beats a minute, the remix is
-    louder, Off is silent, and nothing clips. The first 5 seconds (the start screen's start) are left out."""
+    """Menu music: the original plays at about 120 beats a minute, and so does an old settings.ini's remix (0), which
+    reads as the original. Off is silent, and nothing clips. The first 5 seconds (the start screen's start) are left
+    out."""
     ok = True
     got = {}
     for mode in (0, 1, 2):
@@ -439,17 +439,13 @@ def menu_music(args, work, display):
         levels = levels[int(5 * 22047 / 512):]
         loud = sum(levels) / len(levels) if levels else 0
         got[mode] = (loud, peak, beats_per_minute(levels) if loud > 10 else 0)
-    remix, original, off = got[0], got[1], got[2]
-    ok &= check(remix[0] > 100 and original[0] > 100, "the remix and the original play (levels %.0f and %.0f)" %
-                (remix[0], original[0]))
+    old, original, off = got[0], got[1], got[2]
+    ok &= check(original[0] > 100 and 110 < original[2] < 130,
+                "the original plays at about 120 beats a minute (level %.0f, %.0f beats)" % (original[0], original[2]))
+    ok &= check(old[0] > 100 and 110 < old[2] < 130 and abs(old[0] - original[0]) < original[0] * 0.1,
+                "an old setting of the remix plays the original (level %.0f, %.0f beats)" % (old[0], old[2]))
     ok &= check(off[0] < 1, "Off is silent (level %.1f)" % off[0])
-    ok &= check(remix[1] < 32767 and original[1] < 32767, "nothing clips (peaks %d and %d)" % (remix[1], original[1]))
-    # The remix plays at the song's own tempo, about 120 beats a minute. Its breakbeat and louder bass make it louder
-    # than the original.
-    ok &= check(110 < original[2] < 130 and 110 < remix[2] < 130,
-                "the remix and the original play at about 120 beats a minute (%.0f and %.0f)" % (remix[2], original[2]))
-    ok &= check(remix[0] > original[0] * 1.15, "the remix differs from the original: it's louder (%.0f and %.0f)" %
-                (remix[0], original[0]))
+    ok &= check(original[1] < 32767 and old[1] < 32767, "nothing clips (peaks %d and %d)" % (original[1], old[1]))
     return ok
 
 
