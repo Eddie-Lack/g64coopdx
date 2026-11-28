@@ -279,15 +279,15 @@ void audio_window() {
         ImGui::SetTooltip("The sound effects, as a share of Master volume. 100%% is the game's own balance.");
     }
 #ifdef PORT_STUDIO
-    /* g64coopdx: the start screen's music (soundout.h): the remix, the original or none. */
+    /* g64coopdx: the start screen's music (soundout.h): the original (1) or none (2). */
     {
-        static const char *const choices[3] = {"Remix", "Original", "Off"};
-        int now = port_menu_music();
+        static const char *const choices[2] = {"Original", "Off"};
+        int now = port_menu_music() == 2 ? 1 : 0;
         ImGui::SetNextItemWidth(160.0f);
-        if (ImGui::BeginCombo("Menu music", choices[now >= 0 && now <= 2 ? now : 0])) {
-            for (int i = 0; i < 3; i++) {
+        if (ImGui::BeginCombo("Menu music", choices[now])) {
+            for (int i = 0; i < 2; i++) {
                 if (ImGui::Selectable(choices[i], i == now)) {
-                    port_set_menu_music(i);
+                    port_set_menu_music(i + 1);
                 }
             }
             ImGui::EndCombo();

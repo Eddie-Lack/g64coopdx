@@ -1220,12 +1220,12 @@ void port_set_free_camera(int on) {
 }
 
 int port_menu_music(void) {
-    return mouseSettings ? mouseSettings->menuMusic : 0;
+    return mouseSettings ? mouseSettings->menuMusic : 1;
 }
 
 void port_set_menu_music(int mode) {
     if (mouseSettings) {
-        mouseSettings->menuMusic = mode >= 0 && mode <= 2 ? mode : 0;
+        mouseSettings->menuMusic = mode == 2 ? 2 : 1;
         if (mouseSettingsPath && mouseSettingsPath[0]) {
             settings_save(mouseSettings, mouseSettingsPath);
         }

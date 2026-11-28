@@ -241,16 +241,14 @@ void soundout_tick(void) {
 }
 
 void soundout_menu_music(int mode) {
-    GloverSoundCmd c[3];
+    GloverSoundCmd c[2];
     memset(c, 0, sizeof c);
     c[0].op = GLOVER_SOUND_SONG;
     c[0].a = 0;
-    c[1].op = GLOVER_SOUND_REMIX;
-    c[1].a = mode == G64_MENU_REMIX;
-    c[2].op = GLOVER_SOUND_SONG;
-    c[2].a = mode == G64_MENU_OFF ? 0 : G64_MENU_SONG;
+    c[1].op = GLOVER_SOUND_SONG;
+    c[1].a = mode == G64_MENU_OFF ? 0 : G64_MENU_SONG;
     if (game)
-        f_sound(game, c, 3, NULL);
+        f_sound(game, c, 2, NULL);
 }
 
 void soundout_volumes(int master, int music, int effects) {

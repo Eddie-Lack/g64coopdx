@@ -651,8 +651,7 @@ static void build_page(launcher *L) {
             OPTION(R_FREE_CAMERA, "FREE CAMERA", port_free_camera() ? "YES" : "NO", G64_TITLE_ARROWS);
             OPTION(R_INVERT_Y, "INVERT Y", port_invert_y() ? "YES" : "NO", G64_TITLE_ARROWS);
             {
-                static const char *const musicNames[3] = {"REMIX", "ORIGINAL", "OFF"};
-                OPTION(R_MENU_MUSIC, "MENU MUSIC", musicNames[port_menu_music() % 3], G64_TITLE_ARROWS);
+                OPTION(R_MENU_MUSIC, "MENU MUSIC", port_menu_music() == 2 ? "OFF" : "ORIGINAL", G64_TITLE_ARROWS);
             }
             OPTION(R_TAGS, "NAME TAGS", netplay_name_tags() ? "YES" : "NO", G64_TITLE_ARROWS);
 #undef OPTION
@@ -763,8 +762,7 @@ static void menu_music_tick(void) {
     if (master != menuVolumes[0] || music != menuVolumes[1]) {
         menuVolumes[0] = master;
         menuVolumes[1] = music;
-        /* The remix's own effects (a laugh) follow the music volume too. */
-        soundout_volumes(master, music, music);
+        soundout_volumes(master, music, 100);
     }
     if (port_menu_music() != menuMusicMode) {
         menuMusicMode = port_menu_music();
@@ -1198,7 +1196,7 @@ static int launcher_run(SDL_Window *window, const unsigned char *rom, unsigned l
                     port_set_invert_y(!port_invert_y());
                     break;
                 case R_MENU_MUSIC:
-                    port_set_menu_music((port_menu_music() + (change > 0 ? 1 : 2)) % 3);
+                    port_set_menu_music(port_menu_music() == 2 ? 1 : 2);
                     break;
                 case R_TAGS:
                     netplay_set_name_tags(!netplay_name_tags());
